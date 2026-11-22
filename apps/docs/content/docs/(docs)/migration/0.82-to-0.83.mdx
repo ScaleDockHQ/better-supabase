@@ -1,13 +1,18 @@
 ---
-title: From 0.81 to 0.82
-description: What to change when upgrading from better-supabase 0.81 to 0.82. The blocks list, project-level defaults, config the render already supplies, and authorization facts that move into the provider.
+title: From 0.82 to 0.83
+description: What to change when upgrading from better-supabase 0.82 to 0.83. Direct dependencies, the blocks list, project-level defaults, config the render already supplies, authorization facts that move into the provider, and Supabase CLI 3.2.0.
 ---
 
-0.82 shrinks the config. Facts the project, the schema files or the
+0.83 shrinks the config. Facts the project, the schema files or the
 authorization provider already state are no longer written twice. It is a minor
 release, and below 1.0 a minor version may carry breaking changes. Each change
 is also in the
 [changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+0.82.0 on npm has none of this work: it has no `actionKeys`, no
+`operations[].approval`, no `doctor.command`, no grouped baseline, no BS427 and
+no `codemod config --prune`. 0.83.0 is the first version with the features on
+this page, so read it as the one guide for the step from 0.82.
 
 Run the codemods in this order, then review the diff and the render:
 
@@ -17,20 +22,21 @@ pnpm better-supabase codemod config --prune
 pnpm better-supabase gen sql
 ```
 
-| Section                                                                   | Needs code                           |
-| ------------------------------------------------------------------------- | ------------------------------------ |
-| [The blocks list](#the-blocks-list)                                       | Run `codemod blocks-list`            |
-| [Project-level defaults](#project-level-defaults)                         | Review the numbering tenant column   |
-| [Config the render already supplies](#config-the-render-already-supplies) | Run `codemod config --prune`         |
-| [Provider fields](#provider-fields)                                       | Move keys and floors to the provider |
-| [Record types](#record-types)                                             | Run `codemod record-types`           |
-| [Table facts in comments](#table-facts-in-comments)                       | Run `codemod table-tags`             |
-| [Schemas by module reference](#schemas-by-module-reference)               | None                                 |
-| [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`        |
+| Section                                                                   | Needs code                                           |
+| ------------------------------------------------------------------------- | ---------------------------------------------------- |
+| [Direct dependencies](#direct-dependencies)                               | Remove pg-delta and pg-topo from your `package.json` |
+| [The blocks list](#the-blocks-list)                                       | Run `codemod blocks-list`                            |
+| [Project-level defaults](#project-level-defaults)                         | Review the numbering tenant column                   |
+| [Config the render already supplies](#config-the-render-already-supplies) | Run `codemod config --prune`                         |
+| [Provider fields](#provider-fields)                                       | Move keys and floors to the provider                 |
+| [Record types](#record-types)                                             | Run `codemod record-types`                           |
+| [Table facts in comments](#table-facts-in-comments)                       | Run `codemod table-tags`                             |
+| [Schemas by module reference](#schemas-by-module-reference)               | None                                                 |
+| [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`                        |
 
 ## What the codemods did to CentraKit
 
-`scripts/cutover-report.ts` copies a project, renders it with the 0.81 baseline, runs the
+`scripts/cutover-report.ts` copies a project, renders it with the 0.82 baseline, runs the
 codemods in the order above, and renders again with this release. For CentraKit it
 reported these config lines per top-level key of `better-supabase.config.ts`.
 
@@ -57,13 +63,25 @@ other changes from block updates between the two builds that the report's allowl
 Five adopter files become deletable: `secret_fields.sql`, `packages/supabase-runtime/src/db.ts`
 field helpers, the `gen.functions` section, and the two import runner files.
 
+## Direct dependencies
+
+`better-supabase` now installs `oxc-parser`, `@supabase/pg-parser`,
+`@supabase/pg-delta` and `@supabase/pg-topo` at exact versions. Only the CLI and
+the Node entries import them, so deployed functions do not grow.
+
+| 0.82                                                | 0.83                                                           |
+| --------------------------------------------------- | -------------------------------------------------------------- |
+| `pnpm add -D @supabase/pg-delta @supabase/pg-topo`  | Nothing to install; `better-supabase` brings both              |
+| `@supabase/pg-delta` in the app's `devDependencies` | Remove it (`pnpm remove @supabase/pg-delta @supabase/pg-topo`) |
+| BS239 reports the two packages as missing           | BS239 is retired; BS709 reports an own copy                    |
+
 ## The blocks list
 
 `blocks` is a list of block names and `{ block, name?, ...entry }` objects. The
 keyed object form is rejected when the config loads, with a hint to run the
 codemod. A block with nothing to configure is a plain name.
 
-| 0.81                                               | 0.82                                                   |
+| 0.82                                               | 0.83                                                   |
 | -------------------------------------------------- | ------------------------------------------------------ |
 | `blocks: { tags: {} }`                             | `blocks: ["tags"]`                                     |
 | `blocks: { comments: { api: "api" } }`             | `blocks: [{ block: "comments", api: "api" }]`          |
@@ -77,7 +95,7 @@ file already holds a list, and `--check` exits 1 while a file still needs it.
 These facts are set once under `database.sql` and every block that needs one
 reads it.
 
-| 0.81                                                                       | 0.82                                             |
+| 0.82                                                                       | 0.83                                             |
 | -------------------------------------------------------------------------- | ------------------------------------------------ |
 | `tenant: "org_id"` on each table, data-lifecycle table and tag link        | `database.sql.tenantColumn: "org_id"`            |
 | `numbering` entry without a tenant column uses `organization_id`           | the entry uses `sql.tenantColumn` when it is set |
@@ -100,7 +118,7 @@ generated file differs. It removes the entries in batches and halves a batch
 whose render changes or throws, so it lists the block groups it kept and why
 instead of stopping at the first entry another option needs.
 
-| 0.81                                                                  | 0.82                                  |
+| 0.82                                                                  | 0.83                                  |
 | --------------------------------------------------------------------- | ------------------------------------- |
 | `columns: { tasks: { title: "title" } }`                              | removed; the column has the same name |
 | `tenant: "org_id"` equal to `sql.tenantColumn`                        | removed                               |
@@ -114,7 +132,7 @@ An `AuthorizationProvider` can now state the permission keys, the approvers and
 the approval floors that the config used to repeat. Every field is optional, so
 a provider that sets none of them keeps working.
 
-| 0.81                                                   | 0.82                                                                      |
+| 0.82                                                   | 0.83                                                                      |
 | ------------------------------------------------------ | ------------------------------------------------------------------------- |
 | `blocks.<name>.permissions` in every app               | `actionKeys.blocks.<name>` in the provider; the config entry still wins   |
 | `subjects.<type>.permissions` in every app             | `actionKeys.recordTypes.<type>`                                           |
@@ -177,7 +195,7 @@ where a review of the schema shows them. The config entry still works. For
 audit, data lifecycle and privileges it wins when both exist; a `same-tenant`
 tag replaces the entries for its column.
 
-| Fact                | Config in 0.81                                     | Comment in 0.82                                      |
+| Fact                | Config in 0.82                                     | Comment in 0.83                                      |
 | ------------------- | -------------------------------------------------- | ---------------------------------------------------- |
 | Audit exemption     | `blocks.audit.options.exempt: [{ table, reason }]` | `@bsb audit-exempt reason="rebuilt nightly"`         |
 | Data lifecycle      | `blocks.data-lifecycle.options.tables.<table>`     | `@bsb data-lifecycle user=owner_id export=false`     |
@@ -214,7 +232,7 @@ exported Standard Schema as `"./schemas.ts#name"`. The CLI loads the export,
 reads its JSON Schema for the pg_jsonschema check, and types the column as its
 output, so the config no longer imports a schema library or repeats the type.
 
-| 0.81                                                                           | 0.82                                                  |
+| 0.82                                                                           | 0.83                                                  |
 | ------------------------------------------------------------------------------ | ----------------------------------------------------- |
 | `json: { "t.c": { import: "./s.ts#C", schema: C } }` with `import { C }` above | `json: { "t.c": { schema: "./s.ts#C" } }`             |
 | `schemas: { user: { theme: theme } }` with the schema imported                 | `schemas: { user: { theme: "./settings.ts#theme" } }` |
@@ -270,7 +288,7 @@ block function.
 BS244 now names the five largest blocks by generated SQL size when the module SQL passes 2 MB, so you
 can see which block to install in a smaller form or leave out.
 
-Four generator items from the 0.82 plan did not change code, and the reasons are on record for the ADR:
+Four generator items from the 0.83 plan did not change code, and the reasons are on record for the ADR:
 
 - **Insert optionality.** `columnsSchema` already reads `not null default` from each column's type text, and a column
   with a default is optional on insert and required on output. The type test in `tests/core/columns-schema.test.ts`
