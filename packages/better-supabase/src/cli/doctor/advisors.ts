@@ -82,6 +82,7 @@ export function managementAdvisors(
 
       const text = await request(url, {
         what: `Management API ${category} advisors`,
+        needs: "read the project's advisors",
         headers: { authorization: `Bearer ${options.accessToken}` },
         ...(options.fetch ? { fetch: options.fetch } : {}),
       });

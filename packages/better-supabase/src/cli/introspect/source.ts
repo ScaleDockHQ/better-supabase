@@ -96,6 +96,7 @@ export function managementSource(
     async query(sql: string) {
       const text = await request(endpoint, {
         what: `Management API query for project ${options.projectRef}`,
+        needs: "run read-only queries on the database",
         method: "POST",
         headers: {
           authorization: `Bearer ${options.accessToken}`,
