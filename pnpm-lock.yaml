@@ -2673,6 +2673,12 @@ importers:
       '@better-supabase/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
+      '@supabase/pg-delta':
+        specifier: catalog:deps
+        version: 1.0.0-alpha.61(@supabase/pg-topo@1.0.0-alpha.8(supports-color@11.0.0))(supports-color@11.0.0)
+      '@supabase/pg-topo':
+        specifier: catalog:deps
+        version: 1.0.0-alpha.8(supports-color@11.0.0)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -2688,6 +2694,9 @@ importers:
       pg:
         specifier: 'catalog:'
         version: 8.23.1
+      pg-delta-previous:
+        specifier: npm:@supabase/pg-delta@1.0.0-alpha.60
+        version: '@supabase/pg-delta@1.0.0-alpha.60(@supabase/pg-topo@1.0.0-alpha.8(supports-color@11.0.0))(supports-color@11.0.0)'
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -7543,6 +7552,16 @@ packages:
     hasBin: true
     peerDependencies:
       '@supabase/pg-topo': ^1.0.0-alpha.3
+    peerDependenciesMeta:
+      '@supabase/pg-topo':
+        optional: true
+
+  '@supabase/pg-delta@1.0.0-alpha.60':
+    resolution: {integrity: sha512-pUO6OPOCOhcz89tHL+oOGWUPkVgPiw50n7ftnpUoozdOhqsPEANj81SvRMXClCepgkysvI+CJSN868vtj6ueog==}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
+    peerDependencies:
+      '@supabase/pg-topo': ^1.0.0-alpha.8
     peerDependenciesMeta:
       '@supabase/pg-topo':
         optional: true
@@ -21558,6 +21577,17 @@ snapshots:
       typescript: 7.0.2
 
   '@supabase/pg-delta@1.0.0-alpha.34(@supabase/pg-topo@1.0.0-alpha.8(supports-color@11.0.0))(supports-color@11.0.0)':
+    dependencies:
+      debug: 4.4.3(supports-color@11.0.0)
+      pg: 8.23.1
+      pg-connection-string: 2.14.1
+    optionalDependencies:
+      '@supabase/pg-topo': 1.0.0-alpha.8(supports-color@11.0.0)
+    transitivePeerDependencies:
+      - pg-native
+      - supports-color
+
+  '@supabase/pg-delta@1.0.0-alpha.60(@supabase/pg-topo@1.0.0-alpha.8(supports-color@11.0.0))(supports-color@11.0.0)':
     dependencies:
       debug: 4.4.3(supports-color@11.0.0)
       pg: 8.23.1
