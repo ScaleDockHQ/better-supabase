@@ -10446,6 +10446,7 @@
       "listBody",
       "listDeclare",
       "listOrder",
+      "mappingTagsOf",
       "maskSql",
       "memoized",
       "memoStats",
@@ -10536,6 +10537,7 @@
       "unusedDeclaredColumns",
       "upgradePlan",
       "widenedCommands",
+      "withMappingTags",
       "writtenValues"
     ],
     "types": [

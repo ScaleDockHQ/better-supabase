@@ -23,7 +23,9 @@ import {
   resolveExposeColumns,
   resolveBlocks,
   sameTenantLayout,
+  mappingTagsOf,
   sameTenantTagsOf,
+  withMappingTags,
 } from "../sql/index.ts";
 import { apiUsedNames } from "./api-used.ts";
 import { parseSnapshot } from "./commands/snapshot.ts";
@@ -284,6 +286,15 @@ export async function moduleLayoutFor(
     input.permissionCatalog,
   );
 
+  const mapped = withMappingTags(
+    base.modules ?? {},
+    base.instances ?? {},
+    mappingTagsOf(
+      (await appSchemaTexts(config)).map((file) => file.text),
+      config.schemas,
+    ),
+  );
+
   const grants =
     base.grants === undefined
       ? undefined
@@ -300,6 +311,8 @@ export async function moduleLayoutFor(
 
   return {
     ...base,
+    modules: mapped.modules,
+    instances: mapped.instances,
     ...(rerunnable ? { rerunnable } : {}),
     ...(grants === undefined ? {} : { grants }),
     ...(apiUsed === undefined ? {} : { apiUsed }),

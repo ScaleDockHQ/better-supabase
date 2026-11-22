@@ -65,6 +65,8 @@ export {
 
 export { blockSqlVersion } from "./module-types.ts";
 
+export { mappingTagsOf, withMappingTags } from "./mapping-tags.ts";
+
 export { moduleSource, resolveBlocks, SQL_MODULES } from "./registry.ts";
 
 export { seedDefaultsFunctions } from "./seed-functions.ts";
