@@ -25,7 +25,7 @@ Doctor reads the project's own files under pg-delta and reports:
 - BS730: a table in a publication other than `supabase_realtime` without a
   primary key or `replica identity full`, which a Pipeline source needs.
 
-Module files better-supabase writes are not read; their output is a separate follow-up.
+BS725 reads the module files better-supabase writes too, so a generated statement of these shapes is reported with the module's name and the advice to upgrade and regenerate. BS726 and BS728 to BS730 and the pg-topo group already read every file in the tree. A `cron.schedule` inside a string literal, such as a `to_regprocedure` check, is not a call.
 
 ## Consequences
 

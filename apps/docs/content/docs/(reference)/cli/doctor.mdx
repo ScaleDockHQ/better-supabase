@@ -3263,8 +3263,8 @@ directive pg-topo does not know (`phase`, `depends_on`, `requires` and
 ### BS725
 
 **Warning: a statement pg-delta cannot see in a schema file.** Under pg-delta
-the doctor reads your files in `supabase/schemas` (module files better-supabase
-writes are not read) for four patterns: a `do` block that runs DDL (a catalog
+the doctor reads every file in `supabase/schemas`, the module files better-supabase
+writes included, for four patterns: a `do` block that runs DDL (a catalog
 loop is BS318), a `cron.schedule` call inside a function or `do` body, an
 `alter publication` through `execute` or `format`, and an `alter default
 privileges` without `for role`. pg-delta reads the database the files load

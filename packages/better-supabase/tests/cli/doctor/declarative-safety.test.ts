@@ -79,6 +79,28 @@ describe("BS725 statements pg-delta cannot see", () => {
     expect(found[0]?.location?.line).toBe(1);
   });
 
+  it("reads module files too and names the module that wrote them", async () => {
+    const found = await run("BS725", {
+      [schema("900_better_supabase_050_queue.sql")]: [
+        "-- @bsb-block queue@3 managed",
+        "create function f() returns void language plpgsql as $$ begin perform cron.schedule('a', '1 minute', 'select 1'); end $$;",
+      ].join("\n"),
+    });
+
+    expect(found).toHaveLength(1);
+    expect(found[0]?.message).toContain("module queue");
+    expect(found[0]?.message).toContain("regenerate");
+  });
+
+  it("ignores a cron.schedule lookup that only checks the function exists", async () => {
+    expect(
+      await run("BS725", {
+        [schema("a.sql")]:
+          "create function f() returns void language plpgsql as $$ begin if to_regprocedure('cron.schedule(text, text, text)') is not null then null; end if; end $$;",
+      }),
+    ).toEqual([]);
+  });
+
   it("is quiet without pg-delta", async () => {
     expect(
       await run(
