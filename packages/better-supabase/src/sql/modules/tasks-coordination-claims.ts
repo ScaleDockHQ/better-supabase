@@ -115,7 +115,8 @@ export function claimsSql(
 
   const reservationName = ctx.naming.rename("bsb_task_reservation");
 
-  const reservationTrigger = `
+  const reservationTrigger = reservable
+    ? `
 
 -- Unassigning the user a task is reserved for ends the reservation.
 create or replace function better_supabase.${reservationName}()
@@ -133,7 +134,8 @@ $$;
 ${triggerGrant(`better_supabase.${reservationName}()`)}
 drop trigger if exists ${reservationName} on ${t("assignees")};
 create trigger ${reservationName} after delete on ${t("assignees")}
-for each row execute function better_supabase.${reservationName}();`;
+for each row execute function better_supabase.${reservationName}();`
+    : "";
 
   const leaseOf = (lease: string): string =>
     `least(${String(co.maxLease)}, greatest(1, coalesce(${lease}, ${String(co.lease)})))`;
@@ -317,7 +319,7 @@ begin
   return (select ${h.row("x")} from ${t("items")} x where x.${w("id")} = v_row.${w("id")});
 end;
 $$;
-${userGrant(`${fn("delegate_task")}(uuid, uuid, jsonb, text)`)}${reservable ? reservationTrigger : ""}
+${userGrant(`${fn("delegate_task")}(uuid, uuid, jsonb, text)`)}${reservationTrigger}
 
 -- Deletes the claims whose lease ran out, moves each task to the expired stage
 -- (the claims.expiredStage option) and records task.claim_expired.

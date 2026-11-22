@@ -70,9 +70,9 @@ export type TasksSqlOptions = {
    * "keep"` leaves it on hold. ADR 1161.
    *
    * `kinds` limits the kinds a hold accepts (short lowercase words); any other
-   * kind raises `TASK_HOLD_INVALID`. `approval.kinds` limits which kinds open an
-   * approval and must be a subset of `kinds`. Releasing a hold, leaving the hold
-   * stage and closing the task cancel a pending approval request. ADR 1182.
+   * kind raises `TASK_HOLD_INVALID`. `approval.kinds` limits which kinds open
+   * an approval and must be a subset of `kinds`. Releasing a hold, leaving the
+   * hold stage and closing the task cancel a pending approval request. ADR 1182.
    */
   readonly hold?: {
     readonly stage?: TaskStageRef;

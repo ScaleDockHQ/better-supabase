@@ -628,7 +628,10 @@ begin${
   ${ctx.hook("before_task_close", [
     ["uuid", `new.${w("id")}`],
     ["text", outcome],
-    ["text", `coalesce(nullif(current_setting('bsb.close_note', true), ''), ${ctx.has("items", "closeNote") ? `new.${w("closeNote")}` : "null"})`],
+    [
+      "text",
+      `coalesce(nullif(current_setting('bsb.close_note', true), ''), ${ctx.has("items", "closeNote") ? `new.${w("closeNote")}` : "null"})`,
+    ],
   ])}
   return null;
 end;

@@ -3,8 +3,8 @@ import type { ApprovalContribution } from "../contributions.ts";
 import type { ApprovalPolicy } from "./approvals-policies.ts";
 import type { TaskNames } from "./tasks-functions.ts";
 
-import { subjectUuid } from "../contributions.ts";
 import { sqlString } from "../../core/template.ts";
+import { subjectUuid } from "../contributions.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { stageByCategory, taskRecord } from "./tasks-coordination-shared.ts";
 
@@ -39,7 +39,8 @@ export function holdKindsOf(
     !Array.isArray(value) ||
     value.length === 0 ||
     !value.every(
-      (kind): kind is string => typeof kind === "string" && HOLD_KIND.test(kind),
+      (kind): kind is string =>
+        typeof kind === "string" && HOLD_KIND.test(kind),
     ) ||
     new Set(value).size !== value.length
   ) {
@@ -223,8 +224,8 @@ export function holdApprovalContribution(
 }
 
 /**
- * PL/pgSQL that cancels the pending approval request of a held task, for a
- * path that ends the hold without a decision (release, the hold stage left, a
+ * PL/pgSQL that cancels the pending approval request of a held task, for a path
+ * that ends the hold without a decision (release, the hold stage left, a
  * close). `found` tells whether a request was cancelled. Empty when holds open
  * no approval.
  */
@@ -239,7 +240,10 @@ export function cancelHoldRequestSql(
 
   const ap = ctx.of("approvals");
   const c = (column: string): string => ap.col("requests", column);
-  const decided = ap.has("requests", "decidedAt") ? `, ${c("decidedAt")} = now()` : "";
+
+  const decided = ap.has("requests", "decidedAt")
+    ? `, ${c("decidedAt")} = now()`
+    : "";
 
   return `update ${ap.table("requests")} r set ${c("status")} = 'cancelled'${decided}
     where r.${c("subjectType")} = ${sqlString(HOLD_SUBJECT)} and r.${c("subjectId")} = ${task}::text and r.${c("status")} = 'pending';`;

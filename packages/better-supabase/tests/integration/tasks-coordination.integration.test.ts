@@ -515,9 +515,7 @@ describe.skipIf(!live)("task coordination", () => {
         .delegate({ taskId: four.id, toUserId: bob.id, toProfile: "scout" })
         .orThrow();
 
-      await tasks
-        .assign({ taskId: four.id, userIds: [alice.id] })
-        .orThrow();
+      await tasks.assign({ taskId: four.id, userIds: [alice.id] }).orThrow();
 
       expect(
         (await tasks.getTask(four.id).orThrow()).delegateProfile,
@@ -544,7 +542,9 @@ describe.skipIf(!live)("task coordination", () => {
       const stage = await stages(env);
 
       await s.service();
-      await s.rows("create table public.close_log (task uuid, outcome text, note text)");
+      await s.rows(
+        "create table public.close_log (task uuid, outcome text, note text)",
+      );
 
       await s.rows(`create function public.before_task_close(t uuid, o text, n text)
         returns void language plpgsql as $$

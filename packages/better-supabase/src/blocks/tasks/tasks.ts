@@ -116,14 +116,11 @@ export interface Task<F extends object = Record<never, never>> {
   readonly heldAt?: Temporal.Instant;
   readonly holdKind?: string;
   /**
-   * The profile the task is reserved for, from `delegate` with `toProfile`:
-   * its name and the user who may claim it. Cleared by a new delegate, by
+   * The profile the task is reserved for, from `delegate` with `toProfile`: its
+   * name and the user who may claim it. Cleared by a new delegate, by
    * unassigning that user and by closing the task.
    */
-  readonly delegateProfile?: {
-    readonly name: string;
-    readonly userId: string;
-  };
+  readonly delegateProfile?: { readonly name: string; readonly userId: string };
   /** A locked item keeps its dates, as a locked Gantt bar. */
   readonly locked: boolean;
   readonly rank: string;
