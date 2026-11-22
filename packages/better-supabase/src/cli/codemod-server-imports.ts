@@ -1,3 +1,8 @@
+import type { ExportSpecifier, ImportDeclarationSpecifier } from "oxc-parser";
+
+import { MagicString } from "magic-string";
+import { parseSync } from "oxc-parser";
+
 import type { Codemod, ReviewLine } from "./codemod.ts";
 
 /** The subpath each name moved to out of `better-supabase/server` (ADR 0450). */
@@ -35,83 +40,114 @@ const MOVED: Readonly<Record<string, string>> = {
   RateLimitState: "rate-limit",
 };
 
-const IMPORT =
-  /^([ \t]*)(import|export)(\s+type)?\s*\{([^}]*)\}\s*from\s*(["'])better-supabase\/server\5;?/gm;
+/** The name an import or export specifier refers to in the source module. */
+function sourceName(
+  specifier: ExportSpecifier | ImportDeclarationSpecifier,
+): string | undefined {
+  const side =
+    specifier.type === "ImportSpecifier"
+      ? specifier.imported
+      : specifier.type === "ExportSpecifier"
+        ? specifier.local
+        : undefined;
 
-function entryName(entry: string): string {
-  return entry
-    .replace(/^type\s+/, "")
-    .split(/\s+as\s+/)[0]!
-    .trim();
+  if (side === undefined) {
+    return undefined;
+  }
+
+  return side.type === "Literal" ? side.value : side.name;
 }
 
 /**
  * Splits each `import` and `export { ... } from "better-supabase/server"` so
  * the names that moved to `server/accounts`, `server/csv` and
  * `server/rate-limit` import from their new subpath. The names that stayed keep
- * their import.
+ * their import. A file that does not parse comes back unchanged.
  */
 export function moveServerImports(text: string): {
   readonly text: string;
   readonly review: readonly ReviewLine[];
 } {
+  const parsed = parseSync("source.tsx", text, { sourceType: "module" });
   const review: ReviewLine[] = [];
 
-  const next = text.replaceAll(
-    IMPORT,
-    (
-      whole: string,
-      indent: string,
-      keyword: string,
-      typeOnly: string | undefined,
-      list: string,
-      quote: string,
-      offset: number,
-    ) => {
-      const entries = list
-        .split(",")
-        .map((entry) => entry.trim())
-        .filter((entry) => entry !== "");
+  if (parsed.errors.length > 0) {
+    return { text, review };
+  }
 
-      const groups = new Map<string, string[]>();
+  const out = new MagicString(text);
 
-      for (const entry of entries) {
-        const target = Object.hasOwn(MOVED, entryName(entry))
-          ? MOVED[entryName(entry)]
+  for (const statement of parsed.program.body) {
+    if (
+      (statement.type !== "ImportDeclaration" &&
+        statement.type !== "ExportNamedDeclaration") ||
+      statement.source?.value !== "better-supabase/server" ||
+      statement.specifiers.length === 0 ||
+      statement.specifiers.some(
+        (specifier) =>
+          specifier.type !== "ImportSpecifier" &&
+          specifier.type !== "ExportSpecifier",
+      )
+    ) {
+      continue;
+    }
+
+    const groups = new Map<string, string[]>();
+
+    for (const specifier of statement.specifiers) {
+      const name = sourceName(specifier);
+
+      const target =
+        name !== undefined && Object.hasOwn(MOVED, name)
+          ? MOVED[name]
           : undefined;
 
-        const key = target ?? "";
-        groups.set(key, [...(groups.get(key) ?? []), entry]);
-      }
+      const key = target ?? "";
 
-      if (groups.size === 1 && groups.has("")) {
-        return whole;
-      }
+      groups.set(key, [
+        ...(groups.get(key) ?? []),
+        text.slice(specifier.start, specifier.end),
+      ]);
+    }
 
-      const head = `${indent}${keyword}${typeOnly ?? ""}`;
-      const lines: string[] = [];
+    if (groups.size === 1 && groups.has("")) {
+      continue;
+    }
 
-      for (const [target, names] of groups) {
-        const path =
-          target === ""
-            ? "better-supabase/server"
-            : `better-supabase/server/${target}`;
+    const keyword =
+      statement.type === "ImportDeclaration" ? "import" : "export";
 
-        lines.push(
-          `${head} { ${names.join(", ")} } from ${quote}${path}${quote};`,
-        );
-      }
+    const typeOnly =
+      (statement.type === "ImportDeclaration"
+        ? statement.importKind
+        : statement.exportKind) === "type"
+        ? " type"
+        : "";
 
-      review.push({
-        line: text.slice(0, offset).split("\n").length,
-        message: "import split across better-supabase/server subpaths",
-      });
+    const quote = text[statement.source.start]!;
+    const lineStart = text.lastIndexOf("\n", statement.start - 1) + 1;
+    const indent = text.slice(lineStart, statement.start);
+    const lines: string[] = [];
 
-      return lines.join("\n");
-    },
-  );
+    for (const [target, names] of groups) {
+      const path =
+        target === ""
+          ? "better-supabase/server"
+          : `better-supabase/server/${target}`;
 
-  return { text: next, review };
+      lines.push(
+        `${keyword}${typeOnly} { ${names.join(", ")} } from ${quote}${path}${quote};`,
+      );
+    }
+
+    out.overwrite(statement.start, statement.end, lines.join(`\n${indent}`));
+    review.push({
+      line: text.slice(0, statement.start).split("\n").length,
+      message: "import split across better-supabase/server subpaths",
+    });
+  }
+
+  return { text: out.toString(), review };
 }
 
 export function serverImportsCodemod(): Codemod {
