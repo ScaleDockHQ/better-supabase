@@ -15,11 +15,7 @@ import {
 } from "./approvals-policies.ts";
 import { deciderCall, hasDecider, subjectRow } from "./direct-approver.ts";
 import { leaveFeedSubject, leaveTeamFeedSubject } from "./leave-feed.ts";
-import {
-  leaveOwner,
-  leaveByEmployee,
-  leavePartsMapped,
-} from "./leave-owner.ts";
+import { leaveOwner, leaveByEmployee, leaveParts } from "./leave-owner.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** Leave requests this block files with approvals. */
@@ -183,7 +179,7 @@ export function leaveContract(
         "text",
         "numeric",
         "text",
-        ...(leavePartsMapped(ctx) ? ["text", "text"] : []),
+        ...(leaveParts(ctx) ? ["text", "text"] : []),
         ...employee,
         ...extra,
       ],
@@ -200,7 +196,7 @@ export function leaveContract(
         "text",
         "numeric",
         "text",
-        ...(leavePartsMapped(ctx) ? ["text", "text"] : []),
+        ...(leaveParts(ctx) ? ["text", "text"] : []),
         ...extra,
       ],
       returns: "jsonb",

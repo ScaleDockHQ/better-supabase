@@ -2,9 +2,10 @@ import type { LeaveEvents } from "../../blocks/leave/events.ts";
 import type { BlockSqlEvents, BlockSqlNames } from "../context.ts";
 
 import {
-  leaveAutoApproveMapped,
+  leaveAutoApprove,
   leaveByEmployee,
-  leavePartsMapped,
+  leaveConfidential,
+  leaveParts,
 } from "./leave-owner.ts";
 
 const REQUEST_PAYLOAD = [
@@ -94,10 +95,8 @@ export const LEAVE_NAMES: BlockSqlNames = {
       name: "leave_types",
       app: {
         unused: (ctx) => [
-          ...(leaveAutoApproveMapped(ctx) ? [] : ["autoApprove"]),
-          ...(typeof ctx.config.columns["types"]?.["confidential"] === "string"
-            ? []
-            : ["confidential"]),
+          ...(leaveAutoApprove(ctx) ? [] : ["autoApprove"]),
+          ...(leaveConfidential(ctx) ? [] : ["confidential"]),
         ],
       },
       lifecycle: { tenant: "tenant", export: true },
@@ -133,7 +132,7 @@ export const LEAVE_NAMES: BlockSqlNames = {
       app: {
         unused: (ctx) => [
           ...(leaveByEmployee(ctx) ? [] : ["employee"]),
-          ...(leavePartsMapped(ctx) ? [] : ["startPart", "endPart"]),
+          ...(leaveParts(ctx) ? [] : ["startPart", "endPart"]),
         ],
       },
       lifecycle: { tenant: "tenant", user: "user", export: true },

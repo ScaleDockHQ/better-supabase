@@ -2888,13 +2888,12 @@ mapper mode.
 
 ### BS622
 
-**Warning: a block adds a column to a table your files create.** A block runs
-over a table you create and adds an optional column to it with `add column if
-not exists`, and your own schema files don't declare that column. Blocks no
-longer add columns to tables you own and turn the feature that needs the column
-off instead. Run `better-supabase codemod owned-columns` to
-declare the columns in your schema files, or map the column to `null` in
-`blocks.<name>.columns` to keep the feature off.
+**Warning: a block adds a required column to a table your files create.** A
+block runs over a table you create and needs a required column that your schema
+files don't declare, so it adds the column with `add column if not exists`. Run
+`better-supabase codemod owned-columns` to declare the column in your schema
+files. A block never adds an optional column to such a table: the feature that
+needs one stays off until the table declares the column, and no finding says so.
 
 ### BS623
 

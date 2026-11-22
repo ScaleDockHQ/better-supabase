@@ -429,6 +429,12 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   colName(table: string, column: string): string;
   /** Whether a logical column exists (adopted tables can map it to `null`). */
   has(table: string, column: string): boolean;
+  /**
+   * Whether the app's own table declares the logical column. Unlike `has`, a
+   * table whose columns are unknown declares none, and a block's own table
+   * declares none.
+   */
+  declares(table: string, column: string): boolean;
   /** Whether an optional logical table exists (it can be mapped to `null`). */
   hasTable(table: string): boolean;
   /** Whether the module renders its managed SQL (not adopt or custom mode). */
@@ -1040,6 +1046,16 @@ export function createModuleContext(
       : mapped;
   };
 
+  const ownDeclares = (table: string, physical: string): boolean => {
+    const parts = owned.tableName(table);
+
+    return (
+      source.ownColumns?.[`${parts.schema}.${parts.name}`]?.includes(
+        physical,
+      ) === true
+    );
+  };
+
   const requiredColumn = (table: string, logical: string): string => {
     const name = column(table, logical);
 
@@ -1472,6 +1488,16 @@ export function createModuleContext(
       const known = source.ownColumns?.[`${parts.schema}.${parts.name}`];
 
       return known === undefined || known.includes(physical);
+    },
+    declares(table, logical) {
+      const physical = column(table, logical);
+
+      return (
+        config.tables[table] !== null &&
+        physical !== null &&
+        owned.appOwned.includes(table) &&
+        ownDeclares(table, physical)
+      );
     },
     hasTable: (table) => {
       if (!names.tables[table]) {

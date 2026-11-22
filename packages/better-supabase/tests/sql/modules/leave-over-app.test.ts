@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
+import { declaredTableColumns } from "../../../src/sql/schema-scan.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 import { renderBlocks } from "../app-columns.ts";
 
@@ -105,6 +106,19 @@ const AS_ALICE = `perform set_config('request.jwt.claims', '{"sub":"${ALICE}","r
   perform set_config('request.jwt.claim.role', 'authenticated', true);`;
 
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
+/** The columns the app's schema declares, as the CLI passes them. */
+const ownColumnsOf = (app: string): Record<string, string[]> =>
+  Object.fromEntries(
+    [...declaredTableColumns([{ text: app }], ["public"])].map(
+      ([table, columns]) => [table, [...columns]],
+    ),
+  );
+
+const CONFIDENTIAL_APP = APP.replace(
+  "  tracked boolean not null default true,",
+  "  tracked boolean not null default true,\n  confidential boolean not null default false,",
+);
+
 const BOOT = { timeout: 120_000 };
 
 async function run(
@@ -113,7 +127,11 @@ async function run(
   names: readonly string[] = ["leave"],
   app: string = APP,
 ): Promise<void> {
-  const files = renderBlocks(names, { modules, ownTables: OWN_TABLES });
+  const files = renderBlocks(names, {
+    modules,
+    ownTables: OWN_TABLES,
+    ownColumns: ownColumnsOf(app),
+  });
 
   await using stack = await liteStack({
     driver: "pglite",
@@ -582,10 +600,7 @@ $$;`,
           },
         },
         ["leave", "share-links"],
-        `${APP.replace(
-          "  tracked boolean not null default true,",
-          "  tracked boolean not null default true,\n  confidential boolean not null default false,",
-        )}
+        `${CONFIDENTIAL_APP}
 create schema if not exists extensions;
 create or replace function extensions.gen_random_bytes(n integer) returns bytea
 language sql volatile as $$ select decode(md5(random()::text) || md5(random()::text), 'hex') $$;
@@ -637,6 +652,7 @@ language sql immutable as $$ select sha256(data) $$;
         },
       },
       ownTables: OWN_TABLES,
+      ownColumns: ownColumnsOf(CONFIDENTIAL_APP),
     })
       .map((file) => file.contents)
       .join("\n");
@@ -647,11 +663,6 @@ language sql immutable as $$ select sha256(data) $$;
         .map((file) => file.contents)
         .join("\n"),
     ).not.toContain("lc.");
-    expect(() =>
-      renderBlocks(["leave"], {
-        modules: { leave: { columns: { types: { confidential: "secret" } } } },
-      }),
-    ).toThrow(/confidential/);
   });
 });
 
@@ -720,6 +731,11 @@ create table public.time_off_ledger (
 );
 `;
 
+const EMPLOYEE_CONFIDENTIAL_APP = EMPLOYEE_APP.replace(
+  "  deducts_balance boolean not null default true,",
+  "  deducts_balance boolean not null default true,\n  confidential boolean not null default false,",
+);
+
 const EMPLOYEE_OWN = {
   "public.time_off_types": "app.sql",
   "public.time_off_requests": "app.sql",
@@ -781,7 +797,11 @@ async function runEmployees(
   ownTables: Readonly<Record<string, string>>,
   app: string,
 ): Promise<void> {
-  const files = renderBlocks(["employees", "leave"], { modules, ownTables });
+  const files = renderBlocks(["employees", "leave"], {
+    modules,
+    ownTables,
+    ownColumns: ownColumnsOf(app),
+  });
 
   await using stack = await liteStack({
     driver: "pglite",
@@ -1112,6 +1132,7 @@ $$;`,
         },
       },
       ownTables: EMPLOYEE_OWN,
+      ownColumns: ownColumnsOf(EMPLOYEE_APP),
     })
       .map((file) => file.contents)
       .join("\n");
@@ -1161,16 +1182,14 @@ $$;`,
         },
       },
       ownTables: EMPLOYEE_OWN,
+      ownColumns: ownColumnsOf(EMPLOYEE_CONFIDENTIAL_APP),
     });
 
     await using stack = await liteStack({
       driver: "pglite",
       migrations: [
         ROLES,
-        `${EMPLOYEE_APP.replace(
-          "  deducts_balance boolean not null default true,",
-          "  deducts_balance boolean not null default true,\n  confidential boolean not null default false,",
-        )}
+        `${EMPLOYEE_CONFIDENTIAL_APP}
 create table public.orgs (id uuid primary key, name text not null);
 create schema if not exists extensions;
 create or replace function extensions.gen_random_bytes(n integer) returns bytea

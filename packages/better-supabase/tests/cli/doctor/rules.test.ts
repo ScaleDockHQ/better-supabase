@@ -5098,7 +5098,7 @@ create table public.reminder_deliveries (id uuid primary key, organization_id uu
     sqlFiles: files,
   });
 
-  it("warns for a column the app's files don't declare, and not once they do", async () => {
+  it("warns for a required column the app's files don't declare, and not for an optional one", async () => {
     const found = await run(
       "BS622",
       rooted([{ path: "supabase/schemas/app.sql", text: APP }]),
@@ -5107,24 +5107,13 @@ create table public.reminder_deliveries (id uuid primary key, organization_id uu
     expect(found).toContainEqual(
       expect.objectContaining({
         severity: "warning",
-        target: "public.reminders.remind_at",
+        target: "public.reminders.subject_type",
         message: expect.stringContaining("codemod owned-columns"),
       }),
     );
 
-    const declared = await run(
-      "BS622",
-      rooted([
-        {
-          path: "supabase/schemas/app.sql",
-          text: `${APP}\nalter table public.reminders add column remind_at timestamptz;`,
-        },
-      ]),
-    );
-
-    expect(declared.map((finding) => finding.target)).not.toContain(
+    expect(found.map((finding) => finding.target)).not.toContain(
       "public.reminders.remind_at",
     );
-    expect(declared).toHaveLength(found.length - 1);
   });
 });

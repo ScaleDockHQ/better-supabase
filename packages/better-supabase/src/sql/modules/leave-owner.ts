@@ -12,58 +12,37 @@ export function leaveByEmployee(ctx: BlockSqlContext): boolean {
   return ownerIsEmployee(ctx, WHERE);
 }
 
-const mapped = (ctx: BlockSqlContext, table: string, column: string): boolean =>
-  typeof ctx.config.columns[table]?.[column] === "string";
+/**
+ * Whether the app's own table has the column, which turns the feature that
+ * needs it on. The block's own tables never carry these columns.
+ */
+const declared = (ctx: BlockSqlContext, table: string, column: string) =>
+  ctx.declares(table, column);
 
 export function leaveParts(ctx: BlockSqlContext): boolean {
-  const start = mapped(ctx, "requests", "startPart");
+  const start = declared(ctx, "requests", "startPart");
 
-  if (start !== mapped(ctx, "requests", "endPart")) {
+  if (start !== declared(ctx, "requests", "endPart")) {
     throw new TypeError(
-      "blocks.leave.columns.requests.startPart and endPart are mapped together",
-    );
-  }
-
-  if (start && ctx.owns("requests")) {
-    throw new TypeError(
-      "blocks.leave.columns.requests.startPart and endPart name columns of your own requests table; map tables.requests to it",
+      "Your requests table declares only one of the columns startPart and endPart; declare both or neither",
     );
   }
 
   return start;
 }
 
-export function leavePartsMapped(ctx: BlockSqlContext): boolean {
-  return mapped(ctx, "requests", "startPart");
-}
-
-export function leaveAutoApproveMapped(ctx: BlockSqlContext): boolean {
-  return mapped(ctx, "types", "autoApprove");
-}
-
 /**
  * Whether leave types say which requests need no approval: the block's own
- * types table, or a mapped `columns.types.autoApprove`.
+ * types table, or an app table that declares the column.
  */
 export function leaveAutoApprove(ctx: BlockSqlContext): boolean {
-  return (
-    ctx.has("types", "autoApprove") &&
-    (leaveAutoApproveMapped(ctx) || ctx.owns("types"))
-  );
+  return ctx.owns("types")
+    ? ctx.has("types", "autoApprove")
+    : declared(ctx, "types", "autoApprove");
 }
 
 export function leaveConfidential(ctx: BlockSqlContext): boolean {
-  if (!mapped(ctx, "types", "confidential")) {
-    return false;
-  }
-
-  if (ctx.owns("types")) {
-    throw new TypeError(
-      "blocks.leave.columns.types.confidential names a column of your own types table; map tables.types to it",
-    );
-  }
-
-  return true;
+  return declared(ctx, "types", "confidential");
 }
 
 export const leaveConfidentialKey = (ctx: BlockSqlContext): string =>
