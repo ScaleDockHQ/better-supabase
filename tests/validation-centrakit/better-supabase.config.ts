@@ -167,7 +167,6 @@ export default defineConfig({
           key: "user_id",
           fullName: null,
           avatar: "avatar_path",
-          activeTenant: "active_organization_id",
           onboarding: null,
         },
       },
@@ -188,7 +187,7 @@ export default defineConfig({
         read: "platform.users.manage",
       },
       // CentraKit's support staff start sessions alone; it has no second approver.
-      options: { auditCategory: "security", approval: "none" },
+      options: { approval: "none" },
     },
     {
       block: "audit",
@@ -526,7 +525,6 @@ export default defineConfig({
       options: {
         autoTables: {
           schemas: ["centrakit"],
-          tenant: "organization_id",
           user: "created_by",
           exclude: [
             "centrakit.audit_*",
