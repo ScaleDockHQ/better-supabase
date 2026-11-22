@@ -1048,6 +1048,18 @@ export class ConfigDocument {
     return -1;
   }
 
+  /** The end of the comment that follows `at` on the same line, else `at`. */
+  #noteEnd(at: number): number {
+    const { text } = this.#module;
+
+    const note = this.#module.comments.find(
+      (comment) =>
+        comment.start >= at && /^[\t ]*$/.test(text.slice(at, comment.start)),
+    );
+
+    return note === undefined ? at : note.end;
+  }
+
   /** Where the `{` and `}` or `[` and `]` of `owner` sit. */
   #bounds(owner: Node): { open: number; close: number } {
     return { open: owner.start, close: owner.end - 1 };
@@ -1206,9 +1218,16 @@ export class ConfigDocument {
       const comma = this.#commaAfter(last.end, owner.end - 1);
 
       if (comma === -1) {
-        edited.appendLeft(last.end, `,${style.eol}${lead}${entry}`);
+        edited.appendLeft(last.end, ",");
+        edited.appendLeft(
+          this.#noteEnd(last.end),
+          `${style.eol}${lead}${entry}`,
+        );
       } else {
-        edited.appendLeft(comma + 1, `${style.eol}${lead}${entry},`);
+        edited.appendLeft(
+          this.#noteEnd(comma + 1),
+          `${style.eol}${lead}${entry},`,
+        );
       }
     } else {
       edited.appendLeft(last.end, `, ${entry}`);
@@ -1243,9 +1262,16 @@ export class ConfigDocument {
       const comma = this.#commaAfter(last.end, owner.end - 1);
 
       if (comma === -1) {
-        edited.appendLeft(last.end, `,${style.eol}${lead}${valueText}`);
+        edited.appendLeft(last.end, ",");
+        edited.appendLeft(
+          this.#noteEnd(last.end),
+          `${style.eol}${lead}${valueText}`,
+        );
       } else {
-        edited.appendLeft(comma + 1, `${style.eol}${lead}${valueText},`);
+        edited.appendLeft(
+          this.#noteEnd(comma + 1),
+          `${style.eol}${lead}${valueText},`,
+        );
       }
     } else {
       edited.appendLeft(last.end, `, ${valueText}`);

@@ -8,7 +8,7 @@ import type { PlannedFile } from "./core/files.ts";
 import { restatedEntries } from "../config/index.ts";
 import { clientNotNull, redundantNulls, SQL_MODULES } from "../sql/index.ts";
 import { settleGroups, withoutConfigPaths } from "./codemod-prune.ts";
-import { codeRanges } from "./config-document/ranges.ts";
+import { ConfigDocument } from "./config-document/index.ts";
 import { loadConfig } from "./config.ts";
 import { mergeRestated, probeRestated } from "./restated-probe.ts";
 import { ownLayout } from "./sql-layout.ts";
@@ -79,124 +79,56 @@ export function tenantEntries(
   );
 }
 
-/**
- * The index of the `}` that closes the `{` at `open`, skipping strings and
- * comments.
- */
-export function closing(
-  text: string,
-  open: number,
-  code: (index: number) => boolean,
-): number {
-  let depth = 0;
-
-  for (let at = open; at < text.length; at += 1) {
-    if (!code(at)) {
-      continue;
-    }
-
-    depth += text[at] === "{" ? 1 : text[at] === "}" ? -1 : 0;
-
-    if (depth === 0) {
-      return at;
-    }
-  }
-
-  return -1;
+/** The text without the entries, and a line for each the file builds elsewhere. */
+export interface ColumnEntryEdit {
+  readonly text: string;
+  readonly review: readonly string[];
 }
 
 /**
- * `text` without the `<column>: ...` property of each entry, found under
- * `<block>: { columns: { <table>: { ... } } }`, with its comma and its line.
- * Only code counts: a name in a string or a comment stays.
+ * `text` without the `<column>` entry of each `blocks.<block>.columns.<table>`
+ * entry, with its comma, its line and its comments. A name in a string or a
+ * comment stays. An entry the document cannot find or follow (it comes from an
+ * import, a call or a computed key) stays in the file with a review line.
  */
 export function withoutColumnEntries(
   text: string,
   entries: readonly ColumnEntry[],
-): string {
-  let out = text;
+): ColumnEntryEdit {
+  const document = ConfigDocument.parse(text);
+  const review: string[] = [];
 
   for (const entry of entries) {
-    const ranges = codeRanges(out);
+    const path = ["blocks", entry.block, "columns", entry.table, entry.column];
+    const result = document.remove(path);
 
-    const code = (index: number): boolean =>
-      ranges.some(([start, end]) => index >= start && index < end);
-
-    const block = new RegExp(
-      `(?:^|[\\s,{])(?:"${entry.block}"|${entry.block})\\s*:\\s*\\{`,
-      "g",
-    );
-
-    for (const found of out.matchAll(block)) {
-      const open = found.index + found[0].length - 1;
-
-      if (!code(open)) {
-        continue;
-      }
-
-      const end = closing(out, open, code);
-      const body = out.slice(open, end + 1);
-      const columns = /\bcolumns\s*:\s*\{/.exec(body);
-
-      if (columns === null) {
-        continue;
-      }
-
-      const tables = open + columns.index + columns[0].length - 1;
-
-      const tablesEnd = closing(out, tables, code);
-      const inner = out.slice(tables, tablesEnd + 1);
-      const table = new RegExp(`\\b${entry.table}\\s*:\\s*\\{`).exec(inner);
-
-      if (table === null) {
-        continue;
-      }
-
-      const tableOpen = tables + table.index + table[0].length - 1;
-      const tableEnd = closing(out, tableOpen, code);
-      const rows = out.slice(tableOpen, tableEnd + 1);
-
-      const value = String.raw`(?:null|"[^"]*"|'[^']*')`;
-
-      const property =
-        new RegExp(
-          String.raw`^[ \t]*${entry.column}\s*:\s*${value}\s*,?[ \t]*\n`,
-          "m",
-        ).exec(rows) ??
-        new RegExp(String.raw`\b${entry.column}\s*:\s*${value}\s*,[ \t]*`).exec(
-          rows,
-        ) ??
-        new RegExp(
-          String.raw`\s*,\s*\b${entry.column}\s*:\s*${value}(?=\s*\})`,
-        ).exec(rows) ??
-        new RegExp(
-          String.raw`\s*\b${entry.column}\s*:\s*${value}\s*(?=\})`,
-        ).exec(rows);
-
-      if (property === null) {
-        continue;
-      }
-
-      const from = tableOpen + property.index;
-
-      out = out.slice(0, from) + out.slice(from + property[0].length);
-      break;
+    if (result.status === "absent") {
+      review.push(
+        `${path.join(".")}: ${entry.why}, but the codemod could not find it in the config file (it may come from another file); remove it by hand.`,
+      );
     }
   }
 
-  return out;
+  return { text: document.text, review: [...review, ...document.review] };
 }
 
 /** The files that drop the config entries the render refuses. */
 export function configFiles(
   entries: readonly ColumnEntry[],
   config: { readonly path: string; readonly text: string },
-): readonly PlannedFile[] {
-  const text = withoutColumnEntries(config.text, entries);
+): {
+  readonly files: readonly PlannedFile[];
+  readonly review: readonly { readonly message: string }[];
+} {
+  const edit = withoutColumnEntries(config.text, entries);
+  const review = edit.review.map((message) => ({ message }));
 
-  return text === config.text
-    ? []
-    : [{ path: config.path, contents: text, policy: "edit" }];
+  return edit.text === config.text
+    ? { files: [], review }
+    : {
+        files: [{ path: config.path, contents: edit.text, policy: "edit" }],
+        review,
+      };
 }
 
 /** The rendered files of `config`, by path. */
@@ -395,13 +327,10 @@ export function configCodemod(): Codemod {
         };
       }
 
-      return {
-        files: configFiles(entries, {
-          path: project.configFile,
-          text: project.configText ?? "",
-        }),
-        review: [],
-      };
+      return configFiles(entries, {
+        path: project.configFile,
+        text: project.configText ?? "",
+      });
     },
   };
 }

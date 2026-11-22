@@ -2,8 +2,7 @@ import type { ResolvedConfig } from "../config/index.ts";
 import type { NamingRename } from "./codemod-naming.ts";
 
 import { LEGACY_OPTION, moduleContext, SQL_MODULES } from "../sql/index.ts";
-import { closing as closingBrace } from "./codemod-config.ts";
-import { codeRanges } from "./config-document/ranges.ts";
+import { ConfigDocument } from "./config-document/index.ts";
 import { isRecord } from "./guards.ts";
 
 /** One `blocks.<block>.columns.<table>.<column>` entry that keeps an old name. */
@@ -57,11 +56,6 @@ interface PinTarget {
   readonly instance?: string;
   readonly options?: unknown;
   readonly columns?: unknown;
-}
-
-interface Span {
-  readonly open: number;
-  readonly end: number;
 }
 
 const SQL_WORDS: ReadonlySet<string> = new Set([
@@ -325,200 +319,92 @@ export function columnPins(
   return { pins, history, review };
 }
 
-function codeIn(
-  ranges: readonly [number, number][],
-): (index: number) => boolean {
-  return (index) =>
-    ranges.some(([start, end]) => index >= start && index < end);
-}
-
-function findKeyObject(
-  text: string,
+/**
+ * `blocks.<key>` when the config installs the block there, else
+ * `instances.<key>`.
+ */
+function rootFor(
+  document: ConfigDocument,
   key: string,
-  code: (index: number) => boolean,
-  within?: Span,
-): Span | undefined {
-  const escaped = escapeRegExp(key);
-
-  const pattern = new RegExp(
-    `(?:^|[\\s,{])(?:"${escaped}"|${escaped})\\s*:\\s*\\{`,
-    "g",
-  );
-
-  const from = within?.open ?? 0;
-  const to = within?.end ?? text.length;
-
-  for (const match of text.matchAll(pattern)) {
-    if (match.index < from) {
-      continue;
+): readonly ["blocks" | "instances", string] | undefined {
+  for (const root of ["blocks", "instances"] as const) {
+    if (document.has([root, key])) {
+      return [root, key];
     }
-
-    if (match.index >= to) {
-      break;
-    }
-
-    const open = match.index + match[0].length - 1;
-
-    if (!code(open)) {
-      continue;
-    }
-
-    const end = closingBrace(text, open, code);
-
-    if (end === -1 || end > to) {
-      continue;
-    }
-
-    return { open, end };
   }
 
   return undefined;
 }
 
-/** The indent of the object body: the next line's, or two spaces deeper. */
-function bodyIndent(text: string, open: number): string {
-  const lineStart = text.lastIndexOf("\n", open - 1) + 1;
-  const lineIndent = /^[ \t]*/.exec(text.slice(lineStart))?.[0] ?? "";
-  const next = text.indexOf("\n", open);
-
-  if (next !== -1) {
-    const nextIndent = /^[ \t]*/.exec(text.slice(next + 1))?.[0] ?? "";
-
-    if (nextIndent.length > lineIndent.length) {
-      return nextIndent;
-    }
-  }
-
-  return `${lineIndent}  `;
-}
-
-function insertProperty(text: string, open: number, property: string): string {
-  const indent = bodyIndent(text, open);
-
-  return `${text.slice(0, open + 1)}\n${indent}${property},${text.slice(open + 1)}`;
-}
-
-function rootFor(
-  text: string,
-  code: (index: number) => boolean,
-  key: string,
-): Span | undefined {
-  const blocks = findKeyObject(text, "blocks", code);
-
-  const inBlocks =
-    blocks === undefined ? undefined : findKeyObject(text, key, code, blocks);
-
-  if (inBlocks !== undefined) {
-    return inBlocks;
-  }
-
-  const instances = findKeyObject(text, "instances", code);
-
-  return instances === undefined
-    ? undefined
-    : findKeyObject(text, key, code, instances);
-}
-
 /**
  * `text` with each pin added under `<block>: { columns: { <table>: { ... } }
- * }`, one entry per line, at the indent of the next line. Only the `blocks`
- * object (then `instances`) is searched. Returns the pins it found no object
- * for, which the user adds by hand.
+ * }`, one entry per line, in the file's indentation and line endings. Only the
+ * `blocks` object (then `instances`) is searched, and a spread, a shorthand or
+ * a constant is followed to where it is declared. Returns the pins it found no
+ * object literal for (a block written as `true`, built by a call or imported),
+ * which the user adds by hand.
  */
 export function withColumnPins(
   text: string,
   pins: readonly ColumnPin[],
 ): { readonly text: string; readonly missed: readonly ColumnPin[] } {
-  let out = text;
+  const document = ConfigDocument.parse(text);
   const missed: ColumnPin[] = [];
 
   for (const pin of pins) {
-    const ranges = codeRanges(out);
-    const code = codeIn(ranges);
-    const block = rootFor(out, code, pin.block);
+    const root = rootFor(document, pin.block);
 
-    if (block === undefined) {
+    if (
+      root === undefined ||
+      document.ensure(
+        [...root, "columns", pin.table, pin.column],
+        `"${pin.name}"`,
+      ).status !== "done"
+    ) {
       missed.push(pin);
-      continue;
     }
-
-    const entry = `${pin.column}: "${pin.name}"`;
-    const columns = findKeyObject(out, "columns", code, block);
-
-    if (columns === undefined) {
-      const indent = bodyIndent(out, block.open);
-      const row = `${indent}  `;
-      const field = `${row}  `;
-
-      out = `${out.slice(0, block.open + 1)}\n${indent}columns: {\n${row}${pin.table}: {\n${field}${entry},\n${row}},\n${indent}},${out.slice(block.open + 1)}`;
-      continue;
-    }
-
-    const table = findKeyObject(out, pin.table, code, columns);
-
-    if (table === undefined) {
-      const indent = bodyIndent(out, columns.open);
-      const field = `${indent}  `;
-
-      out = `${out.slice(0, columns.open + 1)}\n${indent}${pin.table}: {\n${field}${entry},\n${indent}},${out.slice(columns.open + 1)}`;
-      continue;
-    }
-
-    out = insertProperty(out, table.open, entry);
   }
 
-  return { text: out, missed };
+  return { text: document.text, missed };
 }
 
 /**
  * `text` with each history actor pin written into
- * `options.machines.<machine>.history`, one entry per line.
+ * `options.machines.<machine>.history`, one entry per line. A history that
+ * already names an actor keeps it.
  */
 export function withHistoryPins(
   text: string,
   pins: readonly HistoryPin[],
 ): { readonly text: string; readonly missed: readonly HistoryPin[] } {
-  let out = text;
+  const document = ConfigDocument.parse(text);
   const missed: HistoryPin[] = [];
 
   for (const pin of pins) {
-    const ranges = codeRanges(out);
-    const code = codeIn(ranges);
-    const block = rootFor(out, code, pin.block);
-
-    const options =
-      block === undefined
-        ? undefined
-        : findKeyObject(out, "options", code, block);
-
-    const machines =
-      options === undefined
-        ? undefined
-        : findKeyObject(out, "machines", code, options);
-
-    const machine =
-      machines === undefined
-        ? undefined
-        : findKeyObject(out, pin.machine, code, machines);
+    const root = rootFor(document, pin.block);
 
     const history =
-      machine === undefined
+      root === undefined
         ? undefined
-        : findKeyObject(out, "history", code, machine);
+        : [...root, "options", "machines", pin.machine, "history"];
 
-    if (history === undefined) {
+    if (history === undefined || !document.has(history)) {
       missed.push(pin);
       continue;
     }
 
-    if (/\bactor\s*:/.test(out.slice(history.open, history.end))) {
+    if (document.has([...history, "actor"])) {
       continue;
     }
 
-    out = insertProperty(out, history.open, `actor: "${pin.actor}"`);
+    if (
+      document.set([...history, "actor"], `"${pin.actor}"`).status !== "done"
+    ) {
+      missed.push(pin);
+    }
   }
 
-  return { text: out, missed };
+  return { text: document.text, missed };
 }
 
 function isTenantSkip(skip: ColumnSkip): skip is TenantColumnSkip {

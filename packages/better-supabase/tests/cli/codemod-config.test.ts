@@ -45,7 +45,7 @@ describe("withoutColumnEntries", () => {
       withoutColumnEntries(CONFIG, [
         entry("memberships", "memberships", "updatedAt"),
         entry("memberships", "memberships", "lastUsedAt"),
-      ]),
+      ]).text,
     ).toContain(
       '        memberships: {\n          role: "team_role",\n        },',
     );
@@ -55,7 +55,7 @@ describe("withoutColumnEntries", () => {
     const out = withoutColumnEntries(CONFIG, [
       entry("teams", "teams", "tenant"),
       entry("tags", "tags", "rank"),
-    ]);
+    ]).text;
 
     expect(out).toContain('columns: { teams: { name: "title" } }');
     expect(out).toContain("tags: { columns: { tags: {} } }");
@@ -63,9 +63,84 @@ describe("withoutColumnEntries", () => {
   });
 
   it("leaves a name in a comment alone", () => {
-    expect(
-      withoutColumnEntries(CONFIG, [entry("teams", "teams", "updatedAt")]),
-    ).toBe(CONFIG);
+    const result = withoutColumnEntries(CONFIG, [
+      entry("teams", "teams", "updatedAt"),
+    ]);
+
+    expect(result.text).toBe(CONFIG);
+    expect(result.review).toHaveLength(1);
+  });
+
+  it("removes an entry the config reaches through a spread and a shorthand", () => {
+    const text = `const columns = { teams: { updatedAt: null, name: "title" } };
+const teams = { columns };
+export default defineConfig({
+  blocks: { teams, tags: { ...{ columns: { tags: { rank: null } } } } },
+});
+`;
+
+    const result = withoutColumnEntries(text, [
+      entry("teams", "teams", "updatedAt"),
+      entry("tags", "tags", "rank"),
+    ]);
+
+    expect(result.review).toEqual([]);
+    expect(result.text).toContain(
+      'const columns = { teams: { name: "title" } };',
+    );
+    expect(result.text).not.toContain("rank");
+  });
+
+  it("keeps the comment of the entry before and drops the comment of the removed one", () => {
+    const text = `export default defineConfig({
+  blocks: {
+    teams: {
+      columns: {
+        teams: {
+          // keep: the title
+          name: "title",
+          // the codemod removes this one
+          updatedAt: null, // trailing
+        },
+      },
+    },
+  },
+});
+`;
+
+    const { text: out } = withoutColumnEntries(text, [
+      entry("teams", "teams", "updatedAt"),
+    ]);
+
+    expect(out).toContain("// keep: the title");
+    expect(out).not.toContain("updatedAt");
+    expect(out).not.toContain("trailing");
+    expect(out).not.toContain("removes this one");
+  });
+
+  it("keeps CRLF line endings", () => {
+    const text = CONFIG.replaceAll("\n", "\r\n");
+
+    const { text: out } = withoutColumnEntries(text, [
+      entry("memberships", "memberships", "updatedAt"),
+    ]);
+
+    expect(out).not.toMatch(/[^\r]\n/);
+    expect(out).not.toContain("updatedAt: null,\r\n          lastUsedAt");
+  });
+
+  it("reports an entry it cannot follow instead of skipping it", () => {
+    const text = `import { columns } from "./columns.ts";
+export default defineConfig({ blocks: { teams: { columns } } });
+`;
+
+    const result = withoutColumnEntries(text, [
+      entry("teams", "teams", "updatedAt"),
+    ]);
+
+    expect(result.text).toBe(text);
+    expect(result.review[0]).toContain("blocks.teams.columns.teams.updatedAt");
+    expect(result.review[0]).toContain("remove it by hand");
   });
 });
 
@@ -105,9 +180,9 @@ describe("configFiles", () => {
     const config = { path: "/p/better-supabase.config.ts", text: CONFIG };
 
     expect(
-      configFiles([entry("tags", "tags", "rank")], config)[0],
+      configFiles([entry("tags", "tags", "rank")], config).files[0],
     ).toMatchObject({ path: config.path, policy: "edit" });
-    expect(configFiles([entry("none", "none", "x")], config)).toEqual([]);
+    expect(configFiles([entry("none", "none", "x")], config).files).toEqual([]);
   });
 });
 
