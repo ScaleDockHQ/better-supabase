@@ -1283,7 +1283,7 @@ begin
   end if;${
     rejections
       ? `
-  if v_row.${q("rejectedAt")} is not null then
+  if v_row.${q("approvedAt")} is null and v_row.${q("rejectedAt")} is not null then
     ${conflict("LEAVE_REQUEST_CLOSED", "this leave request was rejected")}
   end if;`
       : ""

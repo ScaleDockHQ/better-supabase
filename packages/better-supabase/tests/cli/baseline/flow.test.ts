@@ -116,6 +116,7 @@ describe("baseline build", () => {
       `select pg_catalog.setval('"public"."plans_id_seq"', 2, true);`,
     );
     expect(data).not.toContain("delete from");
+    expect(data).toContain("pg_catalog.pg_current_xact_id()");
 
     const seedSchema = await readFile(files.seedSchema, "utf-8");
 

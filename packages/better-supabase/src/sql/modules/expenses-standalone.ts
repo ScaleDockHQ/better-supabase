@@ -714,7 +714,7 @@ begin${load("submit_expense.expense_id")}${ownerOrManager(updateOthers)}
   if ${status("v_row")} in ('approved', 'reimbursed') then
     ${conflict("EXPENSE_ALREADY_DECIDED", "this expense is already decided")}
   end if;${editable}
-  if ${status("v_row")} = 'rejected' and not ${mine("v_row")} then
+  if ${status("v_row")} = 'rejected' and not ${mine("v_row")} and ${owner.requester("v_row")} is not null then
     ${forbidden("only the owner resubmits a rejected expense")}
   end if;
   update ${table} x set ${e("submittedAt")} = now()${setStatus("submitted")}${set("rejectedAt", "null")}${set("approvedAt", "null")}, ${e("updatedAt")} = now()

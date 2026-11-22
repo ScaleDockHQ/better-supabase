@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:95fe66bc0c57724b0e15eab41c7742efffd3915ff10952afa49c196d57eca592
+-- @bsb-hash sha256:0acb699df52f2d79c1e84bd8d6af83ae2380be3a3d61a0b371d9e4ad5728212a
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -110,7 +110,10 @@ grant execute on function "better_supabase"."emit_event"(text, jsonb, text, text
 
 
 -- Registers a consumer. A new one starts after the latest event, or at the
--- first with from_start. Registering again changes only its types.
+-- first with from_start. Registering again changes only its types. The start
+-- never passes the snapshot's xmax: an event stamped with a transaction id the
+-- database has not reached (rows restored from another database) would
+-- otherwise hide every new event until the counter caught up.
 create or replace function "better_supabase"."outbox_register"(consumer text, types text[] default null, from_start boolean default false)
 returns bigint
 language sql
@@ -118,7 +121,7 @@ security definer
 set search_path = ''
 as $$
   insert into "better_supabase"."outbox_consumers" ("name", "cursor_xid", "cursor_position", "types")
-  select consumer, coalesce(latest.xid, '0'), coalesce(latest.position, 0), types
+  select consumer, least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0), types
   from (select 1) one
   left join lateral (
     select '0'::xid8 as xid, e."position" as position from "centrakit"."workflow_events" e

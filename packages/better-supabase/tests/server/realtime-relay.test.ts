@@ -417,7 +417,10 @@ describe("realtimeTopicAccess", () => {
 
   it("reads a probe message as the caller and rolls back", async () => {
     const fake = fakeSql([
-      ["insert into realtime.messages", [{ id: "p1" }]],
+      [
+        "insert into realtime.messages",
+        [{ id: "p1", at: "2026-11-22 10:00:00.123456" }],
+      ],
       ["select exists", [{ allowed: true }]],
     ]);
 
@@ -435,7 +438,10 @@ describe("realtimeTopicAccess", () => {
       "authenticated",
       "org:o1:notes:u1",
     ]);
-    expect(fake.calls[2]?.values).toEqual(["p1"]);
+    expect(fake.calls[2]?.text).toContain(
+      "m.id = $1::uuid and m.inserted_at = $2::timestamp",
+    );
+    expect(fake.calls[2]?.values).toEqual(["p1", "2026-11-22 10:00:00.123456"]);
   });
 
   it("denies a send the insert policy refuses and rethrows other errors", async () => {
@@ -841,7 +847,7 @@ describe("realtimeTopicAccess edges", () => {
     ).toBe(false);
     expect(empty.calls[0]?.values).toEqual(["t", "presence"]);
     expect(empty.calls[1]?.values[1]).toBe("");
-    expect(empty.calls[2]?.values).toEqual([""]);
+    expect(empty.calls[2]?.values).toEqual([null, null]);
 
     const bare = fakeSql([
       ["insert into realtime.messages", { throws: "connection reset" }],

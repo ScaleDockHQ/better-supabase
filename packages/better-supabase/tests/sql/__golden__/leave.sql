@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:0bae1d974d47a4e0496b2e437170a01a6a6387833cec80fefa7e2aead4cdfe47
+-- @bsb-hash sha256:90274c772d2e44655fe14eda214aa5cefc71cd3baa5ad99a70652582f29e2e94
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -704,7 +704,7 @@ begin
   if v_row."cancelled_at" is not null then
     raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
-  if v_row."rejected_at" is not null then
+  if v_row."approved_at" is null and v_row."rejected_at" is not null then
     raise exception 'this leave request was rejected' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then
@@ -1438,7 +1438,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:1823542593e558f8950c2a1bad7dac15e36719dd80ab032798d77c037ead7342
+-- @bsb-hash sha256:f79a2a0781e2064781729827204ec063ed17f9077bb02be7355a45187f928b8b
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2259,7 +2259,7 @@ begin
   if v_row."cancelled_at" is not null then
     raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
-  if v_row."rejected_at" is not null then
+  if v_row."approved_at" is null and v_row."rejected_at" is not null then
     raise exception 'this leave request was rejected' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then
@@ -3260,7 +3260,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:a8b65f75ba072bd97fa074677ca42a7a8a2bdc223f075fd456e3e2391c986039
+-- @bsb-hash sha256:ed1db51630dfd32a94ae6c1a26486c79a9d628fb8956401fc51b6ff74ff2b4f8
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3968,7 +3968,7 @@ begin
   if v_row."cancelled_at" is not null then
     raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
-  if v_row."rejected_at" is not null then
+  if v_row."approved_at" is null and v_row."rejected_at" is not null then
     raise exception 'this leave request was rejected' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then
@@ -4702,7 +4702,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:7bcb99fff8e4a2079d8f615ace34ceb6825101d18fd66591bf9e65669bf243dc
+-- @bsb-hash sha256:9bdbe1aea845ceeb1ec84d81cd70cf4f9d88bc98193a06d243b9d6da7c35a8ad
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5405,7 +5405,7 @@ begin
   if v_row."cancelled_at" is not null then
     raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
-  if v_row."rejected_at" is not null then
+  if v_row."approved_at" is null and v_row."rejected_at" is not null then
     raise exception 'this leave request was rejected' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then
@@ -6315,7 +6315,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:ff835122f471b45835bf573b4eebc9f0b308aa6f6beb78428a046775b5a4279b
+-- @bsb-hash sha256:41986802809bc090151d4d6b874736c9ad44b1df267128a3722030e2bf20a66e
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7002,7 +7002,7 @@ begin
   if v_row."cancelled_at" is not null then
     raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
-  if v_row."rejected_at" is not null then
+  if v_row."approved_at" is null and v_row."rejected_at" is not null then
     raise exception 'this leave request was rejected' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then
@@ -7728,7 +7728,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:b47cc3e53dd257cd981f47204207036951b10b9d512084a09ea5aac00c8e2e3e
+-- @bsb-hash sha256:25b6271ad249c810c6112eb95d169e2568bf244bd5027f8eb874202b1a45484b
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8431,7 +8431,7 @@ begin
   if v_row."cancelled_at" is not null then
     raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
-  if v_row."rejected_at" is not null then
+  if v_row."approved_at" is null and v_row."rejected_at" is not null then
     raise exception 'this leave request was rejected' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then

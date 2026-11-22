@@ -38,6 +38,7 @@ import {
   tableKey,
   tableSignatures,
   tablesToClear,
+  xidSql,
 } from "./catalog.ts";
 import {
   BASELINE_FORMAT,
@@ -87,9 +88,10 @@ const BUILD_STACK = "bsb-baseline-build";
 
 /**
  * Writes `schema.sql`'s companion: the rows of the changed tables, after a
- * `delete` for each table that already held rows, then the sequence values.
- * `session_replication_role = replica` keeps triggers and foreign keys out of
- * the restore, as `supabase db dump` does.
+ * `delete` for each table that already held rows, then the transaction ids
+ * moved back (`xidSql`) and the sequence values. `session_replication_role =
+ * replica` keeps triggers and foreign keys out of the restore, as `supabase db
+ * dump` does.
  */
 async function writeData(
   ctx: BaselineContext,
@@ -138,7 +140,7 @@ async function writeData(
     parts.push(`copy ${quoted(table)} from stdin;\n${rows}\\.\n`);
   }
 
-  parts.push(`\n${sequences}\n`);
+  parts.push(`\n${xidSql(changed)}\n${sequences}\n`);
   await writeFile(file, parts.join(""));
 }
 

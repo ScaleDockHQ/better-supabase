@@ -1,6 +1,5 @@
 import {
   glob,
-  mkdir,
   mkdtemp,
   readdir,
   readFile,
@@ -271,25 +270,34 @@ export async function unpackBuckets(
   readonly cleanup: () => Promise<void>;
 }> {
   const folder = await mkdtemp(join(tmpdir(), "bsb-objects-"));
-  await mkdir(folder, { recursive: true });
+  const cleanup = () => rm(folder, { recursive: true, force: true });
+  let unpacked = false;
 
-  const result = await ctx.run(
-    "tar",
-    ["-xzf", tarball, "-C", folder],
-    ctx.root,
-    ctx.env,
-  );
+  try {
+    const result = await ctx.run(
+      "tar",
+      ["-xzf", tarball, "-C", folder],
+      ctx.root,
+      ctx.env,
+    );
 
-  if (result.code !== 0) {
-    throw new CliError("failed", `tar failed: ${result.stderr.trim()}`);
+    if (result.code !== 0) {
+      throw new CliError("failed", `tar failed: ${result.stderr.trim()}`);
+    }
+
+    const names = (await readdir(folder, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => basename(entry.name));
+
+    unpacked = true;
+
+    return {
+      buckets: names.map((name) => ({ name, folder: join(folder, name) })),
+      cleanup,
+    };
+  } finally {
+    if (!unpacked) {
+      await cleanup();
+    }
   }
-
-  const names = (await readdir(folder, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => basename(entry.name));
-
-  return {
-    buckets: names.map((name) => ({ name, folder: join(folder, name) })),
-    cleanup: () => rm(folder, { recursive: true, force: true }),
-  };
 }

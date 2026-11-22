@@ -239,7 +239,10 @@ The claim holds back every event whose transaction id (`xid`) is not older
 than the oldest running transaction (`pg_snapshot_xmin`), and orders and
 tracks events by `(xid, position)`. An event that commits late therefore
 sorts after the consumer's cursor and is delayed, never skipped. A
-long-running transaction delays all consumers until it ends.
+long-running transaction delays all consumers until it ends. A new consumer
+starts after the latest event, but never past the current snapshot, so rows
+restored from another database with higher transaction ids don't hide the
+next event from it.
 
 When none of the claimed events match a consumer's `types`, its cursor
 still moves past the settled events, so a consumer of rare types doesn't

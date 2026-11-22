@@ -5,6 +5,7 @@ import type { CloudEvent } from "../../src/events/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
 import { createOutbox, sqlTransport } from "../../src/blocks/outbox/index.ts";
+import { xidSql } from "../../src/cli/baseline/catalog.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
@@ -368,6 +369,66 @@ describe.skipIf(!live)("outbox", () => {
     );
 
     expect(after[0]).toEqual({ attempts: 0, last_error: null, retry_at: null });
+  });
+
+  it("starts a new consumer before an event stamped with a future transaction id", async () => {
+    expect((await outbox.emit({ type: "restored.old" })).ok).toBe(true);
+
+    const ahead = "((pg_current_xact_id()::text::bigint + 100000)::text)::xid8";
+
+    await pool.query(
+      `update ${SCHEMA}.outbox_events set xid = ${ahead} where type = 'restored.old'`,
+    );
+    expect(
+      (await outbox.register({ consumer: "restored", types: ["restored.*"] }))
+        .ok,
+    ).toBe(true);
+    expect((await outbox.emit({ type: "restored.new" })).ok).toBe(true);
+
+    const sent: CloudEvent[] = [];
+
+    await outbox.relay({
+      consumer: "restored",
+      sink: { send: (events) => void sent.push(...events) },
+    });
+    expect(sent.map((event) => event.type)).toEqual([
+      "dev.better-supabase.restored.new",
+    ]);
+  });
+
+  it("moves restored transaction ids back to the restoring transaction", async () => {
+    const ahead = "((pg_current_xact_id()::text::bigint + 100000)::text)::xid8";
+
+    await pool.query(
+      `update ${SCHEMA}.outbox_events set xid = ${ahead} where type = 'restored.old'`,
+    );
+    await pool.query(
+      `update ${SCHEMA}.outbox_consumers set cursor_xid = ${ahead} where name = 'restored'`,
+    );
+    await pool.query(
+      xidSql([
+        { schema: SCHEMA, name: "outbox_events" },
+        { schema: SCHEMA, name: "outbox_consumers" },
+      ]),
+    );
+
+    const { rows } = await pool.query<{ ahead: string }>(
+      `select (select count(*) from ${SCHEMA}.outbox_events where xid >= pg_snapshot_xmax(pg_current_snapshot()))
+        + (select count(*) from ${SCHEMA}.outbox_consumers where cursor_xid >= pg_snapshot_xmax(pg_current_snapshot())) as ahead`,
+    );
+
+    expect(Number(rows[0]?.ahead)).toBe(0);
+    expect((await outbox.emit({ type: "restored.after" })).ok).toBe(true);
+
+    const sent: CloudEvent[] = [];
+
+    await outbox.relay({
+      consumer: "restored",
+      sink: { send: (events) => void sent.push(...events) },
+    });
+    expect(sent.map((event) => event.type)).toEqual([
+      "dev.better-supabase.restored.after",
+    ]);
   });
 
   it("purges past a consumer that stopped claiming when asked to", async () => {
