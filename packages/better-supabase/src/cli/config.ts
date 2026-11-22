@@ -12,6 +12,10 @@ import type { CliIo } from "./core/io.ts";
 import type { CliEnv } from "./env.ts";
 
 import { resolveConfig } from "../config/index.ts";
+import {
+  configImportsHash,
+  rememberConfigImports,
+} from "./cache/config-imports.ts";
 import { configIssues } from "./config-schema.ts";
 import { databaseUrlCredential } from "./core/credentials.ts";
 import { CliError } from "./core/errors.ts";
@@ -257,6 +261,11 @@ export async function loadConfig(
     extend: false,
     giget: false,
   });
+
+  rememberConfigImports(
+    explicit ? cwd : dirname(path),
+    await configImportsHash(path),
+  );
 
   const legacy = options.legacyTables === true ? takeLegacyTables(config) : {};
   const current = legacy.config ?? config;

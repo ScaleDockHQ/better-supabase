@@ -25,6 +25,7 @@ import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { tenantNames } from "../core/entity-naming.ts";
 import { frameworkRegistry } from "../plugins/frameworks.ts";
 import { expandFlatPreset, expandPreset } from "../preset/config.ts";
+import { apiMatches } from "./api-default.ts";
 import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
 import { withBlockSubjects } from "./block-subjects.ts";
@@ -160,18 +161,22 @@ function blocksOf(
   provider: boolean,
 ): Pick<
   ResolvedConfig,
-  "blocks" | "blockNames" | "instances" | "restatedDefaults"
+  "blocks" | "blockApis" | "blockNames" | "instances" | "restatedDefaults"
 > {
   const raw = resolveInstances(blocks ?? []);
 
   const restatedDefaults = Object.entries(raw).flatMap(([name, instance]) => [
-    ...(sql.api !== undefined && instance.config.api === sql.api
+    ...(sql.api !== undefined && apiMatches(instance.config.api, sql.api)
       ? [{ block: name, key: "api" as const }]
       : []),
     ...(sql.audit !== undefined && instance.config.audit === sql.audit
       ? [{ block: name, key: "audit" as const }]
       : []),
   ]);
+
+  const blockApis = Object.fromEntries(
+    Object.entries(raw).map(([name, instance]) => [name, instance.config.api]),
+  );
 
   const instances = Object.fromEntries(
     Object.entries(raw).map(([name, instance]) => [
@@ -199,7 +204,13 @@ function blocksOf(
     !blockNames.includes("permissions") ||
     resolved.permissions?.model !== undefined
   ) {
-    return { blocks: resolved, blockNames, instances, restatedDefaults };
+    return {
+      blocks: resolved,
+      blockApis,
+      blockNames,
+      instances,
+      restatedDefaults,
+    };
   }
 
   return {
@@ -207,6 +218,7 @@ function blocksOf(
       ...resolved,
       permissions: { ...resolved.permissions, model: "provider" },
     },
+    blockApis,
     blockNames,
     instances,
     restatedDefaults,

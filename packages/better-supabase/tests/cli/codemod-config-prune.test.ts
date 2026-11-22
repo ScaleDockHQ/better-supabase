@@ -137,3 +137,68 @@ describe("codemod config --prune numbering entries", () => {
     expect(text).not.toContain('period: "none"');
   });
 });
+
+describe("codemod config --prune sql.api", () => {
+  const API = `export default {
+  blocks: [
+    { block: "tags", api: "api" },
+    { block: "comments", api: { schema: "api" } },
+    { block: "reactions", api: "api" },
+    { block: "tasks" },
+  ],
+};
+`;
+
+  function apiProject(text: string): {
+    file: string;
+    config: ReturnType<typeof resolveConfig>;
+  } {
+    const root = mkdtempSync(join(tmpdir(), "bsb-prune-api-"));
+
+    mkdirSync(join(root, "supabase"), { recursive: true });
+
+    const file = join(root, "better-supabase.config.ts");
+
+    writeFileSync(file, text);
+
+    return {
+      file,
+      config: resolveConfig(
+        {
+          blocks: {
+            tags: { api: "api" },
+            comments: { api: { schema: "api" } },
+            reactions: { api: "api" },
+            tasks: {},
+          },
+        },
+        root,
+      ),
+    };
+  }
+
+  it("sets sql.api, drops the repeated entries and turns off the block without one", async () => {
+    const { config, file } = apiProject(API);
+
+    await runCodemod(config, { _: ["config"], prune: true }, undefined, file);
+
+    const text = readFileSync(file, "utf-8");
+
+    expect(text).toMatch(/database:\s*\{\s*sql:\s*\{\s*api: "api"/);
+    expect(text).not.toContain('api: "api" }');
+    expect(text).toMatch(/block: "tasks",\s*api: false/);
+  });
+
+  it("writes nothing with --check", async () => {
+    const { config, file } = apiProject(API);
+
+    await runCodemod(
+      config,
+      { _: ["config"], prune: true, check: true },
+      undefined,
+      file,
+    );
+
+    expect(readFileSync(file, "utf-8")).toBe(API);
+  });
+});

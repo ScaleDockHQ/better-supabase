@@ -78,6 +78,17 @@ describe("runGenerators", () => {
     expect(generatorKey(generator, input())).toBe(base);
   });
 
+  it("keys on the salt of the generator files and the config imports", () => {
+    const { generator } = counting();
+
+    expect(generatorKey(generator, input(), "a:b")).not.toBe(
+      generatorKey(generator, input(), "a:c"),
+    );
+    expect(generatorKey(generator, input(), "a:b")).toBe(
+      generatorKey(generator, input(), "a:b"),
+    );
+  });
+
   it("runs a generator that declares no purity on every pass", async () => {
     const { calls, generator } = counting({ pure: false });
 

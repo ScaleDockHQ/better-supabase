@@ -3,6 +3,7 @@ import type { PresetName } from "../../preset/presets.ts";
 import type { PresetSpec } from "../../preset/spec.ts";
 import type { Casing } from "../../schema/types.ts";
 import type { AuthorizationProvider } from ".././authorization.ts";
+import type { BlockApi } from "../api-default.ts";
 import type { AnyBlocksConfig, BlocksConfig } from "../blocks.ts";
 import type { ExposeConfig, ExposeRole, ResolvedExpose } from "../expose.ts";
 import type { ResolvedInstance } from "../instances.ts";
@@ -301,6 +302,12 @@ export interface ResolvedConfig {
   readonly preset?: string | PresetSpec;
   /** `blocks` with `sql.schema` and `sql.api` applied, keyed by block name. */
   readonly blocks: AnyBlocksConfig;
+  /**
+   * Each block instance's `api` entry as written, before `sql.api` fills it in,
+   * so `codemod config --prune` can tell which blocks a new `sql.api` would
+   * cover.
+   */
+  readonly blockApis: Readonly<Record<string, BlockApi>>;
   /** The installed blocks, in config order, each once. */
   readonly blockNames: readonly string[];
   /** Every install of a block, keyed by its key in `blocks`. */
