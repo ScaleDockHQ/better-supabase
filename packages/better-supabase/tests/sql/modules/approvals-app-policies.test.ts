@@ -372,6 +372,10 @@ returns jsonb language sql as $$
   select case when notification ->> 'subject_id' = 'quiet' then null
     else jsonb_build_object('action_path', '/quotes/' || (notification ->> 'subject_id'), 'priority', 'high', 'data', jsonb_build_object('risk', 'high')) end
 $$;
+-- The notification broadcast trigger calls Realtime, which PGlite lacks.
+create schema if not exists realtime;
+create or replace function realtime.send(payload jsonb, event text, topic text, private boolean default true)
+returns void language sql as $$ select $$;
 insert into auth.users (id) values ('${ANN}'), ('${BEN}') on conflict do nothing;
 do $$
 declare
@@ -384,6 +388,9 @@ begin
   if v_event.action_path <> '/quotes/loud' or v_event.priority <> 'high'
     or v_event.data ->> 'risk' <> 'high' or v_event.data ->> 'action' <> 'send' then
     raise exception 'enriched %', row_to_json(v_event);
+  end if;
+  if not exists (select 1 from better_supabase.notification_recipients where event_id = v_event.id) then
+    raise exception 'a request without a requester reached no approver';
   end if;
   if exists (select 1 from better_supabase.notification_events where subject_id = 'quiet') then
     raise exception 'a nulled notification was sent';

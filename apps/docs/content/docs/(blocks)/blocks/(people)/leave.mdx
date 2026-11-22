@@ -65,12 +65,12 @@ const rows = useLeave({ limit: 50 });
 
 A request can't overlap another pending or approved request of the member (`LEAVE_OVERLAP`). For a tracked type it can't exceed the available balance (`LEAVE_BALANCE_EXCEEDED`) unless `allowNegative` is on. A request counts toward the year it starts in.
 
-| Status      | Meaning                                                    |
-| ----------- | ---------------------------------------------------------- |
-| `pending`   | its approval request is open; it counts as `pending`       |
-| `approved`  | the final step approved it; the ledger has a `taken` entry |
-| `rejected`  | the approval request was rejected or expired               |
-| `cancelled` | the requester or a manager cancelled it                    |
+| Status      | Meaning                                                               |
+| ----------- | --------------------------------------------------------------------- |
+| `pending`   | its approval request is open; it counts as `pending`                  |
+| `approved`  | the final step approved it; the ledger has a `taken` entry            |
+| `rejected`  | the approval request was rejected or expired, or `rejected_at` is set |
+| `cancelled` | the requester or a manager cancelled it                               |
 
 With the [employees block](/docs/blocks/employees) installed, every request
 has an `employee_id` column: the employee behind the requester, kept in step
@@ -185,7 +185,7 @@ Over your own tables, `columns.types.key` and `columns.requests.partial` can map
 
 `options.owner: "employee"` keys requests and balances by an employee of the [employees block](/docs/blocks/employees) instead of by a user, so an employee without an account has leave too. The requests table needs `columns.requests.employee` (`employee_id`), and `columns.requests.user` may map to `null`. `request`, `list`, `balances`, `ledger` and `adjust` take `employeeId` (the caller's employee by default), and `accrue` takes `employeeIds`. The employee's own account requests and reads their leave with `leave.request`; their manager (the employee's `manager_id`) or a member with `leave.manage` requests and cancels it for them, and `leave.read` reads everyone's. Reads return `employeeId` next to `userId`, which is missing for an employee without an account.
 
-With the approvals block, the user who files a request is its approval's requester, and a manager step (`approvers: { manager: true }`) asks that user's manager. `options.approvalOwner: "employee"` makes the request's employee the requester instead, so a manager who books leave for a report decides it and the employee can't approve their own leave, and points the manager step at the employee's manager. For an employee without an account, the filer stays the requester.
+With the approvals block, the user who files a request is its approval's requester, and a manager step (`approvers: { manager: true }`) asks that user's manager. `options.approvalOwner: "employee"` makes the request's employee the requester instead, so a manager who books leave for a report decides it and the employee can't approve their own leave, and points the manager step at the employee's manager. For an employee without an account, the approval has no requester, so the member who filed it can decide it.
 
 ```ts title="better-supabase.config.ts"
 leave: {
@@ -201,7 +201,7 @@ leave: {
 
 `options.approvalRequired` names an app function `(tenant, request_id uuid) returns boolean`, such as a check of the leave type's settings. When it answers false, the request is approved at once and no approval request is filed, so a confidential type such as sick leave never reaches an approval payload. True or null files one as usual, and a type's `autoApprove` still approves at once too.
 
-With the approvals block, the request's final decision is stamped on the request the same way `decide_leave_request` does without it. A final approval books the leave and sets `decided_by` to the last approver and `decision_note` to their comment. A rejection sets `rejected_at`, `decided_by` and `decision_note` and records `leave_request.rejected`. Cancelling the approval request (`cancel_approval`, by the requester or a manager) sets `cancelled_at` and `cancelled_by` and records `leave_request.cancelled`. Each column is left alone when you map it to `null`, and an expired request keeps its columns empty.
+With the approvals block, the request's final decision is stamped on the request the same way `decide_leave_request` does without it. A final approval books the leave and sets `decided_by` to the last approver and `decision_note` to their comment. A rejection sets `rejected_at`, `decided_by` and `decision_note` and records `leave_request.rejected`. Cancelling the approval request (`cancel_approval`, by the requester or a manager) sets `cancelled_at` and `cancelled_by` and records `leave_request.cancelled`. Each column is left alone when you map it to `null`, and an expired request keeps its columns empty. A mapped `rejected_at` closes the request on its own, so a rejection from before an app switched to approvals mode, which has no approval request, stays `rejected`: `update` and `cancel` fail with `LEAVE_REQUEST_CLOSED`.
 
 `options.approvalSubject` names the subject type the approvals are filed under, `leave_request` by default. Set it to keep a name your app already uses, such as `time_off_request`. The block's own policy is still `options.policy`; tenant policies (`tenantPolicies`) and `requestColumns` of the approvals block match the new name. Changing it on an install with pending requests leaves those under the old name, where the block no longer acts on their decisions, so rename them in the same migration: `update better_supabase.approval_requests set subject_type = 'time_off_request' where subject_type = 'leave_request';`.
 

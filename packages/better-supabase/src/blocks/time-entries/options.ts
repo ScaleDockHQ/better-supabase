@@ -51,6 +51,15 @@ export type TimeEntriesSqlOptions = {
    */
   readonly decider?: string;
   /**
+   * An app function `schema.function(tenant, owner uuid) returns boolean` that
+   * answers whether the caller may write another owner's time, such as a
+   * manager for their reports. `owner` is the employee id with owner
+   * `"employee"`, else the member's user id. A caller it accepts logs, changes
+   * and archives that owner's entries and submits and withdraws their weeks,
+   * next to holders of the manage permission. A null answer denies.
+   */
+  readonly writer?: string;
+  /**
    * An app function `schema.function(tenant, timesheet_id uuid) returns
    * boolean`, such as an organization setting. When it answers false,
    * `submit_timesheet` approves the week at once instead of filing it with the
@@ -82,6 +91,7 @@ export const timeEntriesSqlOptions: BlockOptionsSchema<TimeEntriesSqlOptions> =
     timers: option.string<"one" | "many">({ default: "one" }),
     lockedColumns: option.strings(),
     decider: option.string(),
+    writer: option.string(),
     approvalRequired: option.string(),
     selfApproveWhenTopOfChain: option.boolean({ default: false }),
     on: option.strings(),

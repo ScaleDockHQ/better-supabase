@@ -787,7 +787,7 @@ ${indent}end if;`;
     return;
   end if;
   if approval_notify.kind in ('approved', 'rejected', 'expired') then
-    v_recipients := array[v_req.${c("requestedBy")}];
+    v_recipients := array_remove(array[v_req.${c("requestedBy")}], null);
     v_permission := null;
   else
     v_approvers := ${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} -> case when approval_notify.kind = 'escalated' then 'escalateTo' else 'approvers' end;
@@ -835,7 +835,7 @@ ${indent}end if;`;
       'summary', left(v_req.${c("action")}${has("reason") ? ` || coalesce(': ' || v_req.${c("reason")}, '')` : ""}, 140),
       'recipients', to_jsonb(v_recipients),
       'permission', v_permission,
-      'exclude', case when approval_notify.kind in ('approved', 'rejected', 'expired') then '[]'::jsonb when coalesce((${policyOf("v_req")} ->> 'selfApproval')::boolean, false) then ${excluded("v_req")} else jsonb_build_array(v_req.${c("requestedBy")}) || ${excluded("v_req")} end,
+      'exclude', case when approval_notify.kind in ('approved', 'rejected', 'expired') then '[]'::jsonb when coalesce((${policyOf("v_req")} ->> 'selfApproval')::boolean, false) then ${excluded("v_req")} else to_jsonb(array_remove(array[v_req.${c("requestedBy")}], null)) || ${excluded("v_req")} end,
       'include_actor', approval_notify.kind in ('approved', 'rejected', 'expired'),
       'key', 'approval.' || approval_notify.kind || ':' || v_req.${c("id")}::text || ':' || ${stepOf("v_req")}::text || ':' || extract(epoch from now())::bigint::text,
       'data', jsonb_build_object('requestId', v_req.${c("id")}, 'action', v_req.${c("action")}, 'step', ${stepOf("v_req")})
@@ -1119,9 +1119,12 @@ revoke execute on function ${fn("approval_finalize")}(uuid) from public, anon, a
 
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
--- defaults to the caller.
+-- defaults to the caller. on_behalf names requested_by as the subject's
+-- owner: null then means an owner without a login, never the caller, so a
+-- member who files for that owner can still decide the request.
 drop function if exists ${fn("open_approval")}(${ctx.idType}, text, text, text, jsonb, text, jsonb);
-create or replace function ${fn("open_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
+drop function if exists ${fn("open_approval")}(${ctx.idType}, text, text, text, jsonb, text, jsonb, uuid);
+create or replace function ${fn("open_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null, on_behalf boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -1131,7 +1134,7 @@ as $$
 declare
   v_req ${requests}%rowtype;
   v_policy jsonb := open_approval.policy;
-  v_requester uuid := coalesce(open_approval.requested_by, auth.uid());
+  v_requester uuid := case when open_approval.on_behalf then open_approval.requested_by else coalesce(open_approval.requested_by, auth.uid()) end;
 begin
   ${ctx.hook("before_approval_request", [
     [ctx.idType, "open_approval.tenant"],
@@ -1152,7 +1155,7 @@ begin
   return ${json("v_req")};
 end;
 $$;
-revoke execute on function ${fn("open_approval")}(${ctx.idType}, text, text, text, jsonb, text, jsonb, uuid) from public, anon, authenticated;
+revoke execute on function ${fn("open_approval")}(${ctx.idType}, text, text, text, jsonb, text, jsonb, uuid, boolean) from public, anon, authenticated;
 ${linked.length === 0 ? "" : settleSql(ctx, kit)}
 ${approvalsTenantSql(ctx, {
   json,
