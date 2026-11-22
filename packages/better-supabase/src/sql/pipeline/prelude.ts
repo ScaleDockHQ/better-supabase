@@ -3,6 +3,7 @@ import type { BlockSqlFile, BlockSqlLayout } from "../module-types.ts";
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
 import { ACTING_MEMBER, actorWriteFunctions } from "../actor-guard.ts";
 import { columnTypeFunctions } from "../column-type.ts";
+import { DECLARED_DEFAULTS } from "../declared-defaults.ts";
 import { grantTable } from "../emit/grant.ts";
 import { createTable, enableRowSecurity } from "../emit/table.ts";
 import { MEMO_FUNCTIONS } from "../memo.ts";
@@ -25,6 +26,7 @@ export const PRELUDE_FUNCTIONS: ReadonlySet<string> = new Set([
   "actor_may_write",
   "as_column_type",
   "column_default",
+  "declared_defaults_of",
   "import_run",
   "is_service_role",
   "memo_get",
@@ -107,6 +109,7 @@ export function preludeSql(
     `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`,
     BLOCKS_TABLE,
+    DECLARED_DEFAULTS,
     ACTING_MEMBER,
     actorWriteFunctions().trim(),
     columnTypeFunctions(),
@@ -164,10 +167,15 @@ export function preludeFile(
     // A migration repeats the prelude, so its table can already exist.
     contents: `${header}\n\n${
       layout.rerunnable === true
-        ? sql.replace(
-            "create table better_supabase.blocks (",
-            "create table if not exists better_supabase.blocks (",
-          )
+        ? sql
+            .replace(
+              "create table better_supabase.blocks (",
+              "create table if not exists better_supabase.blocks (",
+            )
+            .replace(
+              "create table better_supabase.declared_defaults (",
+              "create table if not exists better_supabase.declared_defaults (",
+            )
         : sql
     }\n`,
   };

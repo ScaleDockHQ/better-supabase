@@ -45,6 +45,7 @@ import {
 } from "./approvals-items.ts";
 import {
   approvalPolicies,
+  declaredPolicy,
   policyCase,
   validateApprovers,
   validateRuns,
@@ -901,14 +902,15 @@ ${renderPolicy(makePolicy({ table: decisions, name: ctx.naming.rename("approval_
   return `${schemaPreamble(ctx)}
 ${tables}
 ${itemsTable}
--- The policy a new request snapshots, from options.policies.
+-- The policy a new request snapshots: the approval_floor rows the app declared
+-- (most specific first), else options.policies.
 create or replace function ${fn("approval_policy")}(subject_type text, action text)
 returns jsonb
 language sql
-immutable
+stable
 set search_path = ''
 as $$
-  select ${policyCase(policies)}
+  select ${declaredPolicy(policyCase(policies))}
 $$;
 ${userGrant(`${fn("approval_policy")}(text, text)`)}
 

@@ -367,7 +367,7 @@ describe("per-tenant formats", () => {
     });
 
     expect(sql).toContain(
-      `when 'invoice' then coalesce((select nullif(btrim(s."invoice_number_format"), '') from "public"."organizations" s where s."id" = p_tenant), '{n}')`,
+      `when 'invoice' then coalesce((select nullif(btrim(s."invoice_number_format"), '') from "public"."organizations" s where s."id" = p_tenant), (better_supabase.declared_defaults_of('numbering_format', 'invoice') -> 0 ->> 'format'), '{n}')`,
     );
     expect(sql).toContain(
       `when 'invoice' then better_supabase.number_format_period("better_supabase"."number_format"(next_number.tenant, 'invoice'), next_number.at)`,

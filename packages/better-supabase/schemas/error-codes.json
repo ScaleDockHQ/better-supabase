@@ -3940,6 +3940,10 @@
     "message": "Sign in first"
   },
   {
+    "code": "OPTION_SET_DEFAULTS_MISSING",
+    "message": "this field declares no items; add option_set_item rows to supabase/rows"
+  },
+  {
     "code": "OPTION_SET_FIELD_UNKNOWN",
     "message": "this field has no option set binding"
   },
