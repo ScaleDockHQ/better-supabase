@@ -628,7 +628,7 @@ export function coordinationContract(
           },
           {
             name: "delegate_task",
-            args: ["uuid", "uuid", "jsonb"],
+            args: ["uuid", "uuid", "jsonb", "text"],
             returns: "jsonb",
           },
           { name: "expire_task_claims", args: [], returns: "integer" },

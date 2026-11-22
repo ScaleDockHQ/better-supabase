@@ -234,6 +234,13 @@ export interface TaskEventData extends SubjectEventData {
   readonly askUserIds?: readonly string[];
   /** For `task.delegated`: who the task was handed to. */
   readonly delegateId?: string | null;
+  /** For `task.delegated`: the profile the task is reserved for, if any. */
+  readonly toProfile?: string | null;
+  /**
+   * For `task.hold_released` from `release_task_hold`: whether a pending
+   * approval request of the hold was cancelled.
+   */
+  readonly approvalCancelled?: boolean;
   /** For `task.unblocked`: the prerequisites still open (always 0). */
   readonly waitingOn?: number;
 }

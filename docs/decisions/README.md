@@ -655,3 +655,4 @@ add one, and link it from the code or config it explains.
 | [1180](1180-claim-next-assigned-by-default.md)                                       | Claim only assigned tasks unless claims.next is "any"                                                                                                                                      | accepted | 2026-11-22 |
 | [1181](1181-stage-by-category.md)                                                    | Name hold, start and expired stages by key or category                                                                                                                                     | accepted | 2026-11-22 |
 | [1182](1182-hold-kinds-and-request-cancel.md) | Limit hold kinds and cancel the approval a hold leaves behind | accepted | 2026-11-22 |
+| [1183](1183-delegate-to-profile.md) | Reserve a delegated task for a named profile | accepted | 2026-11-22 |

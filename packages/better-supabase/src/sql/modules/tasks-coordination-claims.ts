@@ -2,7 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { TaskNames } from "./tasks-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, serviceGrant, userGrant } from "../shared.ts";
+import { fail, serviceGrant, triggerGrant, userGrant } from "../shared.ts";
 import {
   load,
   stageByCategory,
@@ -67,6 +67,7 @@ export function claimsSql(
       and (claim_next_task.filter ->> ${sqlString(e("projectId"))} is null or ${has("project") ? `${alias}.${w("project")} = (claim_next_task.filter ->> ${sqlString(e("projectId"))})::uuid` : "false"})
       and (claim_next_task.filter ->> 'parentId' is null or ${alias}.${w("parent")} = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or ${alias}.${w("stage")} = (claim_next_task.filter ->> 'stageId')::uuid)
+      and (claim_next_task.filter ->> 'delegateProfile' is null or ${has("delegateProfile") ? `${alias}.${w("delegateProfile")} ->> 'name' = claim_next_task.filter ->> 'delegateProfile'` : "false"})
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from ${t("assignees")} y where y.${a("item")} = ${alias}.${w("id")} and y.${a("user")} = (claim_next_task.filter ->> 'assigneeId')::uuid))`;
 
   const isAgent = `coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false)`;
@@ -89,12 +90,53 @@ export function claimsSql(
     end if;
   end if;`;
 
+  const reservable = has("delegateProfile");
+
+  // A task reserved for a profile is claimed by that profile of its user, or
+  // taken over by a person with write access. An agent session never takes over.
+  const reserved = (row: string): string => `${row}.${w("delegateProfile")}`;
+
+  const reservedOk = (row: string, name: string, writer: string): string =>
+    `(${reserved(row)} is null or (${reserved(row)} ->> 'name' is not distinct from ${name} and (${reserved(row)} ->> 'userId') is not distinct from auth.uid()::text) or (not ${isAgent} and ${writer}))`;
+
+  const reservedGuard = reservable
+    ? `
+  if not ${reservedOk("v_row", "v_actor ->> 'name'", `(${n.service} or ${ctx.scope.can(`v_row.${w("tenant")}`, n.write)})`)} then
+    ${fail("TASK_RESERVED", "the task is reserved for another profile", "42501")}
+  end if;`
+    : "";
+
+  const takeover = reservable
+    ? `
+  if ${reserved("v_row")} is not null and not (${reserved("v_row")} ->> 'name' is not distinct from v_actor ->> 'name' and (${reserved("v_row")} ->> 'userId') is not distinct from auth.uid()::text) then
+    update ${t("items")} x set ${w("delegateProfile")} = null where x.${w("id")} = v_row.${w("id")};
+  end if;`
+    : "";
+
+  const reservationName = ctx.naming.rename("bsb_task_reservation");
+
+  const reservationTrigger = `
+
+-- Unassigning the user a task is reserved for ends the reservation.
+create or replace function better_supabase.${reservationName}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update ${t("items")} x set ${w("delegateProfile")} = null
+    where x.${w("id")} = old.${a("item")} and x.${w("delegateProfile")} ->> 'userId' = old.${a("user")}::text;
+  return old;
+end;
+$$;
+${triggerGrant(`better_supabase.${reservationName}()`)}
+drop trigger if exists ${reservationName} on ${t("assignees")};
+create trigger ${reservationName} after delete on ${t("assignees")}
+for each row execute function better_supabase.${reservationName}();`;
+
   const leaseOf = (lease: string): string =>
     `least(${String(co.maxLease)}, greatest(1, coalesce(${lease}, ${String(co.lease)})))`;
-
-  const delegateProfile = has("delegateProfile")
-    ? `, ${w("delegateProfile")} = v_actor`
-    : "";
 
   return `
 
@@ -117,7 +159,7 @@ begin
   ${load(ctx, n, "claim_task", co.claim)}
   if v_row.${w("closedAt")} is not null then
     ${fail("TASK_CLOSED", "a closed task can't be claimed", "55000")}
-  end if;${agentGuard}${heldGuard}${needsGuard}
+  end if;${agentGuard}${reservedGuard}${heldGuard}${needsGuard}
   insert into ${t("claims")} as c (${k("task")}, ${k("tenant")}, ${k("holder")}, ${k("profile")}, ${k("expiresAt")})
   values (v_row.${w("id")}, v_row.${w("tenant")}, auth.uid(), v_actor, now() + make_interval(secs => ${leaseOf("claim_task.lease")}))
   on conflict (${k("task")}) do update set
@@ -133,7 +175,7 @@ begin
   returning * into v_claim;
   if not found then
     ${fail("TASK_CLAIMED", "another holder has a live claim on the task", "55P03")}
-  end if;${startStage}
+  end if;${takeover}${startStage}
   ${taskRecord(ctx, n, "task.claimed", "v_row", claimEventExtra("v_claim"), "claim_task.profile")}
   return jsonb_build_object('task', (select ${h.row("x")} from ${t("items")} x where x.${w("id")} = v_row.${w("id")}), 'claim', ${claimJson("v_claim", true)});
 end;
@@ -152,7 +194,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid;
+  v_id uuid;${reservable ? `\n  v_name text := ${fn("task_actor")}(claim_next_task.profile) ->> 'name';\n  v_writer boolean := ${n.service} or ${ctx.scope.can("claim_next_task.tenant", n.write)};` : ""}
 begin
   if not (better_supabase.actor_may_write()) then
     ${fail("ACTOR_READ_ONLY", "This session is read-only")}
@@ -163,7 +205,7 @@ ${assignedOnly}
   end if;
   select x.${w("id")} into v_id from ${t("items")} x
   where x.${w("tenant")} = claim_next_task.tenant and x.${w("archivedAt")} is null and x.${w("closedAt")} is null${n.templates ? `\n    and x.${w("template")} is null` : ""}${has("heldAt") ? `\n    and x.${w("heldAt")} is null` : ""}${co.needs === null ? "" : `\n    and x.${w("waitingOn")} = 0`}
-    and (not ${restricted} or ${mine("x")})
+    and (not ${restricted} or ${mine("x")})${reservable ? `\n    and ${reservedOk("x", "v_name", "v_writer")}` : ""}
     and not exists (select 1 from ${t("claims")} c where c.${k("task")} = x.${w("id")} and ${live("c")})${filter("x")}
   order by (case when exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and y.${a("user")} = auth.uid()) then 0 else 1 end), x.${w("number")}
   limit 1
@@ -227,8 +269,13 @@ $$;
 ${userGrant(`${fn("release_task_claim")}(uuid, uuid, text)`)}
 
 -- Hands a task to a user: assigns them, notes who delegated, and drops a claim
--- held by someone else. The user needs tasks.read in the organization.
-create or replace function ${fn("delegate_task")}(task uuid, to_user uuid, profile jsonb default null)
+-- held by someone else. The user needs tasks.read in the organization. With
+-- to_profile the task is reserved for that profile of the user: only a claim
+-- under that profile name by that user, or a person with write access, takes it
+-- (TASK_RESERVED otherwise). Delegating again, unassigning the user and closing
+-- the task clear the reservation.
+drop function if exists ${fn("delegate_task")}(uuid, uuid, jsonb);
+create or replace function ${fn("delegate_task")}(task uuid, to_user uuid, profile jsonb default null, to_profile text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -237,9 +284,20 @@ as $$
 declare
   v_row ${t("items")};
   v_actor jsonb := ${fn("task_actor")}(delegate_task.profile);
+  v_name text := nullif(btrim(delegate_task.to_profile), '');
   v_added boolean;
 begin
   ${load(ctx, n, "delegate_task", n.write)}
+  if delegate_task.to_profile is not null and (v_name is null or length(v_name) > 120) then
+    ${fail("TASK_DELEGATE_INVALID", "to_profile is a name of up to 120 characters", "22023")}
+  end if;${
+    reservable
+      ? ""
+      : `
+  if v_name is not null then
+    ${fail("TASK_FIELD_UNSUPPORTED", `this ${ctx.tableName("items").name} table has no delegate_profile column`, "22023")}
+  end if;`
+  }
   if not ${ctx.scope.canUser("delegate_task.to_user", `v_row.${w("tenant")}`, n.read)} then
     ${fail("TASK_DELEGATE_INVALID", "the user can't read tasks in this organization", "22023")}
   end if;
@@ -247,19 +305,19 @@ begin
   on conflict do nothing;
   v_added := found;
   delete from ${t("claims")} c where c.${k("task")} = v_row.${w("id")} and c.${k("holder")} is distinct from delegate_task.to_user;${
-    delegateProfile === ""
-      ? ""
-      : `
-  update ${t("items")} x set ${delegateProfile.slice(2)} where x.${w("id")} = v_row.${w("id")};`
+    reservable
+      ? `
+  update ${t("items")} x set ${w("delegateProfile")} = case when v_name is null then null else jsonb_build_object('name', v_name, 'userId', delegate_task.to_user) end where x.${w("id")} = v_row.${w("id")};`
+      : ""
   }
-  ${taskRecord(ctx, n, "task.delegated", "v_row", ", 'delegateId', delegate_task.to_user", "delegate_task.profile")}
+  ${taskRecord(ctx, n, "task.delegated", "v_row", ", 'delegateId', delegate_task.to_user, 'toProfile', v_name", "delegate_task.profile")}
   if v_added then
     ${taskRecord(ctx, n, "task.assigned", "v_row", `, 'assigneeIds', to_jsonb(array(select y.${a("user")} from ${t("assignees")} y where y.${a("item")} = v_row.${w("id")})), 'addedIds', jsonb_build_array(delegate_task.to_user)`)}
   end if;
   return (select ${h.row("x")} from ${t("items")} x where x.${w("id")} = v_row.${w("id")});
 end;
 $$;
-${userGrant(`${fn("delegate_task")}(uuid, uuid, jsonb)`)}
+${userGrant(`${fn("delegate_task")}(uuid, uuid, jsonb, text)`)}${reservable ? reservationTrigger : ""}
 
 -- Deletes the claims whose lease ran out, moves each task to the expired stage
 -- (the claims.expiredStage option) and records task.claim_expired.

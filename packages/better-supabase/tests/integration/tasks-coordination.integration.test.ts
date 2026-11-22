@@ -448,6 +448,94 @@ describe.skipIf(!live)("task coordination", () => {
     }
   });
 
+  it("reserves a delegated task for a profile and clears the reservation", async () => {
+    const env = await setup();
+
+    try {
+      const { s, tasks, org, team, alice, bob } = env;
+      await stages(env);
+      await s.as(alice);
+
+      const make = (title: string) =>
+        tasks
+          .create({ organizationId: org, input: { title, teamId: team } })
+          .orThrow();
+
+      const one = await make("One");
+      const two = await make("Two");
+      const three = await make("Three");
+      const four = await make("Four");
+
+      const reserved = await tasks
+        .delegate({ taskId: one.id, toUserId: bob.id, toProfile: "scout" })
+        .orThrow();
+
+      expect(reserved.delegateProfile).toEqual({
+        name: "scout",
+        userId: bob.id,
+      });
+
+      await s.as(bob);
+
+      // Only the reserved tasks of that profile come back under the filter.
+      const picked = await tasks
+        .claimNext({
+          organizationId: org,
+          filter: { delegateProfile: "scout" },
+          profile: { kind: "agent", name: "scout" },
+        })
+        .orThrow();
+
+      expect(picked?.task.id).toBe(one.id);
+      expect(picked?.task.delegateProfile?.name).toBe("scout");
+
+      // A person with write access takes a reserved task over and ends it.
+      await s.as(alice);
+
+      await tasks
+        .delegate({ taskId: two.id, toUserId: bob.id, toProfile: "scout" })
+        .orThrow();
+
+      const taken = await tasks.claim({ taskId: two.id }).orThrow();
+      expect(taken.task.delegateProfile).toBeUndefined();
+
+      // Delegating again without a profile clears it.
+      await tasks
+        .delegate({ taskId: three.id, toUserId: bob.id, toProfile: "scout" })
+        .orThrow();
+
+      const again = await tasks
+        .delegate({ taskId: three.id, toUserId: bob.id })
+        .orThrow();
+
+      expect(again.delegateProfile).toBeUndefined();
+
+      // Unassigning the user clears it, and so does closing.
+      await tasks
+        .delegate({ taskId: four.id, toUserId: bob.id, toProfile: "scout" })
+        .orThrow();
+
+      await tasks
+        .assign({ taskId: four.id, userIds: [alice.id] })
+        .orThrow();
+
+      expect(
+        (await tasks.getTask(four.id).orThrow()).delegateProfile,
+      ).toBeUndefined();
+
+      await tasks
+        .delegate({ taskId: four.id, toUserId: bob.id, toProfile: "scout" })
+        .orThrow();
+      await tasks.complete({ taskId: four.id }).orThrow();
+
+      expect(
+        (await tasks.getTask(four.id).orThrow()).delegateProfile,
+      ).toBeUndefined();
+    } finally {
+      await env.s.close();
+    }
+  });
+
   it("refuses every new write to a read-only agent and a writable one meets the permission check", async () => {
     const env = await setup();
 

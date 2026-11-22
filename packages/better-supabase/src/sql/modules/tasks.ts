@@ -110,7 +110,10 @@ const EVENTS: BlockSqlEvents<TasksEvents> = {
     payload: [...ITEM, "holderId", "epoch", "expiresAt", "returnStageId"],
   },
   "task.failed": { subject: "tasks", payload: [...ITEM, "note"] },
-  "task.delegated": { subject: "tasks", payload: [...ITEM, "delegateId"] },
+  "task.delegated": {
+    subject: "tasks",
+    payload: [...ITEM, "delegateId", "toProfile"],
+  },
   "task.held": {
     subject: "tasks",
     payload: [...ITEM, "kind", "note", "askUserIds"],
@@ -554,7 +557,7 @@ function guard(ctx: BlockSqlContext, n: TaskNames): string {
 
   const closeNote = `coalesce(nullif(current_setting('bsb.close_note', true), ''), ${ctx.has("items", "closeNote") ? `new.${w("closeNote")}` : "null"})`;
 
-  const onClose = `${ctx.has("items", "closeNote") ? `      new.${w("closeNote")} := ${closeNote};\n` : ""}${ctx.has("items", "heldAt") ? `      new.${w("heldAt")} := null;\n${ctx.has("items", "holdKind") ? `      new.${w("holdKind")} := null;\n` : ""}${ctx.has("items", "holdReturnStage") ? `      new.${w("holdReturnStage")} := null;\n` : ""}${cancelHoldRequestSql(ctx, n, `new.${w("id")}`) === "" ? "" : `      ${cancelHoldRequestSql(ctx, n, `new.${w("id")}`)}\n`}` : ""}${ctx.hasTable("claims") ? `      delete from ${t("claims")} c where c.${c("claims", "task")} = new.${w("id")};\n` : ""}`;
+  const onClose = `${ctx.has("items", "closeNote") ? `      new.${w("closeNote")} := ${closeNote};\n` : ""}${ctx.has("items", "heldAt") ? `      new.${w("heldAt")} := null;\n${ctx.has("items", "holdKind") ? `      new.${w("holdKind")} := null;\n` : ""}${ctx.has("items", "holdReturnStage") ? `      new.${w("holdReturnStage")} := null;\n` : ""}${cancelHoldRequestSql(ctx, n, `new.${w("id")}`) === "" ? "" : `      ${cancelHoldRequestSql(ctx, n, `new.${w("id")}`)}\n`}` : ""}${ctx.hasTable("claims") ? `      delete from ${t("claims")} c where c.${c("claims", "task")} = new.${w("id")};\n` : ""}${ctx.has("items", "delegateProfile") ? `      new.${w("delegateProfile")} := null;\n` : ""}`;
 
   const started =
     ctx.has("items", "waitingOn") && n.co.needs?.refuse === "started"
@@ -694,6 +697,18 @@ update ${items} y set ${w("rank")} = ${ctx.of("rank").fn("rank_key")}(o.nth, o.t
       : "";
 
   return `${coordinationColumns(ctx)}${rebalance}`;
+}
+
+/**
+ * The version 7 step: delegate_profile stored the delegator's actor label, and
+ * now stores a reservation, so old values are cleared.
+ */
+function upgradeFromSix(ctx: BlockSqlContext): string {
+  if (ctx.mode === "custom" || !ctx.has("items", "delegateProfile")) {
+    return "";
+  }
+
+  return `update ${ctx.table("items")} set ${ctx.col("items", "delegateProfile")} = null where ${ctx.col("items", "delegateProfile")} is not null and not (${ctx.col("items", "delegateProfile")} ? 'userId');`;
 }
 
 function build(ctx: BlockSqlContext): string {
@@ -978,7 +993,7 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 6,
+  version: 7,
   upgrades: [
     {
       from: 1,
@@ -997,6 +1012,12 @@ export const WORK_ITEMS: BlockSqlDefinition = {
       description:
         "Adds task coordination (ADRs 1110 to 1119): prerequisites with waiting_on and task.unblocked, create_tasks, claims with leases, actor labels on events, holds, close_task with a note and the failed outcome, move_task with lane rebalancing, stage times and the tasks:{tenant} topic. New columns are added where the table is managed or declares them, close_reason takes failed, and lanes whose tasks share a rank key are rebalanced.",
       sql: (ctx) => upgradeFromFive(ctx),
+    },
+    {
+      from: 6,
+      description:
+        "delegate_task takes to_profile and reserves the task for that profile of the user (ADR 1183). delegate_profile held the delegator's label at version 6, so its values are cleared.",
+      sql: (ctx) => upgradeFromSix(ctx),
     },
   ],
   names: NAMES,
