@@ -25,7 +25,7 @@ Doctor reads the project's own files under pg-delta and reports:
 - BS730: a table in a publication other than `supabase_realtime` without a
   primary key or `replica identity full`, which a Pipeline source needs.
 
-Module files better-supabase writes are not read; ADR 1254 fixes their output.
+Module files better-supabase writes are not read; their output is a separate follow-up.
 
 ## Consequences
 
