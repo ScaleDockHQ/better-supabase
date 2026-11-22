@@ -37,7 +37,10 @@ export interface RestatedInput {
   }[];
   /** The authorization provider, when the app uses the provider model. */
   readonly provider?: AuthorizationProvider | undefined;
-  /** `subjects`, for permission keys the provider's `actionKeys` repeat. */
+  /**
+   * `recordTypes` (resolved as `subjects`), for keys the provider's
+   * `actionKeys` repeat.
+   */
   readonly subjects?: Readonly<
     Record<
       string,
@@ -323,7 +326,7 @@ function providerEntries(input: RestatedInput): RestatedEntry[] {
     for (const [action, key] of Object.entries(actions)) {
       if (set?.[action] === key) {
         add(
-          `subjects.${type}.permissions.${action}`,
+          `recordTypes.${type}.permissions.${action}`,
           "an actionKeys entry",
           key,
         );

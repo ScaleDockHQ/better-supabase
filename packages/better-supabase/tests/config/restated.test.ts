@@ -164,7 +164,7 @@ describe("restatedEntries", () => {
       ),
     ).toEqual([
       "provider:blocks.audit.permissions.read",
-      "provider:subjects.note.permissions.read",
+      "provider:recordTypes.note.permissions.read",
     ]);
   });
 });
