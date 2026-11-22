@@ -85,7 +85,7 @@ export interface SourceModel {
 }
 
 /** The string a non-computed key or a string literal holds. */
-export function keyText(node: Node): string | undefined {
+function keyText(node: Node): string | undefined {
   if (node.type === "Identifier") {
     return node.name;
   }
