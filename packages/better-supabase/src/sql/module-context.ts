@@ -9,6 +9,7 @@ import type { BlockSqlLayout, BlockSql } from "./module-types.ts";
 import type { RedundantNull, ViewColumns } from "./view-columns.ts";
 
 import { installedBlockSubjects } from "../config/block-subjects.ts";
+import { approverForNamesRequest } from "../core/access-sql.ts";
 import { createModuleContext } from "./context.ts";
 import { providerAnswersForGuests } from "./guest-sql.ts";
 import { renamedInstances, rendersOwnInstance } from "./instance-names.ts";
@@ -451,8 +452,9 @@ function withProviderRoles(
 }
 
 /**
- * The provider's `approverFor` (when it names the request with `{id}`) and
- * `managedUsers` templates, which only count under the `provider` model.
+ * The provider's `approverFor` (when it names the request with `{id}`,
+ * `{requester}` or `{tenant}`) and `managedUsers` templates, which only count
+ * under the `provider` model.
  */
 function providerPeople(
   modules: AnyBlocksConfig | undefined,
@@ -465,7 +467,8 @@ function providerPeople(
   }
 
   return {
-    ...(functions.approverFor?.includes("{id}")
+    ...(functions.approverFor !== undefined &&
+    approverForNamesRequest(functions.approverFor)
       ? { providerApproverFor: functions.approverFor }
       : {}),
     ...(functions.managedUsers === undefined

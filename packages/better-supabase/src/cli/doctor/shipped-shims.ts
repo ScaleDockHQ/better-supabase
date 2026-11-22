@@ -1,5 +1,6 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
+import { approverForNamesRequest } from "../../core/access-sql.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
 import { withoutComments, withoutStrings } from "./rls.ts";
 
@@ -39,7 +40,9 @@ function shims(context: DoctorContext): FindingInput[] {
     });
   }
 
-  if (context.config.authorization?.functions.approverFor !== undefined) {
+  const approverFor = context.config.authorization?.functions.approverFor;
+
+  if (approverFor !== undefined && approverForNamesRequest(approverFor)) {
     for (const block of DECIDER_BLOCKS) {
       const decider = optionOf(context, block, "decider");
 

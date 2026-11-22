@@ -13,9 +13,13 @@ import {
   policyOf,
   policySnapshot,
 } from "./approvals-policies.ts";
-import { deciderCall, hasDecider } from "./direct-approver.ts";
+import { deciderCall, hasDecider, subjectRow } from "./direct-approver.ts";
 import { leaveFeedSubject, leaveTeamFeedSubject } from "./leave-feed.ts";
-import { leaveByEmployee, leavePartsMapped } from "./leave-owner.ts";
+import {
+  leaveOwner,
+  leaveByEmployee,
+  leavePartsMapped,
+} from "./leave-owner.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** Leave requests this block files with approvals. */
@@ -303,14 +307,27 @@ function leaveDecided(
 function leaveDeciders(
   own: BlockSqlContext,
 ): Pick<ApprovalContribution, "decides" | "selfDecides"> {
-  const decider = deciderCall(own, WHERE, "null");
+  const decider = hasDecider(own) ? "on" : "";
 
   return {
     ...(decider === ""
       ? {}
       : {
           decides: ({ subjectId }: ApprovalRequestSql) =>
-            deciderCall(own, WHERE, `${subjectId}::uuid`).replace(/^ or /u, ""),
+            deciderCall(
+              own,
+              WHERE,
+              `${subjectId}::uuid`,
+              subjectRow(
+                own.table("requests"),
+                {
+                  id: own.col("requests", "id"),
+                  tenant: own.col("requests", "tenant"),
+                  requester: (alias) => leaveOwner(own).requester(alias),
+                },
+                subjectId,
+              ),
+            ).replace(/^ or /u, ""),
         }),
     ...(own.flag("selfDecideWhenTopOfChain", false)
       ? {

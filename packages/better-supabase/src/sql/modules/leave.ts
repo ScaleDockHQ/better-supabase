@@ -374,6 +374,7 @@ revoke execute on function ${fn("leave_approval_decided")}(uuid, text, text, uui
     ctx,
     "blocks.leave.options",
     "decide_leave_request.request_id",
+    { requester: owner.requester("v_row"), tenant: `v_row.${q("tenant")}` },
   );
 
   // In approvals mode a manager step of the policy decides as well.

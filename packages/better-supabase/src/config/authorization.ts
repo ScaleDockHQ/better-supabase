@@ -157,8 +157,11 @@ export interface AuthorizationFunctions {
    * set of uuid: it is used as `select u from <template> as t(u)`. Out of
    * office covers, delegations and the manager chain belong in it. Leave,
    * expenses and time entries let a caller in the set decide the request when
-   * the block sets no `options.decider`; the explicit option wins. A template
-   * without `{id}` is not read.
+   * the block sets no `options.decider`; the explicit option wins.
+   * `{requester}` (the requester's user id, a uuid expression) and `{tenant}`
+   * are also available, so a template can answer without reading the request. A
+   * template that names none of `{id}`, `{requester}` and `{tenant}` is not
+   * read.
    */
   readonly approverFor?: string;
   /**
