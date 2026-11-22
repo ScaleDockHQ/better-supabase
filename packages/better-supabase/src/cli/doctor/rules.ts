@@ -39,6 +39,7 @@ import { BLOCK_PREFIX, blockTargets } from "./block-policies.ts";
 import { BLOCK_WRITE_RULES } from "./block-writes.ts";
 import { CLAIM_RULES } from "./claims.ts";
 import { COOKIE_RULES } from "./cookies.ts";
+import { DECLARATIVE_SAFETY_RULES } from "./declarative-safety.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
 import { DISPATCH_REGRESSION_RULES } from "./dispatch-regression.ts";
 import { ENTITY_PAGE_INDEX_RULES } from "./entity-page-indexes.ts";
@@ -61,6 +62,7 @@ import { MODULE_RULES } from "./modules.ts";
 import { N_PLUS_ONE_RULES } from "./n-plus-one.ts";
 import { NEXT_CACHE_RULES } from "./next-cache.ts";
 import { NOT_VALID_RULES } from "./not-valid.ts";
+import { PG_TOPO_RULES } from "./pg-topo.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { PLAIN_SECRET_RULES } from "./plain-secrets.ts";
 import { POLICY_RULES } from "./policies.ts";
@@ -1147,6 +1149,8 @@ export const RULES: readonly Rule[] = [
   ...LIVE_RULES,
   ...MODULE_RULES,
   ...PGDELTA_RULES,
+  ...PG_TOPO_RULES,
+  ...DECLARATIVE_SAFETY_RULES,
   ...LITE_RULES,
   ...DEPENDENCY_RULES,
   ...WORKFLOW_BUILDER_RULES,
