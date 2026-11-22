@@ -16,10 +16,11 @@ const [workspace, manifest, page] = await Promise.all([
   ),
 ]);
 
-/** The `peers:` catalog, as name to range. */
-function peersCatalog(): Map<string, string> {
-  const start = workspace.indexOf("\n  peers:\n");
-  const lines = workspace.slice(start + "\n  peers:\n".length).split("\n");
+/** A named catalog in `pnpm-workspace.yaml`, as name to range. */
+function peersCatalogFor(name: string): Map<string, string> {
+  const marker = `\n  ${name}:\n`;
+  const start = workspace.indexOf(marker);
+  const lines = workspace.slice(start + marker.length).split("\n");
   const ranges = new Map<string, string>();
 
   for (const line of lines) {
@@ -37,10 +38,14 @@ function peersCatalog(): Map<string, string> {
   return ranges;
 }
 
-/** The page's table, as peer to range. */
-function pageRows(): Map<string, string> {
+/** The page's tables, as package to range. */
+function pageRows(section: string): Map<string, string> {
+  const start = page.indexOf(`## ${section}`);
+  const end = page.indexOf("\n## ", start + 1);
+  const body = page.slice(start, end === -1 ? undefined : end);
+
   return new Map(
-    [...page.matchAll(/^\| `([^`]+)`\s*\| `([^`]+)`\s*\|/gm)].map((match) => [
+    [...body.matchAll(/^\| `([^`]+)`\s*\| `([^`]+)`\s*\|/gm)].map((match) => [
       match[1]!,
       match[2]!,
     ]),
@@ -49,8 +54,13 @@ function pageRows(): Map<string, string> {
 
 describe("the peers page", () => {
   const peers: Record<string, string> = JSON.parse(manifest).peerDependencies;
-  const catalog = peersCatalog();
-  const rows = pageRows();
+  const catalog = peersCatalogFor("peers");
+  const rows = pageRows("Peers");
+
+  const dependencies: Record<string, string> =
+    JSON.parse(manifest).dependencies;
+
+  const installed = pageRows("Dependencies the CLI installs");
 
   it("lists every peer with the range the package declares", () => {
     const names = Object.keys(peers);
@@ -66,5 +76,23 @@ describe("the peers page", () => {
 
   it("lists nothing that isn't a peer", () => {
     expect([...rows.keys()].filter((name) => !(name in peers))).toEqual([]);
+  });
+
+  it("lists the CLI's pinned dependencies with their catalog versions", () => {
+    const pinned = [
+      "oxc-parser",
+      "@supabase/pg-parser",
+      "@supabase/pg-delta",
+      "@supabase/pg-topo",
+    ];
+
+    const deps = peersCatalogFor("deps");
+
+    expect([...installed.keys()]).toEqual(pinned);
+
+    for (const name of pinned) {
+      expect(dependencies[name]).toBe("catalog:deps");
+      expect(installed.get(name)).toBe(deps.get(name));
+    }
   });
 });
