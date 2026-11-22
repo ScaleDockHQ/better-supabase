@@ -53,6 +53,11 @@ const CODEMOD_ARGS = {
     type: "string",
     description: "adopt-names: the table to rename, as <block>.<table>",
   },
+  explain: {
+    type: "boolean",
+    description:
+      "table-tags: list what moves and where each tag reaches, and write nothing",
+  },
   prune: {
     type: "boolean",
     description:
@@ -429,6 +434,7 @@ async function runWithSymbols(
     ...(symbols === undefined ? {} : { symbols }),
     configLoaded: configError === undefined,
     ...(args.prune === true ? { prune: true } : {}),
+    ...(args.explain === true ? { explain: true } : {}),
     ...(args.table === undefined ? {} : { table: args.table }),
     sql: await projectSqlFiles(config.root),
     ...(env === undefined

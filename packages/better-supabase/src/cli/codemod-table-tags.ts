@@ -1,9 +1,13 @@
+import { isDeepStrictEqual } from "node:util";
+
+import type { ResolvedConfig } from "../config/index.ts";
 import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 
 import { withTableTag } from "./codemod-extra-columns.ts";
 import { withoutConfigPaths } from "./codemod-prune.ts";
 import { projectSameTenantMoves } from "./codemod-same-tenant.ts";
+import { withTableTags } from "./gen/table-tags.ts";
 import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 
 /** One table fact the config holds, as the tag line that replaces it. */
@@ -15,6 +19,62 @@ interface Move {
   readonly remove:
     | { readonly path: string; readonly alt?: string }
     | { readonly exempt: string };
+  /**
+   * Where the tag reaches. `doctor` means only doctor reads it. A function
+   * answers whether the tag, read the way `gen` and the render read it, gives
+   * the value the config entry holds.
+   */
+  readonly reaches: "doctor" | ((config: ResolvedConfig) => boolean);
+}
+
+/** The config with its own entry for `key` left out, as the tag would find it. */
+function lifecycleReaches(
+  key: string,
+  entry: unknown,
+  line: string,
+): (config: ResolvedConfig) => boolean {
+  return (config) => {
+    const current = config.blocks["data-lifecycle"];
+    const tables: unknown = current?.options?.["tables"];
+
+    const others = isRecord(tables)
+      ? Object.fromEntries(
+          Object.entries(tables).filter(([each]) => each !== key),
+        )
+      : {};
+
+    const bare: ResolvedConfig = {
+      ...config,
+      blocks: {
+        ...config.blocks,
+        "data-lifecycle": {
+          ...current,
+          options: { ...current?.options, tables: others },
+        },
+      },
+    };
+
+    const tagged = withTableTags(bare, [
+      { schema: "public", name: key, comment: line },
+    ]).blocks["data-lifecycle"]?.options?.["tables"];
+
+    return isRecord(tagged) && isDeepStrictEqual(tagged[key], entry);
+  };
+}
+
+function grantReaches(
+  key: string,
+  line: string,
+): (config: ResolvedConfig) => boolean {
+  return (config) => {
+    const { [key]: entry, ...others } = config.expose;
+
+    const tagged = withTableTags({ ...config, expose: others }, [
+      { schema: "public", name: key, comment: line },
+    ]);
+
+    return isDeepStrictEqual(tagged.expose[key], entry);
+  };
 }
 
 const isRecord = (item: unknown): item is Record<string, unknown> =>
@@ -60,6 +120,7 @@ export function tableFactMoves(config: CodemodProject["config"]): {
           ? `@bsb audit-exempt reason=${value(reason.trim())}`
           : "@bsb audit-exempt",
       remove: { exempt: table },
+      reaches: "doctor",
     });
   }
 
@@ -93,11 +154,14 @@ export function tableFactMoves(config: CodemodProject["config"]): {
           : [];
       });
 
+      const line = `@bsb data-lifecycle ${parts.join(" ")}`.trimEnd();
+
       moves.push({
         table: tableOf(key),
         tag: "data-lifecycle",
-        line: `@bsb data-lifecycle ${parts.join(" ")}`.trimEnd(),
+        line,
         remove: { path },
+        reaches: lifecycleReaches(key, entry, line),
       });
     }
   }
@@ -128,11 +192,14 @@ export function tableFactMoves(config: CodemodProject["config"]): {
       .filter(([, privileges]) => privileges.length > 0)
       .map(([role, privileges]) => `${role}=${value(privileges.join(","))}`);
 
+    const line = `@bsb grant ${parts.join(" ")}`.trimEnd();
+
     moves.push({
       table: tableOf(key),
       tag: "grant",
-      line: `@bsb grant ${parts.join(" ")}`.trimEnd(),
+      line,
       remove: { path: `database.expose.${key}`, alt: `expose.${key}` },
+      reaches: grantReaches(key, line),
     });
   }
 
@@ -192,6 +259,8 @@ export function withoutExemptEntry(
 export function tableTagFiles(project: CodemodProject): {
   readonly files: readonly PlannedFile[];
   readonly review: readonly { readonly message: string }[];
+  /** One line per entry that moves: the tag, and where it reaches. */
+  readonly explain: readonly string[];
 } {
   const { moves, review } = tableFactMoves(project.config);
   const edited = new Map<string, string>();
@@ -199,6 +268,13 @@ export function tableTagFiles(project: CodemodProject): {
   const out = [...review];
 
   for (const move of moves) {
+    if (move.reaches !== "doctor" && !move.reaches(project.config)) {
+      out.push({
+        message: `${move.table}: the ${move.tag} tag would not give the config's value in the render, so the entry stays in the config.`,
+      });
+      continue;
+    }
+
     const creator = project.sql.find(
       (file) =>
         !/[\\/]migrations[\\/]/u.test(file.path) &&
@@ -282,7 +358,16 @@ export function tableTagFiles(project: CodemodProject): {
     });
   }
 
-  return { files, review: out };
+  const explain = moved.map(
+    (move) =>
+      `${move.table}: ${move.line} replaces its config entry. ${
+        move.reaches === "doctor"
+          ? "Only doctor reads this tag; the render does not change."
+          : "The config read through the tag gives the same value, so the render stays the same."
+      }`,
+  );
+
+  return { files, review: out, explain };
 }
 
 /** The `table-tags` codemod: move table facts from the config into comments. */
@@ -319,6 +404,26 @@ export function tableTagsCodemod(): Codemod {
 
       for (const file of sameTenant.files) {
         written.set(file.path, file);
+      }
+
+      if (project.explain === true) {
+        return {
+          files: [],
+          review: [
+            ...result.explain.map((message) => ({
+              message: `explain: ${message}`,
+            })),
+            ...(sameTenant.moved === 0
+              ? []
+              : [
+                  {
+                    message: `explain: ${String(sameTenant.moved)} sameTenant entries move into @bsb same-tenant column tags; each renders the same trigger statement.`,
+                  },
+                ]),
+            ...result.review,
+            ...sameTenant.review,
+          ],
+        };
       }
 
       return {

@@ -108,6 +108,37 @@ describe("tableFactMoves", () => {
   });
 });
 
+describe("the render check", () => {
+  const config = resolveConfig(input, "/project");
+
+  const reaches = (name: "data-lifecycle" | "grant") => {
+    const move = tableFactMoves(config).moves.find(
+      (each) => each.tag === name,
+    )!;
+
+    return move.reaches as (check: typeof config) => boolean;
+  };
+
+  it("passes when the tag gives the entry's value back", async () => {
+    expect(reaches("data-lifecycle")(config)).toBe(true);
+    expect(reaches("grant")(config)).toBe(true);
+  });
+
+  it("fails when the block that reads the tag is not installed", async () => {
+    const without = { ...config, blockNames: [] };
+
+    expect(reaches("data-lifecycle")(without)).toBe(false);
+  });
+
+  it("marks an audit exemption as read by doctor only", async () => {
+    const move = tableFactMoves(config).moves.find(
+      (each) => each.tag === "audit-exempt",
+    )!;
+
+    expect(move.reaches).toBe("doctor");
+  });
+});
+
 describe("withTableTag", () => {
   it("adds a tag to the block a comment has and starts one otherwise", async () => {
     const created = withTableTag(
@@ -182,6 +213,26 @@ describe("table-tags codemod", () => {
     expect(config).not.toContain("authenticated");
     expect(config).toContain("public.*_archive");
     expect(review).toEqual([]);
+  });
+
+  it("explains the moves and writes nothing with --explain", async () => {
+    const target = {
+      ...project([schema("invoices"), schema("scratch")]),
+      explain: true,
+    };
+
+    await primeSchemaFacts(target.sql, "/project");
+
+    const result = await tableTagsCodemod().project!(target);
+
+    expect(result.files).toEqual([]);
+    expect(result.review.map((line) => line.message)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("explain: public.scratch"),
+        expect.stringContaining("Only doctor reads this tag"),
+        expect.stringContaining("render stays the same"),
+      ]),
+    );
   });
 
   it("keeps a fact whose table no schema file creates", async () => {

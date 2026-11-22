@@ -22,6 +22,7 @@ codemod, so CI can tell the upgrade is done ([writing files](/docs/cli#writing-f
 `--prune` applies to the `config` codemod only: it removes every config entry
 that equals its default (doctor BS427), renders the blocks with the old and the
 new config, and writes nothing when any generated file differs.
+`--explain` applies to the `table-tags` codemod only: it lists each entry that would move, says whether the render reads the tag or only doctor does, and writes nothing. Before it moves a `data-lifecycle` or `expose` entry, the codemod reads the config back through the tag and keeps the entry in the config when the value differs.
 
 The codemod runs even when the config file fails to load, because the config
 it migrates is often the one the new version rejects. It then walks the
