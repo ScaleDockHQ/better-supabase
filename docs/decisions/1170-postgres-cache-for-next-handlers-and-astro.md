@@ -38,8 +38,9 @@ because Astro loads a provider from a module whose default export is the factory
   `authenticated`. No table is added to `supabase/schemas`, so no migration of
   this repository changes.
 - Tags are read in chunks of 128 through `chunkTags` in `src/core/tag-chunks.ts`,
-  which `applyCacheTags` in `src/next/cache-tags.ts` now shares, so the writer
-  and the reader agree on one size.
+  which holds the same 128 as `MAX_TAGS_PER_CALL` in `src/next/cache-tags.ts`.
+  `applyCacheTags` keeps its own constant: importing the helper there grew the
+  server chunks of 18 routes of the Next.js example by 13 to 22 bytes.
 - A write from outside the process reaches both caches through `cacheRoute`,
   which needs no change.
 
