@@ -4,12 +4,11 @@
  * segments, and macOS allows 32 (`kern.sysv.shmmni`), so a few dozen idle
  * stacks make the next `supabase start` fail. Stopping keeps the stack's data;
  * `supabase stack list` still shows it. Without `--apply` it only lists them.
- * `--destroy` instead removes the stacks (data included) of merged branches and
- * of checkouts that no longer exist, in any state except one another process
- * holds. `--segments` prints the shared memory segments in use.
+ * `--destroy` instead removes the stacks (data included) of merged branches,
+ * and has `supabase stack prune` remove those of checkouts that no longer exist
+ * (Supabase CLI 3.2.0). `--segments` prints the shared memory segments in use.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import * as v from "valibot";
 
 const StackList = v.looseObject({
@@ -55,15 +54,13 @@ export function prunableStacks(
 }
 
 /**
- * The stacks `--destroy` removes: those of a merged branch, and those whose
- * checkout is gone, unless the stack is running for another reason (an owner
- * state other than `reachable` or `stopped` means a process may hold it).
+ * The stacks `--destroy` removes by id: those of a merged branch. Stacks whose
+ * checkout is gone are left to `supabase stack prune`.
  */
 export function destroyableStacks(
   stacks: readonly Stack[],
   roots: readonly string[],
   merged: ReadonlySet<string>,
-  exists: (path: string) => boolean,
 ): Stack[] {
   const inRepo = (path: string): boolean =>
     roots.some((root) => path === root || path.startsWith(`${root}/`));
@@ -71,10 +68,6 @@ export function destroyableStacks(
   return stacks.filter((stack) => {
     if (!inRepo(stack.project_root)) {
       return false;
-    }
-
-    if (!exists(stack.project_root)) {
-      return true;
     }
 
     const branch = stack.branch_context.startsWith(BRANCH_REF)
@@ -153,7 +146,7 @@ function main(): void {
   const merged = mergedBranches(run("git", ["branch", "--merged", "main"]));
 
   if (destroy) {
-    const doomed = destroyableStacks(stacks, roots, merged, existsSync);
+    const doomed = destroyableStacks(stacks, roots, merged);
 
     for (const stack of doomed) {
       console.log(
@@ -173,8 +166,18 @@ function main(): void {
       }
     }
 
+    // The CLI judges a missing directory itself; its dry run lists what it
+    // would remove and `--yes` removes it.
+    run("pnpm", [
+      "exec",
+      "supabase",
+      "stack",
+      "prune",
+      apply ? "--yes" : "--dry-run",
+    ]);
+
     if (doomed.length === 0) {
-      console.log("No stack belongs to a merged branch or a missing checkout.");
+      console.log("No stack belongs to a merged branch.");
     } else if (!apply) {
       console.log("Add `--apply` to destroy them. Their data is deleted.");
     }

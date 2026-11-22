@@ -210,18 +210,15 @@ export async function supabaseCliVersion(
 }
 
 /**
- * Fails with `supabase_cli_too_old` unless the installed CLI is at least
- * `minimum`, so a command that needs `feature` never runs half of it. An
- * unreadable version passes, because the command's own error is clearer.
+ * Fails with `supabase_cli_too_old` when `version` is below `minimum`. A
+ * version that could not be read passes, because the command's own error is
+ * clearer.
  */
-export async function requireCli(
+export function assertCliVersion(
+  version: string | undefined,
   feature: string,
-  cwd: string,
-  env: CliEnv,
   minimum: string = SUPABASE_CLI_FLOOR,
-): Promise<void> {
-  const version = await supabaseCliVersion(cwd, env);
-
+): void {
   if (version !== undefined && !versionAtLeast(version, minimum)) {
     throw new CliError(
       "supabase_cli_too_old",
@@ -230,3 +227,20 @@ export async function requireCli(
     );
   }
 }
+
+/**
+ * Fails with `supabase_cli_too_old` unless the installed CLI is at least
+ * `minimum`.
+ */
+export async function requireCli(
+  feature: string,
+  cwd: string,
+  env: CliEnv,
+  minimum: string = SUPABASE_CLI_FLOOR,
+): Promise<void> {
+  assertCliVersion(await supabaseCliVersion(cwd, env), feature, minimum);
+}
+
+/** The version in `supabase --version` output, if there is one. */
+export const parseCliVersion = (output: string): string | undefined =>
+  SEMVER.exec(output)?.[0];

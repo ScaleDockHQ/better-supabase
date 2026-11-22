@@ -209,8 +209,12 @@ pnpm better-supabase dev stack prune --stop-idle
 ```
 
 `dev stack prune` destroys each stack whose worktree no longer exists or whose
-branch was deleted, with `supabase stack destroy`, which also removes its
-data. It never touches the stack of this checkout and branch.
+branch was deleted, which also removes its data. Stacks with a missing
+directory go to `supabase stack prune`, so the Supabase CLI decides what counts
+as missing and the command needs Supabase CLI 3.2.0 (older versions fail with
+`supabase_cli_too_old`). Stacks of a deleted branch go to
+`supabase stack destroy`. It never touches the stack of this checkout and
+branch.
 
 | Flag          | Effect                                                                           |
 | ------------- | -------------------------------------------------------------------------------- |

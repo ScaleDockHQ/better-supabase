@@ -71,7 +71,7 @@ jobs:
       - name: Seed the library rows only
         # The pgTAP files create their own fixtures next to the library seed. The example app's
         # rows (seeds/example.sql, seeds/finance-demo.sql) reuse ids and names those files use.
-        run: sed -i 's|^sql_paths = .*|sql_paths = ["./seed.sql"]|' supabase/config.toml
+        run: node scripts/set-config-value.ts . db.seed.sql_paths '["./seed.sql"]'
 
       - name: Start Supabase
         uses: $/.github/actions/supabase-stack
