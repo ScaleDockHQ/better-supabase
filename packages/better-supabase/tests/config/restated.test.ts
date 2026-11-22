@@ -215,3 +215,151 @@ describe("project defaults", () => {
     ).toEqual(["default:blocks.tags.audit", "default:blocks.tasks.api"]);
   });
 });
+
+describe("restatedEntries normal forms", () => {
+  const provider = {
+    name: "authz",
+    apiVersion: 1,
+    suspension: {
+      tenant: {
+        table: "public.orgs",
+        id: "id",
+        status: "status",
+        active: ["live", "trial"],
+      },
+      user: "public.profiles.disabled_at",
+      userKey: "auth_id",
+    },
+    roleSources: [
+      {
+        table: "public.members",
+        role: {
+          column: "role_id",
+          through: {
+            table: "public.roles",
+            id: "id",
+            column: "key",
+            where: "{row}.scope = 'tenant'",
+          },
+        },
+      },
+    ],
+    platformRoles: {
+      table: "public.staff",
+      user: "user_id",
+      role: "role",
+      canAssign: "authz.can_assign({role})",
+    },
+  };
+
+  const found = (blocks: object) =>
+    paths(restatedEntries(input(blocks, { provider })));
+
+  it("ignores key order and the order of active values", () => {
+    expect(
+      found({
+        permissions: {
+          disabled: {
+            tenant: {
+              active: ["trial", "live"],
+              status: "status",
+              id: "id",
+              table: "public.orgs",
+            },
+          },
+        },
+      }),
+    ).toEqual(["provider:blocks.permissions.disabled.tenant"]);
+  });
+
+  it("compares a roleThrough where and a canAssign token by token", () => {
+    expect(
+      found({
+        memberships: {
+          options: {
+            roleThrough: {
+              table: "public.roles",
+              id: "id",
+              column: "key",
+              where: "{row}.scope   =   'tenant'",
+            },
+          },
+        },
+        invitations: {
+          options: {
+            platformRoles: {
+              table: "public.staff",
+              user: "user_id",
+              role: "role",
+              canAssign: "AUTHZ.CAN_ASSIGN( {role} )",
+            },
+          },
+        },
+      }),
+    ).toEqual([
+      "provider:blocks.invitations.options.platformRoles",
+      "provider:blocks.memberships.options.roleThrough",
+    ]);
+  });
+
+  it("keeps a string literal that differs in case", () => {
+    expect(
+      found({
+        memberships: {
+          options: {
+            roleThrough: {
+              table: "public.roles",
+              id: "id",
+              column: "key",
+              where: "{row}.scope = 'Tenant'",
+            },
+          },
+        },
+      }),
+    ).toEqual([]);
+  });
+
+  it("keeps an active row apart from a column string", () => {
+    expect(
+      found({
+        permissions: {
+          disabled: {
+            user: {
+              table: "public.profiles",
+              id: "auth_id",
+              disabledAt: "disabled_at",
+            },
+          },
+        },
+      }),
+    ).toEqual([]);
+  });
+
+  it("reports a claims hook that differs only in case", () => {
+    expect(
+      paths(
+        restatedEntries(
+          input(
+            { impersonation: { options: { claimsHook: "Authz.Hook" } } },
+            {
+              provider: { ...provider, tokenHook: { function: "authz.hook" } },
+            },
+          ),
+        ),
+      ),
+    ).toEqual(["provider:blocks.impersonation.options.claimsHook"]);
+  });
+});
+
+describe("restatedEntries activeTenant", () => {
+  it("reports the default and keeps the others", () => {
+    expect(
+      paths(
+        restatedEntries(input({ permissions: { activeTenant: "resolver" } })),
+      ),
+    ).toEqual(["default:blocks.permissions.activeTenant"]);
+    expect(
+      restatedEntries(input({ permissions: { activeTenant: "claim" } })),
+    ).toEqual([]);
+  });
+});

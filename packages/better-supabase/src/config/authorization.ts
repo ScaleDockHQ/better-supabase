@@ -438,9 +438,12 @@ export interface AuthorizationTokenHook {
   readonly tenantClaim?: string;
   /**
    * Where it reads the active organization from: the `auth.tenant.claim` key in
-   * `app_metadata` (`"claim"`), a profile column, or the request
-   * (`"resolver"`). Doctor BS409 warns when `switch_organization` writes it
-   * somewhere else (`blocks.permissions.activeTenant`).
+   * `app_metadata` (`"claim"`), a profile column, or the request (`"resolver"`:
+   * the tenant the server resolved and sent as `x-bsb-tenant`, also the default
+   * of `blocks.permissions.activeTenant`). Doctor BS409 warns when
+   * `switch_organization` writes it somewhere else
+   * (`blocks.permissions.activeTenant`); a provider that states `"resolver"`
+   * needs no config entry.
    */
   readonly activeOrganizationFrom?: ActiveTenantSource;
   /**

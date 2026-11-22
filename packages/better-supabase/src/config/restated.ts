@@ -1,6 +1,9 @@
 import type { AuthorizationProvider } from "./authorization.ts";
 import type { AnyBlocksConfig } from "./blocks.ts";
 
+import { tokenizeTemplate } from "../core/sql-template-tokens.ts";
+import { DEFAULT_ACTIVE_TENANT } from "./blocks.ts";
+
 /** Why a config entry equals what the render would use without it. */
 export type RestatedKind =
   | "identity"
@@ -71,8 +74,84 @@ export interface RestatedInput {
   }[];
 }
 
-const same = (a: unknown, b: unknown): boolean =>
-  JSON.stringify(a) === JSON.stringify(b);
+/** The keys whose string values are SQL templates, compared token by token. */
+const TEMPLATE_KEYS: ReadonlySet<string> = new Set([
+  "where",
+  "canAssign",
+  "canAssignFor",
+  "function",
+]);
+
+/**
+ * A SQL template as its tokens: whitespace is dropped, and unquoted words and
+ * function names fold to lower case as Postgres does. Strings, quoted
+ * identifiers and placeholders keep their text.
+ */
+function templateForm(template: string): readonly string[] {
+  return tokenizeTemplate(template).flatMap((token) => {
+    switch (token.kind) {
+      case "space": {
+        return [];
+      }
+
+      case "word": {
+        return [token.quoted ? token.text : token.text.toLowerCase()];
+      }
+
+      case "string":
+      case "placeholder":
+      case "punct":
+      case "comment":
+      case "dollar":
+      case "error": {
+        return [`${token.kind}:${token.text}`];
+      }
+
+      default: {
+        return token satisfies never;
+      }
+    }
+  });
+}
+
+/**
+ * A value in the form two configs resolve to the same render with: object keys
+ * sorted, undefined entries dropped, `active` values sorted, and SQL templates
+ * as tokens. A `status` without it has no `active` list to compare. A column
+ * string (`schema.table.column`, a user or tenant that counts as disabled when
+ * the column is set) stays apart from an active row (`{ table, id, disabledAt
+ * }`): a missing row disables there, so they render differently.
+ */
+function resolved(value: unknown, key?: string): unknown {
+  if (typeof value === "string") {
+    return key !== undefined && TEMPLATE_KEYS.has(key)
+      ? { template: templateForm(value) }
+      : value;
+  }
+
+  if (Array.isArray(value)) {
+    const items = value.map((item) => resolved(item));
+
+    return key === "active"
+      ? items.toSorted((a, b) => String(a).localeCompare(String(b)))
+      : items;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, entry]) => entry !== undefined)
+        .toSorted(([a], [b]) => a.localeCompare(b))
+        .map(([name, entry]) => [name, resolved(entry, name)]),
+    );
+  }
+
+  return value;
+}
+
+/** Whether two config values resolve to the same thing (ADR 1174). */
+export const same = (a: unknown, b: unknown): boolean =>
+  JSON.stringify(resolved(a)) === JSON.stringify(resolved(b));
 
 /**
  * The config entries that equal their resolved default, so removing each one
@@ -163,6 +242,15 @@ export function restatedEntries(input: RestatedInput): RestatedEntry[] {
       path: `blocks.${entry.block}.${entry.key}`,
       reason: `repeats sql.${entry.key}`,
       value: entry.key,
+    });
+  }
+
+  if (input.blocks.permissions?.activeTenant === DEFAULT_ACTIVE_TENANT) {
+    found.push({
+      kind: "default",
+      path: "blocks.permissions.activeTenant",
+      reason: `repeats the default "resolver" (the tenant the request resolved). The provider's tokenHook.activeOrganizationFrom is compared by BS409, not by this entry`,
+      value: DEFAULT_ACTIVE_TENANT,
     });
   }
 
@@ -326,7 +414,7 @@ function providerEntries(input: RestatedInput): RestatedEntry[] {
   if (
     claimsHook !== undefined &&
     provider.tokenHook?.function !== undefined &&
-    claimsHook === provider.tokenHook.function
+    same({ function: claimsHook }, { function: provider.tokenHook.function })
   ) {
     add(
       "blocks.impersonation.options.claimsHook",

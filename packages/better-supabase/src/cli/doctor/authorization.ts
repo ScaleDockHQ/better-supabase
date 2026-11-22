@@ -738,7 +738,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
         activeTenantLabel(readsFrom) !== activeTenantLabel(writesTo)
       ) {
         findings.push({
-          message: `The hook of ${label} reads the active organization from ${activeTenantLabel(readsFrom)}, but switch_organization writes it to ${activeTenantLabel(writesTo)} (blocks.permissions.activeTenant), so switching never changes the token. Set blocks.permissions.activeTenant to match the provider.`,
+          message: `The hook of ${label} reads the active organization from ${activeTenantLabel(readsFrom)}, but switch_organization writes it to ${activeTenantLabel(writesTo)} (blocks.permissions.activeTenant), so switching never changes the token. Set blocks.permissions.activeTenant to match the provider's tokenHook.activeOrganizationFrom (${JSON.stringify(readsFrom)}), or change that fact in the provider. Leave both unset when the request resolves the tenant: "resolver" is the default.`,
           target: "blocks.permissions.activeTenant",
         });
       }
