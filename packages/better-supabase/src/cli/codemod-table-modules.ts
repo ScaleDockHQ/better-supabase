@@ -1,9 +1,12 @@
+import type { Node, ImportDeclarationSpecifier, Program } from "oxc-parser";
+
 import { readdir, readFile } from "node:fs/promises";
 import { posix } from "node:path";
+import { walk } from "oxc-walker";
 
 import type { Codemod, FileRewrite, ReviewLine } from "./codemod.ts";
 
-import { codeRanges } from "./config-document/ranges.ts";
+import { rewriteSource } from "./config-document/index.ts";
 import { schemaModulePath } from "./gen/emit.ts";
 
 /** A table module on disk: the table's key and where its module is. */
@@ -46,16 +49,6 @@ async function readTableModules(
   return found.flat();
 }
 
-const IMPORT_LIST =
-  /(import\s+(?:type\s+)?)\{([^}]*)\}(\s*from\s*)(["'])([^"']+)\4/g;
-
-const USE_CLIENT =
-  /^\s*(?:\/\/[^\n]*\n|\/\*[\s\S]*?\*\/\s*)*["']use client["']/;
-
-const TABLE_READ = /(?<![\w$.])([\w$]+)\.db\.([A-Za-z_$][\w$]*)(?![\w$(])/g;
-
-const QUERY_READ = /\.queries\.([A-Za-z_$][\w$]*)/g;
-
 /** `to` as an import path from `from`, keeping the extension style of `like`. */
 function relativeSpecifier(from: string, to: string, like: string): string {
   let path = posix.relative(posix.dirname(from), to);
@@ -69,9 +62,41 @@ function relativeSpecifier(from: string, to: string, like: string): string {
   return extension === undefined ? path.replace(/\.[cm]?[jt]sx?$/, "") : path;
 }
 
+/** The name an import specifier refers to in its source module. */
+function importedName(
+  specifier: ImportDeclarationSpecifier,
+): string | undefined {
+  if (specifier.type !== "ImportSpecifier") {
+    return undefined;
+  }
+
+  const { imported } = specifier;
+
+  return imported.type === "Literal" ? imported.value : imported.name;
+}
+
+/** Whether the module opens with the `"use client"` directive. */
+function isClientModule(program: Program): boolean {
+  for (const statement of program.body) {
+    if (
+      statement.type !== "ExpressionStatement" ||
+      statement.directive === null
+    ) {
+      return false;
+    }
+
+    if (statement.directive === "use client") {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * The rewrite of one file, given the tables on disk. `output` is the generated
- * module (`config.output`, absolute); `path` the file, absolute.
+ * module (`config.output`, absolute); `path` the file, absolute. A file that
+ * does not parse comes back unchanged with a review line.
  */
 export function rewriteForTableModules(
   path: string,
@@ -79,47 +104,53 @@ export function rewriteForTableModules(
   output: string,
   tables: readonly TableModuleFile[],
 ): { readonly text: string; readonly review: readonly ReviewLine[] } {
-  const review: ReviewLine[] = [];
   const folder = posix.dirname(output);
   const outputBase = output.replace(/\.[cm]?[jt]sx?$/, "");
   const schemaBase = schemaModulePath(output).replace(/\.[cm]?[jt]sx?$/, "");
-  let next = text;
+  const byKey = new Map(tables.map((table) => [table.key, table]));
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
 
-  // `schema` moved to the server's schema module.
-  next = next.replaceAll(
-    IMPORT_LIST,
-    (
-      whole: string,
-      head: string,
-      list: string,
-      from: string,
-      quote: string,
-      specifier: string,
-    ) => {
-      if (!specifier.startsWith(".")) {
-        return whole;
+  return rewriteSource(text, ({ program, text: source, edit, report }) => {
+    // `schema` moved to the server's schema module.
+    for (const statement of program.body) {
+      if (
+        statement.type !== "ImportDeclaration" ||
+        !statement.source.value.startsWith(".")
+      ) {
+        continue;
       }
+
+      const specifier = statement.source.value;
 
       const target = posix
         .join(posix.dirname(path), specifier)
         .replace(/\.[cm]?[jt]sx?$/, "");
 
       if (target !== outputBase) {
-        return whole;
+        continue;
       }
 
-      const names = list
-        .split(",")
-        .map((name) => name.trim())
-        .filter((name) => name !== "");
-
-      const moved = names.filter((name) => /^schema(\s+as\s+\w+)?$/.test(name));
+      const moved = statement.specifiers.filter(
+        (each) => importedName(each) === "schema",
+      );
 
       if (moved.length === 0) {
-        return whole;
+        continue;
       }
 
-      const kept = names.filter((name) => !moved.includes(name));
+      const kept = statement.specifiers.filter((each) => !moved.includes(each));
+
+      if (kept.some((each) => each.type !== "ImportSpecifier")) {
+        report(
+          statement.start,
+          `schema now comes from ${schemaBase.split("/").pop() ?? "the schema module"}, but this import also has a default or namespace import the codemod cannot split; move schema by hand.`,
+        );
+        continue;
+      }
+
+      const slice = (each: Node): string => source.slice(each.start, each.end);
+      const head = `import${statement.importKind === "type" ? " type" : ""} `;
+      const quote = source[statement.source.start]!;
 
       const schemaSpecifier = relativeSpecifier(
         path,
@@ -127,68 +158,93 @@ export function rewriteForTableModules(
         specifier,
       );
 
-      const schemaImport = `${head}{ ${moved.join(", ")} }${from}${quote}${schemaSpecifier}${quote}`;
+      const schemaImport = `${head}{ ${moved.map(slice).join(", ")} } from ${quote}${schemaSpecifier}${quote}`;
 
-      return kept.length === 0
-        ? schemaImport
-        : `${head}{ ${kept.join(", ")} }${from}${quote}${specifier}${quote};\n${schemaImport}`;
-    },
-  );
+      // The statement's own `;` stays after the last import.
+      const whole = source.slice(statement.start, statement.end);
+      const semicolon = whole.endsWith(";") ? ";" : "";
 
-  if (!USE_CLIENT.test(next)) {
-    return { text: next, review };
-  }
-
-  const byKey = new Map(tables.map((table) => [table.key, table]));
-  const ranges = codeRanges(next);
-  const used = new Map<string, TableModuleFile>();
-
-  const inCode = (index: number): boolean =>
-    ranges.some(([start, end]) => index >= start && index < end);
-
-  next = next.replaceAll(
-    TABLE_READ,
-    (whole: string, owner: string, key: string, offset: number) => {
-      const table = byKey.get(key);
-
-      if (table === undefined || !inCode(offset)) {
-        return whole;
-      }
-
-      used.set(key, table);
-
-      return `${owner}.table(${table.name})`;
-    },
-  );
-
-  for (const match of next.matchAll(QUERY_READ)) {
-    if (byKey.has(match[1]!)) {
-      review.push({
-        line: next.slice(0, match.index).split("\n").length,
-        message: `queries.${match[1]!} is not on a browser client that registers its tables. Define the query with defineListQuery(client, ${match[1]!}Table, ...) and import it from the table module.`,
-      });
+      edit.overwrite(
+        statement.start,
+        statement.end - semicolon.length,
+        kept.length === 0
+          ? schemaImport
+          : `${head}{ ${kept.map(slice).join(", ")} } from ${quote}${specifier}${quote};${eol}${schemaImport}`,
+      );
     }
-  }
 
-  if (used.size === 0) {
-    return { text: next, review };
-  }
+    if (!isClientModule(program)) {
+      return;
+    }
 
-  const imports = [...used.values()]
-    .map(
-      (table) =>
-        `import { ${table.name} } from "${relativeSpecifier(path, posix.join(folder, table.file), "x.ts")}";`,
-    )
-    .join("\n");
+    const used = new Map<string, TableModuleFile>();
 
-  // After the last import, so the file keeps its directive and header.
-  const last = [...next.matchAll(/^import[\s\S]*?;\s*$/gm)].at(-1);
-  const at = last === undefined ? 0 : last.index + last[0].length;
+    walk(program, {
+      enter(node, parent) {
+        if (
+          node.type !== "MemberExpression" ||
+          node.computed ||
+          node.property.type !== "Identifier" ||
+          node.object.type !== "MemberExpression" ||
+          node.object.computed ||
+          node.object.property.type !== "Identifier"
+        ) {
+          return;
+        }
 
-  return {
-    text: `${next.slice(0, at)}${at === 0 ? "" : "\n"}${imports}\n${next.slice(at).replace(/^\n/, "")}`,
-    review,
-  };
+        // `client.db.<table>`: the owner is a plain name, as it is in a hook or a module.
+        if (
+          node.object.property.name === "db" &&
+          node.object.object.type === "Identifier" &&
+          !(parent?.type === "CallExpression" && parent.callee === node)
+        ) {
+          const table = byKey.get(node.property.name);
+
+          if (table !== undefined) {
+            used.set(table.key, table);
+            edit.overwrite(
+              node.start,
+              node.end,
+              `${node.object.object.name}.table(${table.name})`,
+            );
+          }
+
+          return;
+        }
+
+        if (
+          node.object.property.name === "queries" &&
+          byKey.has(node.property.name)
+        ) {
+          report(
+            node.start,
+            `queries.${node.property.name} is not on a browser client that registers its tables. Define the query with defineListQuery(client, ${node.property.name}Table, ...) and import it from the table module.`,
+          );
+        }
+      },
+    });
+
+    if (used.size === 0) {
+      return;
+    }
+
+    const imports = [...used.values()]
+      .map(
+        (table) =>
+          `import { ${table.name} } from "${relativeSpecifier(path, posix.join(folder, table.file), "x.ts")}";`,
+      )
+      .join(eol);
+
+    // After the last import, or after the directive, so the file keeps its header.
+    const last =
+      program.body.findLast((each) => each.type === "ImportDeclaration") ??
+      program.body.findLast(
+        (each) =>
+          each.type === "ExpressionStatement" && each.directive !== null,
+      );
+
+    edit.appendLeft(last?.end ?? 0, `${eol}${imports}`);
+  });
 }
 
 /**
