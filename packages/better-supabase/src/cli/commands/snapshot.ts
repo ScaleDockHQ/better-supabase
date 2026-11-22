@@ -24,7 +24,7 @@ import {
 import { pgFunctionHooks, readSupabaseConfig } from "../supabase-config.ts";
 
 const SNAPSHOT_SCHEMA_URL =
-  "https://unpkg.com/better-supabase/schemas/snapshot-v2.json";
+  "https://unpkg.com/better-supabase/schemas/snapshot-v3.json";
 
 /** Schemas that are always read, for doctor checks on helper functions. */
 const EXTRA_SCHEMAS = ["better_supabase"];
@@ -226,10 +226,13 @@ export async function parseSnapshot(
   // SAFETY: every field is checked below before the document is returned as a Snapshot.
   const doc = unwrapped as Partial<Snapshot> | null;
 
-  if (!doc || typeof doc !== "object" || doc.version !== 2) {
+  // The type says 3, but a saved file may say 2 and is upgraded below.
+  const found: unknown = doc?.version;
+
+  if (!doc || typeof doc !== "object" || (found !== 2 && found !== 3)) {
     throw new CliError(
       "invalid_input",
-      `${label} is not a version 2 snapshot. Run \`better-supabase gen --save-snapshot\` to refresh it.`,
+      `${label} is not a version 2 or 3 snapshot. Run \`better-supabase gen --save-snapshot\` to refresh it.`,
     );
   }
 
@@ -260,8 +263,10 @@ export async function parseSnapshot(
     );
   }
 
+  // A version 2 snapshot upgrades as it is: every field version 3 adds is
+  // optional, so it reads as a version 3 snapshot that has none of them.
   return {
-    version: 2,
+    version: 3,
     schemas: doc.schemas,
     generator,
     extras: {
@@ -280,6 +285,9 @@ export async function parseSnapshot(
       ...(doc.extras.hooks ? { hooks: doc.extras.hooks } : {}),
       ...(doc.extras.functionComments
         ? { functionComments: doc.extras.functionComments }
+        : {}),
+      ...(doc.extras.viewColumnComments
+        ? { viewColumnComments: doc.extras.viewColumnComments }
         : {}),
       ...(doc.extras.domains ? { domains: doc.extras.domains } : {}),
     },

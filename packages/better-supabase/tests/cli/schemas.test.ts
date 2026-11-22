@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Snapshot } from "../../src/cli/introspect/types.ts";
 
+import { parseSnapshot } from "../../src/cli/commands/snapshot.ts";
 import { defineCliCommand } from "../../src/cli/core/command.ts";
 import { CLI_ERROR_CODES } from "../../src/cli/core/errors.ts";
 import { createCli, run } from "../../src/cli/core/run.ts";
@@ -192,6 +193,7 @@ describe("shipped JSON Schemas", () => {
       "design-v1.json",
       "doctor-report-v1.json",
       "snapshot-v2.json",
+      "snapshot-v3.json",
       "spec-manifest-v1.json",
     ]);
 
@@ -342,7 +344,13 @@ describe("shipped JSON Schemas", () => {
   });
 
   it("describe the fixture snapshot", async () => {
+    // The shared fixture is a saved version 2 file; it upgrades as it is.
     expect(await errorsFor("snapshot-v2.json", fixture)).toEqual([]);
+
+    expect(
+      await errorsFor("snapshot-v3.json", await parseSnapshot(fixture)),
+    ).toEqual([]);
+
     const [first] = fixture.extras.tables;
 
     const broken = {
@@ -368,7 +376,7 @@ describe("shipped JSON Schemas", () => {
   });
 
   it("embed the postgrest-typegen metadata schema unchanged", async () => {
-    const schema = (await load("snapshot-v2.json")) as {
+    const schema = (await load("snapshot-v3.json")) as {
       $defs: { generator: unknown };
     };
 

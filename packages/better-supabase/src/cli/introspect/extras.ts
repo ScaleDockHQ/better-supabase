@@ -44,6 +44,8 @@ select con.conrelid::int8 as table_id, con.conname as name, con.contype as type,
   array(select a.attname from unnest(con.conkey) with ordinality k(attnum, ord)
     join pg_attribute a on a.attrelid = con.conrelid and a.attnum = k.attnum order by k.ord)::text[] as columns,
   con.confdeltype as on_delete, con.confupdtype as on_update,
+  con.condeferrable as deferrable, con.condeferred as deferred,
+  con.confmatchtype as match_type,
   pg_get_constraintdef(con.oid) as definition
 from pg_constraint con
 join pg_class c on c.oid = con.conrelid
@@ -250,14 +252,23 @@ where r.rolname in ('authenticator', 'anon', 'authenticated')
   and s.setdatabase in (0, (select oid from pg_catalog.pg_database where datname = current_database()))
 order by s.setdatabase`;
 
-// Only comments with a gen tag, so snapshots of untagged schemas don't change.
 const FUNCTION_COMMENTS = (schemas: string) => `
 select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' as key,
   obj_description(p.oid, 'pg_proc') as comment
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = any(${schemas}) and obj_description(p.oid, 'pg_proc') ~ '@notNull'
+where n.nspname = any(${schemas}) and obj_description(p.oid, 'pg_proc') is not null
 order by 1`;
+
+const VIEW_COLUMN_COMMENTS = (schemas: string) => `
+select n.nspname || '.' || c.relname as view, a.attname as column,
+  col_description(c.oid, a.attnum) as comment
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+where n.nspname = any(${schemas}) and c.relkind in ('v', 'm')
+  and col_description(c.oid, a.attnum) is not null
+order by 1, 2`;
 
 // Typegen types a domain in a function signature as `unknown`, so record the
 // base type and NOT NULL of each domain the read schemas' functions use.
@@ -292,6 +303,10 @@ interface ConstraintRow {
   columns: string[];
   on_delete: string;
   on_update: string;
+  deferrable: boolean;
+  deferred: boolean;
+  /** `s` simple, `f` full, `p` partial. */
+  match_type: string;
   definition: string;
 }
 
@@ -507,6 +522,7 @@ export async function readExtras(
     roleRows,
     hookRows,
     commentRows,
+    viewCommentRows,
     domainRows,
     sourceRows,
   ] = await Promise.all([
@@ -529,6 +545,10 @@ export async function readExtras(
     rows<{ role: string; config: string[] | null }>(db, ROLE_SETTINGS),
     hooks.length > 0 ? readHooks(db, hooks) : undefined,
     rows<{ key: string; comment: string }>(db, FUNCTION_COMMENTS(list)),
+    rows<{ view: string; column: string; comment: string }>(
+      db,
+      VIEW_COLUMN_COMMENTS(list),
+    ),
     rows<{
       schema: string;
       name: string;
@@ -600,10 +620,19 @@ export async function readExtras(
           name: con.name,
           onDelete: ACTIONS[con.on_delete] ?? "no action",
           onUpdate: ACTIONS[con.on_update] ?? "no action",
+          ...(con.deferrable ? { deferrable: true as const } : {}),
+          ...(con.deferrable && con.deferred
+            ? { initiallyDeferred: true as const }
+            : {}),
+          ...matchOf(con.match_type),
         })),
       checks: own
         .filter((con) => con.type === "c")
-        .map((con) => ({ name: con.name, definition: con.definition })),
+        .map((con) => ({
+          name: con.name,
+          definition: con.definition,
+          ...(con.columns.length > 0 ? { columns: con.columns } : {}),
+        })),
       indexes: ownIndexes.map((index) => ({
         name: index.name,
         columns: index.columns,
@@ -678,6 +707,9 @@ export async function readExtras(
           ),
         }
       : {}),
+    ...(viewCommentRows.length > 0
+      ? { viewColumnComments: viewColumnCommentsOf(viewCommentRows) }
+      : {}),
     ...(domainRows.length > 0
       ? {
           domains: domainRows.map((row) => ({
@@ -723,4 +755,25 @@ function guardsOf(comment: string | null | undefined): {
   );
 
   return guards.length === 0 ? {} : { guards };
+}
+
+/** `match full` and `match partial`; nothing for `match simple`. */
+function matchOf(code: string): { match?: "full" | "partial" } {
+  return code === "f"
+    ? { match: "full" }
+    : code === "p"
+      ? { match: "partial" }
+      : {};
+}
+
+function viewColumnCommentsOf(
+  list: readonly { view: string; column: string; comment: string }[],
+): Record<string, Record<string, string>> {
+  const out: Record<string, Record<string, string>> = {};
+
+  for (const row of list) {
+    (out[row.view] ??= {})[row.column] = row.comment;
+  }
+
+  return out;
 }

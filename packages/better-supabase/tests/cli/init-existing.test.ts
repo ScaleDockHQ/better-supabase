@@ -95,7 +95,7 @@ describe("init on an existing project", () => {
 
     expect(tables).toBeGreaterThan(0);
     expect(plan.files[0]?.path).toBe(join(dir, SNAPSHOT_PATH));
-    expect(plan.files[0]?.contents).toContain("snapshot-v2.json");
+    expect(plan.files[0]?.contents).toContain("snapshot-v3.json");
   });
 
   it("reports the project and writes the snapshot through init --from", async () => {
@@ -115,7 +115,7 @@ describe("init on an existing project", () => {
     expect(result.stdout).toContain("Found an existing Supabase project");
     expect(result.stderr).toContain("better-supabase doctor");
     expect(await readFile(join(dir, SNAPSHOT_PATH), "utf-8")).toContain(
-      "snapshot-v2.json",
+      "snapshot-v3.json",
     );
   });
 

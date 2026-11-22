@@ -1287,7 +1287,7 @@ export const SOURCE_ONLY_CODES: ReadonlySet<string> = new Set([
 
 /** The snapshot of a run that could not read one: no tables, no foreign keys. */
 export const NO_SNAPSHOT: Snapshot = {
-  version: 2,
+  version: 3,
   schemas: [],
   generator: {
     version: 1,

@@ -41,6 +41,9 @@ const catalog = (present: { buckets?: boolean } = {}) =>
           columns: ["org_id"],
           on_delete: "c",
           on_update: "z",
+          deferrable: true,
+          deferred: true,
+          match_type: "f",
           definition: "FOREIGN KEY ...",
         },
         {
@@ -252,8 +255,12 @@ const catalog = (present: { buckets?: boolean } = {}) =>
       ],
     ],
     [
-      "~ '@notNull'",
+      "obj_description(p.oid, 'pg_proc') is not null",
       [{ key: "public.pure(x int)", comment: "Always a value. @notNull" }],
+    ],
+    [
+      "col_description(c.oid, a.attnum) is not null",
+      [{ view: "public.notes_view", column: "title", comment: "Shown title." }],
     ],
     [
       "from pg_proc p",
@@ -303,10 +310,17 @@ describe("readExtras", () => {
           name: "notes_organization_fkey",
           onDelete: "cascade",
           onUpdate: "no action",
+          deferrable: true,
+          initiallyDeferred: true,
+          match: "full",
         },
       ],
       checks: [
-        { name: "notes_title_check", definition: "CHECK (length(title) > 0)" },
+        {
+          name: "notes_title_check",
+          definition: "CHECK (length(title) > 0)",
+          columns: ["title"],
+        },
       ],
       indexes: [
         {
@@ -468,6 +482,10 @@ describe("readExtras", () => {
     expect(extras).not.toHaveProperty("hooks");
     expect(extras.functionComments).toEqual({
       "public.pure(x int)": "Always a value. @notNull",
+    });
+
+    expect(extras.viewColumnComments).toEqual({
+      "public.notes_view": { title: "Shown title." },
     });
   });
 
