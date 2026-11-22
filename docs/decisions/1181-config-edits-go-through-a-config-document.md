@@ -31,8 +31,14 @@ returns `done`, `absent` or `review`; a shape it cannot follow returns a review
 line and leaves the text alone. The text is parsed again after each edit, so a
 splice that writes a syntax error throws before it reaches a file.
 
-The prune, blocks-list, record-types and config-key codemods use it first. The
-other scanners move one at a time; `code-ranges.ts` goes with the last one.
+The prune, blocks-list, record-types and config-key codemods use it first.
+`sql/config-edit.ts` and `sql/remove-edit.ts` now edit the config and the
+`lib/blocks.ts` wiring through it. `code-ranges.ts` is deleted: the source
+codemods and the doctor scans take their code ranges from `codeRanges()` in
+`config-document/ranges.ts`, which reads the parse tree, so a regular
+expression, a template literal or JSX text no longer hides code. Those
+codemods still splice text by range; moving them to document rewrites is
+open work.
 
 ## Alternatives considered
 

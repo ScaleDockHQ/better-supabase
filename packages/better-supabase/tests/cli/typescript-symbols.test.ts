@@ -76,6 +76,21 @@ describe("openSymbolTier", () => {
           .declaration(a, "export const ".length + 1)
           ?.file.toLowerCase(),
       ).toBe(a.toLowerCase());
+
+      const importAt = "import { ".length + 1;
+      const original = result.tier.declaration(b, importAt);
+
+      expect(original?.file.toLowerCase()).toBe(a.toLowerCase());
+      expect(
+        result.tier
+          .declaration(
+            b,
+            'import { answer } from "./a.ts";\nexport const twice = '.length +
+              1,
+          )
+          ?.file.toLowerCase(),
+      ).toBe(a.toLowerCase());
+      expect(result.tier.typeOf(a, "export const ".length + 1)).toBe("42");
     } finally {
       result.tier.close();
     }

@@ -22,9 +22,15 @@ export interface SymbolTier {
   references(file: string, offset: number): readonly SymbolLocation[];
   /**
    * The declaration node (with leading trivia) of the symbol at `offset`,
-   * possibly in another file.
+   * possibly in another file. An import resolves to the declaration it imports,
+   * not to the import specifier.
    */
   declaration(file: string, offset: number): SymbolLocation | undefined;
+  /**
+   * The type of the identifier at `offset`, as TypeScript prints it, or
+   * `undefined` when the checker cannot resolve it (an error type).
+   */
+  typeOf(file: string, offset: number): string | undefined;
   /** Stops the TypeScript process. */
   close(): void;
 }
@@ -49,14 +55,24 @@ interface TsHandle {
 }
 
 interface TsSymbol {
+  readonly flags: number;
   readonly declarations: readonly TsHandle[];
+}
+
+interface TsType {
+  readonly flags: number;
 }
 
 interface TsProject {
   readonly program: {
     getSourceFile(file: string): { readonly text: string } | undefined;
   };
-  readonly checker: { getSymbolAtLocation(node: TsNode): TsSymbol | undefined };
+  readonly checker: {
+    getSymbolAtLocation(node: TsNode): TsSymbol | undefined;
+    getAliasedSymbol(symbol: TsSymbol): TsSymbol;
+    getTypeAtLocation(node: TsNode): TsType;
+    typeToString(type: TsType): string;
+  };
   readonly languageService: {
     getReferencedSymbolsForNode(
       node: TsNode,
@@ -91,6 +107,16 @@ interface TsAstModule {
  * service.
  */
 const MINIMUM = [7, 1] as const;
+
+/** `SymbolFlags.Alias`: an import or export specifier. */
+const ALIAS = 2_097_152;
+
+/** `TypeFlags.Any`; the checker yields it for a type it cannot resolve. */
+const ANY = 1;
+
+/** True when the single-bit `flag` is set; lint forbids bitwise operators. */
+const hasFlag = (flags: number, flag: number): boolean =>
+  Math.floor(flags / flag) % 2 === 1;
 
 const isSyncModule = (value: unknown): value is TsSyncModule =>
   typeof value === "object" && value !== null && "API" in value;
@@ -228,15 +254,37 @@ function createTier(version: string, api: TsApi, ast: TsAstModule): SymbolTier {
     declaration(file, offset) {
       const found = identifierAt(file, offset);
 
-      const [first] =
-        found?.project.checker.getSymbolAtLocation(found.node)?.declarations ??
-        [];
+      const { checker } = found?.project ?? {};
+
+      const symbol =
+        found === undefined
+          ? undefined
+          : checker?.getSymbolAtLocation(found.node);
+
+      const target =
+        symbol !== undefined && hasFlag(symbol.flags, ALIAS)
+          ? checker?.getAliasedSymbol(symbol)
+          : symbol;
+
+      const [first] = target?.declarations ?? [];
 
       const node = first?.resolve();
 
       return node === undefined || first === undefined
         ? undefined
         : { file: first.path, start: node.pos, end: node.end };
+    },
+    typeOf(file, offset) {
+      const found = identifierAt(file, offset);
+
+      if (found === undefined) {
+        return;
+      }
+
+      const { checker } = found.project;
+      const type = checker.getTypeAtLocation(found.node);
+
+      return hasFlag(type.flags, ANY) ? undefined : checker.typeToString(type);
     },
     close() {
       api.close();
