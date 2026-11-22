@@ -68,7 +68,7 @@ describe("subjectTagArgs", () => {
   it("round-trips what a tag can carry", () => {
     const subject = subjectFromTag(
       args(
-        'subject type=x tenant=false title=name search-title=name search-body="a,b" rank-group=s versions="a,b" versions-auto=false can-read=k deleted-at=gone cascade id=pk id-type=uuid scope=sc search-description=d search-exclude=e url=/u',
+        'subject type=x tenant=false title=name search-title=name search-body="a,b" rank-group=s versions="a,b" versions-auto=false can-read=k deleted-at=gone cascade id=pk id-type=uuid scope=sc search-description=d search-exclude=e url=/u held=hold_until template=is_template read-access=record',
       ),
       "t",
     );
@@ -82,6 +82,22 @@ describe("subjectTagArgs", () => {
     expect(
       subjectTagArgs("project", { table: "projects", search: {} }, "projects"),
     ).toEqual({ type: "project", search: true });
+  });
+
+  it("refuses a template that names child tables", () => {
+    expect(
+      subjectTagArgs(
+        "t",
+        {
+          table: "t",
+          template: {
+            column: "tpl",
+            children: [{ table: "c", column: "t_id" }],
+          },
+        },
+        "t",
+      ),
+    ).toBeUndefined();
   });
 
   it("refuses options a tag has no word for", () => {

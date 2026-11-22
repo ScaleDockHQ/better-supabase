@@ -273,11 +273,12 @@ nullable column besides the first is left to the database, because a foreign key
 does not check a row where one of its columns is null. A key that pairs the
 tenant column on both sides stays unchecked, as before.
 
-| Before                                                              | After                                                                                    |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| A `same-tenant` tag always let a referenced row with no tenant pass | The tag follows the referenced tenant column; `shared=true` or `shared=false` decides it |
-| A `same-tenant` tag needed a single-column foreign key              | A tag works on any foreign key that holds the column                                     |
-| `sameTenant` entries stayed in the config                           | `codemod table-tags` moves the ones a tag renders byte for byte                          |
+| Before                                                                    | After                                                                                    |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| A `same-tenant` tag always let a referenced row with no tenant pass       | The tag follows the referenced tenant column; `shared=true` or `shared=false` decides it |
+| A `same-tenant` tag needed a single-column foreign key                    | A tag works on any foreign key that holds the column                                     |
+| `sameTenant` entries stayed in the config                                 | `codemod table-tags` moves the ones a tag renders byte for byte                          |
+| `recordTypes`, `realtime` and `vectorSearch` entries stayed in the config | `codemod table-tags` moves the ones a tag reads back to the same value                   |
 
 A tagged column whose referenced tenant column is `not null` now refuses a row
 with no tenant. Before, the tag wrote `shared` whatever the column said, so it

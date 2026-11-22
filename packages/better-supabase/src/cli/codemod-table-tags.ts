@@ -5,19 +5,24 @@ import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 
 import { withTableTag } from "./codemod-extra-columns.ts";
+import {
+  broadcastTriggerReview,
+  featureMoves,
+} from "./codemod-feature-tags.ts";
 import { withoutConfigPaths } from "./codemod-prune.ts";
 import { projectSameTenantMoves } from "./codemod-same-tenant.ts";
 import { withTableTags } from "./gen/table-tags.ts";
 import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 
 /** One table fact the config holds, as the tag line that replaces it. */
-interface Move {
+export interface Move {
   readonly table: string;
   readonly tag: string;
   readonly line: string;
   /** The config path to drop, or the audit entry to cut from the list. */
   readonly remove:
     | { readonly path: string; readonly alt?: string }
+    | { readonly paths: readonly string[] }
     | { readonly exempt: string };
   /**
    * Where the tag reaches. `doctor` means only doctor reads it. A function
@@ -262,7 +267,16 @@ export function tableTagFiles(project: CodemodProject): {
   /** One line per entry that moves: the tag, and where it reaches. */
   readonly explain: readonly string[];
 } {
-  const { moves, review } = tableFactMoves(project.config);
+  const facts = tableFactMoves(project.config);
+  const features = featureMoves(project.config, project.configText);
+  const moves = [...facts.moves, ...features.moves];
+
+  const review = [
+    ...facts.review,
+    ...features.review,
+    ...broadcastTriggerReview(project.sql),
+  ];
+
   const edited = new Map<string, string>();
   const moved: Move[] = [];
   const out = [...review];
@@ -314,14 +328,40 @@ export function tableTagFiles(project: CodemodProject): {
 
     const missed: string[] = [];
 
+    // Removing a list element moves the ones after it up, so each index drops
+    // by the number of earlier elements already cut from the same list.
+    const cutFrom = new Map<string, number[]>();
+
+    const shifted = (path: string): string => {
+      const match = /^(.*)\[(\d+)\]$/u.exec(path);
+
+      if (match?.[1] === undefined || match[2] === undefined) {
+        return path;
+      }
+
+      const index = Number(match[2]);
+      const before = cutFrom.get(match[1]) ?? [];
+
+      cutFrom.set(match[1], [...before, index]);
+
+      return `${match[1]}[${String(index - before.filter((each) => each < index).length)}]`;
+    };
+
     for (const move of moved) {
-      if (!("path" in move.remove)) {
+      if (!("path" in move.remove || "paths" in move.remove)) {
         continue;
       }
 
-      let cut = withoutConfigPaths(text, [move.remove.path]);
+      let cut =
+        "paths" in move.remove
+          ? withoutConfigPaths(text, move.remove.paths.map(shifted))
+          : withoutConfigPaths(text, [move.remove.path]);
 
-      if (cut.missed.length > 0 && move.remove.alt !== undefined) {
+      if (
+        "path" in move.remove &&
+        cut.missed.length > 0 &&
+        move.remove.alt !== undefined
+      ) {
         cut = withoutConfigPaths(text, [move.remove.alt]);
       }
 
@@ -375,7 +415,7 @@ export function tableTagsCodemod(): Codemod {
   return {
     name: "table-tags",
     description:
-      "Move audit exemptions, data-lifecycle tables, expose entries and same-tenant entries into comment tags",
+      "Move audit exemptions, data-lifecycle tables, expose entries, record types, realtime tables, vector search entries and same-tenant entries into comment tags",
     project: async (project: CodemodProject) => {
       // A pgTAP file with psql commands (\gset) does not parse; it is skipped and reported.
       const unread = await primeSchemaFacts(project.sql, project.config.root, {

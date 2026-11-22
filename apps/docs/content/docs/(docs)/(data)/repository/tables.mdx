@@ -91,13 +91,14 @@ comments.
 | `title`, `url`                                                | The title column and the URL template, `/projects/{id}`.                                                        |
 | `scope`, `cascade`                                            | A provider scope whose ids are this subject's ids, and whether deleting the row deletes the module rows for it. |
 | `deleted-at`                                                  | The soft delete column.                                                                                         |
+| `held`, `template`, `read-access`                             | The legal hold column, the template marker column, and who reads per-record rows (`tenant` or `record`).        |
 | `search`, `search-title`, `search-body`, `search-description` | Index the row for search, or name the columns for each part. `search-exclude` skips some.                       |
 | `rank`, `rank-group`                                          | The rank column for manual ordering, and the column it orders within.                                           |
 | `versions`, `versions-auto=false`                             | The columns a version keeps (a comma list), and whether saves snapshot on their own.                            |
 | `can-<action>`                                                | The permission an action needs, `can-read=projects.read`.                                                       |
 
-A subject that needs a search source other than its own columns, a watch list
-or a row grant keeps its entry in `subjects` in the config instead. Subjects
+A subject that needs a search source other than its own columns, a watch list,
+a row grant, a team, template child tables or `history` keeps its entry in `subjects` in the config instead. Subjects
 the blocks register for their own tables stay there as well.
 
 ## Hidden columns
