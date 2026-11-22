@@ -28,6 +28,35 @@ pnpm better-supabase gen sql
 | [Schemas by module reference](#schemas-by-module-reference)               | None                                 |
 | [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`        |
 
+## What the codemods did to CentraKit
+
+`scripts/cutover-report.ts` copies a project, renders it with the 0.81 baseline, runs the
+codemods in the order above, and renders again with this release. For CentraKit it
+reported these config lines per top-level key of `better-supabase.config.ts`.
+
+| Section       | Before | After |
+| ------------- | -----: | ----: |
+| `blocks`      |   2930 |  2816 |
+| preamble      |    239 |   239 |
+| `recordTypes` |    225 |   225 |
+| `database`    |    174 |   104 |
+| `gen`         |     54 |    21 |
+| `auth`        |     27 |    27 |
+| `tooling`     |      7 |     7 |
+| **Total**     |   3656 |  3439 |
+
+The target of 3000 lines is not met: 439 lines remain, 2816 of them in `blocks`, led by
+`memberships` (274), `calendar` (123), `invoices` (116), `audit` (112) and `data-lifecycle` (105). Those
+entries hold values that differ from the defaults (column names, options, hooks), so no codemod can
+remove them. Reaching 3000 needs the app to drop options it no longer uses (doctor BS707 lists them)
+or to move more facts into the provider and the schema comments.
+
+The render differs in 15 files. The expected changes are the tax code index, the cancel hooks, the
+numbering default, template clone and import functions, and the render comments. Twelve files carry
+other changes from block updates between the two builds that the report's allowlist does not name; read them in the diff before you deploy.
+Five adopter files become deletable: `secret_fields.sql`, `packages/supabase-runtime/src/db.ts`
+field helpers, the `gen.functions` section, and the two import runner files.
+
 ## The blocks list
 
 `blocks` is a list of block names and `{ block, name?, ...entry }` objects. The
@@ -67,7 +96,17 @@ identity column mappings, empty maps, a tenant that repeats `sql.tenantColumn`,
 an `api` or `audit` equal to `sql`'s, a permission key equal to the one the
 block would use, an option equal to its default, and the numbering values above.
 It renders the blocks with the old and the new config and writes nothing when a
-generated file differs.
+generated file differs. It removes the entries in batches and halves a batch
+whose render changes or throws, so it lists the block groups it kept and why
+instead of stopping at the first entry another option needs.
+
+| 0.81                                                                  | 0.82                                  |
+| --------------------------------------------------------------------- | ------------------------------------- |
+| `columns: { tasks: { title: "title" } }`                              | removed; the column has the same name |
+| `tenant: "org_id"` equal to `sql.tenantColumn`                        | removed                               |
+| `api: "api"` equal to `database.sql.api`                              | removed                               |
+| `permissions: { read: "tasks.read" }` equal to the key the block uses | removed                               |
+| `options.feed.names: false` equal to the default                      | removed                               |
 
 ## Provider fields
 
