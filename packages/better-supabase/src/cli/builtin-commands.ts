@@ -48,6 +48,7 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     "db partition",
     () => import("./commands/partition.ts").then((m) => m.dbPartitionCommand),
   ],
+  ["db rows", () => import("./commands/rows.ts").then((m) => m.dbRowsCommand)],
   [
     "db squash",
     () => import("./commands/squash.ts").then((m) => m.dbSquashCommand),
@@ -146,6 +147,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () =>
       import("./commands/codemod.ts").then((m) =>
         m.codemodCommand("adopt-names"),
+      ),
+  ],
+  [
+    "codemod declared-rows",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("declared-rows"),
       ),
   ],
   [

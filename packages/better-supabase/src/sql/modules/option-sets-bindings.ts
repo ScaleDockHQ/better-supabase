@@ -37,6 +37,7 @@ export interface OptionBinding {
   readonly scope?: string;
   /** Writing the level column picks the first item at that level. */
   readonly follow: boolean;
+  /** Empty when the items are declared as `option_set_item` rows only. */
   readonly items: readonly ItemTemplate[];
   /** Item templates per brand; a tenant of that brand starts with these. */
   readonly brands: Readonly<Record<string, readonly ItemTemplate[]>>;
@@ -230,7 +231,11 @@ export function optionBindings(ctx: BlockSqlContext): readonly OptionBinding[] {
         min,
         max,
         follow: follow ?? false,
-        items: itemsOf(`${where}.items`, entry["items"], min, max),
+        // Left out when the app declares the items as rows (ADR 1220).
+        items:
+          entry["items"] === undefined
+            ? []
+            : itemsOf(`${where}.items`, entry["items"], min, max),
         brands: Object.fromEntries(
           Object.entries(brands ?? {}).map(([brand, items]) => {
             if (!BRAND.test(brand)) {

@@ -466,7 +466,7 @@ function formatFunction(
     const value =
       from === undefined
         ? sqlString(item.format)
-        : `coalesce((select nullif(btrim(s.${from.column}), '') from ${from.table} s where s.${sqlIdent(from.key)} = p_tenant), ${sqlString(item.format)})`;
+        : `coalesce((select nullif(btrim(s.${from.column}), '') from ${from.table} s where s.${sqlIdent(from.key)} = p_tenant), (better_supabase.declared_defaults_of('numbering_format', ${sqlString(item.name)}) -> 0 ->> 'format'), ${sqlString(item.format)})`;
 
     return `    when ${sqlString(item.name)} then ${value}`;
   });

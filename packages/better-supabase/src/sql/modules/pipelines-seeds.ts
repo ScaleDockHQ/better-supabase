@@ -5,6 +5,7 @@ import type { PipelineBinding } from "./pipelines-bindings.ts";
 import { rankKeys } from "../../core/rank-keys.ts";
 import { sqlString } from "../../core/template.ts";
 import { pipelineBindings } from "./pipelines-bindings.ts";
+import { declaredStageTable, stageSubject } from "./pipelines-declared.ts";
 
 /**
  * The named stage-template sets bindings can declare through `variant`. A
@@ -80,6 +81,52 @@ function pipelineRows(
 
   const stageKey = ctx.has("stages", "systemKey") ? "systemKey" : "key";
 
+  // Stages the app declared as rows replace the template (ADR 1220).
+  const declaredExists = (binding: PipelineBinding): string =>
+    `better_supabase.declared_defaults_of('pipeline_stage', ${stageSubject(binding)}) is not null`;
+
+  const declaredStages = (binding: PipelineBinding): string => {
+    const optional = [
+      ["systemKey", "x.key"],
+      ["probability", "x.probability"],
+      ["color", "x.color"],
+      ["icon", "x.icon"],
+    ] as const;
+
+    const present = optional.filter(([column]) => ctx.has("stages", column));
+
+    const columns = [
+      s("tenant"),
+      s("pipeline"),
+      s("key"),
+      s("name"),
+      s("category"),
+      s("outcome"),
+      s("rank"),
+      ...present.map(([column]) => s(column)),
+    ];
+
+    const values = [
+      "p_tenant",
+      `(select pl.${p("id")} from ${pipelines} pl where pl.${p("tenant")} = p_tenant and pl.${p("subjectType")} = ${sqlString(binding.type)} and pl.${p("scope")} is null and pl.${p("key")} = ${sqlString(DEFAULT_KEY)} limit 1)`,
+      "x.key",
+      "x.name",
+      ctx.cast("stages", "category", "x.category"),
+      ctx.cast("stages", "outcome", "x.outcome"),
+      "x.rank",
+      ...present.map(([, value]) => value),
+    ];
+
+    const key = s(stageKey);
+
+    return `  if ${declaredExists(binding)} then
+    insert into ${stages} (${columns.join(", ")})
+    select ${values.join(", ")}
+    from ${declaredStageTable(binding, `better_supabase.declared_defaults_of('pipeline_stage', ${stageSubject(binding)})`)}
+    where not exists (select 1 from ${stages} e where e.${s("tenant")} = p_tenant and e.${s("pipeline")} = ${values[1]} and e.${key} is not distinct from x.key);
+  end if;`;
+  };
+
   const stageTable: SeedTable = {
     table: stages,
     tenantColumn: s("tenant"),
@@ -120,9 +167,10 @@ function pipelineRows(
           }
         }
 
-        return { values };
+        return { values, unless: declaredExists(binding) };
       });
     }),
+    extra: bindings.map((binding) => declaredStages(binding)),
   };
 
   return [pipelineTable, stageTable];

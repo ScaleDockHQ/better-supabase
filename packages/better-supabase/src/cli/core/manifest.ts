@@ -674,6 +674,24 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [{ kind: "database", access: "write" }],
       },
       {
+        name: "rows",
+        description:
+          "Writes a data migration for each file in supabase/rows whose upserts changed, stamped with the hash of its statements",
+        docs: "/docs/cli/db#rows",
+        examples: [
+          {
+            command: "better-supabase db rows",
+            description:
+              "Writes one migration for each rows file whose hash no migration carries",
+          },
+          {
+            command: "better-supabase db rows --check",
+            description: "Exits 1 when a rows file has no current migration",
+          },
+        ],
+        effects: [FILES],
+      },
+      {
         name: "squash",
         description:
           "Replaces the migrations with one baseline of the declarative schema, keeping the module extensions and the data migrations --keep names",
@@ -888,6 +906,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         name: "adopt-names",
         description:
           "Rename a block table in the migrations and schema files to the name the block expects, and drop its tables entry",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
+        name: "declared-rows",
+        description:
+          "Move option set items, pipeline stages and approval floors out of the config into supabase/rows upserts",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },

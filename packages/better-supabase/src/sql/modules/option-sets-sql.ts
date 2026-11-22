@@ -6,6 +6,7 @@ import { rankKeys } from "../../core/rank-keys.ts";
 import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { archivedListFilter } from "../archive-sql.ts";
+import { declaredRank } from "../declared-defaults.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import {
   filterAny,
@@ -42,9 +43,23 @@ function itemInsert(
 }
 
 /**
+ * One `insert` of the items the app declared as `option_set_item` rows (ADR
+ * 1220): `v_declared` holds their jsonb list, in order.
+ */
+function declaredInsert(names: OptionNames): string {
+  const { t, c } = names;
+  const i = (column: string): string => c("items", column);
+
+  return `insert into ${t("items")} (${i("tenant")}, ${i("set")}, ${i("key")}, ${i("systemKey")}, ${i("label")}, ${i("color")}, ${i("icon")}, ${i("rank")}, ${i("level")})
+        select default_option_set.tenant, v_id, x.key, x.key, x.label, x.color, x.icon, ${declaredRank("x.ord")}, x.level
+        from jsonb_to_recordset(v_declared) with ordinality as x(key text, label text, level integer, color text, icon text, ord bigint);`;
+}
+
+/**
  * The default option set of a field in a tenant and scope. The first call
- * creates it from the binding's item template, or from the template of the
- * tenant's brand when `options.brand` is set and the binding has one.
+ * creates it from the items declared as rows, else from the binding's item
+ * template, or from the template of the tenant's brand when `options.brand` is
+ * set and the binding has one.
  */
 export function defaultSet(
   ctx: BlockSqlContext,
@@ -65,9 +80,18 @@ export function defaultSet(
       );
     }
 
-    const items =
+    const literal = (list: readonly ItemTemplate[]): string =>
+      list.length === 0
+        ? fail(
+            "OPTION_SET_DEFAULTS_MISSING",
+            "this field declares no items; add option_set_item rows to supabase/rows",
+            "55000",
+          )
+        : itemInsert(names, list);
+
+    const literals =
       brand === undefined || brands.length === 0
-        ? itemInsert(names, binding.items)
+        ? literal(binding.items)
         : `v_brand := (select b.${brand.column}::text from ${brand.table} b where b.${brand.tenant}::text = default_option_set.tenant::text limit 1);
       ${brands
         .map(
@@ -77,7 +101,26 @@ export function defaultSet(
         )
         .join("\n      ")}
       else
-      ${itemInsert(names, binding.items)}
+      ${literal(binding.items)}
+      end if;`;
+
+    const subject = `default_option_set.subject_type || '.' || default_option_set.field`;
+
+    // A tenant of a brand reads the rows of `<type>.<field>@<brand>` first.
+    const items = `${
+      brand === undefined
+        ? ""
+        : `v_brand := (select b.${brand.column}::text from ${brand.table} b where b.${brand.tenant}::text = default_option_set.tenant::text limit 1);
+      `
+    }v_declared := ${
+      brand === undefined
+        ? `better_supabase.declared_defaults_of('option_set_item', ${subject})`
+        : `coalesce(better_supabase.declared_defaults_of('option_set_item', ${subject} || '@' || coalesce(v_brand, '')), better_supabase.declared_defaults_of('option_set_item', ${subject}))`
+    };
+      if v_declared is not null then
+        ${declaredInsert(names)}
+      else
+      ${literals}
       end if;`;
 
     return `      insert into ${t("sets")} (${s("tenant")}, ${s("subjectType")}, ${s("field")}, ${s("scope")}, ${s("key")}, ${s("name")}, ${s("isDefault")})
@@ -113,6 +156,7 @@ as $$
 declare
   v_id uuid;
   v_brand text;
+  v_declared jsonb;
 begin
   select x.${s("id")} into v_id from ${t("sets")} x
   where x.${s("tenant")} = default_option_set.tenant

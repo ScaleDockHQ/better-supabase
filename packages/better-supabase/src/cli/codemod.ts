@@ -19,6 +19,7 @@ import { accountCallsCodemod } from "./codemod-account-calls.ts";
 import { adoptNamesCodemod } from "./codemod-adopt-names.ts";
 import { blocksListCodemod } from "./codemod-blocks-list.ts";
 import { configCodemod } from "./codemod-config.ts";
+import { declaredRowsCodemod } from "./codemod-declared-rows.ts";
 import { doctorBaselineCodemod } from "./codemod-doctor-baseline.ts";
 import { extraColumnsCodemod } from "./codemod-extra-columns.ts";
 import { namingCodemod } from "./codemod-naming.ts";
@@ -155,6 +156,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "record-types": recordTypesCodemod(),
   "table-tags": tableTagsCodemod(),
   "adopt-names": adoptNamesCodemod(),
+  "declared-rows": declaredRowsCodemod(),
   "doctor-baseline": doctorBaselineCodemod(),
   "table-modules": tableModulesCodemod(),
   "account-calls": accountCallsCodemod(),

@@ -353,6 +353,46 @@ that stops can start again; it resumes from the rows already copied.
 
 Side effects: Writes to the database.
 
+## rows
+
+```bash
+pnpm better-supabase db rows
+pnpm better-supabase db rows --check
+```
+
+`db rows` turns the files in `supabase/rows` into data migrations. A rows file
+is a list of upserts of literal rows by their natural key:
+
+```sql
+insert into better_supabase.declared_defaults (kind, subject, key, position, value)
+values
+  ('option_set_item', 'project.priority', 'low', 0, jsonb_build_object('label', 'Low')),
+  ('option_set_item', 'project.priority', 'high', 1, jsonb_build_object('label', 'High'))
+on conflict (kind, subject, key) do update
+  set position = excluded.position, value = excluded.value;
+```
+
+For each file, the command hashes the statements (comments and whitespace do
+not count) and looks for the newest migration that carries
+`-- @bsb-rows <file> sha256:<hash>`. When the hash is the same it does nothing.
+When it differs, it writes a new migration with the statements and the new
+hash, so a migration that was pushed is never rewritten. The reader refuses
+anything that is not an upsert: `do nothing`, a missing conflict target, a
+`select` source, `returning`, a subquery, a key that is not a literal, and every
+function call except `jsonb_build_object`, `jsonb_build_array` and `to_jsonb`.
+
+A row that you remove from a file stays in the database, because a migration
+cannot know whether the app changed it. The command prints a `review:` line for
+it. Put `-- bsb-rows: delete-removed` in the file to make the migration delete
+the removed rows by their natural key.
+
+| Flag        | Effect                                                                 |
+| ----------- | ---------------------------------------------------------------------- |
+| `--check`   | Writes nothing and exits 1 when a file has no migration with its hash. |
+| `--dry-run` | Prints the migrations it would write, and writes nothing.              |
+
+Side effects: Writes files.
+
 ## squash
 
 ```bash

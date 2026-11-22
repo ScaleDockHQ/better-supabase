@@ -64,6 +64,14 @@ invoice: {
 },
 ```
 
+## Declared formats
+
+An entity whose format comes from a column (`formatFrom`) also reads a `numbering_format` row: the
+subject is the entity name and the value is `{ "format": "INV-{yyyy}-{n}" }`, declared in
+`supabase/rows/numbering.sql`. The order is the tenant's column, then the declared row, then the
+config `format`. Formats written into the trigger are not read from rows. Run
+`better-supabase db rows` to write the data migration.
+
 ## Periods per tenant
 
 A format says how a number looks, not always when its counter restarts. `INV-{yyyy}{mm}-{n}` shows the month, and with `period: "format"` it restarts every month, but a tenant may want it to count on through the year. Set `periodFrom` to the column that holds each tenant's period, as `schema.table.column`, with `key` naming the column that matches the tenant id (default `id`). The column holds `none`, `year`, `month` or `format`, as text or an enum:

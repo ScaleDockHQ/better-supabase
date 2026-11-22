@@ -618,13 +618,19 @@ ${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("approval_policies
     ? "f.value ->> 'subjectType' in (v_type, '*')"
     : "f.value ->> 'subjectType' = v_type";
 
-  // A tenant policy tightens a config floor (or, with platform policies, an
+  // A tenant policy tightens a config floor, a declared `approval_floor` row (or, with platform policies, an
   // enabled platform policy) for its subject type, action and effect; `*`
   // matches any.
   const floorExists = `(exists (
       select 1 from jsonb_array_elements(${floors}) f
       where (v_type = '*' or ${floorType})
         and (v_action = '*' or f.value ->> 'action' in (v_action, '*'))
+        and (v_effect is null or f.value -> 'effects' ? v_effect)
+    ) or exists (
+      select 1 from better_supabase.declared_defaults f
+      where f.kind = 'approval_floor'
+        and (v_type = '*' or split_part(f.subject, ':', 1) in (v_type, '*'))
+        and (v_action = '*' or split_part(f.subject, ':', 2) in (v_action, '*'))
         and (v_effect is null or f.value -> 'effects' ? v_effect)
     )${
       platform
