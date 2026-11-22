@@ -258,7 +258,8 @@ the generated `fields` in `options`.
 A disabled feature renders no SQL. `blocks.inventory.tables.allocations: null` drops the stock allocation table,
 its eleven functions, the import target and the contract entries (599 fewer lines). `blocks.accounting.tables.budgets: null`
 or `budgetLines: null` drops the budgets table, the four budget functions and their contract entries (232 fewer
-lines). Inventory and invoices already gated their other optional tables.
+lines). Inventory and invoices already gated their other optional tables: turning off the e-invoice and dunning tables of
+invoices drops 823 of 4634 rendered lines.
 
 Doctor BS707 (info) lists `blocks.<name>.columns` entries that no enabled feature reads. The render records each
 `table.column` it reads, so an entry for a feature that is off is reported with the block, table and column. The

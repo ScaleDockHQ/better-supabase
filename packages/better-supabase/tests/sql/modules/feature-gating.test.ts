@@ -22,6 +22,23 @@ describe.each([
     ],
   },
   {
+    module: "invoices",
+    off: {
+      eEndpoints: null,
+      eDeliveries: null,
+      dunningLevels: null,
+      dunningRuns: null,
+      dunningRunItems: null,
+      dunningHistory: null,
+    },
+    gone: [
+      "e_invoice_endpoints",
+      "e_invoice_deliveries",
+      "dunning_runs",
+      "dunning_history",
+    ],
+  },
+  {
     module: "accounting",
     off: { budgets: null, budgetLines: null },
     gone: [
