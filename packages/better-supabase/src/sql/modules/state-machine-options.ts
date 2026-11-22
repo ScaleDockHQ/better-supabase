@@ -101,6 +101,14 @@ export const ACTOR_FIELDS = [
   ["userAgent", "userAgent"],
 ] as const;
 
+/** The column an actor field takes in an app history table, by name. */
+const ACTOR_COLUMNS = {
+  actorName: "actor_name",
+  actorEmail: "actor_email",
+  ip: "ip",
+  userAgent: "user_agent",
+} as const;
+
 export function machines(ctx: BlockSqlContext): readonly Machine[] {
   const raw = ctx.option("machines") ?? {};
 
@@ -111,7 +119,7 @@ export function machines(ctx: BlockSqlContext): readonly Machine[] {
   }
 
   const configured = Object.entries(raw).map(([name, entry]) =>
-    machine(name, entry, ctx.subjects, ctx.naming),
+    machine(name, entry, ctx.subjects, ctx.naming, ctx.declaredColumns),
   );
 
   const names = new Set(configured.map((each) => each.name));
@@ -120,7 +128,13 @@ export function machines(ctx: BlockSqlContext): readonly Machine[] {
     .contributions("state-machine")
     .filter((each) => !names.has(each.name))
     .map((each): Machine => {
-      const item = machine(each.name, each.entry, ctx.subjects, ctx.naming);
+      const item = machine(
+        each.name,
+        each.entry,
+        ctx.subjects,
+        ctx.naming,
+        ctx.declaredColumns,
+      );
 
       if (each.optional !== true) {
         return { ...item, contributed: true };
@@ -173,6 +187,7 @@ function machine(
   entry: unknown,
   registry: SubjectsConfig,
   naming: EntityNames,
+  declared?: Readonly<Record<string, readonly string[]>>,
 ): Machine {
   const where = `blocks.state-machine.options.machines.${name}`;
 
@@ -316,7 +331,7 @@ function machine(
     );
   }
 
-  const history = historyOf(record["history"], where, tenantColumn);
+  const history = historyOf(record["history"], where, tenantColumn, declared);
 
   return {
     name,
@@ -508,6 +523,7 @@ function historyOf(
   value: unknown,
   where: string,
   tenant: string,
+  declared?: Readonly<Record<string, readonly string[]>>,
 ): "app" | AppHistory | undefined {
   if (value === undefined) {
     return undefined;
@@ -555,9 +571,15 @@ function historyOf(
 
   const extras: Partial<Record<(typeof ACTOR_FIELDS)[number][0], string>> = {};
 
+  // An actor column the history table declares under its conventional name is
+  // written without a config entry; one the table lacks stays off.
+  const present = declared?.[table.includes(".") ? table : `public.${table}`];
+
   for (const [key] of ACTOR_FIELDS) {
     if (record[key] !== undefined) {
       extras[key] = text(key, key);
+    } else if (present?.includes(ACTOR_COLUMNS[key]) === true) {
+      extras[key] = ACTOR_COLUMNS[key];
     }
   }
 

@@ -325,6 +325,35 @@ describe("state machine", () => {
     expect(sql).toContain(`order by h."at" desc`);
   });
 
+  it("writes the actor columns the history table declares by their usual names", () => {
+    const render = (columns: readonly string[]): string =>
+      renderBlocks(["state-machine"], {
+        modules: {
+          "state-machine": {
+            options: {
+              machines: {
+                quote: { ...quote, history: { table: "public.quote_history" } },
+              },
+            },
+          },
+        },
+        declaredColumns: { "public.quote_history": columns },
+      })
+        .filter((file) => file.module === "state-machine")
+        .map((file) => file.contents)
+        .join("\n");
+
+    const insert = (sql: string): string =>
+      /insert into "public"."quote_history"[^;]*;/u.exec(sql)![0];
+
+    const named = insert(render(["actor_name", "user_agent", "ip"]));
+
+    expect(named).toContain(`"actor_name"`);
+    expect(named).toContain(`"user_agent"`);
+    expect(named).toContain(`"ip"`);
+    expect(insert(render([]))).not.toContain(`"actor_name"`);
+  });
+
   it("names a machine without the lifecycles table", () => {
     expect(() =>
       sqlOf({

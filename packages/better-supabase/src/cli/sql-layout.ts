@@ -341,7 +341,16 @@ export async function moduleLayoutFor(
       : {}),
     ...(autoSameTenant
       ? sameTenantLayout(await declarativeTexts(config), config.schemas)
-      : {}),
+      : resolved.has("state-machine")
+        ? {
+            // An app history table's actor columns are read from its
+            // declaration.
+            declaredColumns: sameTenantLayout(
+              await declarativeTexts(config),
+              config.schemas,
+            ).declaredColumns,
+          }
+        : {}),
     ...(fromPolicies || sessionPolicies
       ? {
           declaredTables: declaredTables(

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { DeclaredForeignKey } from "../../../src/sql/foreign-keys.ts";
+
 import { renderBlocks } from "../../../src/sql/render.ts";
 
 const body = (
@@ -129,6 +131,45 @@ describe("template rows", () => {
     expect(sql).toContain("unpack_template");
     expect(sql).toContain("source_template_id");
     expect(sql).toContain("jsonschema_validation_errors");
+  });
+
+  describe("child tables without a parent column", () => {
+    const render = (foreignKeys: readonly DeclaredForeignKey[]): string =>
+      body(["templates"], {
+        foreignKeys,
+        modules: {
+          memberships: { options: { sameTenant: false } },
+          templates: {
+            options: {
+              types: {
+                quote: {
+                  storage: "rows",
+                  table: "public.quotes",
+                  templateColumn: "template_id",
+                  clone: "public.clone_quote",
+                  children: [{ table: "public.quote_lines" }],
+                },
+              },
+            },
+          },
+        },
+      });
+
+    const key = (column: string) => ({
+      table: "public.quote_lines",
+      columns: [column],
+      references: "public.quotes",
+      referencedColumns: ["id"],
+    });
+
+    it("takes the one foreign key to the root table", () => {
+      expect(render([key("quote_id")])).toContain(`c."quote_id" = v_root`);
+    });
+
+    it("asks for the column when the keys are not exactly one", () => {
+      expect(() => render([])).toThrow(/has 0 foreign keys/);
+      expect(() => render([key("a"), key("b")])).toThrow(/has 2 foreign keys/);
+    });
   });
 
   it("accepts a template column object, with and without children", () => {
