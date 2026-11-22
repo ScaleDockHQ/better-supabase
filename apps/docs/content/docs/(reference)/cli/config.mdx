@@ -249,6 +249,44 @@ configured schemas, such as a misspelled table name, instead of ignoring them.
 
 Side effects: None.
 
+## List the actions
+
+```bash
+pnpm better-supabase config actions --json
+```
+
+`config actions` lists every action better-supabase checks: each block
+instance, record type, bucket and topic, with the permission key the action
+resolves to and where the key came from. `source` is `config` when the config
+names the key, `provider` when `authorization.actionKeys` does, and `default`
+when the block derives it. `key` is `null` when nothing names a key for the
+action, such as a topic's `send` that the provider doesn't list. The JSON has
+`version: 1` and a schema in
+[`config-actions-v1.json`](https://unpkg.com/better-supabase/schemas/config-actions-v1.json).
+Use it to check a provider's `actionKeys` against what the app asks for.
+
+From code, `listActions(config)` in `better-supabase/sql` returns the same rows.
+
+Side effects: None.
+
+## List the access policies
+
+```bash
+pnpm better-supabase config policies --json
+```
+
+`config policies` lists one row per row level security policy that a
+`@bsb access` tag in `supabase/schemas` renders: the table, the operation, the
+policy name, the permission key, the tenant column and whether the policy
+carries the actor guard. The tag's SQL is rendered from the same rows, so the
+list and the SQL can't differ. The JSON has `version: 1` and a schema in
+[`config-policies-v1.json`](https://unpkg.com/better-supabase/schemas/config-policies-v1.json).
+
+From code, `listAccessPolicies(config, comments)` in `better-supabase/sql`
+returns the same rows for the table comments you pass.
+
+Side effects: None.
+
 ## Custom generators
 
 A generator is a plugin at `apiVersion: 2`. Build it with `defineGenerator` from

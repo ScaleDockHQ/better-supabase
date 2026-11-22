@@ -226,6 +226,7 @@ export {
 } from "./schema-scan.ts";
 
 export {
+  approverForNamesRequest,
   resolveProviderSql,
   SCOPE_ID_TYPES,
   scopeProblems,
@@ -348,7 +349,24 @@ export {
   setTagBlock,
 } from "./tag-statements.ts";
 
-export type { RenderedFeature, TagRenderOptions } from "./tag-statements.ts";
+export type {
+  AccessPolicy,
+  AccessPolicyOperation,
+  RenderedFeature,
+  TagRenderOptions,
+} from "./tag-statements.ts";
+
+export { accessPolicies } from "./tag-statements.ts";
+
+export { listAccessPolicies, listActions } from "./listings.ts";
+
+export type {
+  AccessPolicyListing,
+  ActionKeySource,
+  ActionKind,
+  ActionListing,
+  TaggedComment,
+} from "./listings.ts";
 
 export {
   keysetPredicate,

@@ -10366,6 +10366,7 @@
   },
   "./sql": {
     "values": [
+      "accessPolicies",
       "addedColumnTypes",
       "adoptedColumnProblems",
       "adoptedTables",
@@ -10373,6 +10374,7 @@
       "APP_TABLES_MARKER",
       "APP_TABLES_MODULE",
       "appColumnsOf",
+      "approverForNamesRequest",
       "appTableEventTypes",
       "appTablePolicyNotes",
       "appTablesFiles",
@@ -10439,6 +10441,8 @@
       "legacyOptionTarget",
       "lifecycleTag",
       "LIST_TOTAL_CAP",
+      "listAccessPolicies",
+      "listActions",
       "listBody",
       "listDeclare",
       "listOrder",
@@ -10535,6 +10539,12 @@
       "writtenValues"
     ],
     "types": [
+      "AccessPolicy",
+      "AccessPolicyListing",
+      "AccessPolicyOperation",
+      "ActionKeySource",
+      "ActionKind",
+      "ActionListing",
       "AdoptedTable",
       "AdoptedView",
       "AuditCategory",
@@ -10615,6 +10625,7 @@
       "SqlStatement",
       "TableCheckValues",
       "TableFeature",
+      "TaggedComment",
       "TagRenderOptions",
       "TenantQuery",
       "UnusedColumn",

@@ -1,6 +1,6 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { approverForNamesRequest } from "../../core/access-sql.ts";
+import { approverForNamesRequest } from "../../sql/index.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
 import { withoutComments, withoutStrings } from "./rls.ts";
 

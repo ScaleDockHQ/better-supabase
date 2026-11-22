@@ -790,6 +790,22 @@ export const COMMANDS: readonly CommandSpec[] = [
     group: "inspect",
     docs: "/docs/cli/config#print-the-resolved-config",
     effects: [],
+    subcommands: [
+      {
+        name: "actions",
+        description:
+          "Lists every block, record type, bucket and topic action with the permission key it resolves to and whether the config, the provider or the default named it",
+        docs: "/docs/cli/config#list-the-actions",
+        effects: [],
+      },
+      {
+        name: "policies",
+        description:
+          "Lists the row level security policies the @bsb access tags render, with their key, tenant column and actor guard",
+        docs: "/docs/cli/config#list-the-access-policies",
+        effects: [],
+      },
+    ],
   },
   {
     name: "mcp",

@@ -183,6 +183,8 @@ describe("shipped JSON Schemas", () => {
       "ai-message-v2.json",
       "cli-commands-v2.json",
       "cli-result-v2.json",
+      "config-actions-v1.json",
+      "config-policies-v1.json",
       "config-v1.json",
       "design-v1.json",
       "doctor-report-v1.json",
@@ -420,6 +422,40 @@ describe("shipped JSON Schemas", () => {
     ) as unknown;
 
     expect(await errorsFor("doctor-report-v1.json", report)).toEqual([]);
+  });
+
+  it("describe the config actions and policies listings", async () => {
+    expect(
+      await errorsFor("config-actions-v1.json", {
+        version: 1,
+        actions: [
+          {
+            kind: "bucket",
+            name: "logos",
+            action: "read",
+            key: null,
+            source: "default",
+          },
+        ],
+      }),
+    ).toEqual([]);
+
+    expect(
+      await errorsFor("config-policies-v1.json", {
+        version: 1,
+        policies: [
+          {
+            schema: "public",
+            table: "items",
+            operation: "read",
+            name: "bsb_access_items_read",
+            key: "items.read",
+            tenantColumn: "tenant_id",
+            actorGuard: false,
+          },
+        ],
+      }),
+    ).toEqual([]);
   });
 
   it("describe a full config", async () => {

@@ -218,6 +218,20 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/cache.ts").then((m) => m.cachePurgeCommand),
   ],
   ["config", () => import("./commands/config.ts").then((m) => m.configCommand)],
+  [
+    "config actions",
+    () =>
+      import("./commands/config-listings.ts").then(
+        (m) => m.configActionsCommand,
+      ),
+  ],
+  [
+    "config policies",
+    () =>
+      import("./commands/config-listings.ts").then(
+        (m) => m.configPoliciesCommand,
+      ),
+  ],
 ];
 
 /** The built-in commands, for `createCli`. */
