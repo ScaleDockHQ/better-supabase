@@ -13,7 +13,12 @@ import { codeRanges } from "../config-document/ranges.ts";
 import { isRecord } from "../guards.ts";
 
 export type ConfigEdit =
-  | { readonly ok: true; readonly text: string }
+  | {
+      readonly ok: true;
+      readonly text: string;
+      /** A part of the edit that was left out, and why. */
+      readonly note?: string;
+    }
   | { readonly ok: false; readonly reason: string };
 
 export interface Property {
@@ -836,11 +841,19 @@ export function setBlockInConfig(
     const current = listed.find((prop) => prop.key === name);
 
     if (current) {
-      return edit(
-        current.valueStart,
-        current.valueEnd,
-        literal(value, indentAt(source, current.start), quote),
-      );
+      const entry = literal(value, indentAt(source, current.start), quote);
+
+      if (current.valueStart === current.start) {
+        const written = source.slice(current.start, current.valueEnd);
+
+        // A shorthand (`teams`) has no value to replace; a method has code the
+        // edit would lose.
+        return written === name
+          ? edit(current.start, current.valueEnd, `${keyText(name)}: ${entry}`)
+          : { ok: false, reason: `blocks.${name} is a method, not a value` };
+      }
+
+      return edit(current.valueStart, current.valueEnd, entry);
     }
 
     const inner = listed[0] ? indentAt(source, listed[0].start) : `${indent}  `;

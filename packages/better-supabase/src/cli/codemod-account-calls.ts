@@ -1,54 +1,134 @@
+import { MagicString } from "magic-string";
+import { parseSync } from "oxc-parser";
+import { walk } from "oxc-walker";
+
 import type { Codemod, ReviewLine } from "./codemod.ts";
 
-const CALL =
-  /\b([A-Za-z_$][\w$]*)\.(deleteAccount|suspendAccount|endSessions|lastSignIns)\(/g;
+import { lineColumn } from "./config-document/index.ts";
 
-const IMPORTED =
-  /import\s*\{[^}]*\}\s*from\s*["']better-supabase\/server\/account["']/;
+const HELPERS = new Set([
+  "deleteAccount",
+  "suspendAccount",
+  "endSessions",
+  "lastSignIns",
+]);
+
+const MODULE = "better-supabase/server/account";
 
 /**
  * Rewrites `bsb.deleteAccount(id)` to `deleteAccount(bsb, id)` (and the same
  * for `suspendAccount`, `endSessions` and `lastSignIns`), and imports the
  * functions from `better-supabase/server/account` (ADR 0604). Only a call on a
- * plain identifier is rewritten; the rest is listed for review.
+ * plain identifier is rewritten; a call on `ctx.bsb` or another expression is
+ * listed for review, since the receiver is not a name the codemod can pass.
  */
 export function moveAccountCalls(text: string): {
   readonly text: string;
   readonly review: readonly ReviewLine[];
 } {
-  const used = new Set<string>();
+  const parsed = parseSync("source.tsx", text, { sourceType: "module" });
 
-  const next = text.replaceAll(
-    CALL,
-    (_whole, receiver: string, name: string) => {
-      used.add(name);
-
-      return `${name}(${receiver}, `;
-    },
-  );
-
-  if (used.size === 0) {
+  if (parsed.errors.length > 0) {
     return { text, review: [] };
   }
 
-  const review: ReviewLine[] = [
-    {
-      line: 1,
-      message: `account helpers now take the server first: import ${[...used].toSorted().join(", ")} from better-supabase/server/account`,
-    },
-  ];
+  const out = new MagicString(text);
+  const used = new Set<string>();
+  const review: ReviewLine[] = [];
 
-  if (IMPORTED.test(next)) {
-    return { text: next, review };
+  walk(parsed.program, {
+    enter(node) {
+      if (
+        node.type !== "CallExpression" ||
+        node.callee.type !== "MemberExpression" ||
+        node.callee.computed ||
+        node.callee.property.type !== "Identifier" ||
+        !HELPERS.has(node.callee.property.name)
+      ) {
+        return;
+      }
+
+      const { name } = node.callee.property;
+      const { object } = node.callee;
+
+      if (object.type !== "Identifier") {
+        review.push({
+          line: lineColumn(text, node.start).line,
+          message: `${name} now takes the server first; pass it as the first argument and import ${name} from ${MODULE}`,
+        });
+
+        return;
+      }
+
+      used.add(name);
+
+      const [first] = node.arguments;
+
+      out.overwrite(
+        node.callee.start,
+        first === undefined ? node.end - 1 : first.start,
+        first === undefined
+          ? `${name}(${object.name}`
+          : `${name}(${object.name}, `,
+      );
+    },
+  });
+
+  if (used.size === 0) {
+    return { text, review };
   }
 
-  const line = `import { ${[...used].toSorted().join(", ")} } from "better-supabase/server/account";\n`;
-  const imports = [...next.matchAll(/^import [^;]*;\n/gm)];
-  const last = imports.at(-1);
+  const names = [...used].toSorted();
 
-  const at = last === undefined ? 0 : last.index + last[0].length;
+  review.unshift({
+    line: 1,
+    message: `account helpers now take the server first: import ${names.join(", ")} from ${MODULE}`,
+  });
 
-  return { text: next.slice(0, at) + line + next.slice(at), review };
+  const imports = parsed.program.body.filter(
+    (statement) => statement.type === "ImportDeclaration",
+  );
+
+  const existing = imports.find(
+    (statement) =>
+      statement.source.value === MODULE && statement.importKind !== "type",
+  );
+
+  if (existing === undefined) {
+    const last = imports.at(-1);
+    const line = `import { ${names.join(", ")} } from "${MODULE}";\n`;
+
+    if (last === undefined) {
+      out.prepend(line);
+    } else {
+      out.appendLeft(last.end, `\n${line.trimEnd()}`);
+    }
+
+    return { text: out.toString(), review };
+  }
+
+  const have = new Set(
+    existing.specifiers.map((specifier) =>
+      specifier.type === "ImportSpecifier" ? specifier.local.name : "",
+    ),
+  );
+
+  const missing = names.filter((name) => !have.has(name));
+  const lastSpecifier = existing.specifiers.at(-1);
+
+  if (missing.length > 0) {
+    if (lastSpecifier === undefined) {
+      out.overwrite(
+        existing.start,
+        existing.end,
+        `import { ${missing.join(", ")} } from "${MODULE}";`,
+      );
+    } else {
+      out.appendLeft(lastSpecifier.end, `, ${missing.join(", ")}`);
+    }
+  }
+
+  return { text: out.toString(), review };
 }
 
 export function accountCallsCodemod(): Codemod {

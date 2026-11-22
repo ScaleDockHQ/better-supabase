@@ -5,6 +5,12 @@
  * release adds the transforms its codemod needs, with a test for each.
  */
 
+import type { Node } from "oxc-parser";
+
+import { MagicString } from "magic-string";
+import { parseSync } from "oxc-parser";
+import { ScopeTracker, isReferenceIdentifier, walk } from "oxc-walker";
+
 import type { ResolvedConfig } from "../config/index.ts";
 import type { TenantColumnSkip } from "./codemod-naming-pins.ts";
 import type { PlannedFile } from "./core/files.ts";
@@ -22,7 +28,6 @@ import { serverImportsCodemod } from "./codemod-server-imports.ts";
 import { renameSubpaths } from "./codemod-subpaths.ts";
 import { tableModulesCodemod } from "./codemod-table-modules.ts";
 import { tableTagsCodemod } from "./codemod-table-tags.ts";
-import { codeRanges } from "./config-document/ranges.ts";
 import { generatorsCodemod } from "./generators/codemod.ts";
 
 /** What a project-level codemod reads. */
@@ -146,64 +151,16 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   },
 };
 
-interface Edit {
-  readonly start: number;
-  readonly end: number;
-  readonly text: string;
-}
-
-function applyEdits(text: string, edits: readonly Edit[]): string {
-  let out = "";
-  let cursor = 0;
-
-  for (const edit of edits.toSorted((a, b) => a.start - b.start)) {
-    if (edit.start < cursor) {
-      continue;
-    }
-
-    out += text.slice(cursor, edit.start) + edit.text;
-    cursor = edit.end;
+/** The subpath of a `better-supabase` module specifier, or undefined. */
+function packageSubpath(source: string): string | undefined {
+  if (source === "better-supabase") {
+    return "";
   }
 
-  return out + text.slice(cursor);
+  return source.startsWith("better-supabase/")
+    ? source.slice("better-supabase/".length)
+    : undefined;
 }
-
-const escapeRegExp = (value: string): string =>
-  value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-function inCode(ranges: readonly [number, number][], index: number): boolean {
-  let low = 0;
-  let high = ranges.length - 1;
-
-  while (low <= high) {
-    const middle = Math.floor((low + high) / 2);
-    const [start, end] = ranges[middle]!;
-
-    if (index < start) {
-      high = middle - 1;
-    } else if (index >= end) {
-      low = middle + 1;
-    } else {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/** Matches of `pattern` that start in code. */
-function codeMatches(
-  text: string,
-  pattern: RegExp,
-  ranges: readonly [number, number][],
-): RegExpExecArray[] {
-  return [...text.matchAll(pattern)].filter((match) =>
-    inCode(ranges, match.index),
-  );
-}
-
-const IMPORT =
-  /\b(import|export)\s+(type\s+)?\{([^}]*)\}\s*from\s*(["'])better-supabase(?:\/([\w./-]*))?\4/g;
 
 /** Renames imported names, from every subpath or only from `subpath`. */
 function renameImports(
@@ -211,47 +168,65 @@ function renameImports(
   renames: Readonly<Record<string, string>>,
   subpath?: string,
 ): { text: string; locals: Set<string> } {
-  const ranges = codeRanges(text);
   const locals = new Set<string>();
-  const edits: Edit[] = [];
+  const parsed = parseSync("source.tsx", text, { sourceType: "module" });
+  const out = new MagicString(text);
 
-  for (const match of codeMatches(text, IMPORT, ranges)) {
-    if (subpath !== undefined && match[5] !== subpath) {
+  for (const statement of parsed.program.body) {
+    if (
+      (statement.type !== "ImportDeclaration" &&
+        statement.type !== "ExportNamedDeclaration") ||
+      !statement.source
+    ) {
       continue;
     }
 
-    const list = match[3]!;
-    const listStart = match.index + match[0].indexOf("{") + 1;
+    const from = packageSubpath(statement.source.value);
 
-    const renamed = list.replaceAll(
-      /(\btype\s+)?([\w$]+)(\s+as\s+[\w$]+)?/g,
-      (spec, type: string | undefined, name: string, alias?: string) => {
-        const to = renames[name];
+    if (from === undefined || (subpath !== undefined && from !== subpath)) {
+      continue;
+    }
 
-        if (to === undefined) {
-          return spec;
-        }
+    for (const specifier of statement.specifiers) {
+      const imported =
+        specifier.type === "ImportSpecifier"
+          ? specifier.imported
+          : specifier.type === "ExportSpecifier"
+            ? specifier.local
+            : undefined;
 
-        if (alias === undefined && match[1] === "import") {
-          locals.add(name);
-        }
+      if (imported?.type !== "Identifier") {
+        continue;
+      }
 
-        return `${type ?? ""}${to}${alias ?? ""}`;
-      },
-    );
+      const to = renames[imported.name];
 
-    if (renamed !== list) {
-      edits.push({
-        start: listStart,
-        end: listStart + list.length,
-        text: renamed,
-      });
+      if (to === undefined) {
+        continue;
+      }
+
+      out.overwrite(imported.start, imported.end, to);
+
+      const aliased =
+        specifier.type === "ImportSpecifier"
+          ? specifier.local.start !== imported.start
+          : specifier.type === "ExportSpecifier" &&
+            specifier.exported.start !== specifier.local.start;
+
+      if (!aliased && statement.type === "ImportDeclaration") {
+        locals.add(imported.name);
+      }
     }
   }
 
-  return { text: applyEdits(text, edits), locals };
+  return { text: out.toString(), locals };
 }
 
+/**
+ * Renames the references to a binding that no longer exists: an identifier that
+ * is used as a value or type and that no scope in the file declares. A key, a
+ * member, a shadowing local and text in a string or comment stay.
+ */
 function renameIdentifiers(
   text: string,
   renames: ReadonlyMap<string, string>,
@@ -260,18 +235,37 @@ function renameIdentifiers(
     return text;
   }
 
-  const ranges = codeRanges(text);
-  const names = [...renames.keys()].map(escapeRegExp).join("|");
-  const pattern = new RegExp(`(?<![\\w$.])(?:${names})(?![\\w$])`, "g");
+  const parsed = parseSync("source.tsx", text, { sourceType: "module" });
+  const out = new MagicString(text);
+  const scopeTracker = new ScopeTracker();
 
-  return applyEdits(
-    text,
-    codeMatches(text, pattern, ranges).map((match) => ({
-      start: match.index,
-      end: match.index + match[0].length,
-      text: renames.get(match[0])!,
-    })),
-  );
+  walk(parsed.program, {
+    scopeTracker,
+    enter(node: Node, parent: Node | null): void {
+      if (
+        node.type !== "Identifier" ||
+        parent === null ||
+        !renames.has(node.name) ||
+        !isReferenceIdentifier(node, parent)
+      ) {
+        return;
+      }
+
+      if (scopeTracker.getDeclaration(node.name, { mode: "all" }) !== null) {
+        return;
+      }
+
+      const to = renames.get(node.name)!;
+
+      if (parent.type === "Property" && parent.shorthand) {
+        out.overwrite(node.start, node.end, `${node.name}: ${to}`);
+      } else {
+        out.overwrite(node.start, node.end, to);
+      }
+    },
+  });
+
+  return out.toString();
 }
 
 export interface CodemodResult {

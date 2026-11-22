@@ -385,6 +385,43 @@ const setBlock = (source: string): string => {
 };
 
 describe("setBlockInConfig", () => {
+  it("does not take a comment or a regular expression for the config", () => {
+    const text = setBlock(`// export default { blocks: [] }
+const quote = /"/;
+export default defineConfig({
+  blocks: ["teams"],
+});
+`);
+
+    expect(text).toContain("// export default { blocks: [] }");
+    expect(text).toContain("block:");
+  });
+
+  it("writes `name: value` for a shorthand property, never a syntax error", () => {
+    const text = setBlock(`export default defineConfig({
+  blocks: {
+    teams,
+  },
+});
+`);
+
+    expect(text).toContain("teams: {");
+    expect(text).not.toMatch(/\{\s*\{/);
+  });
+
+  it("refuses a method property instead of dropping its body", () => {
+    const result = setBlockInConfig(
+      `export default defineConfig({ blocks: { teams() { return {}; } } });\n`,
+      "teams",
+      ADOPTED,
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "blocks.teams is a method, not a value",
+    });
+  });
+
   it("replaces an entry in a blocks object, or appends one", () => {
     const source = `import { defineConfig } from "better-supabase/config";
 

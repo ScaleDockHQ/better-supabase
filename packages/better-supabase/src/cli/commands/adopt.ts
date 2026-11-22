@@ -112,7 +112,12 @@ async function withMigrationSince(
     ? setPathInJson(edit.text, path, since)
     : setPathInConfig(edit.text, path, since);
 
-  return next.ok ? next : edit;
+  return next.ok
+    ? next
+    : {
+        ...edit,
+        note: `doctor.migrationSafety.since was not set: ${next.reason}. Set tooling.doctor.migrationSafety.since to "${since}" yourself.`,
+      };
 }
 
 /** The tables `loadSnapshot` reads, for the adopt commands. */
@@ -203,6 +208,10 @@ export async function runAdopt(
       error: `${shown} wasn't changed: ${edit.reason}. Set blocks.${block} in it yourself.`,
       data: { ...data, written: false },
     };
+  }
+
+  if (edit.note !== undefined) {
+    lines.push("", edit.note);
   }
 
   const paint = deps.paint ?? plain;
