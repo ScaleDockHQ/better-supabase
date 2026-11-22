@@ -25,6 +25,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
+import { writerCall } from "./direct-approver.ts";
 import { appUniqueIndex } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import {
@@ -133,6 +134,7 @@ const NAMES: BlockSqlNames = {
     "lockedColumns",
     "on",
     "decider",
+    "writer",
     "approvalRequired",
     "selfApproveWhenTopOfChain",
   ],
@@ -247,6 +249,10 @@ function build(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", permissions.read);
   const track = ctx.permission("track", permissions.track);
   const manage = ctx.permission("manage", permissions.manage);
+
+  // ` or options.writer(tenant, owner)`, for writing another owner's time.
+  const writer = (tenant: string, owner: string): string =>
+    writerCall(ctx, WHERE, tenant, owner);
 
   const subjects = subjectsOption(ctx, ["column"]);
 
@@ -720,7 +726,7 @@ begin
     if not ${ctx.can("tenant", "log_time.tenant", track)} then
       ${forbidden("not allowed to track time here")}
     end if;
-  elsif not (${SERVICE_CALLER} or ${ctx.can("tenant", "log_time.tenant", manage)}) then
+  elsif not (${SERVICE_CALLER} or ${ctx.can("tenant", "log_time.tenant", manage)}${writer("log_time.tenant", "v_owner")}) then
     ${forbidden("not allowed to log time for another employee")}
   end if;`
     : `  v_user uuid := coalesce(log_time.user_id, auth.uid());
@@ -733,7 +739,7 @@ begin
     if not ${ctx.can("tenant", "log_time.tenant", track)} then
       ${forbidden("not allowed to track time here")}
     end if;
-  elsif not (${SERVICE_CALLER} or ${ctx.can("tenant", "log_time.tenant", manage)}) then
+  elsif not (${SERVICE_CALLER} or ${ctx.can("tenant", "log_time.tenant", manage)}${writer("log_time.tenant", "v_user")}) then
     ${forbidden("not allowed to log time for another member")}
   elsif not ${isMember("log_time.tenant", "v_user")} then
     ${fail("TIME_USER_INVALID", "that user isn't a member of this organization", "22023")}
@@ -787,7 +793,7 @@ begin
     ${entryNotFound}
   end if;
   v_previous_started_at := v_row.${e("startedAt")};${durationMode ? `\n  v_ended := ${ended("v_row")};` : ""}
-  if not (${SERVICE_CALLER} or (${ownedByMe("v_row")} and ${ctx.can("tenant", `v_row.${e("tenant")}`, track)}) or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}) then
+  if not (${SERVICE_CALLER} or (${ownedByMe("v_row")} and ${ctx.can("tenant", `v_row.${e("tenant")}`, track)}) or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}${writer(`v_row.${e("tenant")}`, `v_row.${employeeMode ? e("employee") : e("user")}`)}) then
     ${forbidden("not allowed to change this entry")}
   end if;
   if v_patch ? 'startedAt' then
@@ -854,7 +860,7 @@ ${userGrant(`${fn("update_time_entry")}(uuid, jsonb)`)}
 ${archiveSql(ctx, {
   entryNotFound,
   forbidden,
-  ownerOrManage: `(${ownedByMe("v_row")} and ${ctx.can("tenant", `v_row.${e("tenant")}`, track)}) or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}`,
+  ownerOrManage: `(${ownedByMe("v_row")} and ${ctx.can("tenant", `v_row.${e("tenant")}`, track)}) or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}${writer(`v_row.${e("tenant")}`, `v_row.${employeeMode ? e("employee") : e("user")}`)}`,
   running,
   overlap,
   entryJson,

@@ -1,10 +1,12 @@
 -- sole_owned_organizations lists the organizations whose last owner a member
 -- is, by the rule ensure_organization_owner checks at commit. For another
--- member it lists only the organizations where the caller may remove members. The admin (…a1)
+-- member the caller needs the remove permission in one of the member's
+-- organizations and in every one the list names; otherwise it raises instead
+-- of returning a partial list. The admin (…a1)
 -- owns Acme (…0001) alone and is a member of Globex (…0002); the member
 -- (…a2) owns nothing (supabase/seed.sql).
 begin;
-select plan(7);
+select plan(9);
 
 select set_config(
   'request.jwt.claims',
@@ -23,10 +25,29 @@ select is(
   array['00000000-0000-4000-8000-000000000001']::uuid[],
   'a member passes their own id'
 );
+select throws_ok(
+  $$select better_supabase.sole_owned_organizations('00000000-0000-4000-8000-0000000000a3')$$,
+  '42501',
+  'Not allowed to read this member''s organizations',
+  'a caller who can''t remove the member anywhere gets an error, not an empty list'
+);
 select is(
-  better_supabase.sole_owned_organizations('00000000-0000-4000-8000-0000000000a3'),
+  better_supabase.sole_owned_organizations('00000000-0000-4000-8000-0000000000a2'),
   '{}'::uuid[],
-  'another member''s organizations are left out where the caller can''t remove members'
+  'a caller who may remove the member reads that they own nothing'
+);
+
+reset role;
+insert into public.memberships (organization_id, user_id, role)
+select '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a3', r.id
+from better_supabase.roles r where r.key = 'member';
+set local role authenticated;
+
+select throws_ok(
+  $$select better_supabase.sole_owned_organizations('00000000-0000-4000-8000-0000000000a3')$$,
+  '42501',
+  'Not allowed to read this member''s organizations',
+  'a caller who can''t remove members where the member is the last owner gets an error, not a partial list'
 );
 
 reset role;

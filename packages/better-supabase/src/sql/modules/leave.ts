@@ -81,7 +81,9 @@ function build(ctx: BlockSqlContext): string {
   // a member with the approve permission decides it with decide_leave_request.
   const statusMode = leaveStatusMode(ctx);
   const approvals = statusMode ? undefined : ctx.of("approvals");
-  const rejections = statusMode && ctx.has("requests", "rejectedAt");
+  // A mapped rejected_at closes a request in both modes, so a rejection from
+  // before an app switched to approvals mode stays closed without an approval.
+  const rejections = ctx.has("requests", "rejectedAt");
 
   if (approvals?.mode === "custom") {
     throw new TypeError(
@@ -233,7 +235,7 @@ function build(ctx: BlockSqlContext): string {
   const status = (row: string, approval: string): string =>
     approvals === undefined
       ? `case when ${row}.${q("cancelledAt")} is not null then 'cancelled' when ${row}.${q("approvedAt")} is not null then 'approved'${rejections ? ` when ${row}.${q("rejectedAt")} is not null then 'rejected'` : ""} else 'pending' end`
-      : `case when ${row}.${q("cancelledAt")} is not null then 'cancelled' when ${row}.${q("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} in ('rejected', 'expired') then 'rejected' when ${approval}.${a("status")} = 'cancelled' then 'cancelled' else 'pending' end`;
+      : `case when ${row}.${q("cancelledAt")} is not null then 'cancelled' when ${row}.${q("approvedAt")} is not null then 'approved'${rejections ? ` when ${row}.${q("rejectedAt")} is not null then 'rejected'` : ""} when ${approval}.${a("status")} in ('rejected', 'expired') then 'rejected' when ${approval}.${a("status")} = 'cancelled' then 'cancelled' else 'pending' end`;
 
   const typeJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${ty("id")}, 'organizationId', ${row}.${ty("tenant")}, 'key', ${leaveTypeKey(ctx, row)}, 'name', ${row}.${ty("name")}, 'unit', ${row}.${ty("unit")}, 'paid', ${row}.${ty("paid")}, 'tracked', ${row}.${ty("tracked")}, 'allowance', ${or("types", row, "allowance")}::text, 'carryoverMax', ${or("types", row, "carryoverMax")}::text, 'color', ${or("types", row, "color")}${auto ? `, 'autoApprove', ${row}.${ty("autoApprove")}` : ""}, 'archivedAt', ${row}.${ty("archivedAt")}, 'createdAt', ${row}.${ty("createdAt")}, 'updatedAt', ${row}.${ty("updatedAt")})`;
@@ -739,7 +741,7 @@ ${
   v_request := ${approvals.fn("open_approval")}(
     ${tenant}, ${sqlString(leaveApprovalSubject(ctx))}, v_row.${q("id")}::text, 'approve',
     ${sqlString(policy)}::jsonb${byEmployee ? " || jsonb_build_object('managerOf', v_owner::text)" : ""}, ${or("requests", "v_row", "note")},
-    jsonb_build_object('userId', ${owner.employee ? "v_user, 'employeeId', v_owner" : "v_me"}, 'typeId', v_type.${ty("id")}, 'type', v_type.${ty("name")}, 'startsOn', v_row.${q("startsOn")}, 'endsOn', v_row.${q("endsOn")}, 'amount', v_amount::text, 'unit', v_type.${ty("unit")})${byEmployee ? ",\n    v_user" : ""}
+    jsonb_build_object('userId', ${owner.employee ? "v_user, 'employeeId', v_owner" : "v_me"}, 'typeId', v_type.${ty("id")}, 'type', v_type.${ty("name")}, 'startsOn', v_row.${q("startsOn")}, 'endsOn', v_row.${q("endsOn")}, 'amount', v_amount::text, 'unit', v_type.${ty("unit")})${byEmployee ? ",\n    v_user, true" : ""}
   );
   update ${requests} x set ${q("approval")} = (v_request ->> 'id')::uuid
     where x.${q("id")} = v_row.${q("id")}
@@ -1278,7 +1280,14 @@ begin
   end if;
   if v_row.${q("cancelledAt")} is not null then
     ${conflict("LEAVE_REQUEST_CLOSED", "this leave request is already cancelled")}
-  end if;
+  end if;${
+    rejections
+      ? `
+  if v_row.${q("rejectedAt")} is not null then
+    ${conflict("LEAVE_REQUEST_CLOSED", "this leave request was rejected")}
+  end if;`
+      : ""
+  }
   if not v_manager and v_row.${q("approvedAt")} is not null and v_row.${q("startsOn")} <= current_date then
     ${forbidden("leave that has started can only be cancelled by a manager")}
   end if;

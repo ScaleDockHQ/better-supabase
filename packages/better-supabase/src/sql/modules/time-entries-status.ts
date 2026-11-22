@@ -8,7 +8,7 @@ import {
   userGrant,
   conflict,
 } from "../shared.ts";
-import { deciderCall } from "./direct-approver.ts";
+import { deciderCall, writerCall } from "./direct-approver.ts";
 import { atOnceSql, timesheetAtOnce } from "./time-entries-options.ts";
 import { entryLive } from "./time-entries-owner.ts";
 
@@ -350,7 +350,7 @@ ${
     if v_me is null or not ${ctx.can("tenant", "submit_timesheet.tenant", track)} then
       ${forbidden("not allowed to submit a timesheet here")}
     end if;
-  elsif not (${SERVICE_CALLER} or ${ctx.can("tenant", "submit_timesheet.tenant", manage)}) then
+  elsif not (${SERVICE_CALLER} or ${ctx.can("tenant", "submit_timesheet.tenant", manage)}${writerCall(ctx, "blocks.time-entries.options", "submit_timesheet.tenant", "v_owner")}) then
     ${forbidden("not allowed to submit another employee's timesheet")}
   elsif not ${owner.exists("submit_timesheet.tenant", "v_owner")} then
     ${fail("TIME_EMPLOYEE_INVALID", "no employee record for that member in this organization", "22023")}
@@ -396,7 +396,7 @@ ${
     submit_timesheet.tenant, ${sqlString(linked.subject)}, v_sheet.${t("id")}::text, 'approve',
     ${sqlString(linked.policy)}::jsonb || jsonb_build_object('managerOf', v_owner::text), submit_timesheet.note,
     jsonb_build_object('userId', ${owner.userOf("v_owner")}, 'employeeId', v_owner, 'week', v_week),
-    ${owner.userOf("v_owner")}
+    ${owner.userOf("v_owner")}, true
   );`)}`
   }
   ${timesheetRecord("timesheet.submitted", "v_sheet", "submitted a timesheet")}${atOnce.approve(`perform ${fn("timesheet_approval_decided")}(v_sheet.${t("id")}, true, null, auth.uid());
@@ -497,7 +497,7 @@ begin
   if not found then
     ${timesheetNotFound}
   end if;
-  if not (${SERVICE_CALLER} or ${sheetMine("v_sheet")} or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}${deciderCall(ctx, "blocks.time-entries.options", `v_sheet.${t("id")}`)}) then
+  if not (${SERVICE_CALLER} or ${sheetMine("v_sheet")} or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}${deciderCall(ctx, "blocks.time-entries.options", `v_sheet.${t("id")}`)}${writerCall(ctx, "blocks.time-entries.options", `v_sheet.${t("tenant")}`, `v_sheet.${owner.timesheets}`)}) then
     ${forbidden("not allowed to withdraw this timesheet")}
   end if;
   if not ${is("v_sheet", ["submitted"])} then

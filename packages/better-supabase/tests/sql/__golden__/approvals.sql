@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:d39001b7ac4960c8cea3f60a4b0c8a8874758ab42992948db8a1a3bf4b67a27a
+-- @bsb-hash sha256:b5d5e2df371c3ff272f241beaf4b9f62a7c8ff5295c9b57a3881cd816fd7cb5d
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -328,9 +328,11 @@ revoke execute on function "better_supabase"."approval_finalize"(uuid) from publ
 
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
--- defaults to the caller.
+-- defaults to the caller. on_behalf names requested_by as the subject's
+-- owner: null then means an owner without a login, never the caller, so a
+-- member who files for that owner can still decide the request.
 
-create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
+create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null, on_behalf boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -340,7 +342,7 @@ as $$
 declare
   v_req "better_supabase"."approval_requests"%rowtype;
   v_policy jsonb := open_approval.policy;
-  v_requester uuid := coalesce(open_approval.requested_by, auth.uid());
+  v_requester uuid := case when open_approval.on_behalf then open_approval.requested_by else coalesce(open_approval.requested_by, auth.uid()) end;
 begin
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_approval_request"(uuid, text, text, text)');
@@ -390,7 +392,7 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid, boolean) from public, anon, authenticated;
 
 
 
@@ -1714,7 +1716,7 @@ rollback;
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:4aece29ad41d97ea6a4a8cd6cc9f4b476081702bc3ec9b30b0c1cd91efc7992a
+-- @bsb-hash sha256:619ffa3e782efac0fb479ecc865c9e6fb6fbb909a468fd0e6bef4019297d065c
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2057,7 +2059,7 @@ begin
     return;
   end if;
   if approval_notify.kind in ('approved', 'rejected', 'expired') then
-    v_recipients := array[v_req."requested_by"];
+    v_recipients := array_remove(array[v_req."requested_by"], null);
     v_permission := null;
   else
     v_approvers := v_req."policy" -> 'steps' -> v_req."step" -> case when approval_notify.kind = 'escalated' then 'escalateTo' else 'approvers' end;
@@ -2109,7 +2111,7 @@ begin
       'summary', left(v_req."action" || coalesce(': ' || v_req."reason", ''), 140),
       'recipients', to_jsonb(v_recipients),
       'permission', v_permission,
-      'exclude', case when approval_notify.kind in ('approved', 'rejected', 'expired') then '[]'::jsonb when coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) else jsonb_build_array(v_req."requested_by") || coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) end,
+      'exclude', case when approval_notify.kind in ('approved', 'rejected', 'expired') then '[]'::jsonb when coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) else to_jsonb(array_remove(array[v_req."requested_by"], null)) || coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) end,
       'include_actor', approval_notify.kind in ('approved', 'rejected', 'expired'),
       'key', 'approval.' || approval_notify.kind || ':' || v_req."id"::text || ':' || v_req."step"::text || ':' || extract(epoch from now())::bigint::text,
       'data', jsonb_build_object('requestId', v_req."id", 'action', v_req."action", 'step', v_req."step")
@@ -2202,9 +2204,11 @@ revoke execute on function "better_supabase"."approval_finalize"(uuid) from publ
 
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
--- defaults to the caller.
+-- defaults to the caller. on_behalf names requested_by as the subject's
+-- owner: null then means an owner without a login, never the caller, so a
+-- member who files for that owner can still decide the request.
 
-create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
+create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null, on_behalf boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -2214,7 +2218,7 @@ as $$
 declare
   v_req "better_supabase"."approval_requests"%rowtype;
   v_policy jsonb := open_approval.policy;
-  v_requester uuid := coalesce(open_approval.requested_by, auth.uid());
+  v_requester uuid := case when open_approval.on_behalf then open_approval.requested_by else coalesce(open_approval.requested_by, auth.uid()) end;
 begin
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_approval_request"(uuid, text, text, text)');
@@ -2273,7 +2277,7 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid, boolean) from public, anon, authenticated;
 
 -- Closes the pending request for a subject that its own module decided
 -- (decide_ai_tool_approval, approve_support_request) without running the
@@ -3761,7 +3765,7 @@ rollback;
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:4e010dc457c56040a175437f4d44d175933845463506b93f5822dbac7f136c5d
+-- @bsb-hash sha256:ece3b77dbfdef73988d3e13897899c78d3e2d5f79966c366da8024d143a46f5f
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4093,9 +4097,11 @@ revoke execute on function "app_private"."approval_finalize"(uuid) from public, 
 
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
--- defaults to the caller.
+-- defaults to the caller. on_behalf names requested_by as the subject's
+-- owner: null then means an owner without a login, never the caller, so a
+-- member who files for that owner can still decide the request.
 
-create or replace function "app_private"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
+create or replace function "app_private"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null, on_behalf boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -4105,7 +4111,7 @@ as $$
 declare
   v_req "app_private"."approval_requests"%rowtype;
   v_policy jsonb := open_approval.policy;
-  v_requester uuid := coalesce(open_approval.requested_by, auth.uid());
+  v_requester uuid := case when open_approval.on_behalf then open_approval.requested_by else coalesce(open_approval.requested_by, auth.uid()) end;
 begin
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_approval_request"(uuid, text, text, text)');
@@ -4155,7 +4161,7 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "app_private"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid) from public, anon, authenticated;
+revoke execute on function "app_private"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid, boolean) from public, anon, authenticated;
 
 
 
@@ -5479,7 +5485,7 @@ rollback;
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:74b2a4ce57c355d29452242b98674227a72fbf0ff39a38aa218c4f52479f1b37
+-- @bsb-hash sha256:d3f69f6568926cda472d6980d4876e23113d2aee692d31ab1ddb4011b601f403
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5806,9 +5812,11 @@ revoke execute on function "better_supabase"."approval_finalize"(uuid) from publ
 
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
--- defaults to the caller.
+-- defaults to the caller. on_behalf names requested_by as the subject's
+-- owner: null then means an owner without a login, never the caller, so a
+-- member who files for that owner can still decide the request.
 
-create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
+create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null, on_behalf boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -5818,7 +5826,7 @@ as $$
 declare
   v_req "better_supabase"."approval_requests"%rowtype;
   v_policy jsonb := open_approval.policy;
-  v_requester uuid := coalesce(open_approval.requested_by, auth.uid());
+  v_requester uuid := case when open_approval.on_behalf then open_approval.requested_by else coalesce(open_approval.requested_by, auth.uid()) end;
 begin
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_approval_request"(uuid, text, text, text)');
@@ -5868,7 +5876,7 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid, boolean) from public, anon, authenticated;
 
 
 
@@ -7404,7 +7412,7 @@ rollback;
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:3f7dd47feee2484ae891092c8209da79d42c4c98bffb51583bd72f7480849c76
+-- @bsb-hash sha256:cf358b8400502f68b4355170dd7e3c741a71ea573dc8c0e31c119f5a3e6105b9
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7723,9 +7731,11 @@ revoke execute on function "better_supabase"."approval_finalize"(uuid) from publ
 
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
--- defaults to the caller.
+-- defaults to the caller. on_behalf names requested_by as the subject's
+-- owner: null then means an owner without a login, never the caller, so a
+-- member who files for that owner can still decide the request.
 
-create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
+create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null, on_behalf boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -7735,7 +7745,7 @@ as $$
 declare
   v_req "better_supabase"."approval_requests"%rowtype;
   v_policy jsonb := open_approval.policy;
-  v_requester uuid := coalesce(open_approval.requested_by, auth.uid());
+  v_requester uuid := case when open_approval.on_behalf then open_approval.requested_by else coalesce(open_approval.requested_by, auth.uid()) end;
 begin
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_approval_request"(uuid, text, text, text)');
@@ -7785,7 +7795,7 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid, boolean) from public, anon, authenticated;
 
 
 
@@ -9109,7 +9119,7 @@ rollback;
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:28149b2c341b830774047a63c8e57b7df6a584950acc7cbbe8bb88e6c94aed8a
+-- @bsb-hash sha256:65883c4840959dcec3bd84db473b80e16619bc852c62100c68364dc89cc82919
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9436,9 +9446,11 @@ revoke execute on function "better_supabase"."approval_finalize"(uuid) from publ
 
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
--- defaults to the caller.
+-- defaults to the caller. on_behalf names requested_by as the subject's
+-- owner: null then means an owner without a login, never the caller, so a
+-- member who files for that owner can still decide the request.
 
-create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
+create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null, on_behalf boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -9448,7 +9460,7 @@ as $$
 declare
   v_req "better_supabase"."approval_requests"%rowtype;
   v_policy jsonb := open_approval.policy;
-  v_requester uuid := coalesce(open_approval.requested_by, auth.uid());
+  v_requester uuid := case when open_approval.on_behalf then open_approval.requested_by else coalesce(open_approval.requested_by, auth.uid()) end;
 begin
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_approval_request"(uuid, text, text, text)');
@@ -9498,7 +9510,7 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."org_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid, boolean) from public, anon, authenticated;
 
 
 
