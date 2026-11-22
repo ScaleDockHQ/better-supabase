@@ -6,6 +6,7 @@
     "results",
     "better-result",
     "caching",
+    "cache-postgres",
     "temporal",
     "naming",
     "commerce",

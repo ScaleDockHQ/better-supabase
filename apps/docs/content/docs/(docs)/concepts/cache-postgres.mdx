@@ -1,0 +1,103 @@
+---
+title: Postgres cache for Next.js and Astro
+description: Keep Next.js cacheHandlers entries and Astro route cache responses in Supabase Postgres, so every instance shares them and a tag you expire takes effect everywhere.
+---
+
+`better-supabase/cache-postgres` stores cached pages and their tags in two
+Postgres tables. A Next.js app on several instances then serves one set of
+`'use cache'` entries, and `updateTag` or `revalidateTag` on one instance
+expires the tag for all. Astro's route cache gets the same store as a cache
+provider. Both use the `bsb:` tags that [Caching](/docs/concepts/caching)
+describes, and a write from outside the process reaches them through the
+[cache route](/docs/vercel/cache).
+
+## Create the tables
+
+`postgresCacheSql()` returns the SQL. Put it in a migration of your app. Both
+tables enable row level security with no policy and revoke `anon` and
+`authenticated`, so only the service role reads or writes them.
+
+```ts title="scripts/cache-sql.ts"
+import { postgresCacheSql } from "better-supabase/cache-postgres";
+
+console.log(postgresCacheSql({ prune: true }));
+```
+
+`prune: true` schedules a `pg_cron` job that deletes entries past their hard
+limit each hour. Without it, call `store.prune()` from a job of your own.
+
+## Next.js
+
+Next.js loads a handler from a file, so the file creates the client and
+exports the handler as its default.
+
+```ts title="cache-handlers/postgres-remote.ts"
+import { createClient } from "@supabase/supabase-js";
+
+import { postgresCacheHandler } from "better-supabase/cache-postgres";
+
+export default postgresCacheHandler({
+  client: createClient(url, serviceRoleKey, {
+    auth: { persistSession: false },
+  }),
+});
+```
+
+Set it in `next.config.ts` as `cacheHandlers.remote` (or `remoteCacheHandler`
+in `createNextConfig`). The handler checks the entry's tags and the request's
+soft tags on every read, treats a stale tag as `revalidate: -1` so the entry is
+served once more while Next.js renders a fresh one, and skips production
+entries with `expire: 0`. Tags are read in chunks of 128, the size
+`applyCacheTags` writes them in.
+
+A database error on a read is a miss, and one on a write skips the write; pass
+`onError` to log it. A failed `updateTag` throws, because a lost invalidation
+would keep serving stale data.
+
+## Astro
+
+Astro loads a cache provider from a module whose default export is the
+factory, so point `entrypoint` at the subpath. The provider reads the project
+URL and the service role key from `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`; `urlEnv` and `keyEnv` rename them.
+
+```ts title="astro.config.ts"
+import { defineConfig } from "astro/config";
+
+export default defineConfig({
+  cache: {
+    provider: {
+      entrypoint: "better-supabase/cache-postgres/astro",
+      config: { urlEnv: "SUPABASE_URL" },
+    },
+  },
+  routeRules: {
+    "/products/[...path]": { maxAge: 60, swr: 300, tags: ["bsb:products"] },
+  },
+});
+```
+
+The provider stores a `GET` response whose `CDN-Cache-Control` has `max-age`,
+with the tags of its `Cache-Tag` header, and never stores one with `Set-Cookie`
+or `Vary: Cookie`. `invalidate({ tags })` and `invalidate({ path })` expire the
+entries on every instance. Expire a table's pages from a write with the cache
+route:
+
+```ts title="src/pages/api/cache.ts"
+import { cacheRoute } from "better-supabase/server";
+import cache from "better-supabase/cache-postgres/astro";
+
+const provider = cache();
+
+export const POST = cacheRoute({
+  betterSupabase,
+  caches: [
+    {
+      name: "astro",
+      invalidate: (target) =>
+        provider.invalidate({ tags: [`bsb:${target.table}`] }),
+    },
+  ],
+  bearer: import.meta.env.CACHE_BEARER,
+});
+```

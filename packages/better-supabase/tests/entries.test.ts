@@ -198,6 +198,7 @@ const PURE_BARRELS = [
   "storage/client",
   "streams",
   "streams/redis",
+  "cache-postgres",
   "credentials",
   "vercel",
   "vercel-connect",

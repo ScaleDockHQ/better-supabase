@@ -601,6 +601,16 @@
       "types": "./dist/streams/redis/index.d.ts",
       "default": "./dist/streams/redis/index.js"
     },
+    "./cache-postgres": {
+      "@better-supabase/source": "./src/cache-postgres/index.ts",
+      "types": "./dist/cache-postgres/index.d.ts",
+      "default": "./dist/cache-postgres/index.js"
+    },
+    "./cache-postgres/astro": {
+      "@better-supabase/source": "./src/cache-postgres/astro/index.ts",
+      "types": "./dist/cache-postgres/astro/index.d.ts",
+      "default": "./dist/cache-postgres/astro/index.js"
+    },
     "./credentials": {
       "@better-supabase/source": "./src/credentials/index.ts",
       "types": "./dist/credentials/index.d.ts",
@@ -2017,6 +2027,14 @@
       "./streams/redis": {
         "types": "./dist/streams/redis/index.d.ts",
         "default": "./dist/streams/redis/index.js"
+      },
+      "./cache-postgres": {
+        "types": "./dist/cache-postgres/index.d.ts",
+        "default": "./dist/cache-postgres/index.js"
+      },
+      "./cache-postgres/astro": {
+        "types": "./dist/cache-postgres/astro/index.d.ts",
+        "default": "./dist/cache-postgres/astro/index.js"
       },
       "./credentials": {
         "types": "./dist/credentials/index.d.ts",
