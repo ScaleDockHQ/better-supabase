@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:b72993cdb73f321c6992c69c5c1a612ec2e56a50d7dae477824ca73d7e523bef
+-- @bsb-hash sha256:df2ebdd5cf2679216810bce8fb5aa64a2306581fd4f724439955663e99e08dbb
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4817,6 +4817,7 @@ declare
   v_src "better_supabase"."invoices";
   v_created jsonb;
   v_id uuid;
+  v_tenant uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4825,7 +4826,11 @@ begin
   if not found then
     raise exception 'no such invoice' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'invoices.write'), false)) then
+  v_tenant := coalesce(nullif(coalesce(clone_invoice.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or v_src."template_id" is not null) then
+    raise exception 'not allowed to change invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.write'), false)) then
     raise exception 'not allowed to change invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
   declare
@@ -4836,10 +4841,10 @@ begin
         using clone_invoice.source, clone_invoice.overrides;
     end if;
   end;
-  v_created := "better_supabase"."create_invoice"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object('title', v_src."title", 'currency', v_src."currency", 'templateId', null, 'sourceTemplateId', null)) || (coalesce(clone_invoice.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), null);
+  v_created := "better_supabase"."create_invoice"(v_tenant, jsonb_strip_nulls(jsonb_build_object('note', v_src."note", 'termsDays', v_src."terms_days", 'pricesIncludeTax', v_src."prices_include_tax", 'discountBps', v_src."discount_bps", 'discountAmount', v_src."discount_amount", 'depositBps', v_src."deposit_bps", 'depositAmount', v_src."deposit_amount", 'company', case when v_src."company_id" is null then null else jsonb_build_object('type', v_src."company_type", 'id', v_src."company_id") end, 'contact', case when v_src."contact_id" is null then null else jsonb_build_object('type', v_src."contact_type", 'id', v_src."contact_id") end, 'title', v_src."title", 'currency', v_src."currency", 'templateId', null, 'sourceTemplateId', null)) || (coalesce(clone_invoice.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), null);
   v_id := (v_created ->> 'id')::uuid;
   insert into "better_supabase"."invoice_lines"
-  select (jsonb_populate_record(null::"better_supabase"."invoice_lines", to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), 'parent_id', v_id))).*
+  select (jsonb_populate_record(null::"better_supabase"."invoice_lines", to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), 'parent_id', v_id, 'tenant_id', v_tenant))).*
   from "better_supabase"."invoice_lines" l where l."parent_id" = clone_invoice.source;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_invoice_clone"(uuid)');
