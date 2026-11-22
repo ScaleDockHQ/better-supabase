@@ -10,6 +10,15 @@ import {
   withoutOptionKeys,
 } from "../../src/cli/codemod-extra-columns.ts";
 import { resolveConfig } from "../../src/config/index.ts";
+import { primeSchemaFacts } from "../../src/cli/sql-facts.ts";
+
+const run = async (
+  input: Parameters<typeof extraColumnsFiles>[0],
+): Promise<ReturnType<typeof extraColumnsFiles>> => {
+  await primeSchemaFacts(input.sql, "/p");
+
+  return extraColumnsFiles(input);
+};
 
 const tableOf = (block: string, key: string): string | undefined => {
   if (block !== "tags") {
@@ -29,7 +38,7 @@ const options = {
 };
 
 describe("extraColumnsOptions", () => {
-  it("lists the extraColumns options with their columns", () => {
+  it("lists the extraColumns options with their columns", async () => {
     expect(
       extraColumnsOptions({
         tags: {
@@ -48,7 +57,7 @@ describe("extraColumnsOptions", () => {
 describe("withoutOptionKeys", () => {
   const keys = new Set(["extraColumns", "calendarExtraColumns"]);
 
-  it("drops the property, its comma and its line, and leaves strings alone", () => {
+  it("drops the property, its comma and its line, and leaves strings alone", async () => {
     const text = `export default {
   blocks: {
     tags: {
@@ -75,13 +84,13 @@ describe("withoutOptionKeys", () => {
 `);
   });
 
-  it("drops several properties, last first", () => {
+  it("drops several properties, last first", async () => {
     const text = `a: { extraColumns: { x: "text" }, calendarExtraColumns: { y: "text" }, keep: 1 }`;
 
     expect(withoutOptionKeys(text, keys)).toBe("a: { keep: 1 }");
   });
 
-  it("handles an only property and an inline one", () => {
+  it("handles an only property and an inline one", async () => {
     expect(
       withoutOptionKeys(
         `a: { options: { extraColumns: { x: "text" } } }`,
@@ -92,8 +101,8 @@ describe("withoutOptionKeys", () => {
 });
 
 describe("extraColumnsFiles", () => {
-  it("writes <table>.ext.sql when no app file alters the table", () => {
-    const { files, review } = extraColumnsFiles({
+  it("writes <table>.ext.sql when no app file alters the table", async () => {
+    const { files, review } = await run({
       options,
       tableOf,
       sql: [],
@@ -119,8 +128,8 @@ describe("extraColumnsFiles", () => {
     ).toBe(`tags: { options: { keep: 1 } },\n`);
   });
 
-  it("appends to the app file that already alters the table", () => {
-    const { files } = extraColumnsFiles({
+  it("appends to the app file that already alters the table", async () => {
+    const { files } = await run({
       options: {
         tags: {
           extraColumns: { region: "text" },
@@ -147,8 +156,8 @@ describe("extraColumnsFiles", () => {
     ).toContain('"better_supabase"."tag_links"');
   });
 
-  it("keeps an option whose column no block table adds", () => {
-    const { files, review } = extraColumnsFiles({
+  it("keeps an option whose column no block table adds", async () => {
+    const { files, review } = await run({
       options: { tags: { unknownExtraColumns: { missing: "text" } } },
       tableOf,
       sql: [],
@@ -165,7 +174,7 @@ describe("extraColumnsFiles", () => {
 });
 
 describe("schemasDirOf", () => {
-  it("steps out of the folder the block files go in", () => {
+  it("steps out of the folder the block files go in", async () => {
     expect(schemasDirOf("supabase/schemas/_better_supabase")).toBe(
       "supabase/schemas",
     );
@@ -174,8 +183,8 @@ describe("schemasDirOf", () => {
 });
 
 describe("extraColumnsFiles over a table the app creates", () => {
-  it("lists the columns in the table comment", () => {
-    const { files } = extraColumnsFiles({
+  it("lists the columns in the table comment", async () => {
+    const { files } = await run({
       options: { tags: { extraColumns: { region: "text" } } },
       tableOf,
       sql: [
@@ -191,8 +200,8 @@ describe("extraColumnsFiles over a table the app creates", () => {
     expect(files[0]?.contents).toContain("is 'Labels.\n@bsb fields region';");
   });
 
-  it("adds a comment when the table has none", () => {
-    const { files } = extraColumnsFiles({
+  it("adds a comment when the table has none", async () => {
+    const { files } = await run({
       options: { tags: { extraColumns: { region: "text", weight: "int" } } },
       tableOf,
       sql: [

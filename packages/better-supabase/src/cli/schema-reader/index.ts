@@ -115,6 +115,38 @@ export async function readSchemaFacts(
 }
 
 /**
+ * Like `readSchemaFacts`, but a file that does not parse keeps empty facts
+ * instead of throwing, so a check that must still run (doctor) can go on.
+ *
+ * @param files - The files to read.
+ * @param options - The Postgres major version.
+ * @returns The failures, one per file that did not parse.
+ */
+export async function readSchemaFactsLeniently(
+  files: readonly { readonly path: string; readonly text: string }[],
+  options: { majorVersion?: number } = {},
+): Promise<readonly SchemaReadError[]> {
+  const failures: SchemaReadError[] = [];
+
+  await Promise.all(
+    files.map(async (file) => {
+      try {
+        await readFileFacts(file.text, { ...options, path: file.path });
+      } catch (error) {
+        if (!(error instanceof SchemaReadFailure)) {
+          throw error;
+        }
+
+        failures.push(error.details);
+        primed.set(file.text, factsFrom(new Source(file.text, []), []));
+      }
+    }),
+  );
+
+  return failures;
+}
+
+/**
  * The facts of a text that `readSchemaFacts` read before.
  *
  * @param text - A file's contents.

@@ -8,10 +8,10 @@ import {
   LEGACY_OPTION,
   legacyOptionTarget,
   moduleContext,
-  parseDeclared,
 } from "../sql/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import { CliError } from "./core/errors.ts";
+import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 import { layoutFor } from "./sql/providers.ts";
 
 /** One `extraColumns` option of a block in the config. */
@@ -217,7 +217,9 @@ export function extraColumnsFiles(input: ExtraColumnsInput): {
     const creator = input.sql.find(
       (file) =>
         !/[\\/]migrations[\\/]/.test(file.path) &&
-        parseDeclared(file.text).creates.some((each) => each.table === table),
+        declarationsOfText(file.text).creates.some(
+          (each) => each.table === table,
+        ),
     );
 
     if (creator !== undefined) {
@@ -300,6 +302,8 @@ export function extraColumnsCodemod(): Codemod {
       "Move blocks.<name>.options.extraColumns into the app's schema files and drop the options",
     project: async (project: CodemodProject) => {
       const { config } = project;
+
+      await primeSchemaFacts(project.sql, config.root);
 
       const options = Object.fromEntries(
         Object.entries(config.blocks).map(([name, block]) => [

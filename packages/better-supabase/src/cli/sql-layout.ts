@@ -18,27 +18,30 @@ import {
   adoptedColumnProblems,
   auditRegistrations,
   appColumnsOf,
+  declaredPolicies,
+  moduleLayout,
+  resolveExposeColumns,
+  resolveBlocks,
+  sameTenantLayout,
+  sameTenantTagsOf,
+} from "../sql/index.ts";
+import { apiUsedNames } from "./api-used.ts";
+import { parseSnapshot } from "./commands/snapshot.ts";
+import { toCatalog } from "./introspect/catalog.ts";
+import { TypegenMissingError } from "./introspect/typegen.ts";
+import {
   declaredForeignKeys as appForeignKeys,
   declaredIndexes,
   declaredTableColumns,
   declaredColumnTypes,
   declaredTables,
   declaredViews,
-  declaredPolicies,
   declaredUpdatedAtTriggers,
   extensionSchema,
-  moduleLayout,
   policyGrants,
-  resolveExposeColumns,
-  resolveBlocks,
-  sameTenantLayout,
-  sameTenantTagsOf,
+  primeSchemaFacts,
   rlsTables,
-} from "../sql/index.ts";
-import { apiUsedNames } from "./api-used.ts";
-import { parseSnapshot } from "./commands/snapshot.ts";
-import { toCatalog } from "./introspect/catalog.ts";
-import { TypegenMissingError } from "./introspect/typegen.ts";
+} from "./sql-facts.ts";
 import {
   configFileInDir,
   declarativeSchemasDir,
@@ -142,12 +145,16 @@ async function readSchemaTexts(
     ...(await schemaPaths(config.root, toml, sqlWorkflow(config, toml))).files,
   ];
 
-  return Promise.all(
+  const texts = await Promise.all(
     paths.map(async (path) => ({
       path,
       text: await readFile(resolve(config.root, path), "utf-8"),
     })),
   );
+
+  await primeSchemaFacts(texts, config.root);
+
+  return texts;
 }
 
 async function readDeclarativeTexts(
@@ -164,12 +171,16 @@ async function readDeclarativeTexts(
     return schemaTexts(config);
   }
 
-  return Promise.all(
+  const texts = await Promise.all(
     files.map(async (path) => ({
       path,
       text: await readFile(resolve(config.root, path), "utf-8"),
     })),
   );
+
+  await primeSchemaFacts(texts, config.root);
+
+  return texts;
 }
 
 /**

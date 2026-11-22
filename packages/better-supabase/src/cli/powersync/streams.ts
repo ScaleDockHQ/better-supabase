@@ -8,7 +8,8 @@ import type { BlockSqlFile } from "../../sql/index.ts";
 import type { Projection } from "./projection.ts";
 
 import { SPEC_PINS } from "../../index.ts";
-import { addedColumnTypes, declaredColumnTypes } from "../../sql/index.ts";
+import { readSchemaFacts } from "../schema-reader/index.ts";
+import { addedColumnTypes, declaredColumnTypes } from "../sql-facts.ts";
 import { OFFLINE_RULES } from "./offline-rules.ts";
 
 /** The blocks `gen.powersync` can sync. */
@@ -1163,8 +1164,20 @@ function schemaModule(
   ].join("\n");
 }
 
-/** The sync streams, publication and PowerSync schema for `input.instances`. */
-export function powersyncOutput(input: PowerSyncInput): PowerSyncOutput {
+/**
+ * The sync streams, publication and PowerSync schema for `input.instances`. It
+ * reads the schema files of `input.files` with the SQL reader first, since
+ * those are rendered text the loaders never saw.
+ */
+export async function powersyncOutput(
+  input: PowerSyncInput,
+): Promise<PowerSyncOutput> {
+  await readSchemaFacts(
+    input.files.flatMap((file) =>
+      file.kind === "schema" ? [{ path: file.path, text: file.contents }] : [],
+    ),
+  );
+
   const byInstance = input.instances.map(
     (instance) =>
       [

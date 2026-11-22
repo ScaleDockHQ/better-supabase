@@ -47,6 +47,7 @@ import { FLAG_RULES } from "./flags.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { IMPORT_GUARD_RULES } from "./import-guard.ts";
 import { INLINE_SCHEMA_RULES } from "./inline-schemas.ts";
+import { authSetting, primeDoctorFacts, tomlLocation } from "./inputs.ts";
 import { LITE_RULES } from "./lite.ts";
 import { LIVE_STATE_RULES } from "./live-state-rules.ts";
 import { LIVE_RULES } from "./live.ts";
@@ -301,28 +302,6 @@ async function moduleVersionsBehind(
   }
 
   return findings;
-}
-
-function authSetting(
-  context: DoctorContext,
-  key: string,
-): TomlValue | undefined {
-  return context.configToml
-    ? tomlGet(context.configToml.document, ["auth", key])
-    : undefined;
-}
-
-function tomlLocation(
-  context: DoctorContext,
-  key: string,
-): Location | undefined {
-  if (!context.configToml) {
-    return undefined;
-  }
-
-  const at = context.configToml.locate(["auth", key]);
-
-  return at ? { file: context.configToml.path, line: at.line } : undefined;
 }
 
 /**
@@ -1196,6 +1175,7 @@ export async function runRules(
   rules: readonly Rule[] = RULES,
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
+  await primeDoctorFacts(context);
   const scoped = { ...context, codes: rules.map((rule) => rule.code) };
 
   for (const rule of rules) {

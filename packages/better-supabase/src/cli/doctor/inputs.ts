@@ -3,13 +3,14 @@ import { glob, readdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import type { ResolvedConfig, SqlWorkflow } from "../../config/index.ts";
-import type { TextFile } from "../doctor/rules.ts";
-import type { SupabaseConfig } from "../supabase-config.ts";
+import type { DoctorContext, Location, TextFile } from "../doctor/rules.ts";
+import type { SupabaseConfig, TomlValue } from "../supabase-config.ts";
 
 import { CONFIG_DEFAULTS } from "../../config/index.ts";
 import { byCodePoint } from "../compare.ts";
 import { detectWorkspace } from "../project/workspace.ts";
-import { schemaPaths } from "../supabase-config.ts";
+import { primeSchemaFacts } from "../sql-facts.ts";
+import { schemaPaths, tomlGet } from "../supabase-config.ts";
 
 export const ENV_FILES: readonly string[] = [
   ".env",
@@ -203,4 +204,36 @@ export async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
   }
 
   return files.toSorted((a, b) => byCodePoint(a.path, b.path));
+}
+
+/**
+ * Reads the context's SQL files with the parser so the rules can scan them. A
+ * file that does not parse keeps empty facts: a check must still run on it.
+ */
+export async function primeDoctorFacts(context: DoctorContext): Promise<void> {
+  await primeSchemaFacts(context.sqlFiles ?? [], context.config.root, {
+    lenient: true,
+  });
+}
+
+export function authSetting(
+  context: DoctorContext,
+  key: string,
+): TomlValue | undefined {
+  return context.configToml
+    ? tomlGet(context.configToml.document, ["auth", key])
+    : undefined;
+}
+
+export function tomlLocation(
+  context: DoctorContext,
+  key: string,
+): Location | undefined {
+  if (!context.configToml) {
+    return undefined;
+  }
+
+  const at = context.configToml.locate(["auth", key]);
+
+  return at ? { file: context.configToml.path, line: at.line } : undefined;
 }

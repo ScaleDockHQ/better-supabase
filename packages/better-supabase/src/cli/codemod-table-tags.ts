@@ -1,9 +1,9 @@
 import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 
-import { parseDeclared } from "../sql/index.ts";
 import { withTableTag } from "./codemod-extra-columns.ts";
 import { withoutConfigPaths } from "./codemod-prune.ts";
+import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 
 /** One table fact the config holds, as the tag line that replaces it. */
 interface Move {
@@ -201,7 +201,7 @@ export function tableTagFiles(project: CodemodProject): {
     const creator = project.sql.find(
       (file) =>
         !/[\\/]migrations[\\/]/u.test(file.path) &&
-        parseDeclared(file.text).creates.some(
+        declarationsOfText(file.text).creates.some(
           (each) => each.table === move.table,
         ),
     );
@@ -290,7 +290,10 @@ export function tableTagsCodemod(): Codemod {
     name: "table-tags",
     description:
       "Move audit exemptions, data-lifecycle tables and expose entries into comment on table tags",
-    project: (project: CodemodProject) =>
-      Promise.resolve(tableTagFiles(project)),
+    project: async (project: CodemodProject) => {
+      await primeSchemaFacts(project.sql, project.config.root);
+
+      return tableTagFiles(project);
+    },
   };
 }

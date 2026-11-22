@@ -11,7 +11,7 @@ const config = resolveConfig(
   "/p",
 );
 
-const { streams } = powersyncOutput({
+const { streams } = await powersyncOutput({
   files: renderBlocks(config.blockNames, moduleLayout(config)),
   instances: [
     { key: "notifications", block: "notifications" },
@@ -38,13 +38,13 @@ interface StreamsDocument {
 const document = parse(streams) as StreamsDocument;
 
 describe("PowerSync sync streams", () => {
-  it("declares the pinned config edition", () => {
+  it("declares the pinned config edition", async () => {
     expect(String(document.config.edition)).toBe(
       SPEC_PINS.powersyncSyncStreams,
     );
   });
 
-  it("gives each stream one query, auto_subscribe and its CTEs, and no other key", () => {
+  it("gives each stream one query, auto_subscribe and its CTEs, and no other key", async () => {
     for (const stream of Object.values(document.streams)) {
       expect(
         Object.keys(stream)
@@ -56,7 +56,7 @@ describe("PowerSync sync streams", () => {
     }
   });
 
-  it("selects whole rows from one table, scoped to the user with auth.user_id()", () => {
+  it("selects whole rows from one table, scoped to the user with auth.user_id()", async () => {
     for (const { query, with: ctes = {} } of Object.values(document.streams)) {
       expect(query).toMatch(/^SELECT \* FROM [a-z_]+\.[a-z_]+ WHERE /);
       expect([query, ...Object.values(ctes)].join(" ")).toContain(
@@ -66,7 +66,7 @@ describe("PowerSync sync streams", () => {
     }
   });
 
-  it("gives each CTE one column, so a stream can match it with IN", () => {
+  it("gives each CTE one column, so a stream can match it with IN", async () => {
     for (const { with: ctes = {} } of Object.values(document.streams)) {
       for (const query of Object.values(ctes)) {
         expect(query).toMatch(/^SELECT [a-z_]+ FROM /);
