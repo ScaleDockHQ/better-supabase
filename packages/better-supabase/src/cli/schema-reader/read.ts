@@ -3,10 +3,12 @@ import type { ScanToken } from "@supabase/pg-parser";
 import type { Obj } from "./ast.ts";
 import type {
   AlterFact,
+  CallFact,
   CheckFact,
   ColumnFact,
   CommentFact,
   CommentTarget,
+  DeclaredFact,
   DropFact,
   DropKind,
   EnumFact,
@@ -15,6 +17,7 @@ import type {
   FunctionFact,
   GrantFact,
   IndexFact,
+  KeyFact,
   MarkerFact,
   ObjectFact,
   PolicyFact,
@@ -26,6 +29,8 @@ import type { Source } from "./source.ts";
 
 import { bodyOf, columnRefs, list, obj, str, strings, unwrap } from "./ast.ts";
 import { parenthesized, topLevelParts } from "./source.ts";
+import { TRIGGER_EVENTS, callsOf, hasBit, timingOf } from "./trigger-facts.ts";
+import { blocksWrites, selectNames } from "./view-shape.ts";
 
 /** Tokens that end a column's type: the first option, or the end of the part. */
 const TYPE_END = new Set([
@@ -117,6 +122,39 @@ function typeText(
   return source.render(taken);
 }
 
+/** The tokens after the column name, up to the comma that ends the column. */
+function definitionText(source: Source, location: unknown): string {
+  if (typeof location !== "number") {
+    return "";
+  }
+
+  const tokens = source.tokens;
+  const taken: ScanToken[] = [];
+  let depth = 0;
+
+  for (let at = source.tokenAt(location) + 1; at < tokens.length; at += 1) {
+    const token = tokens[at]!;
+
+    if (depth === 0 && (token.text === "," || token.text === ";")) {
+      break;
+    }
+
+    if (token.text === "(" || token.text === "[") {
+      depth += 1;
+    } else if (token.text === ")" || token.text === "]") {
+      depth -= 1;
+
+      if (depth < 0) {
+        break;
+      }
+    }
+
+    taken.push(token);
+  }
+
+  return source.raw(taken);
+}
+
 function columnOf(source: Source, definition: Obj): ColumnFact {
   const typeName = obj(definition["typeName"]);
 
@@ -138,6 +176,7 @@ function columnOf(source: Source, definition: Obj): ColumnFact {
       kinds.has("CONSTR_NOTNULL") ||
       kinds.has("CONSTR_PRIMARY"),
     hasDefault: kinds.has("CONSTR_DEFAULT") || kinds.has("CONSTR_IDENTITY"),
+    definition: definitionText(source, definition["location"]),
   };
 }
 
@@ -191,6 +230,7 @@ function checkOf(
 interface TableParts {
   readonly columns: ColumnFact[];
   readonly primaryKey: string[];
+  readonly keys: KeyFact[];
   readonly foreignKeys: ForeignKeyFact[];
   readonly checks: CheckFact[];
   columnsElsewhere: boolean;
@@ -206,7 +246,22 @@ function addConstraint(
     case "CONSTR_PRIMARY": {
       const keys = strings(constraint["keys"]);
 
-      parts.primaryKey.push(...(keys.length === 0 && column ? [column] : keys));
+      const columns = keys.length === 0 && column ? [column] : keys;
+
+      parts.primaryKey.push(...columns);
+      parts.keys.push({ columns, primary: true, nullsNotDistinct: false });
+
+      break;
+    }
+
+    case "CONSTR_UNIQUE": {
+      const keys = strings(constraint["keys"]);
+
+      parts.keys.push({
+        columns: keys.length === 0 && column ? [column] : keys,
+        primary: false,
+        nullsNotDistinct: constraint["nulls_not_distinct"] === true,
+      });
 
       break;
     }
@@ -241,6 +296,7 @@ function tableOf(
   const parts: TableParts = {
     columns: [],
     primaryKey: [],
+    keys: [],
     foreignKeys: [],
     checks: [],
     columnsElsewhere: asSelect,
@@ -289,6 +345,7 @@ function tableOf(
     columnsElsewhere: parts.columnsElsewhere,
     columns: parts.columns,
     primaryKey: parts.primaryKey,
+    keys: parts.keys,
     foreignKeys: parts.foreignKeys,
     checks: parts.checks,
   };
@@ -466,17 +523,12 @@ function policyOf(
   const relation = obj(policy["table"]);
   const table = qualify(context, relation);
   const onAt = tokens.findIndex((token) => token.kind === "ON");
-  let after = onAt + 1;
-
   // Skip the table name: `a` or `a . b`.
-  while (
-    after < tokens.length &&
-    (tokens[after + 1]?.text === "." || tokens[after - 1]?.text === ".")
-  ) {
-    after += 1;
-  }
+  let after = onAt + 2;
 
-  after += 1;
+  if (tokens[after]?.text === ".") {
+    after += 2;
+  }
 
   return {
     name: str(policy["policy_name"]) ?? "",
@@ -490,6 +542,33 @@ function policyOf(
     withCheck: clauseText(context.source, tokens, ["with", "check"]),
     terms: context.source.render(tokens.slice(after)).toLowerCase(),
   };
+}
+
+/** The leading plain columns of an index, and whether every key is one. */
+function indexColumns(statement: Obj): {
+  readonly columns: readonly string[];
+  readonly plain: boolean;
+} {
+  const columns: string[] = [];
+
+  for (const item of list(statement["indexParams"])) {
+    const element = bodyOf(item, "IndexElem");
+    const name = str(element?.["name"]);
+
+    if (
+      element === undefined ||
+      name === undefined ||
+      name === "" ||
+      list(element["opclass"]).length > 0 ||
+      list(element["collation"]).length > 0
+    ) {
+      return { columns, plain: false };
+    }
+
+    columns.push(name);
+  }
+
+  return { columns, plain: true };
 }
 
 function indexOf(
@@ -516,6 +595,7 @@ function indexOf(
     unique: statement["unique"] === true,
     method: str(statement["accessMethod"]) ?? "btree",
     keys: topLevelParts(keyTokens).map((part) => context.source.render(part)),
+    ...indexColumns(statement),
     predicate:
       where === -1 ? undefined : context.source.render(tokens.slice(where + 1)),
     ifNotExists: statement["if_not_exists"] === true,
@@ -550,6 +630,14 @@ function functionOf(
       : [bodyOf({ TypeName: parameter["argType"] }, "TypeName")];
   });
 
+  const as = list(statement["options"]).flatMap((item) => {
+    const option = bodyOf(item, "DefElem");
+
+    return option?.["defname"] === "as"
+      ? strings(bodyOf(option["arg"], "List")?.["items"])
+      : [];
+  });
+
   return {
     name: qualifiedNames(context, strings(statement["funcname"])),
     signature: signatureOf(context.source, parameters),
@@ -557,6 +645,8 @@ function functionOf(
     index: context.index,
     ifNotExists: false,
     procedure: statement["is_procedure"] === true,
+    arity: parameters.length,
+    body: as[0],
   };
 }
 
@@ -658,6 +748,8 @@ function viewOf(
     replace: view["replace"] === true,
     columnAliases: aliases.length === 0 ? undefined : aliases,
     securityInvoker: invoker[0],
+    columns: aliases.length === 0 ? selectNames(view["query"]) : aliases,
+    updatable: !materialized && !blocksWrites(view["query"]),
   };
 }
 
@@ -677,6 +769,11 @@ function markersOf(source: Source): readonly MarkerFact[] {
       : [{ kind: marker.kind, text, line: source.lineAt(comment.start) }];
   });
 }
+
+const DO_CREATES =
+  /\bcreate\s+(?:or\s+replace\s+)?(?:unique\s+)?(?:table|index|view|function|trigger|policy|type|schema)\b|\bexecute\b/i;
+
+const MODULE_FILE = /^-- @(?:bsb-block|bs-module) /m;
 
 /** Each statement of a parsed file, with where it starts and ends. */
 export interface RawStatement {
@@ -704,7 +801,10 @@ export function factsFrom(
   const grants: GrantFact[] = [];
   const objects: ObjectFact[] = [];
   const doBlocks: number[] = [];
+  const doCreates: number[] = [];
   const inserts: number[] = [];
+  const declared: DeclaredFact[] = [];
+  const calls: CallFact[] = [];
   const lines: { line: number; kind: string }[] = [];
 
   for (const [index, raw] of statements.entries()) {
@@ -731,7 +831,15 @@ export function factsFrom(
 
     switch (kind) {
       case "CreateStmt": {
-        tables.push(tableOf(context, body, line, false));
+        const table = tableOf(context, body, line, false);
+
+        tables.push(table);
+        declared.push({
+          kind: "table",
+          name: table.name,
+          line,
+          ifNotExists: table.ifNotExists,
+        });
 
         break;
       }
@@ -739,9 +847,39 @@ export function factsFrom(
       case "CreateTableAsStmt": {
         const into = obj(obj(body["into"])["rel"]);
 
-        tables.push(
-          tableOf(context, { relation: into, tableElts: [] }, line, true),
+        if (body["objtype"] === "OBJECT_MATVIEW") {
+          const view = viewOf(
+            context,
+            { view: into, query: body["query"] },
+            line,
+            true,
+          );
+
+          views.push(view);
+          declared.push({
+            kind: "view",
+            name: view.name,
+            line,
+            ifNotExists: body["if_not_exists"] === true,
+          });
+
+          break;
+        }
+
+        const table = tableOf(
+          context,
+          { relation: into, tableElts: [] },
+          line,
+          true,
         );
+
+        tables.push(table);
+        declared.push({
+          kind: "table",
+          name: table.name,
+          line,
+          ifNotExists: body["if_not_exists"] === true,
+        });
 
         break;
       }
@@ -759,48 +897,133 @@ export function factsFrom(
       }
 
       case "CreateEnumStmt": {
-        enums.push({
-          name: qualifiedNames(context, strings(body["typeName"])),
-          labels: strings(body["vals"]),
+        const name = qualifiedNames(context, strings(body["typeName"]));
+
+        enums.push({ name, labels: strings(body["vals"]), line });
+        declared.push({ kind: "type", name, line, ifNotExists: false });
+
+        break;
+      }
+
+      case "CompositeTypeStmt":
+      case "CreateRangeStmt": {
+        const typeName = list(
+          kind === "CompositeTypeStmt"
+            ? [{ RangeVar: body["typevar"] }]
+            : body["typeName"],
+        );
+
+        const range = bodyOf(typeName[0], "RangeVar");
+
+        declared.push({
+          kind: "type",
+          name:
+            range === undefined
+              ? qualifiedNames(context, strings(body["typeName"]))
+              : qualify(context, range),
           line,
+          ifNotExists: false,
         });
 
         break;
       }
 
       case "ViewStmt": {
-        views.push(viewOf(context, body, line, false));
+        const view = viewOf(context, body, line, false);
+
+        views.push(view);
+        declared.push({
+          kind: "view",
+          name: view.name,
+          line,
+          ifNotExists: false,
+        });
 
         break;
       }
 
       case "IndexStmt": {
-        indexes.push(indexOf(context, body, tokens, line));
+        const created = indexOf(context, body, tokens, line);
+
+        indexes.push(created);
+
+        if (created.name !== undefined) {
+          declared.push({
+            kind: "index",
+            name: `${created.table.slice(0, created.table.indexOf("."))}.${created.name}`,
+            line,
+            ifNotExists: created.ifNotExists,
+          });
+        }
 
         break;
       }
 
       case "CreatePolicyStmt": {
-        policies.push(policyOf(context, body, tokens, line));
+        const policy = policyOf(context, body, tokens, line);
+
+        policies.push(policy);
+        declared.push({
+          kind: "policy",
+          name: `${policy.table}.${policy.name}`,
+          line,
+          ifNotExists: false,
+        });
 
         break;
       }
 
       case "CreateTrigStmt": {
-        triggers.push({
+        const events: string[] = [];
+        const mask = typeof body["events"] === "number" ? body["events"] : 0;
+
+        events.push(
+          ...TRIGGER_EVENTS.flatMap(([bit, name]) =>
+            hasBit(mask, bit) ? [name] : [],
+          ),
+        );
+
+        const trigger: TriggerFact = {
           name: str(body["trigname"]) ?? "",
           table: qualify(context, obj(body["relation"])),
           line,
           index,
           function: qualifiedNames(context, strings(body["funcname"])),
+          timing: timingOf(
+            typeof body["timing"] === "number" ? body["timing"] : 0,
+          ),
+          events,
           text: source.render(tokens),
+        };
+
+        triggers.push(trigger);
+        declared.push({
+          kind: "trigger",
+          name: `${trigger.table}.${trigger.name}`,
+          line,
+          ifNotExists: false,
         });
 
         break;
       }
 
       case "CreateFunctionStmt": {
-        functions.push(functionOf(context, body, line));
+        const created = functionOf(context, body, line);
+
+        functions.push(created);
+        declared.push({
+          kind: "function",
+          name: created.name,
+          arity: created.arity,
+          line,
+          ifNotExists: false,
+        });
+
+        break;
+      }
+
+      case "SelectStmt": {
+        calls.push(...callsOf(body, index));
 
         break;
       }
@@ -824,6 +1047,18 @@ export function factsFrom(
       case "DoStmt": {
         doBlocks.push(line);
 
+        const code = list(body["args"]).flatMap((item) => {
+          const option = bodyOf(item, "DefElem");
+
+          return option?.["defname"] === "as"
+            ? [str(bodyOf(option["arg"], "String")?.["sval"]) ?? ""]
+            : [];
+        });
+
+        if (DO_CREATES.test(code.join(" "))) {
+          doCreates.push(line);
+        }
+
         break;
       }
 
@@ -834,45 +1069,61 @@ export function factsFrom(
       }
 
       case "CreateSeqStmt": {
-        objects.push({
+        const fact: ObjectFact = {
           kind: "sequence",
           name: qualify(context, obj(body["sequence"])),
           line,
           ifNotExists: body["if_not_exists"] === true,
-        });
+        };
+
+        objects.push(fact);
+        declared.push({ ...fact, kind: "sequence" });
 
         break;
       }
 
       case "CreateSchemaStmt": {
-        objects.push({
+        const fact: ObjectFact = {
           kind: "schema",
           name: str(body["schemaname"]) ?? "",
           line,
           ifNotExists: body["if_not_exists"] === true,
-        });
+        };
+
+        objects.push(fact);
+        declared.push({ ...fact, kind: "schema" });
 
         break;
       }
 
       case "CreateExtensionStmt": {
-        objects.push({
+        const schema = list(body["options"]).flatMap((item) => {
+          const option = bodyOf(item, "DefElem");
+
+          return option?.["defname"] === "schema"
+            ? [str(bodyOf(option["arg"], "String")?.["sval"])]
+            : [];
+        })[0];
+
+        const fact: ObjectFact = {
           kind: "extension",
           name: str(body["extname"]) ?? "",
           line,
           ifNotExists: body["if_not_exists"] === true,
-        });
+          ...(schema === undefined ? {} : { schema }),
+        };
+
+        objects.push(fact);
+        declared.push({ ...fact, kind: "extension" });
 
         break;
       }
 
       case "CreateDomainStmt": {
-        objects.push({
-          kind: "type",
-          name: qualifiedNames(context, strings(body["domainname"])),
-          line,
-          ifNotExists: false,
-        });
+        const name = qualifiedNames(context, strings(body["domainname"]));
+
+        objects.push({ kind: "type", name, line, ifNotExists: false });
+        declared.push({ kind: "type", name, line, ifNotExists: false });
 
         break;
       }
@@ -911,7 +1162,13 @@ export function factsFrom(
     grants,
     objects,
     markers,
+    declared,
+    calls,
+    module: source.comments.some((comment) =>
+      MODULE_FILE.test(comment.text.startsWith("--") ? comment.text : ""),
+    ),
     doBlocks,
+    doCreates,
     inserts,
     statements: lines,
     outsideTransaction: source.comments.some((comment) =>

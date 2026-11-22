@@ -81,6 +81,33 @@ export class Source {
     return this.tokens.slice(first, last);
   }
 
+  /**
+   * The source between the first and last of `tokens` as written, with the
+   * comments between them dropped and whitespace collapsed.
+   */
+  raw(tokens: readonly ScanToken[]): string {
+    const first = tokens[0];
+    const last = tokens.at(-1);
+
+    if (first === undefined || last === undefined) {
+      return "";
+    }
+
+    const bytes = Buffer.from(this.bytes.subarray(first.start, last.end));
+
+    for (const comment of this.comments) {
+      if (comment.start >= first.start && comment.end <= last.end) {
+        bytes.fill(
+          0x20,
+          comment.start - first.start,
+          comment.end - first.start,
+        );
+      }
+    }
+
+    return bytes.toString("utf-8").replaceAll(/\s+/g, " ").trim();
+  }
+
   /** `tokens` as text: identifiers unquoted, spacing collapsed to one space. */
   render(tokens: readonly ScanToken[]): string {
     let out = "";

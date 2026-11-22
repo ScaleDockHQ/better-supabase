@@ -6,6 +6,19 @@ export interface ColumnFact {
   /** `not null` or `primary key` on the column itself. */
   readonly notNull: boolean;
   readonly hasDefault: boolean;
+  /**
+   * Everything after the name up to the comma that ends the column, as written
+   * (quoting and case kept) with comments dropped and whitespace collapsed.
+   */
+  readonly definition: string;
+}
+
+/** A primary key or unique constraint, in the order the table lists them. */
+export interface KeyFact {
+  readonly columns: readonly string[];
+  readonly primary: boolean;
+  /** `unique nulls not distinct (...)`. */
+  readonly nullsNotDistinct: boolean;
 }
 
 export interface ForeignKeyFact {
@@ -44,6 +57,8 @@ export interface TableFact {
   readonly columnsElsewhere: boolean;
   readonly columns: readonly ColumnFact[];
   readonly primaryKey: readonly string[];
+  /** Every primary key and unique constraint, column-level ones included. */
+  readonly keys: readonly KeyFact[];
   readonly foreignKeys: readonly ForeignKeyFact[];
   readonly checks: readonly CheckFact[];
 }
@@ -94,6 +109,17 @@ export interface ViewFact {
   readonly columnAliases: readonly string[] | undefined;
   /** The `security_invoker` option, when set. */
   readonly securityInvoker: boolean | undefined;
+  /**
+   * The view's columns: its aliases, else the select list's names. `undefined`
+   * when an item is `*` or has no name to read.
+   */
+  readonly columns: readonly string[] | undefined;
+  /**
+   * Whether `insert`, `update` and `delete` reach the table under it: not a
+   * materialized view, and no distinct, group by, having, limit, offset, set
+   * operation, window, join, aggregate or window function.
+   */
+  readonly updatable: boolean;
 }
 
 export interface IndexFact {
@@ -105,6 +131,10 @@ export interface IndexFact {
   readonly method: string;
   /** Each key part as written; an expression keeps its source text. */
   readonly keys: readonly string[];
+  /** The plain column names the index leads with, up to the first expression. */
+  readonly columns: readonly string[];
+  /** Every key is a column with no operator class or collation. */
+  readonly plain: boolean;
   /** The `where` text as written, or `undefined`. */
   readonly predicate: string | undefined;
   readonly ifNotExists: boolean;
@@ -135,6 +165,9 @@ export interface TriggerFact {
   readonly index: number;
   /** `schema.function` the trigger runs. */
   readonly function: string;
+  readonly timing: "before" | "after" | "instead of";
+  /** `insert`, `update`, `delete` and `truncate`, as listed. */
+  readonly events: readonly string[];
   readonly text: string;
 }
 
@@ -147,6 +180,10 @@ export interface FunctionFact {
   readonly index: number;
   readonly ifNotExists: boolean;
   readonly procedure: boolean;
+  /** How many arguments it takes, `out` and defaulted ones included. */
+  readonly arity: number;
+  /** The text between the quotes of `as`, whichever quoting the file used. */
+  readonly body: string | undefined;
 }
 
 export type CommentTarget =
@@ -184,6 +221,37 @@ export interface ObjectFact {
   readonly name: string;
   readonly line: number;
   readonly ifNotExists: boolean;
+  /** The schema an extension is created `with schema`. */
+  readonly schema?: string;
+}
+
+/** An object a statement creates, in file order, for the declaration model. */
+export interface DeclaredFact {
+  readonly kind:
+    | "table"
+    | "view"
+    | "function"
+    | "index"
+    | "policy"
+    | "trigger"
+    | "type"
+    | "sequence"
+    | "schema"
+    | "extension";
+  /** `schema.name`; a policy or trigger is `schema.table.name`. */
+  readonly name: string;
+  /** A function's argument count. */
+  readonly arity?: number;
+  readonly line: number;
+  readonly ifNotExists: boolean;
+}
+
+/** A function a top-level `select` calls, with its string arguments. */
+export interface CallFact {
+  /** `schema.function` as written, or the bare name. */
+  readonly name: string;
+  readonly strings: readonly string[];
+  readonly index: number;
 }
 
 export interface MarkerFact {
@@ -207,8 +275,15 @@ export interface FileFacts {
   readonly grants: readonly GrantFact[];
   readonly objects: readonly ObjectFact[];
   readonly markers: readonly MarkerFact[];
+  /** Every created object in statement order. */
+  readonly declared: readonly DeclaredFact[];
+  readonly calls: readonly CallFact[];
+  /** The file starts a generated module (`-- @bsb-block` or `-- @bs-module`). */
+  readonly module: boolean;
   /** Lines of `do` blocks. */
   readonly doBlocks: readonly number[];
+  /** Lines of `do` blocks that create objects or `execute` at run time. */
+  readonly doCreates: readonly number[];
   /** Lines of top-level `insert` statements. */
   readonly inserts: readonly number[];
   /** Lines of every statement, in order. */
