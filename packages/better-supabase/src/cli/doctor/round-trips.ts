@@ -1,40 +1,34 @@
 import type { FindingInput, Rule } from "./rules.ts";
+import type { SourceModel } from "./source-scan.ts";
 
-import { codeOnly, functionsIn, targetKeys } from "./source-scan.ts";
+import { sourceModel, targetKeys } from "./source-scan.ts";
 
-export const PROMISE_ALL: RegExp = /\bPromise\.all\s*\(\s*\[/g;
+/** A `Promise.all([...])` call and the source of each entry of its array. */
+export interface Wave {
+  readonly start: number;
+  readonly entries: readonly string[];
+}
 
-/**
- * Parts of the array literal that starts after `open`, split at top-level
- * commas.
- */
-export function arrayEntries(text: string, open: number): string[] | undefined {
-  const entries: string[] = [];
-  let depth = 0;
-  let start = open;
+/** Every `Promise.all` over an array literal in `model`. */
+export function waves(model: SourceModel): Wave[] {
+  return model.calls.flatMap((call): Wave[] => {
+    const [list] = call.node.arguments;
 
-  for (let index = open; index < text.length; index += 1) {
-    const char = text.charAt(index);
-
-    if (char === "(" || char === "[" || char === "{") {
-      depth += 1;
-    } else if (char === ")" || char === "}") {
-      depth -= 1;
-    } else if (char === "]") {
-      if (depth === 0) {
-        entries.push(text.slice(start, index));
-
-        return entries;
-      }
-
-      depth -= 1;
-    } else if (char === "," && depth === 0) {
-      entries.push(text.slice(start, index));
-      start = index + 1;
+    if (call.path !== "Promise.all" || list?.type !== "ArrayExpression") {
+      return [];
     }
-  }
 
-  return undefined;
+    return [
+      {
+        start: call.start,
+        entries: list.elements.flatMap((element) =>
+          element === null
+            ? []
+            : [model.text.slice(element.start, element.end)],
+        ),
+      },
+    ];
+  });
 }
 
 /** An entry that awaits the database: a repository, a block client or a call. */
@@ -45,35 +39,28 @@ function parallelReads(context: Parameters<Rule["check"]>[0]): FindingInput[] {
   const findings: FindingInput[] = [];
 
   for (const file of context.sources) {
-    const waves: { start: number; callee: string; reads: number }[] = [];
+    const model = sourceModel(file.text);
+    const found: { start: number; callee: string; reads: number }[] = [];
 
-    for (const match of file.text.matchAll(PROMISE_ALL)) {
-      const open = match.index + match[0].length;
-      const entries = arrayEntries(file.text, open);
+    for (const wave of waves(model)) {
+      const reads = wave.entries.filter((entry) => DATABASE_READ.test(entry));
 
-      const reads = entries?.filter((entry) => DATABASE_READ.test(entry));
-
-      if (
-        reads === undefined ||
-        reads.length < context.config.doctor.parallelReads
-      ) {
-        continue;
+      if (reads.length >= context.config.doctor.parallelReads) {
+        found.push({
+          start: wave.start,
+          callee: "Promise.all",
+          reads: reads.length,
+        });
       }
-
-      waves.push({
-        start: match.index,
-        callee: "Promise.all",
-        reads: reads.length,
-      });
     }
 
-    if (waves.length === 0) {
+    if (found.length === 0) {
       continue;
     }
 
-    const keys = targetKeys(file.path, functionsIn(codeOnly(file.text)), waves);
+    const keys = targetKeys(file.path, model.functions, found);
 
-    for (const wave of waves) {
+    for (const wave of found) {
       const line = file.text.slice(0, wave.start).split("\n").length;
 
       findings.push({

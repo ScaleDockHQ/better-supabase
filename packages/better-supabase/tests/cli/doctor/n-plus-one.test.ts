@@ -70,6 +70,9 @@ function check(
   return findings;
 }
 
+/** The opening of a template placeholder, kept out of a string literal. */
+const hole = "${";
+
 const lines = (...body: string[]): string => body.join("\n");
 
 describe("BS634", () => {
@@ -587,5 +590,45 @@ describe("BS635 waves and chains", () => {
     expect(findings[0]?.message).toContain(
       "include: { task: { include: { invoiceTasks: true } } }",
     );
+  });
+});
+
+describe("parse tree", () => {
+  it("finds a loop read around a regex with a quote, a template and CRLF", () => {
+    const findings = check(
+      "BS634",
+      [
+        "const quote = /[\"'`]/;",
+        `const note = \`${hole}\`(${
+          hole
+        }'{'}\`} for (const id of ids) { await db.customers.get(id); }\`;`,
+        "// for (const id of ids) { await db.orders.get(id); }",
+        "export async function load(db: Db, ids: string[]) {",
+        "  for (const id of ids) {",
+        "    await db.customers.get(id);",
+        "  }",
+        "}",
+      ].join("\r\n"),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.location?.line).toBe(6);
+    expect(findings[0]?.target).toBe("src/lib/data.ts#load:db.customers.get");
+  });
+
+  it("reads a callback with a destructured parameter and a type annotation", () => {
+    const findings = check(
+      "BS634",
+      lines(
+        "export async function load(db: Db, rows: Row[]) {",
+        "  return Promise.all(rows.map(async ({ id }: Row): Promise<unknown> => {",
+        "    return await db.customers.get(id);",
+        "  }));",
+        "}",
+      ),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.location?.line).toBe(3);
   });
 });

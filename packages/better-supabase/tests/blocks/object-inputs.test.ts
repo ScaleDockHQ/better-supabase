@@ -3,7 +3,6 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { codeRanges } from "../../src/cli/config-document/ranges.ts";
-import { closeOf } from "../../src/cli/doctor/source-scan.ts";
 
 const BLOCKS = join(import.meta.dirname, "../../src/blocks");
 
@@ -427,6 +426,27 @@ function mask(source: string): string {
   }
 
   return out;
+}
+
+/** The index of the bracket that closes the one at `open` in masked `code`. */
+function closeOf(code: string, open: number): number {
+  let depth = 0;
+
+  for (let index = open; index < code.length; index += 1) {
+    const char = code.charAt(index);
+
+    if ("([{".includes(char)) {
+      depth += 1;
+    } else if (")]}".includes(char)) {
+      depth -= 1;
+
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+
+  return code.length;
 }
 
 /** The `<file>:<method>` of every signature in `src/blocks` with 2+ parameters. */

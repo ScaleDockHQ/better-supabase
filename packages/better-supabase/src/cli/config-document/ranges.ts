@@ -1,3 +1,5 @@
+import type { ParseResult } from "oxc-parser";
+
 import { walk } from "oxc-walker";
 
 import { parseSource } from "./parse.ts";
@@ -9,8 +11,14 @@ import { parseSource } from "./parse.ts";
  * the part the parser recovered.
  */
 export function codeRanges(text: string): [number, number][] {
-  const parsed = parseSource(text);
+  return codeRangesIn(parseSource(text), text.length);
+}
 
+/** `codeRanges` for a text that is already parsed, `length` characters long. */
+export function codeRangesIn(
+  parsed: ParseResult,
+  length: number,
+): [number, number][] {
   const hidden: [number, number][] = parsed.comments.map((comment) => [
     comment.start,
     comment.end,
@@ -43,8 +51,8 @@ export function codeRanges(text: string): [number, number][] {
     cursor = Math.max(cursor, end);
   }
 
-  if (cursor < text.length) {
-    ranges.push([cursor, text.length]);
+  if (cursor < length) {
+    ranges.push([cursor, length]);
   }
 
   return ranges;

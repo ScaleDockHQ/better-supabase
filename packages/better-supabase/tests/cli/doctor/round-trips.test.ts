@@ -26,6 +26,9 @@ function check(
   return findings;
 }
 
+/** The opening of a template placeholder, kept out of a string literal. */
+const hole = "${";
+
 const page = (entries: string[]): TextFile => ({
   path: "src/app/page.tsx",
   text: [
@@ -72,5 +75,34 @@ describe("BS609", () => {
         page(["fetch(a)", "fetch(b)", "fetch(c)"]),
       ]),
     ).toEqual([]);
+  });
+
+  it("reads the tree: a regex with a quote, a template and CRLF change nothing", () => {
+    const text = [
+      "const quote = /[\"']/;",
+      `const label = \`${hole}\`a ${
+        hole
+      }'(' + '['}\`} Promise.all([db.x.get(), db.y.get(), db.z.get()])\`;`,
+      "// Promise.all([db.a.get(), db.b.get(), db.c.get()])",
+      "export default async function Page() {",
+      "  return Promise.all([db.a.list(), db.b.list(), db.c.list()]);",
+      "}",
+    ].join("\r\n");
+
+    const findings = check([{ path: "src/app/page.tsx", text }]);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.location?.line).toBe(5);
+    expect(findings[0]?.target).toBe("src/app/page.tsx#Page:Promise.all");
+  });
+
+  it("ignores Promise.all written in JSX text", () => {
+    const text = [
+      "export default function Page() {",
+      "  return <p>Promise.all([db.a.list(), db.b.list(), db.c.list()])</p>;",
+      "}",
+    ].join("\n");
+
+    expect(check([{ path: "src/app/page.tsx", text }])).toEqual([]);
   });
 });
