@@ -293,3 +293,9 @@ one query instead of one query per item. `enqueue_import_chunks` sends a failed 
 job, so calling it again retries what failed. `import_supplier_item` takes the supplier from a `supplier` or
 `customer` ref when `supplierId` is missing. The import gaps note the plan names was not in the repository, so
 these five follow the plan's wording; compare them with your override before you delete it.
+
+**Template clones.** `instantiate_template` now checks the apply permission of the target tenant before it
+clones, passes that tenant to the clone as `overrides.tenantId`, and `clone_invoice`, `clone_quote` and
+`clone_task` copy every header column the table has, not only the title and currency. A clone into another tenant
+is allowed only for a row a template owns or for the service role, so a user cannot copy a row from a tenant they
+cannot read. These are `create or replace` changes, so `add` and `upgrade` need no version bump.

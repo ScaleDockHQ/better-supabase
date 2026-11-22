@@ -20,6 +20,7 @@ import {
   taskExtraFunctions,
 } from "./tasks-extras.ts";
 import { taskPageSql } from "./tasks-pages.ts";
+import { cloneTenant } from "./templates-clone.ts";
 
 export interface TaskNames {
   readonly fn: (name: string) => string;
@@ -952,6 +953,10 @@ function cloneTask(
   a: (column: string) => string,
   row: (alias: string) => string,
 ): string {
+  const owned = n.templates
+    ? `exists (with recursive up as (select x.${w("id")}, x.${w("parent")}, x.${w("template")} from ${t("items")} x where x.${w("id")} = v_src.${w("id")} union all select p.${w("id")}, p.${w("parent")}, p.${w("template")} from ${t("items")} p join up on p.${w("id")} = up.${w("parent")}) select 1 from up where up.${w("template")} is not null)`
+    : "false";
+
   const template = n.templates
     ? `case when coalesce(clone_task.overrides, '{}'::jsonb) ? 'templateId' then clone_task.overrides ->> 'templateId' else null end`
     : "null";
@@ -964,7 +969,7 @@ function cloneTask(
     ctx.installed("tags") && ctx.of("tags").hasTable("taggings")
       ? `
   insert into ${ctx.of("tags").table("taggings")} (${ctx.of("tags").col("taggings", "tenant")}, ${ctx.of("tags").col("taggings", "tag")}, ${ctx.of("tags").col("taggings", "subjectType")}, ${ctx.of("tags").col("taggings", "subjectId")})
-  select g.${ctx.of("tags").col("taggings", "tenant")}, g.${ctx.of("tags").col("taggings", "tag")}, g.${ctx.of("tags").col("taggings", "subjectType")}, v_id::text
+  select v_tenant, g.${ctx.of("tags").col("taggings", "tag")}, g.${ctx.of("tags").col("taggings", "subjectType")}, v_id::text
   from ${ctx.of("tags").table("taggings")} g
   where g.${ctx.of("tags").col("taggings", "subjectType")} = ${sqlString(n.type)} and g.${ctx.of("tags").col("taggings", "subjectId")} = clone_task.source::text;`
       : "";
@@ -972,7 +977,7 @@ function cloneTask(
   const checklist = ctx.hasTable("checklist")
     ? `
   insert into ${t("checklist")} (${ctx.col("checklist", "tenant")}, ${ctx.col("checklist", "item")}, ${ctx.col("checklist", "title")}, ${ctx.col("checklist", "done")}, ${ctx.col("checklist", "rank")})
-  select c.${ctx.col("checklist", "tenant")}, v_id, c.${ctx.col("checklist", "title")}, false, c.${ctx.col("checklist", "rank")}
+  select v_tenant, v_id, c.${ctx.col("checklist", "title")}, false, c.${ctx.col("checklist", "rank")}
   from ${t("checklist")} c where c.${ctx.col("checklist", "item")} = clone_task.source;`
     : "";
 
@@ -992,20 +997,19 @@ declare
   v_child uuid;
   v_copy jsonb;
   v_users uuid[];
+  v_tenant ${ctx.idType};
 begin
   select * into v_src from ${t("items")} x where x.${w("id")} = clone_task.source;
   if not found then
     ${fail("TASK_NOT_FOUND", "no such work item", "P0002")}
   end if;
-  if not (${n.service} or ${ctx.scope.can(`v_src.${w("tenant")}`, n.create)}) then
-    ${fail("TASK_FORBIDDEN", "not allowed to change work items")}
-  end if;
+  ${cloneTenant(ctx, { fn: "clone_task", code: "TASK_FORBIDDEN", source: "v_src", tenant: w("tenant"), owned, service: n.service, can: n.create, message: "not allowed to change work items" })}
   ${ctx.hook("before_task_clone", [
     ["uuid", "clone_task.source"],
     ["jsonb", "clone_task.overrides"],
   ])}
   select coalesce(array_agg(ra.${a("user")}), '{}') into v_users from ${t("assignees")} ra where ra.${a("item")} = v_src.${w("id")};
-  v_created := ${fn("create_task")}(v_src.${w("tenant")}, jsonb_strip_nulls(jsonb_build_object(
+  v_created := ${fn("create_task")}(v_tenant, jsonb_strip_nulls(jsonb_build_object(
     'title', v_src.${w("title")},
     'body', ${ctx.has("items", "body") ? `v_src.${w("body")}` : "null"},
     'parentId', v_src.${w("parent")},

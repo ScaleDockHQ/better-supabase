@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:7c5f248a9117e30953f4be42f15118df06bf09444e29a6438115c02476607357
+-- @bsb-hash sha256:6b33cd40cf09430630be597a6d201cd6156bff872ea28bc3fcf8a1d96979be7a
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1241,6 +1241,7 @@ declare
   v_child uuid;
   v_copy jsonb;
   v_users uuid[];
+  v_tenant uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1249,7 +1250,11 @@ begin
   if not found then
     raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.write'), false)) then
+  v_tenant := coalesce(nullif(coalesce(clone_task.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
   declare
@@ -1261,7 +1266,7 @@ begin
     end if;
   end;
   select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."task_assignees" ra where ra."task_id" = v_src."id";
-  v_created := "better_supabase"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+  v_created := "better_supabase"."create_task"(v_tenant, jsonb_strip_nulls(jsonb_build_object(
     'title', v_src."title",
     'body', v_src."body",
     'parentId', v_src."parent_id",
@@ -1273,7 +1278,7 @@ begin
   )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
   v_id := (v_created ->> 'id')::uuid;
   insert into "better_supabase"."task_checklist_items" ("tenant_id", "task_id", "title", "done", "rank")
-  select c."tenant_id", v_id, c."title", false, c."rank"
+  select v_tenant, v_id, c."title", false, c."rank"
   from "better_supabase"."task_checklist_items" c where c."task_id" = clone_task.source;
   for v_child in select c."id" from "better_supabase"."tasks" c where c."parent_id" = clone_task.source loop
     v_copy := "better_supabase"."clone_task"(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
@@ -1955,7 +1960,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:5115069aaad3918441481d10d289b5b789a0cd255c5a2ac722cd0819310bd8ef
+-- @bsb-hash sha256:8a8a2bc6f0aad5980653c9357def0530ddf4da21d490b36d164a4fcc9b9236cb
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3248,6 +3253,7 @@ declare
   v_child uuid;
   v_copy jsonb;
   v_users uuid[];
+  v_tenant uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3256,7 +3262,11 @@ begin
   if not found then
     raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.write'), false)) then
+  v_tenant := coalesce(nullif(coalesce(clone_task.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
   declare
@@ -3268,7 +3278,7 @@ begin
     end if;
   end;
   select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."task_assignees" ra where ra."task_id" = v_src."id";
-  v_created := "better_supabase"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+  v_created := "better_supabase"."create_task"(v_tenant, jsonb_strip_nulls(jsonb_build_object(
     'title', v_src."title",
     'body', v_src."body",
     'parentId', v_src."parent_id",
@@ -3280,10 +3290,10 @@ begin
   )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
   v_id := (v_created ->> 'id')::uuid;
   insert into "better_supabase"."task_checklist_items" ("tenant_id", "task_id", "title", "done", "rank")
-  select c."tenant_id", v_id, c."title", false, c."rank"
+  select v_tenant, v_id, c."title", false, c."rank"
   from "better_supabase"."task_checklist_items" c where c."task_id" = clone_task.source;
   insert into "better_supabase"."taggings" ("tenant_id", "tag_id", "subject_type", "subject_id")
-  select g."tenant_id", g."tag_id", g."subject_type", v_id::text
+  select v_tenant, g."tag_id", g."subject_type", v_id::text
   from "better_supabase"."taggings" g
   where g."subject_type" = 'task' and g."subject_id" = clone_task.source::text;
   for v_child in select c."id" from "better_supabase"."tasks" c where c."parent_id" = clone_task.source loop
@@ -4105,7 +4115,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:db41e4f72496ce3ba502c8994e4f15114071d0c1ed230dc9f8e00327a78fbb64
+-- @bsb-hash sha256:4825fe28c3cb0fd37cb2d5662a52bcaa0e84e450a853518eb7a0db69abe4b48b
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5350,6 +5360,7 @@ declare
   v_child uuid;
   v_copy jsonb;
   v_users uuid[];
+  v_tenant uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5358,7 +5369,11 @@ begin
   if not found then
     raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.write'), false)) then
+  v_tenant := coalesce(nullif(coalesce(clone_task.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
   declare
@@ -5370,7 +5385,7 @@ begin
     end if;
   end;
   select coalesce(array_agg(ra."user_id"), '{}') into v_users from "app_private"."task_assignees" ra where ra."task_id" = v_src."id";
-  v_created := "app_private"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+  v_created := "app_private"."create_task"(v_tenant, jsonb_strip_nulls(jsonb_build_object(
     'title', v_src."title",
     'body', v_src."body",
     'parentId', v_src."parent_id",
@@ -5382,7 +5397,7 @@ begin
   )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
   v_id := (v_created ->> 'id')::uuid;
   insert into "app_private"."task_checklist_items" ("tenant_id", "task_id", "title", "done", "rank")
-  select c."tenant_id", v_id, c."title", false, c."rank"
+  select v_tenant, v_id, c."title", false, c."rank"
   from "app_private"."task_checklist_items" c where c."task_id" = clone_task.source;
   for v_child in select c."id" from "app_private"."tasks" c where c."parent_id" = clone_task.source loop
     v_copy := "app_private"."clone_task"(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
@@ -6064,7 +6079,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:ac5049d7b997f9a4651224cb0c5fcc3b222d484666b77967d461f61126a604f8
+-- @bsb-hash sha256:9db74333c2b887594b4b6eefdf3afa6d8f24f6b8585154ce5a178102be3ceb52
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7304,6 +7319,7 @@ declare
   v_child uuid;
   v_copy jsonb;
   v_users uuid[];
+  v_tenant uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -7312,7 +7328,11 @@ begin
   if not found then
     raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.write'), false)) then
+  v_tenant := coalesce(nullif(coalesce(clone_task.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
   declare
@@ -7324,7 +7344,7 @@ begin
     end if;
   end;
   select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."task_assignees" ra where ra."task_id" = v_src."id";
-  v_created := "better_supabase"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+  v_created := "better_supabase"."create_task"(v_tenant, jsonb_strip_nulls(jsonb_build_object(
     'title', v_src."title",
     'body', v_src."body",
     'parentId', v_src."parent_id",
@@ -7336,7 +7356,7 @@ begin
   )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
   v_id := (v_created ->> 'id')::uuid;
   insert into "better_supabase"."task_checklist_items" ("tenant_id", "task_id", "title", "done", "rank")
-  select c."tenant_id", v_id, c."title", false, c."rank"
+  select v_tenant, v_id, c."title", false, c."rank"
   from "better_supabase"."task_checklist_items" c where c."task_id" = clone_task.source;
   for v_child in select c."id" from "better_supabase"."tasks" c where c."parent_id" = clone_task.source loop
     v_copy := "better_supabase"."clone_task"(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
@@ -8238,7 +8258,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:96a67317e0799a2666e138809ae87e54014bdf31c42ea056b292242cdb2ee279
+-- @bsb-hash sha256:c8771231444a5b87ae0e8386f1ce68fba5efac7489d2c6577ac4f6afc9722a7a
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9461,6 +9481,7 @@ declare
   v_child uuid;
   v_copy jsonb;
   v_users uuid[];
+  v_tenant uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -9469,7 +9490,11 @@ begin
   if not found then
     raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.write'), false)) then
+  v_tenant := coalesce(nullif(coalesce(clone_task.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
   declare
@@ -9481,7 +9506,7 @@ begin
     end if;
   end;
   select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."task_assignees" ra where ra."task_id" = v_src."id";
-  v_created := "better_supabase"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+  v_created := "better_supabase"."create_task"(v_tenant, jsonb_strip_nulls(jsonb_build_object(
     'title', v_src."title",
     'body', v_src."body",
     'parentId', v_src."parent_id",
@@ -9493,7 +9518,7 @@ begin
   )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
   v_id := (v_created ->> 'id')::uuid;
   insert into "better_supabase"."task_checklist_items" ("tenant_id", "task_id", "title", "done", "rank")
-  select c."tenant_id", v_id, c."title", false, c."rank"
+  select v_tenant, v_id, c."title", false, c."rank"
   from "better_supabase"."task_checklist_items" c where c."task_id" = clone_task.source;
   for v_child in select c."id" from "better_supabase"."tasks" c where c."parent_id" = clone_task.source loop
     v_copy := "better_supabase"."clone_task"(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');
@@ -10175,7 +10200,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:e70bcc2a63038c486b5a4181e0ddfe4d22f1f0f9d4637e1c60b0392baaf22646
+-- @bsb-hash sha256:836abd387b457a39addef1402f654acae9dff1a8c9134a18a1539dd30f1344a2
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11415,6 +11440,7 @@ declare
   v_child uuid;
   v_copy jsonb;
   v_users uuid[];
+  v_tenant uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -11423,7 +11449,11 @@ begin
   if not found then
     raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."org_id", 'tasks.write'), false)) then
+  v_tenant := coalesce(nullif(coalesce(clone_task.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."org_id");
+  if v_tenant is distinct from v_src."org_id" and not ((auth.role() = 'service_role') or false) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
   declare
@@ -11435,7 +11465,7 @@ begin
     end if;
   end;
   select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."task_assignees" ra where ra."task_id" = v_src."id";
-  v_created := "better_supabase"."create_task"(v_src."org_id", jsonb_strip_nulls(jsonb_build_object(
+  v_created := "better_supabase"."create_task"(v_tenant, jsonb_strip_nulls(jsonb_build_object(
     'title', v_src."title",
     'body', v_src."body",
     'parentId', v_src."parent_id",
@@ -11447,7 +11477,7 @@ begin
   )) || (coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
   v_id := (v_created ->> 'id')::uuid;
   insert into "better_supabase"."task_checklist_items" ("org_id", "task_id", "title", "done", "rank")
-  select c."org_id", v_id, c."title", false, c."rank"
+  select v_tenant, v_id, c."title", false, c."rank"
   from "better_supabase"."task_checklist_items" c where c."task_id" = clone_task.source;
   for v_child in select c."id" from "better_supabase"."tasks" c where c."parent_id" = clone_task.source loop
     v_copy := "better_supabase"."clone_task"(v_child, coalesce(clone_task.overrides, '{}'::jsonb) - 'templateId' - 'parentId');

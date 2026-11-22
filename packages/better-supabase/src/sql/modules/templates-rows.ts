@@ -93,14 +93,15 @@ function instantiateSql(
         ? `when ${sqlString(item.type)} then
     return ${fn("template_apply_target")}(instantiate_template.template, instantiate_template.tenant);`
         : `when ${sqlString(item.type)} then
-    ${rowsBranch(ctx, item)}`,
+    ${rowsBranch(ctx, item, fn)}`,
     )
     .join("\n    ");
 
   return `
 -- Creates a record from a template: a body template returns its published
 -- version, a rows template clones its root row into a live record. Writes
--- template_applications either way. templates.apply in tenant.
+-- template_applications either way. templates.apply in tenant, checked before
+-- a rows template is copied, and the copy lands in tenant.
 create or replace function ${fn("instantiate_template")}(template uuid, tenant ${id}, overrides jsonb default null)
 returns jsonb
 language plpgsql
@@ -147,17 +148,22 @@ ${userGrant(`${fn("instantiate_template")}(uuid, ${id}, jsonb)`)}
 `;
 }
 
-function rowsBranch(ctx: BlockSqlContext, item: TemplateType): string {
+function rowsBranch(
+  ctx: BlockSqlContext,
+  item: TemplateType,
+  fn: (name: string) => string,
+): string {
   const table = quoted(item.table ?? "");
   const id = sqlIdent(item.idColumn);
   const template = sqlIdent(item.templateColumn ?? "template_id");
   const templateId = `v_tpl.${ctx.col("templates", "id")}`;
 
-  return `select ${id} into v_source from ${table} r where r.${template} = ${templateId};
+  return `perform ${fn("template_apply_target")}(instantiate_template.template, instantiate_template.tenant);
+    select ${id} into v_source from ${table} r where r.${template} = ${templateId};
     if not found then
       ${fail("TEMPLATE_EMPTY", "This template has no record to copy", "P0002")}
     end if;
-    v_created := ${item.clone}(v_source, v_overrides);
+    v_created := ${item.clone}(v_source, v_overrides || jsonb_build_object('tenantId', instantiate_template.tenant));
     v_subject := ${sqlString(item.subject ?? item.type)};
     v_id := v_created ->> 'id';`;
 }
