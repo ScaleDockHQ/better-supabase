@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:b3b2d26404c554f1f83009719127a27f8991ecc97caaaa3c0955b5aaac2704b0
+-- @bsb-hash sha256:5de88deb2b8692097fd968086b07bee86cc9ba4ad693ca1513c8d78ea4d33c53
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1541,7 +1541,7 @@ begin
     raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
   v_tenant := coalesce(nullif(coalesce(clone_quote.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
-  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or v_src."template_id" is not null) then
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
     raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'quotes.write'), false)) then
@@ -2018,7 +2018,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:271d83d9e91268706257aa2173274eb68998b598f8279c6f3dea713bfb03677c
+-- @bsb-hash sha256:53ba4b0dbac7a2d1787392d0cc21974217695c19e52ac9ef1fb4f2c0c1a0b6bf
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3663,7 +3663,7 @@ begin
     raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
   v_tenant := coalesce(nullif(coalesce(clone_quote.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
-  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or v_src."template_id" is not null) then
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
     raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'quotes.write'), false)) then
@@ -4150,7 +4150,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:135a20ad32c85ecb9345a5424d675f43692aa7889e4bbdfb503fea623abdf3b7
+-- @bsb-hash sha256:debe2859732c7bb612473c76821bb37e50124291158d4b08bf86ccd8f0a01d26
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5695,7 +5695,7 @@ begin
     raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
   v_tenant := coalesce(nullif(coalesce(clone_quote.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
-  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or v_src."template_id" is not null) then
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
     raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'quotes.write'), false)) then
@@ -6172,7 +6172,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:00b37fba162970fed1d761b1dbaf5ae9e516c958046a830eda5b0367d29eea48
+-- @bsb-hash sha256:d342a992c8199e2c787103e830d0b626a48d6958237cd6c29699e4ddd5bcaa45
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7712,7 +7712,7 @@ begin
     raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
   v_tenant := coalesce(nullif(coalesce(clone_quote.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
-  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or v_src."template_id" is not null) then
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
     raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'quotes.write'), false)) then
@@ -8415,7 +8415,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:5c18ae9419bee3f0c670457c4dcc84aa43d5e52dd95c019d38681e3cc8251f9a
+-- @bsb-hash sha256:0db2818efb186f561dd5fed640b419a3a2003bee53cdfe47400cf7fef9e5d69e
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9953,7 +9953,7 @@ begin
     raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
   v_tenant := coalesce(nullif(coalesce(clone_quote.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
-  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or v_src."template_id" is not null) then
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
     raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'quotes.write'), false)) then
@@ -10430,7 +10430,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:284c5b3ed952a94c310cb566dbd57f2192bcf0242c50931ea301898eb06a7ecd
+-- @bsb-hash sha256:069adf545dee31419bc4b54ed1bf9f9a7d7eda8cbc72a1df1681eeaa861de074
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11970,7 +11970,7 @@ begin
     raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
   v_tenant := coalesce(nullif(coalesce(clone_quote.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."org_id");
-  if v_tenant is distinct from v_src."org_id" and not ((auth.role() = 'service_role') or v_src."template_id" is not null) then
+  if v_tenant is distinct from v_src."org_id" and not ((auth.role() = 'service_role') or false) then
     raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'quotes.write'), false)) then

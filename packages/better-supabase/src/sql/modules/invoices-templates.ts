@@ -61,9 +61,10 @@ export function cloneInvoice(
     .map((part) => `${part}, `)
     .join("");
 
-  const owned = ctx.has("invoices", "template")
-    ? `v_src.${i("template")} is not null`
-    : "false";
+  const owned =
+    on && ctx.has("invoices", "template")
+      ? `v_src.${i("template")} is not null`
+      : "false";
 
   const linesTenant = ctx.has("lines", "tenant")
     ? `, ${sqlString(ctx.colName("lines", "tenant"))}, v_tenant`

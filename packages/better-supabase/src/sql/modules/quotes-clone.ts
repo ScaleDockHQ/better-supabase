@@ -55,9 +55,10 @@ export function cloneQuoteSql(
     .map((part) => `${part}, `)
     .join("");
 
-  const owned = ctx.has("quotes", "template")
-    ? `v_src.${q("template")} is not null`
-    : "false";
+  const owned =
+    on && ctx.has("quotes", "template")
+      ? `v_src.${q("template")} is not null`
+      : "false";
 
   const linesTenant = ctx.has("lines", "tenant")
     ? `, ${sqlString(ctx.colName("lines", "tenant"))}, v_tenant`

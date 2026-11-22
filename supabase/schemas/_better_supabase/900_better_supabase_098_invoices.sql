@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:df2ebdd5cf2679216810bce8fb5aa64a2306581fd4f724439955663e99e08dbb
+-- @bsb-hash sha256:3733fb0882fa299ea3bfca9495af0af7f5f5fc3b2bf292c2a1d2c80ed1948120
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4827,7 +4827,7 @@ begin
     raise exception 'no such invoice' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   v_tenant := coalesce(nullif(coalesce(clone_invoice.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
-  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or v_src."template_id" is not null) then
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
     raise exception 'not allowed to change invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'invoices.write'), false)) then
