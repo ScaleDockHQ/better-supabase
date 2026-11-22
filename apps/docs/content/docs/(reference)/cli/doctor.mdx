@@ -2836,6 +2836,12 @@ database or snapshot, they still run; BS634 then names no include, BS635 finds
 no waterfall, and an info finding says so. `--snapshot` also reads the CLI's
 cached snapshot (`node_modules/.cache/better-supabase/snapshot-*.json`).
 
+The three rules match a receiver by its name, such as `db` or `userService`.
+With `typescript` 7.1 or newer installed, doctor asks TypeScript for the type
+of the receiver and drops the read when it is a plain collection such as a
+`Map` or an array. Without it, a run that reports one of the rules adds an info
+finding that says receivers were matched by name only.
+
 ### BS610
 
 **Warning: nested private cache scopes.** A function with

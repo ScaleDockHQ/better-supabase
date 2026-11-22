@@ -37,8 +37,9 @@ The prune, blocks-list, record-types and config-key codemods use it first.
 codemods and the doctor scans take their code ranges from `codeRanges()` in
 `config-document/ranges.ts`, which reads the parse tree, so a regular
 expression, a template literal or JSX text no longer hides code. Those
-codemods still splice text by range; moving them to document rewrites is
-open work.
+codemods now rewrite through the document or `rewriteSource`, and the doctor
+source checks read functions, calls, loops and `Promise.all` entries from the
+tree (ADR 1183 wires the symbol tier into them).
 
 ## Alternatives considered
 

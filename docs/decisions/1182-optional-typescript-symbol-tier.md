@@ -39,6 +39,6 @@ tier is tested against the 7.1 install in `tests/types/ts-7.1` and sits in
 
 ## Consequences
 
-The tier is the base for cross-file renames and receiver-type rules, which move
-onto it one at a time; none does yet. Starting the TypeScript process costs
+The tier is the base for cross-file renames and receiver-type rules, which ADR
+1183 wires in. Starting the TypeScript process costs
 startup time, so the CLI opens it only for an edit that asks.

@@ -64,8 +64,7 @@ This release upgrades from 0.53 only. An app on an older version upgrades to
 ## What it rewrites
 
 Each codemod makes narrow, mechanical renames. It reads the source with a
-small scanner that skips strings, template literals and comments, so a name
-in a message or a comment stays as it is.
+parser, so a name in a string, a template literal or a comment stays as it is.
 
 - **Imports.** A renamed export imported from `better-supabase` or one of its
   subpaths is renamed in the import and wherever the file uses it. An aliased
@@ -84,6 +83,15 @@ symbol is used and declared, so an edit reaches every file that uses it. The
 CLI starts it only for an edit that needs it, and works from the version in
 your own `node_modules`. With an older TypeScript, or none, each codemod works
 file by file and lists the places a symbol leaves its file as review lines.
+
+- **Re-exports.** `codemod naming` renames a name your app re-exports
+  (`export { old } from "better-supabase"`) and the files that import it from
+  there. Without TypeScript 7.1 the re-export gets a review line and its
+  importers stay as they are.
+- **Imported config values.** `codemod config` removes a `columns` entry from
+  the file that declares a value the config imports (`blocks: sharedBlocks`).
+  Without TypeScript 7.1 a review line lists the imported values to edit by
+  hand.
 
 ## What it leaves for you
 
