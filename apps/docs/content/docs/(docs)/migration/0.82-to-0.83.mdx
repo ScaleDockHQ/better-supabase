@@ -32,6 +32,7 @@ pnpm better-supabase gen sql
 | [Record types](#record-types)                                             | Run `codemod record-types`                                                                |
 | [Table facts in comments](#table-facts-in-comments)                       | Run `codemod table-tags`                                                                  |
 | [Optional columns](#optional-columns)                                     | Declare `startPart`, `endPart` or `confidential` columns, or run `codemod config --prune` |
+| [Block names first](#block-names-first)                                   | Optional: run `codemod adopt-names --table <block>.<table>`, or tag the table             |
 | [Schemas by module reference](#schemas-by-module-reference)               | None                                                                                      |
 | [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`                                                             |
 
@@ -275,6 +276,25 @@ no longer read for leave: `startPart` and `endPart` switch the parts of the day 
 `codemod config --prune` also drops an entry that repeats the convention's name. Other modules
 still read their entries (catalog, invoices, profiles, webhooks); they convert one at a time.
 The reasons are in [ADR 1184](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1184-optional-columns-follow-the-table.md).
+
+## Block names first
+
+A block can create its table under its own names while your schema files extend it, and an app
+that keeps its names can say so in a comment. Nothing breaks: a `tables` or `columns` entry still
+works and wins over a tag. The generated `fields` now carry the columns your files add for every
+block, memberships included.
+
+| 0.82                                                          | 0.83                                                                          |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `tables: { memberships: "public.seats" }`                     | `comment on table public.seats is '@bsb block-table=memberships.memberships'` |
+| `columns: { memberships: { tenant: "organization_id" } }`     | `comment on column public.seats.organization_id is '@bsb column=tenant'`      |
+| rename the table by hand and edit the config                  | `codemod adopt-names --table memberships.memberships`                         |
+| a block without a legacy `extraColumns` table had no `fields` | the first table of the block your files extend gives them                     |
+
+`adopt-names` renames one table per run, writes the rename migration, rewrites the statements of
+your schema files that name the table and removes its `tables` and `columns` entries. It refuses a
+table outside the block's schema, and a `values` entry stays. See
+[ADR 1185](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1185-base-first-tables.md).
 
 ## Schemas by module reference
 
