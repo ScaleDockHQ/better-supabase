@@ -19,6 +19,11 @@ import {
 import { batchSql } from "./imports-batch.ts";
 import { chunkFunctions, chunkTable } from "./imports-chunks.ts";
 import { importContract as contract } from "./imports-contract.ts";
+import {
+  dryRunCleanup,
+  dryRunIssues,
+  recordPrefetch,
+} from "./imports-dry-run.ts";
 import { hashFunctions } from "./imports-hashes.ts";
 import { eventsPolicyOf, importIntegritySql } from "./imports-integrity.ts";
 import {
@@ -261,10 +266,18 @@ ${writeArms}
     x("subjectId"),
   );
 
+  const prefetch = recordPrefetch(ctx, records);
+
   const queue = ctx.enqueue(
     "imports",
     `jsonb_build_object('run', v_run.${r("id")}, 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk)`,
     `v_run.${r("id")}::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text`,
+  );
+
+  const retryQueue = ctx.enqueue(
+    "imports",
+    `jsonb_build_object('run', v_run.${r("id")}, 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk)`,
+    `v_run.${r("id")}::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text || ':retry:' || extract(epoch from clock_timestamp())::text`,
   );
 
   const bumped = (key: string): string =>
@@ -407,6 +420,7 @@ begin
   end if;
   update ${runs} r set ${r("status")} = ${ctx.cast("runs", "status", "'canceled'")}, ${r("finishedAt")} = now()
   where r.${r("id")} = cancel_import_run.id;
+${dryRunCleanup(ctx)}
 ${refreshRun("cancel_import_run.id")}  return true;
 end;
 $$;
@@ -524,7 +538,7 @@ declare
   v_issue text;
   v_message text;
   v_hint text;
-${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] := '{}';\n  v_pending_keys text[] := '{}';\n  v_raw jsonb;\n  v_results jsonb[];\n  v_p jsonb;\n  v_i integer;\n"}begin
+${prefetch.declare}${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] := '{}';\n  v_pending_keys text[] := '{}';\n  v_raw jsonb;\n  v_results jsonb[];\n  v_p jsonb;\n  v_i integer;\n"}begin
   select * into v_run from ${runs} r where r.${r("id")} = v_run_id;
   if v_entity <> all (${known}) then
     ${fail("IMPORT_TARGET_UNKNOWN", "no import target for this entity", "22023")}
@@ -534,6 +548,7 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
   end if;
 
   v_ref_map := ${resolvedRefs.map};
+  ${prefetch.load}
 
   for v_item in
     select e.value from jsonb_array_elements(v_items) e
@@ -560,10 +575,7 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
 
     begin
       v_done := false;
-      select * into v_rec from ${records} x
-      where x.${x("tenant")} = v_run.${r("tenant")} and x.${x("source")} = v_run.${r("source")} and x.${x("scope")} = v_scope
-        and x.${x("entity")} = v_entity and x.${x("externalKey")} = v_key and x.${x("role")} = 'primary';
-      v_found := found;
+      ${prefetch.lookup}
       v_source_at := nullif(v_item ->> 'sourceUpdatedAt', '')::timestamptz;
       if v_found and v_source_at is not null and v_rec.${x("sourceUpdatedAt")} is not null and v_source_at <= v_rec.${x("sourceUpdatedAt")} then
         v_unchanged := v_unchanged + 1;
@@ -727,6 +739,7 @@ declare
   v_entity text := import_upsert_batch.entity;
   v_run ${runs};
   v_result jsonb;
+  v_row jsonb;
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
@@ -767,6 +780,7 @@ ${searchDeferral ? "  perform set_config('better_supabase.search_deferred', 'on'
   else
     v_result := ${ctx.fn("import_apply_batch")}(v_run_id, v_entity, import_upsert_batch.items);
   end if;
+${dryRunIssues(ctx)}
 
   foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     perform set_config(v_name, v_previous ->> v_name, true);
@@ -976,6 +990,7 @@ as $$
 declare
   v_run ${runs};
   v_chunk integer;
+  v_failed integer[];
 begin
   select * into v_run from ${runs} r where r.${r("id")} = enqueue_import_chunks.run;
   if not found then
@@ -984,8 +999,20 @@ begin
   if enqueue_import_chunks.chunks is null or enqueue_import_chunks.chunks < 1 then
     ${fail("IMPORT_ITEM_INVALID", "chunks must be at least 1", "22023")}
   end if;
+  select coalesce(array_agg(x.${ctx.col("chunks", "chunk")}), '{}') into v_failed from ${ctx.table("chunks")} x
+  where x.${ctx.col("chunks", "run")} = enqueue_import_chunks.run and x.${ctx.col("chunks", "entity")} = enqueue_import_chunks.entity
+    and x.${ctx.col("chunks", "status")} = 'failed';
+  -- A failed chunk goes back to pending, with a new job, so a retry reaches it.
+  update ${ctx.table("chunks")} x set ${ctx.col("chunks", "status")} = 'pending', ${ctx.col("chunks", "claimedAt")} = null,
+    ${ctx.col("chunks", "doneAt")} = null, ${ctx.col("chunks", "result")} = null
+  where x.${ctx.col("chunks", "run")} = enqueue_import_chunks.run and x.${ctx.col("chunks", "entity")} = enqueue_import_chunks.entity
+    and x.${ctx.col("chunks", "status")} = 'failed';
   for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
-    ${queue}
+    if v_chunk = any (v_failed) then
+      ${retryQueue}
+    else
+      ${queue}
+    end if;
   end loop;
   return enqueue_import_chunks.chunks;
 end;

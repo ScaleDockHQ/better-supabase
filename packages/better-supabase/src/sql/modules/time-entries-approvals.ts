@@ -353,6 +353,8 @@ export const TIME_ENTRIES_CONTRIBUTES: BlockContributes = {
             `perform ${own.fn("timesheet_approval_decided")}(${subjectUuid(subjectId)}, true, ${comment}, ${approver});`,
           reject: ({ subjectId, comment, approver }) =>
             `perform ${own.fn("timesheet_approval_decided")}(${subjectUuid(subjectId)}, false, ${comment}, ${approver});`,
+          cancel: ({ subjectId }) =>
+            `perform ${own.fn("timesheet_approval_cancelled")}(${subjectUuid(subjectId)});`,
           ...timesheetDecider(own),
         },
       ];

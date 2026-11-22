@@ -19,7 +19,7 @@ import type {
   VectorSearchConfig,
 } from "./types/database.ts";
 import type { EntitlementsConfig } from "./types/entitlements.ts";
-import type { AppTablesInput } from "./types/groups.ts";
+import type { AppTablesInput, BlocksInput } from "./types/groups.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { tenantNames } from "../core/entity-naming.ts";
@@ -28,7 +28,7 @@ import { expandFlatPreset, expandPreset } from "../preset/config.ts";
 import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
 import { withBlockSubjects } from "./block-subjects.ts";
-import { tenantNameOf } from "./blocks.ts";
+import { tenantNameOf, withColumnNames } from "./blocks.ts";
 import { CONFIG_DEFAULTS } from "./defaults.ts";
 import {
   isFunctionKey,
@@ -36,7 +36,12 @@ import {
   resolveExposeFunction,
 } from "./expose.ts";
 import { flattenConfig } from "./groups.ts";
-import { blocksByName, resolveInstances } from "./instances.ts";
+import {
+  blocksByName,
+  normalizeBlocks,
+  resolveInstances,
+} from "./instances.ts";
+import { withRecordTypeAliases } from "./record-aliases.ts";
 
 function entitlementsOf(
   config: EntitlementsConfig = {},
@@ -96,16 +101,16 @@ function vectorSearchOf(
  * templates instead of the built-in roles.
  */
 function isBlockNames(
-  blocks: NonNullable<BetterSupabaseConfig["blocks"]>,
+  blocks: NonNullable<FlatConfig["blocks"]>,
 ): blocks is readonly string[] {
   return Array.isArray(blocks);
 }
 
 /** `blocks` with `name` added as an empty entry, unchanged when it is there. */
 function withBlock(
-  blocks: BetterSupabaseConfig["blocks"],
+  blocks: FlatConfig["blocks"],
   name: string,
-): BetterSupabaseConfig["blocks"] {
+): FlatConfig["blocks"] {
   if (blocks === undefined) {
     return [name];
   }
@@ -123,9 +128,9 @@ function withBlock(
  * the search functions need no `blocks` entry of their own.
  */
 function withVectorSearch(
-  blocks: BetterSupabaseConfig["blocks"],
+  blocks: FlatConfig["blocks"],
   vectorSearch: Readonly<Record<string, VectorSearchConfig>> | undefined,
-): BetterSupabaseConfig["blocks"] {
+): FlatConfig["blocks"] {
   if (vectorSearch === undefined || Object.keys(vectorSearch).length === 0) {
     return blocks;
   }
@@ -139,9 +144,9 @@ function withVectorSearch(
  * alone does not install it, since templates exist with or without the block.
  */
 function withNotifications(
-  blocks: BetterSupabaseConfig["blocks"],
+  blocks: FlatConfig["blocks"],
   config: Pick<FlatConfig, "gen">,
-): BetterSupabaseConfig["blocks"] {
+): FlatConfig["blocks"] {
   const named =
     config.gen?.powersync?.instances.includes("notifications") === true ||
     config.gen?.clientBlocks?.includes("notifications") === true;
@@ -150,12 +155,26 @@ function withNotifications(
 }
 
 function blocksOf(
-  blocks: BetterSupabaseConfig["blocks"],
+  blocks: FlatConfig["blocks"],
   sql: SqlConfig = {},
   provider: boolean,
-): Pick<ResolvedConfig, "blocks" | "blockNames" | "instances"> {
+): Pick<
+  ResolvedConfig,
+  "blocks" | "blockNames" | "instances" | "restatedDefaults"
+> {
+  const raw = resolveInstances(blocks ?? []);
+
+  const restatedDefaults = Object.entries(raw).flatMap(([name, instance]) => [
+    ...(sql.api !== undefined && instance.config.api === sql.api
+      ? [{ block: name, key: "api" as const }]
+      : []),
+    ...(sql.audit !== undefined && instance.config.audit === sql.audit
+      ? [{ block: name, key: "audit" as const }]
+      : []),
+  ]);
+
   const instances = Object.fromEntries(
-    Object.entries(resolveInstances(blocks ?? [])).map(([name, instance]) => [
+    Object.entries(raw).map(([name, instance]) => [
       name,
       { ...instance, config: withSqlDefaults(instance.config, sql) },
     ]),
@@ -169,6 +188,7 @@ function blocksOf(
     Array.isArray(blocks) &&
     sql.schema === undefined &&
     sql.api === undefined &&
+    sql.audit === undefined &&
     sql.ownTablePolicies === undefined &&
     sql.tenantScope === undefined
       ? {}
@@ -179,7 +199,7 @@ function blocksOf(
     !blockNames.includes("permissions") ||
     resolved.permissions?.model !== undefined
   ) {
-    return { blocks: resolved, blockNames, instances };
+    return { blocks: resolved, blockNames, instances, restatedDefaults };
   }
 
   return {
@@ -189,6 +209,7 @@ function blocksOf(
     },
     blockNames,
     instances,
+    restatedDefaults,
   };
 }
 
@@ -197,12 +218,13 @@ function blocksOf(
  * block's `api: false` keeps it out of the API schema.
  */
 function withSqlDefaults(block: BlockConfig, sql: SqlConfig): BlockConfig {
-  const { schema, api, ownTablePolicies, tenantScope } = sql;
+  const { schema, api, audit, ownTablePolicies, tenantScope } = sql;
 
   return {
-    ...block,
+    ...withColumnNames(block),
     ...(schema === undefined || block.schema !== undefined ? {} : { schema }),
     ...(api === undefined || block.api !== undefined ? {} : { api }),
+    ...(audit === undefined || block.audit !== undefined ? {} : { audit }),
     ...(ownTablePolicies === undefined || block.ownTablePolicies !== undefined
       ? {}
       : { ownTablePolicies }),
@@ -215,11 +237,12 @@ function withSqlDefaults(block: BlockConfig, sql: SqlConfig): BlockConfig {
 function blockDefaultsOf(sql: SqlConfig = {}): {
   readonly blockDefaults?: SqlBlockDefaults;
 } {
-  const { schema, api, ownTablePolicies, tenantScope } = sql;
+  const { schema, api, audit, ownTablePolicies, tenantScope } = sql;
 
   const defaults: SqlBlockDefaults = {
     ...(schema === undefined ? {} : { schema }),
     ...(api === undefined ? {} : { api }),
+    ...(audit === undefined ? {} : { audit }),
     ...(ownTablePolicies === undefined ? {} : { ownTablePolicies }),
     ...(tenantScope === undefined ? {} : { tenantScope }),
   };
@@ -400,7 +423,17 @@ export function resolveConfig(
   input: ResolveInput,
   root: string,
 ): ResolvedConfig {
-  const config = expandFlatPreset(flattenConfig(input));
+  const listed = normalizeBlocks(input.blocks);
+
+  // SAFETY: normalizeBlocks returns the keyed map or a name list.
+  const keyed = listed as BlocksInput | undefined;
+
+  const config = withRecordTypeAliases(
+    expandFlatPreset(
+      flattenConfig(keyed === undefined ? input : { ...input, blocks: keyed }),
+    ),
+  );
+
   const frameworks = frameworkRegistry(config.frameworks);
   const output = config.file ?? CONFIG_DEFAULTS.output;
   const tenantName = tenantNameOf(config.blocks);
@@ -503,6 +536,7 @@ export function resolveConfig(
       ...(config.sql?.tenantColumn === undefined
         ? {}
         : { tenantColumn: config.sql.tenantColumn }),
+      ...(config.sql?.brand === undefined ? {} : { brand: config.sql.brand }),
       ...blockDefaultsOf(config.sql),
     },
     ...(config.preset === undefined ? {} : { preset: config.preset }),

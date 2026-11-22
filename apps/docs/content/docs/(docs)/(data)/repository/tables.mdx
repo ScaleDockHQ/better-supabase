@@ -39,26 +39,40 @@ quote a value that holds spaces. A table has one tag per name, and a config
 key of the same meaning wins over the tag. `better-supabase table <name>
 enable <feature>` writes a tag for you (see [table](/docs/cli/table)).
 
-| Tag                 | What it does                                                                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `subject`           | Registers the table as a subject type: comments, tags, search, versions and the other blocks reach it.                                                  |
-| `realtime`          | Adds the table to the realtime publication and registry.                                                                                                |
-| `audit`             | Writes a row to the audit log for each change.                                                                                                          |
-| `audit-reads`       | Audits reads of the table's sensitive columns.                                                                                                          |
-| `filled-by-trigger` | Names columns a trigger fills, so an insert may leave them out (the same as `tables.<t>.insertOptional`): `@bsb filled-by-trigger created_by owner_id`. |
-| `append-only`       | Refuses update, delete and truncate for every role.                                                                                                     |
-| `function-writes`   | Removes the Data API write privileges, so rows arrive through security definer functions.                                                               |
-| `chain`             | Links each inserted row to the previous one with a hash, per `organization_id` when the table has it.                                                   |
-| `template`          | Adds `template_id` and `source_template_id`, and refuses a row switching between a template and a live record. Needs the templates block.               |
-| `vector-search`     | Keeps an embedding column and its index.                                                                                                                |
-| `json`              | Types the table's jsonb columns, `json meta=Type`.                                                                                                      |
-| `expose`            | Exposes the table through the Data API.                                                                                                                 |
-| `encrypted`         | Names the columns stored with field encryption, `encrypted diagnosis=text birth_date=date`.                                                             |
-| `lookup`            | Names the encrypted columns that keep a lookup hash for equality searches, `lookup bsn email`.                                                          |
-| `server`            | Names the columns signed-in users can't select, so `gen` types them as not selectable.                                                                  |
-| `search`            | Adds a stored `search_tsv` tsvector column and a GIN index, `search columns="name, notes"`.                                                             |
-| `events`            | Writes `<type>.created`, `.updated` and `.deleted` to the outbox, `events include="status, project_id"`.                                                |
-| `embedding`         | Keeps a vector column current from text columns, `embedding content=title,body dimensions=1536`.                                                        |
+| Tag                 | What it does                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `subject`           | Registers the table as a subject type: comments, tags, search, versions and the other blocks reach it.                                                                   |
+| `realtime`          | Adds the table to the realtime publication and registry.                                                                                                                 |
+| `audit`             | Writes a row to the audit log for each change.                                                                                                                           |
+| `audit-reads`       | Audits reads of the table's sensitive columns.                                                                                                                           |
+| `filled-by-trigger` | Names columns a trigger fills, so an insert may leave them out (the same as `tables.<t>.insertOptional`): `@bsb filled-by-trigger created_by owner_id`.                  |
+| `append-only`       | Refuses update, delete and truncate for every role.                                                                                                                      |
+| `function-writes`   | Removes the Data API write privileges, so rows arrive through security definer functions.                                                                                |
+| `chain`             | Links each inserted row to the previous one with a hash, per `organization_id` when the table has it.                                                                    |
+| `template`          | Adds `template_id` and `source_template_id`, and refuses a row switching between a template and a live record. Needs the templates block.                                |
+| `vector-search`     | Keeps an embedding column and its index.                                                                                                                                 |
+| `json`              | Types the table's jsonb columns, `json meta=Type`.                                                                                                                       |
+| `audit-exempt`      | Leaves the table out of the audit coverage check (doctor BS315), `audit-exempt reason="rebuilt nightly"`. The reason is required.                                        |
+| `data-lifecycle`    | Adds the table to data exports and the purge, `data-lifecycle user=owner_id tenant=organization_id export=false purge=false omit=notes`. Needs the data-lifecycle block. |
+| `grant`             | Sets the Data API privileges per role, `grant authenticated="select,update(title)" anon=select service-role=select`. The `grants` module writes them.                    |
+| `expose`            | Exposes the table through the Data API.                                                                                                                                  |
+| `encrypted`         | Names the columns stored with field encryption, `encrypted diagnosis=text birth_date=date`.                                                                              |
+| `lookup`            | Names the encrypted columns that keep a lookup hash for equality searches, `lookup bsn email`.                                                                           |
+| `server`            | Names the columns signed-in users can't select, so `gen` types them as not selectable.                                                                                   |
+| `search`            | Adds a stored `search_tsv` tsvector column and a GIN index, `search columns="name, notes"`.                                                                              |
+| `events`            | Writes `<type>.created`, `.updated` and `.deleted` to the outbox, `events include="status, project_id"`.                                                                 |
+| `embedding`         | Keeps a vector column current from text columns, `embedding content=title,body dimensions=1536`.                                                                         |
+
+A column comment can carry `same-tenant`, on a column with a single-column
+foreign key to another tenant table: `comment on column tasks.project_id is
+'@bsb same-tenant match=region=region'`. It replaces the check
+`sameTenant.auto` derives for that column. `match`, `through` and `where` take
+the forms of the `sameTenant` entries, and `same-tenant=false` drops the check.
+A tag replaces every entry for its column, derived or listed in
+`blocks.memberships.options.sameTenant`. A config entry for the same table wins
+over a `data-lifecycle` or `grant` tag, and
+[`codemod table-tags`](/docs/cli/codemod) moves the config entries into
+comments.
 
 ### The subject tag
 
@@ -67,6 +81,7 @@ enable <feature>` writes a tag for you (see [table](/docs/cli/table)).
 | Argument                                                      | Meaning                                                                                                         |
 | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `id`, `id-type`                                               | The id column and its type (`uuid` by default).                                                                 |
+| `blocks`                                                      | Blocks that take the type, such as `blocks=tags,time-entries`, so their `on` need not repeat it.                |
 | `tenant`                                                      | The tenant column, or `false` for a table with none.                                                            |
 | `title`, `url`                                                | The title column and the URL template, `/projects/{id}`.                                                        |
 | `scope`, `cascade`                                            | A provider scope whose ids are this subject's ids, and whether deleting the row deletes the module rows for it. |

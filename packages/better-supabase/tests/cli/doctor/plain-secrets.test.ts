@@ -208,6 +208,41 @@ describe("BS352", () => {
     expect(unlisted).toHaveLength(1);
   });
 
+  it("skips a trigger whose function body calls better_supabase.field_seal, with no sealTriggers entry", async () => {
+    const sealed = await run(
+      { blocks: ["field-encryption"] },
+      withIntegrations({ access_token: "text" }, [SEAL]),
+      [
+        {
+          path: "supabase/schemas/seal.sql",
+          text: `create function public.seal_secret_fields() returns trigger language plpgsql as $$
+begin
+  new.access_token := better_supabase.field_seal(new.access_token, 'k');
+  return new;
+end $$;`,
+        },
+      ],
+    );
+
+    expect(sealed).toEqual([]);
+
+    const unrelated = await run(
+      { blocks: ["field-encryption"] },
+      withIntegrations({ access_token: "text" }, [SEAL]),
+      [
+        {
+          path: "supabase/schemas/seal.sql",
+          text: `create function public.seal_secret_fields() returns trigger language plpgsql as $$
+begin
+  return new; -- better_supabase.field_seal( is not called here
+end $$;`,
+        },
+      ],
+    );
+
+    expect(unrelated).toHaveLength(1);
+  });
+
   it("leaves BS352 quiet without a block that keeps secrets out of the row", async () => {
     const findings = await run({}, withIntegrations(COLUMNS));
 

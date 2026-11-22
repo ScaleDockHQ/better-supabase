@@ -128,6 +128,27 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       import("./commands/codemod.ts").then((m) => m.codemodCommand("naming")),
   ],
   [
+    "codemod record-types",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("record-types"),
+      ),
+  ],
+  [
+    "codemod table-tags",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("table-tags"),
+      ),
+  ],
+  [
+    "codemod doctor-baseline",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("doctor-baseline"),
+      ),
+  ],
+  [
     "codemod extra-columns",
     () =>
       import("./commands/codemod.ts").then((m) =>
@@ -145,6 +166,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     "codemod config",
     () =>
       import("./commands/codemod.ts").then((m) => m.codemodCommand("config")),
+  ],
+  [
+    "codemod blocks-list",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("blocks-list"),
+      ),
   ],
   [
     "codemod table-modules",

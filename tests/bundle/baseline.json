@@ -208,7 +208,7 @@
   "./cache-postgres/astro": 10608,
   "./chat-sdk": 45171,
   "./claims": 18421,
-  "./cli": 850977,
+  "./cli": 896639,
   "./client": 86553,
   "./client/native": 99802,
   "./commerce": 30639,
@@ -263,7 +263,7 @@
   "./plugins": 1712,
   "./postgres": 38652,
   "./powersync": 106445,
-  "./preset": 172786,
+  "./preset": 181503,
   "./query": 29624,
   "./rate-limit": 28687,
   "./react": 91084,
@@ -308,5 +308,5 @@
   "./workflow-sdk/world": 82761,
   "./yjs": 32083,
   "better-supabase CLI (startup)": 33956,
-  "content mapper (startup)": 162921
+  "content mapper (startup)": 172102
 }

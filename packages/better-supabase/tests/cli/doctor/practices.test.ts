@@ -41,6 +41,45 @@ create policy "u" on public.notes for update using (true);`),
     ).toEqual([]);
   });
 
+  it("BS365 normalizes table names, reads a policy with no for clause as all, reads every file and targets the table", () => {
+    expect(
+      codes(`create policy "u" on "public"."Notes" for update using (true);
+create policy "s" on Notes for select using (true);`),
+    ).toEqual([]);
+    expect(
+      codes(`create policy "u" on public.notes for update using (true);
+create policy "a" on public.notes using (true);`),
+    ).toEqual([]);
+
+    const files = [
+      {
+        path: "supabase/schemas/a.sql",
+        text: `create policy "u" on public.notes for update using (true);`,
+      },
+      {
+        path: "supabase/schemas/b.sql",
+        text: `create policy "s" on public.notes for select using (true);`,
+      },
+    ];
+
+    // SAFETY: the rule reads only `sqlFiles` and `config`.
+    const context = {
+      sqlFiles: files,
+      config: resolveConfig(
+        { database: { sql: { workflow: "migrations" } } },
+        "/p",
+      ),
+      configToml: undefined,
+    } as unknown as DoctorContext;
+
+    const rule = PRACTICE_RULES.find((entry) => entry.code === "BS365")!;
+
+    expect(rule.check(context)).toEqual([]);
+    expect(
+      rule.check({ ...context, sqlFiles: files.slice(0, 1) }),
+    ).toMatchObject([{ target: "notes" }]);
+  });
+
   it("BS366 flags user_metadata in a policy", () => {
     expect(
       codes(

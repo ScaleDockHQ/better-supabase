@@ -101,6 +101,15 @@ source). `rebase_import_records(tenant, source, entities, keys)` copies the
 current stamp and hash onto the stored row. An entity without a target fails
 the batch with `IMPORT_TARGET_UNKNOWN`.
 
+A target whose functions follow a naming convention is written as a bare entity
+name: `targets: ["invoice"]`, or `invoice: true` next to full entries. The
+target then writes through `public.import_invoice`, adds
+`public.import_invoice_updated_at` as `updatedAt` when the app's schema files
+create it, and takes `subjectType` from the record type `invoice`. Set
+`options.targetConvention` (`{ schema, write, updatedAt }`, with `{entity}` in
+the two templates) to change the convention. An entry that sets a key itself,
+such as `invoice: { replaces: true }`, keeps its value over the convention.
+
 `replaces: true` swaps a block's target for the app's `write` of the same
 entity. The batch loop, the hash and the record map stay the library's, so a
 later library change to that loop still runs. `before` and `after` name

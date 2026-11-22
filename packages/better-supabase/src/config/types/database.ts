@@ -64,6 +64,11 @@ export interface SqlConfig {
    */
   readonly api?: string;
   /**
+   * Whether blocks write their actions to the audit log, unless
+   * `blocks.<name>.audit` sets its own. Defaults to `true`.
+   */
+  readonly audit?: boolean;
+  /**
    * Who a block's rows belong to, unless `blocks.<name>.owner` sets its own:
    * `tenant` (a tenant, checked through the access contract; the default),
    * `user` (the signed-in user, with no tenants) or `none` (one shared space
@@ -83,6 +88,15 @@ export interface SqlConfig {
    */
   readonly tenantScope?: TenantScopeConfig;
   readonly tenantColumn?: string;
+  /**
+   * Where a tenant's brand lives, for every block with an `options.brand`
+   * (templates, option sets, pipelines). A block's own `brand` overrides it.
+   */
+  readonly brand?: {
+    readonly table: string;
+    readonly column: string;
+    readonly tenant?: string;
+  };
 }
 
 /** `sql` with defaults applied. */
@@ -96,8 +110,18 @@ export interface ResolvedSqlConfig {
   readonly scope?: BlockScope;
   readonly tenantColumn?: string;
   /**
-   * `schema`, `api`, `ownTablePolicies` and `tenantScope` as the config sets
-   * them, for blocks added after the config was resolved. Unset without any.
+   * Where a tenant's brand lives, for every block with an `options.brand`
+   * (templates, option sets, pipelines). A block's own `brand` overrides it.
+   */
+  readonly brand?: {
+    readonly table: string;
+    readonly column: string;
+    readonly tenant?: string;
+  };
+  /**
+   * `schema`, `api`, `audit`, `ownTablePolicies` and `tenantScope` as the
+   * config sets them, for blocks added after the config was resolved. Unset
+   * without any.
    */
   readonly blockDefaults?: SqlBlockDefaults;
 }
@@ -105,7 +129,7 @@ export interface ResolvedSqlConfig {
 /** The `sql` keys every block takes unless it sets its own. */
 export type SqlBlockDefaults = Pick<
   SqlConfig,
-  "schema" | "api" | "ownTablePolicies" | "tenantScope"
+  "schema" | "api" | "audit" | "ownTablePolicies" | "tenantScope"
 >;
 
 export interface SeedConfig {

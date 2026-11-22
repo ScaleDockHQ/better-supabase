@@ -449,6 +449,29 @@ begin
 end;
 $$;
 revoke execute on function ${fn("timesheet_approval_decided")}(uuid, boolean, text, uuid) from public, anon, authenticated;
+
+-- Applies the cancellation of a week's approval request (cancel_approval): a
+-- submitted week is open again, as withdraw_timesheet leaves it. It isn't
+-- granted to anyone.
+create or replace function ${fn("timesheet_approval_cancelled")}(timesheet_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_sheet ${timesheets}%rowtype;
+begin
+  update ${timesheets} s set ${t("status")} = ${value("open")}, ${t("submittedAt")} = null${clearDecision}
+    where s.${t("id")} = timesheet_approval_cancelled.timesheet_id and ${is("s", ["submitted"])}
+    returning * into v_sheet;
+  if not found then
+    return;
+  end if;
+  ${timesheetRecord("timesheet.withdrawn", "v_sheet", "withdrew a timesheet")}
+end;
+$$;
+revoke execute on function ${fn("timesheet_approval_cancelled")}(uuid) from public, anon, authenticated;
 `
   }${decision("reject_timesheet", "rejected", "timesheet.rejected", "rejected a timesheet")}
 -- Unlocks an approved or rejected week so its entries can change and it can

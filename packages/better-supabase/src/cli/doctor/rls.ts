@@ -23,6 +23,10 @@ export const escape = (name: string): string =>
 export const withoutStrings = (text: string): string =>
   text.replaceAll(/'(?:[^']|'')*'/g, "''");
 
+/** SQL text without comments, which can name a call without making it. */
+export const withoutComments = (text: string): string =>
+  text.replaceAll(/--[^\n]*|\/\*[\s\S]*?\*\//g, " ");
+
 const functionName = (fn: Pick<ExtrasFunction, "schema" | "name">): string =>
   `${fn.schema}.${fn.name}`;
 
@@ -225,6 +229,36 @@ interface GrantColumn {
  * that creates it.
  */
 export function functionBody(
+  context: DoctorContext,
+  schema: string,
+  name: string,
+): string | undefined {
+  let cache = bodiesByContext.get(context);
+
+  if (!cache) {
+    cache = new Map();
+    bodiesByContext.set(context, cache);
+  }
+
+  const key = `${schema}.${name}`;
+
+  if (!cache.has(key)) {
+    cache.set(key, findFunctionBody(context, schema, name));
+  }
+
+  return cache.get(key);
+}
+
+/**
+ * Bodies by `schema.name`; a lookup scans every SQL file, and callers repeat it
+ * per statement.
+ */
+const bodiesByContext = new WeakMap<
+  DoctorContext,
+  Map<string, string | undefined>
+>();
+
+function findFunctionBody(
   context: DoctorContext,
   schema: string,
   name: string,

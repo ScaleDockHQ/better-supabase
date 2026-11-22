@@ -40,6 +40,10 @@ before committing:
 - Keep `permissions` sorted, and update the functions in `000_centrakit.sql`
   when a key or a role grant changes.
 
+The snapshot also names the 0.82 fields `isApprover`, `approverFor`, `managedUsers` and `canIn`.
+`src/provider-fields.test.ts` checks their placeholders and `requires` entries, and calls the
+functions on the live schema.
+
 CentraKit's permission catalog tables (`permissions`, `role_permissions` and
 the per-organization overrides) are not in the fixture. The provider owns
 those decisions, so the tests that used to edit overrides now check the

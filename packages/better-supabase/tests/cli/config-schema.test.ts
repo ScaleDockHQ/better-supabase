@@ -184,14 +184,15 @@ describe("configIssues", () => {
   it("accepts search columns on a block entity's names", () => {
     expect(
       configIssues({
-        blocks: {
-          contacts: {
+        blocks: [
+          {
+            block: "contacts",
             names: {
               company: { search: { title: "name", body: ["domain"] } },
               person: { search: false },
             },
           },
-        },
+        ],
       }),
     ).toEqual([]);
   });
@@ -263,27 +264,35 @@ describe("configIssues", () => {
   it("takes the access keys only under blocks.permissions", () => {
     expect(
       configIssues({
-        blocks: {
-          permissions: { model: "catalog", activeTenant: "claim" },
-          organizations: { options: { ownerRole: "owner" } },
-        },
+        blocks: [
+          { block: "permissions", model: "catalog", activeTenant: "claim" },
+          { block: "organizations", options: { ownerRole: "owner" } },
+        ],
       }),
     ).toEqual([]);
     expect(
-      configIssues({ blocks: { organizations: { model: "catalog" } } }),
-    ).toEqual([
-      expect.stringMatching(/^blocks\.organizations\.model: Invalid key/),
+      configIssues({ blocks: [{ block: "organizations", model: "catalog" }] }),
+    ).toEqual([expect.stringMatching(/^blocks\.0\.model: Invalid key/)]);
+  });
+
+  it("refuses the object keyed by block name and names the codemod", () => {
+    expect(configIssues({ blocks: { organizations: {} } })).toEqual([
+      expect.stringContaining("codemod blocks-list"),
     ]);
   });
 
   it("refuses the removed ownership adopt", () => {
     expect(
-      configIssues({ blocks: { organizations: { ownership: "adopt" } } }),
+      configIssues({
+        blocks: [{ block: "organizations", ownership: "adopt" }],
+      }),
     ).toEqual([
-      'blocks.organizations.ownership: ownership "adopt" was removed: a block now leaves alone every table your schema already has. Delete the key, or run `better-supabase codemod`.',
+      'blocks.0.ownership: ownership "adopt" was removed: a block now leaves alone every table your schema already has. Delete the key, or run `better-supabase codemod`.',
     ]);
     expect(
-      configIssues({ blocks: { organizations: { ownership: "custom" } } }),
+      configIssues({
+        blocks: [{ block: "organizations", ownership: "custom" }],
+      }),
     ).toEqual([]);
   });
 });
@@ -344,7 +353,7 @@ describe("configIssues for authorization", () => {
     ).toEqual([]);
     expect(
       configIssues({
-        blocks: { permissions: { scopes: { "mcp:read": ["*"] } } },
+        blocks: [{ block: "permissions", scopes: { "mcp:read": ["*"] } }],
       }),
     ).toEqual([]);
     expect(

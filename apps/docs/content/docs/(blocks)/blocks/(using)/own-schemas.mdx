@@ -1278,6 +1278,13 @@ meaning that the block does not add the column.
 
 `sql.tenantColumn` fills the tenant column of every block table. An entry such
 as `columns.teams.tenant: "org_id"` that repeats it is an error for the same
-reason. Add the columns the block should read and write as fields to the table
+reason. The same column is the default tenant column of a numbering entity,
+a data-lifecycle table or `autoTables`, a tags link table that has it, and an
+`@bsb access` or `@bsb list` tag without `tenant=`. `sql.audit` and `sql.api`
+fill the `audit` and `api` of every block entry that sets none, and
+`sql.brand: { table, column, tenant? }` is the brand source of every block
+with an `options.brand` (templates, option sets, pipelines). A block's own `brand` overrides it.
+
+Add the columns the block should read and write as fields to the table
 comment with `@bsb fields`, see
 [columns your files add](/docs/blocks/sql#columns-your-files-add-to-a-block-table).

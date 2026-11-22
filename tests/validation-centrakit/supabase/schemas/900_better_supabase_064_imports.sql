@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@3 managed
--- @bsb-hash sha256:dd7c18740072011ac22b745882ce4a83ac4a8423f131ce3fbd3e8d7402be5245
+-- @bsb-hash sha256:d5f0b727310d0873d28c1baf725f44e314ab2b511ad7573fd00318d078e93ca4
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -430,6 +430,11 @@ begin
   end if;
   update "centrakit"."import_runs" r set "status" = better_supabase.as_column_type('canceled', (null::"centrakit"."import_runs")."status"), "finished_at" = now()
   where r."id" = cancel_import_run.id;
+
+  if v_run."dry_run" then
+    delete from "better_supabase"."import_chunks" x where x."run_id" = cancel_import_run.id;
+    delete from "better_supabase".import_run_issues i where i."run_id" = cancel_import_run.id;
+  end if;
   return true;
 end;
 $$;
@@ -886,6 +891,9 @@ declare
   v_issue text;
   v_message text;
   v_hint text;
+  v_known jsonb;
+  v_seen text[] := '{}';
+  v_slot text;
 begin
   select * into v_run from "centrakit"."import_runs" r where r."id" = v_run_id;
   if v_entity <> all (array['organization_profile', 'attachment', 'data_lifecycle_row', 'field_value']::text[]) then
@@ -896,6 +904,15 @@ begin
   end if;
 
   v_ref_map := '{}'::jsonb;
+  v_known := coalesce((
+    select jsonb_object_agg(k."scope" || chr(31) || k."external_key", to_jsonb(k))
+    from "better_supabase"."import_records" k
+    where k."tenant_id" = v_run."tenant_id" and k."source" = v_run."source"
+      and k."entity" = v_entity and k."role" = 'primary'
+      and (k."scope", k."external_key") in (
+        select coalesce(e.value ->> 'scope', ''), e.value ->> 'key' from jsonb_array_elements(v_items) e
+      )
+  ), '{}'::jsonb);
 
   for v_item in
     select e.value from jsonb_array_elements(v_items) e
@@ -916,10 +933,20 @@ begin
 
     begin
       v_done := false;
-      select * into v_rec from "better_supabase"."import_records" x
-      where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."scope" = v_scope
-        and x."entity" = v_entity and x."external_key" = v_key and x."role" = 'primary';
-      v_found := found;
+      v_slot := v_scope || chr(31) || v_key;
+      if v_slot = any (v_seen) then
+        select * into v_rec from "better_supabase"."import_records" x
+        where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."scope" = v_scope
+          and x."entity" = v_entity and x."external_key" = v_key and x."role" = 'primary';
+        v_found := found;
+      elsif v_known ? v_slot then
+        v_rec := jsonb_populate_record(null::"better_supabase"."import_records", v_known -> v_slot);
+        v_found := true;
+      else
+        v_rec := null;
+        v_found := false;
+      end if;
+      v_seen := v_seen || v_slot;
       v_source_at := nullif(v_item ->> 'sourceUpdatedAt', '')::timestamptz;
       if v_found and v_source_at is not null and v_rec."source_updated_at" is not null and v_source_at <= v_rec."source_updated_at" then
         v_unchanged := v_unchanged + 1;
@@ -1144,6 +1171,7 @@ declare
   v_entity text := import_upsert_batch.entity;
   v_run "centrakit"."import_runs";
   v_result jsonb;
+  v_row jsonb;
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
@@ -1183,6 +1211,16 @@ begin
     end;
   else
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
+  end if;
+
+  if v_run."dry_run" then
+    for v_row in select e.value from jsonb_array_elements(coalesce(v_result -> 'conflictKeys', '[]'::jsonb)) e loop
+      perform "better_supabase"."import_note_issue"(v_run_id, v_entity, v_row #>> '{}', 'conflict', 'IMPORT_CONFLICT', 'the subject changed after the last import');
+    end loop;
+    for v_row in select e.value from jsonb_array_elements(coalesce(v_result -> 'errors', '[]'::jsonb)) e loop
+      perform "better_supabase"."import_note_issue"(v_run_id, v_entity, v_row ->> 'key', 'error', coalesce(nullif(v_row ->> 'code', ''), 'IMPORT_ITEM_INVALID'), coalesce(v_row ->> 'message', ''));
+    end loop;
+    perform "better_supabase"."import_note_warnings"(v_run_id, v_entity, v_result -> 'warnings');
   end if;
 
   foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
@@ -1453,6 +1491,7 @@ as $$
 declare
   v_run "centrakit"."import_runs";
   v_chunk integer;
+  v_failed integer[];
 begin
   select * into v_run from "centrakit"."import_runs" r where r."id" = enqueue_import_chunks.run;
   if not found then
@@ -1461,8 +1500,20 @@ begin
   if enqueue_import_chunks.chunks is null or enqueue_import_chunks.chunks < 1 then
     raise exception 'chunks must be at least 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  select coalesce(array_agg(x."chunk"), '{}') into v_failed from "better_supabase"."import_chunks" x
+  where x."run_id" = enqueue_import_chunks.run and x."entity" = enqueue_import_chunks.entity
+    and x."status" = 'failed';
+  -- A failed chunk goes back to pending, with a new job, so a retry reaches it.
+  update "better_supabase"."import_chunks" x set "status" = 'pending', "claimed_at" = null,
+    "done_at" = null, "result" = null
+  where x."run_id" = enqueue_import_chunks.run and x."entity" = enqueue_import_chunks.entity
+    and x."status" = 'failed';
   for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
-    perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
+    if v_chunk = any (v_failed) then
+      perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text || ':retry:' || extract(epoch from clock_timestamp())::text, dedupe_running => false);
+    else
+      perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
+    end if;
   end loop;
   return enqueue_import_chunks.chunks;
 end;

@@ -1,6 +1,7 @@
 import type { FunctionResult } from "../../index.ts";
 import type { FunctionModel, ModelContext, TableModel } from "./model-types.ts";
 
+import { clientNotNull, resolveBlock } from "../../sql/index.ts";
 import { CODEC_TYPE, applyCasing, codecFor, enumType } from "./model-types.ts";
 import { arrayOf, configFor } from "./shared.ts";
 
@@ -48,11 +49,54 @@ export function notNullTag(
         .filter((name) => name !== "");
 }
 
+/**
+ * Which not-null declaration applies: the app's `gen.functions` entry, the
+ * function's own `@notNull` tag, what its block declares, then what the body
+ * shows. A closer one wins whole, `notNull: []` included.
+ */
+export function notNullPrecedence(sources: {
+  readonly configured?: true | readonly string[] | undefined;
+  readonly tagged?: true | readonly string[] | undefined;
+  readonly declared?: true | readonly string[] | undefined;
+  readonly inferred?: true | undefined;
+}): true | readonly string[] | undefined {
+  return (
+    sources.configured ?? sources.tagged ?? sources.declared ?? sources.inferred
+  );
+}
+
 /** `@bsb returns=./file.ts#Schema` from a function comment. */
 export function returnsTag(comment: string | undefined): string | undefined {
   const match = comment === undefined ? null : RETURNS_TAG.exec(comment);
 
   return match?.[1];
+}
+
+/**
+ * What an installed block declares about a function's null results: the block
+ * whose schema (or API schema) holds `schema.name` and lists `name` in its
+ * not-null results.
+ */
+function blockNotNull(
+  blocks: ModelContext["config"]["blocks"],
+  schema: string,
+  name: string,
+): true | readonly string[] | undefined {
+  for (const [key, entry] of Object.entries(blocks)) {
+    const resolved = resolveBlock(entry);
+
+    if (resolved.schema !== schema && resolved.api?.schema !== schema) {
+      continue;
+    }
+
+    const declared = clientNotNull(entry?.block ?? key, name);
+
+    if (declared !== undefined) {
+      return declared;
+    }
+  }
+
+  return undefined;
 }
 
 /** The callable functions; warns about functions another schema shadows. */
@@ -120,13 +164,26 @@ export function buildFunctions(
         fn.name,
       )?.notNull;
 
-      const notNull =
-        configured ?? inferNotNull(fn.source) ?? notNullTag(fn.comment);
+      const tagged = notNullTag(fn.comment);
+      const declared = blockNotNull(config.blocks, fn.schema, fn.name);
 
-      const source =
-        configured === undefined
-          ? `the @notNull tag on ${fn.schema}.${fn.name}`
-          : `functions.${fn.name}.notNull`;
+      // Config, then the function's own tag, then what its block declares, then
+      // what the body shows.
+      const notNull = notNullPrecedence({
+        configured,
+        tagged,
+        declared,
+        inferred: inferNotNull(fn.source),
+      });
+
+      let source = `functions.${fn.name}.notNull`;
+
+      if (configured === undefined) {
+        source =
+          tagged === undefined && declared !== undefined
+            ? `the block's not-null results for ${fn.name}`
+            : `the @notNull tag on ${fn.schema}.${fn.name}`;
+      }
 
       const notNullColumns = new Set(Array.isArray(notNull) ? notNull : []);
 

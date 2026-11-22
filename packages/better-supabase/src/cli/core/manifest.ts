@@ -848,6 +848,34 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "blocks-list",
+        description:
+          "Rewrite blocks: { name: { ... } } as a list of names and { block, name?, ... } objects",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
+        name: "record-types",
+        description:
+          "Write the names in blocks.<name>.on as the record types in recordTypes, where they differ by - and _ or are an alias",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
+        name: "table-tags",
+        description:
+          "Move audit exemptions, data-lifecycle tables and expose entries into comment on table tags",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
+        name: "doctor-baseline",
+        description:
+          "Rewrite a { code: { reason, targets } } baseline file as the grouped list doctor reads",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "table-modules",
         description:
           "Import schema from generated-schema and read tables in client files through the table modules",

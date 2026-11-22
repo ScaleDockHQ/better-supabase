@@ -1,6 +1,6 @@
 -- better-supabase module: tax
--- @bsb-block tax@1 managed
--- @bsb-hash sha256:4fec4e3fac3a80f8a2509ebe8c4f6a8d00e576b9abec1fd7d1ebb0e57ff365f1
+-- @bsb-block tax@2 managed
+-- @bsb-hash sha256:9aac7c1c364e41817a485b77725be028dee0bcab15a26b96118e84f6dfc746a7
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,6 +29,7 @@ create table "better_supabase"."tax_codes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "tax_codes_id_tenant_key" on "better_supabase"."tax_codes" ("id", "tenant_id");
 create unique index "tax_codes_code_key" on "better_supabase"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
 create index "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("tenant_id", "code");
 alter table "better_supabase"."tax_codes" enable row level security;
@@ -44,15 +45,17 @@ create policy bsb_tax_codes_read on "better_supabase"."tax_codes"
 create table "better_supabase"."tax_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "tax_code_id" uuid not null references "better_supabase"."tax_codes" ("id") on delete cascade,
+  "tax_code_id" uuid not null,
   -- Basis points: 2100 is 21%.
   "rate_bps" integer not null constraint bsb_tax_rates_rate_bps_check check ("rate_bps" >= 0 and "rate_bps" <= 100000),
   "valid_from" date not null default date '1970-01-01',
   "valid_to" date,
   "created_at" timestamptz not null default now(),
-  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from")
+  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from"),
+  constraint "tax_rates_tenant_code_fkey" foreign key ("tax_code_id", "tenant_id") references "better_supabase"."tax_codes" ("id", "tenant_id") on delete cascade
 );
 create unique index "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
+create index "tax_rates_tenant_code_idx" on "better_supabase"."tax_rates" ("tax_code_id", "tenant_id");
 alter table "better_supabase"."tax_rates" enable row level security;
 revoke all on "better_supabase"."tax_rates" from public, anon, authenticated;
 grant select on "better_supabase"."tax_rates" to authenticated;

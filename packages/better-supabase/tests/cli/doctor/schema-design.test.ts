@@ -190,6 +190,42 @@ describe("schema design rules", () => {
     ]);
   });
 
+  it("accepts a same-tenant trigger for BS217 and recommends the composite key as info (BS217)", async () => {
+    const guarded = (unique: boolean) =>
+      snapshot((tables) => {
+        const notes = table(tables, "notes");
+        notes.foreignKeys = notes.foreignKeys.map((key) =>
+          key.refTable === "customers"
+            ? { ...key, columns: ["customer_id"], refColumns: ["id"] }
+            : key,
+        );
+        notes.triggers = [
+          {
+            name: "bsb_same_tenant_customer_id",
+            timing: "before",
+            events: ["insert", "update"],
+            level: "row",
+            function: "better_supabase.same_tenant",
+          },
+        ];
+
+        const customers = table(tables, "customers");
+
+        customers.indexes = customers.indexes.filter((index) => !index.unique);
+        customers.uniques = unique
+          ? [{ name: "customers_id_org", columns: ["id", "organization_id"] }]
+          : [];
+      });
+
+    expect(await run(context(guarded(false)), "BS217")).toEqual([]);
+    expect(await run(context(guarded(true)), "BS217")).toMatchObject([
+      {
+        severity: "info",
+        message: expect.stringContaining("composite foreign key"),
+      },
+    ]);
+  });
+
   it("flags soft-delete tables without a partial index (BS218)", async () => {
     const snap = snapshot((tables) => {
       const customers = table(tables, "customers");

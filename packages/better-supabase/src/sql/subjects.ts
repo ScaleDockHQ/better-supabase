@@ -85,8 +85,15 @@ export function subjectIdMatches(subject: Subject, value: string): string {
     return `${column}::text = ${value}`;
   }
 
-  return subject.idInferred === true && subject.idType === "uuid"
-    ? `${column} = (case when ${value} ~* '${UUID_PATTERN}' then (${value})::uuid end)`
+  if (subject.idInferred === true && subject.idType === "uuid") {
+    return `${column} = (case when ${value} ~* '${UUID_PATTERN}' then (${value})::uuid end)`;
+  }
+
+  const digits =
+    subject.idType === "bigint" ? 18 : subject.idType === "integer" ? 9 : 4;
+
+  return subject.idInferred === true
+    ? `${column} = (case when ${value} ~ '^-?[0-9]{1,${String(digits)}}$' then (${value})::${subject.idType} end)`
     : `${column} = (${value})::${subject.idType}`;
 }
 
@@ -327,7 +334,12 @@ export function subjectsOption(
     }
 
     const id = text("id");
-    const idType = text("idType");
+    const written = text("idType");
+
+    const inferred =
+      written === undefined ? inferredIdType(ctx, entry) : undefined;
+
+    const idType = written ?? inferred;
 
     if (idType !== undefined && !ID_TYPE.test(idType)) {
       throw new TypeError(
@@ -353,6 +365,7 @@ export function subjectsOption(
         table: text("table") ?? "",
         ...(id !== undefined && { id }),
         ...(idType !== undefined && { idType }),
+        ...(inferred !== undefined && { idInferred: true }),
         ...(tenant !== undefined && { tenant }),
         ...(permission !== undefined && { permission }),
         ...(cascade === true && { cascade }),
@@ -363,6 +376,30 @@ export function subjectsOption(
       },
     ];
   });
+}
+
+const INFERRED_TYPES = new Set(["uuid", "bigint", "integer", "smallint"]);
+
+/**
+ * The declared type of the subject's id column in the app's schema files, when
+ * it is `uuid` or an integer type. A `text` id needs no cast.
+ */
+function inferredIdType(
+  ctx: BlockSqlContext,
+  entry: Readonly<Record<string, unknown>>,
+): string | undefined {
+  const table = entry["table"];
+
+  if (typeof table !== "string") {
+    return undefined;
+  }
+
+  const id = typeof entry["id"] === "string" ? entry["id"] : "id";
+
+  const type =
+    ctx.idTypes[table.includes(".") ? table : `public.${table}`]?.[id];
+
+  return type !== undefined && INFERRED_TYPES.has(type) ? type : undefined;
 }
 
 /**

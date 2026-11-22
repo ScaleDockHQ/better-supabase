@@ -9,6 +9,17 @@ export type ImportEventMode = "skip" | "tag" | "emit";
 export type ImportsSqlOptions = {
   readonly targets?: unknown;
   /**
+   * How a bare target (`targets: ["invoice"]` or `invoice: true`) finds its
+   * functions: `write` and `updatedAt` are templates with `{entity}` in
+   * `schema` (default `public`, `import_{entity}`,
+   * `import_{entity}_updated_at`).
+   */
+  readonly targetConvention?: {
+    readonly schema?: string;
+    readonly write?: string;
+    readonly updatedAt?: string;
+  };
+  /**
    * Event type (or `default`) to `skip`, `tag` (emit with `importRunId` in the
    * payload) or `emit`. An unlisted type is skipped.
    */
@@ -20,6 +31,11 @@ export type ImportsSqlOptions = {
 export const importsSqlOptions: BlockOptionsSchema<ImportsSqlOptions> =
   blockOptions<ImportsSqlOptions>({
     targets: option.unknown(),
+    targetConvention: option.unknown<{
+      readonly schema?: string;
+      readonly write?: string;
+      readonly updatedAt?: string;
+    }>(),
     events: option.unknown<Readonly<Record<string, ImportEventMode>>>(),
     audit: option.string<"rows" | "summary">(),
   });

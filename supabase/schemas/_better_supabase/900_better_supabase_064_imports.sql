@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@3 managed
--- @bsb-hash sha256:5df39152ade4e43d29c2f72232be34f521cd2fa48dd8bc457d04388210988a28
+-- @bsb-hash sha256:13e8c400c8e2f582609cd97aa2672b039642c70d35812bdeedb575b128b91e23
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -443,6 +443,11 @@ begin
   end if;
   update "better_supabase"."import_runs" r set "status" = 'canceled', "finished_at" = now()
   where r."id" = cancel_import_run.id;
+
+  if v_run."dry_run" then
+    delete from "better_supabase"."import_chunks" x where x."run_id" = cancel_import_run.id;
+    delete from "better_supabase".import_run_issues i where i."run_id" = cancel_import_run.id;
+  end if;
   perform "better_supabase"."search_refresh_run"(cancel_import_run.id);
   return true;
 end;
@@ -914,6 +919,9 @@ declare
   v_issue text;
   v_message text;
   v_hint text;
+  v_known jsonb;
+  v_seen text[] := '{}';
+  v_slot text;
   v_pending jsonb[] := '{}';
   v_calls jsonb[] := '{}';
   v_pending_keys text[] := '{}';
@@ -935,7 +943,7 @@ begin
     from (
       select ref.field, ref.entity, item.value -> 'refs' ->> ref.field as key
       from jsonb_array_elements(v_items) item(value)
-      cross join (values ('tax', 'tax_code', 'product'), ('product', 'product', 'product_category'), ('category', 'category', 'product_category'), ('billTo', 'party', 'party'), ('company', 'party', 'party_contact'), ('person', 'party', 'party_contact'), ('party', 'party', 'contact_method'), ('party', 'party', 'party_location'), ('party', 'party', 'party_bank_account'), ('asset', 'asset', 'due_check'), ('asset', 'asset', 'asset_identifier')) as ref(field, entity, target)
+      cross join (values ('supplier', 'supplier', 'supplier_item'), ('customer', 'customer', 'supplier_item'), ('tax', 'tax_code', 'product'), ('product', 'product', 'product_category'), ('category', 'category', 'product_category'), ('billTo', 'party', 'party'), ('company', 'party', 'party_contact'), ('person', 'party', 'party_contact'), ('party', 'party', 'contact_method'), ('party', 'party', 'party_location'), ('party', 'party', 'party_bank_account'), ('asset', 'asset', 'due_check'), ('asset', 'asset', 'asset_identifier')) as ref(field, entity, target)
       where ref.target = v_entity
     ) wanted
     join "better_supabase"."import_records" found
@@ -944,6 +952,15 @@ begin
       and found."entity" = wanted.entity
       and found."external_key" = wanted.key
     where wanted.key is not null
+  ), '{}'::jsonb);
+  v_known := coalesce((
+    select jsonb_object_agg(k."scope" || chr(31) || k."external_key", to_jsonb(k))
+    from "better_supabase"."import_records" k
+    where k."tenant_id" = v_run."tenant_id" and k."source" = v_run."source"
+      and k."entity" = v_entity and k."role" = 'primary'
+      and (k."scope", k."external_key") in (
+        select coalesce(e.value ->> 'scope', ''), e.value ->> 'key' from jsonb_array_elements(v_items) e
+      )
   ), '{}'::jsonb);
 
   for v_item in
@@ -1171,10 +1188,20 @@ begin
 
     begin
       v_done := false;
-      select * into v_rec from "better_supabase"."import_records" x
-      where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."scope" = v_scope
-        and x."entity" = v_entity and x."external_key" = v_key and x."role" = 'primary';
-      v_found := found;
+      v_slot := v_scope || chr(31) || v_key;
+      if v_slot = any (v_seen) then
+        select * into v_rec from "better_supabase"."import_records" x
+        where x."tenant_id" = v_run."tenant_id" and x."source" = v_run."source" and x."scope" = v_scope
+          and x."entity" = v_entity and x."external_key" = v_key and x."role" = 'primary';
+        v_found := found;
+      elsif v_known ? v_slot then
+        v_rec := jsonb_populate_record(null::"better_supabase"."import_records", v_known -> v_slot);
+        v_found := true;
+      else
+        v_rec := null;
+        v_found := false;
+      end if;
+      v_seen := v_seen || v_slot;
       v_source_at := nullif(v_item ->> 'sourceUpdatedAt', '')::timestamptz;
       if v_found and v_source_at is not null and v_rec."source_updated_at" is not null and v_source_at <= v_rec."source_updated_at" then
         v_unchanged := v_unchanged + 1;
@@ -1337,7 +1364,7 @@ begin
         v_call := v_item || jsonb_build_object('tenant', v_run."tenant_id", 'scope', v_scope);
         v_resolved := coalesce((
     select jsonb_object_agg(ref.field, v_ref_map ->> (ref.field || chr(31) || (v_item -> 'refs' ->> ref.field)))
-    from (values ('tax', 'tax_code', 'product'), ('product', 'product', 'product_category'), ('category', 'category', 'product_category'), ('billTo', 'party', 'party'), ('company', 'party', 'party_contact'), ('person', 'party', 'party_contact'), ('party', 'party', 'contact_method'), ('party', 'party', 'party_location'), ('party', 'party', 'party_bank_account'), ('asset', 'asset', 'due_check'), ('asset', 'asset', 'asset_identifier')) as ref(field, entity, target)
+    from (values ('supplier', 'supplier', 'supplier_item'), ('customer', 'customer', 'supplier_item'), ('tax', 'tax_code', 'product'), ('product', 'product', 'product_category'), ('category', 'category', 'product_category'), ('billTo', 'party', 'party'), ('company', 'party', 'party_contact'), ('person', 'party', 'party_contact'), ('party', 'party', 'contact_method'), ('party', 'party', 'party_location'), ('party', 'party', 'party_bank_account'), ('asset', 'asset', 'due_check'), ('asset', 'asset', 'asset_identifier')) as ref(field, entity, target)
     where ref.target = v_entity
       and v_item -> 'refs' ->> ref.field is not null
       and v_ref_map ? (ref.field || chr(31) || (v_item -> 'refs' ->> ref.field))
@@ -1349,7 +1376,7 @@ begin
       'code', 'IMPORT_REF_MISSING',
       'message', 'missing ref ' || ref.field
     ))
-    from (values ('tax', 'tax_code', 'product'), ('product', 'product', 'product_category'), ('category', 'category', 'product_category'), ('billTo', 'party', 'party'), ('company', 'party', 'party_contact'), ('person', 'party', 'party_contact'), ('party', 'party', 'contact_method'), ('party', 'party', 'party_location'), ('party', 'party', 'party_bank_account'), ('asset', 'asset', 'due_check'), ('asset', 'asset', 'asset_identifier')) as ref(field, entity, target)
+    from (values ('supplier', 'supplier', 'supplier_item'), ('customer', 'customer', 'supplier_item'), ('tax', 'tax_code', 'product'), ('product', 'product', 'product_category'), ('category', 'category', 'product_category'), ('billTo', 'party', 'party'), ('company', 'party', 'party_contact'), ('person', 'party', 'party_contact'), ('party', 'party', 'contact_method'), ('party', 'party', 'party_location'), ('party', 'party', 'party_bank_account'), ('asset', 'asset', 'due_check'), ('asset', 'asset', 'asset_identifier')) as ref(field, entity, target)
     where ref.target = v_entity
       and v_item -> 'refs' ->> ref.field is not null
       and not (v_ref_map ? (ref.field || chr(31) || (v_item -> 'refs' ->> ref.field)))
@@ -1798,6 +1825,7 @@ declare
   v_entity text := import_upsert_batch.entity;
   v_run "better_supabase"."import_runs";
   v_result jsonb;
+  v_row jsonb;
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
@@ -1838,6 +1866,16 @@ begin
     end;
   else
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
+  end if;
+
+  if v_run."dry_run" then
+    for v_row in select e.value from jsonb_array_elements(coalesce(v_result -> 'conflictKeys', '[]'::jsonb)) e loop
+      perform "better_supabase"."import_note_issue"(v_run_id, v_entity, v_row #>> '{}', 'conflict', 'IMPORT_CONFLICT', 'the subject changed after the last import');
+    end loop;
+    for v_row in select e.value from jsonb_array_elements(coalesce(v_result -> 'errors', '[]'::jsonb)) e loop
+      perform "better_supabase"."import_note_issue"(v_run_id, v_entity, v_row ->> 'key', 'error', coalesce(nullif(v_row ->> 'code', ''), 'IMPORT_ITEM_INVALID'), coalesce(v_row ->> 'message', ''));
+    end loop;
+    perform "better_supabase"."import_note_warnings"(v_run_id, v_entity, v_result -> 'warnings');
   end if;
 
   foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
@@ -2124,6 +2162,7 @@ as $$
 declare
   v_run "better_supabase"."import_runs";
   v_chunk integer;
+  v_failed integer[];
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = enqueue_import_chunks.run;
   if not found then
@@ -2132,8 +2171,20 @@ begin
   if enqueue_import_chunks.chunks is null or enqueue_import_chunks.chunks < 1 then
     raise exception 'chunks must be at least 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  select coalesce(array_agg(x."chunk"), '{}') into v_failed from "better_supabase"."import_chunks" x
+  where x."run_id" = enqueue_import_chunks.run and x."entity" = enqueue_import_chunks.entity
+    and x."status" = 'failed';
+  -- A failed chunk goes back to pending, with a new job, so a retry reaches it.
+  update "better_supabase"."import_chunks" x set "status" = 'pending', "claimed_at" = null,
+    "done_at" = null, "result" = null
+  where x."run_id" = enqueue_import_chunks.run and x."entity" = enqueue_import_chunks.entity
+    and x."status" = 'failed';
   for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
-    perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
+    if v_chunk = any (v_failed) then
+      perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text || ':retry:' || extract(epoch from clock_timestamp())::text, dedupe_running => false);
+    else
+      perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
+    end if;
   end loop;
   return enqueue_import_chunks.chunks;
 end;

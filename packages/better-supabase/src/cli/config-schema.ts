@@ -2,7 +2,8 @@ import * as v from "valibot";
 
 import type {
   BetterSupabaseConfig,
-  BlocksConfig,
+  BlocksInput,
+  BlocksList,
   EnvironmentConfig,
   ExposePrivilege,
   Generator,
@@ -115,7 +116,19 @@ const blockEntries = {
   ),
   schema: v.optional(v.string()),
   columns: v.optional(
-    v.record(v.string(), v.record(v.string(), v.nullable(v.string()))),
+    v.record(
+      v.string(),
+      v.record(
+        v.string(),
+        v.union([
+          v.nullable(v.string()),
+          v.strictObject({
+            column: v.string(),
+            required: v.optional(v.boolean()),
+          }),
+        ]),
+      ),
+    ),
   ),
   values: v.optional(blockSchemas.valueMapsSchema),
   idType: v.optional(v.string()),
@@ -243,19 +256,43 @@ const permissionsBlock = v.strictObject({
 });
 
 /**
- * `blocks`: a list of names, or each block's config. The schema checks the keys
- * every block shares; `resolveConfig` checks the tables, columns, functions,
- * actions, hooks and entities each module declares.
+ * `blocks`: a list of block names and `{ block, name?, ...entry }` objects. The
+ * schema checks the keys every block shares; `resolveConfig` checks the tables,
+ * columns, functions, actions, hooks and entities each module declares. The
+ * object keyed by block name is rejected with the codemod that converts it.
  */
-// SAFETY: resolveConfig checks the names `BlocksConfig` narrows per module.
+const blockListEntry = v.strictObject({
+  ...blockEntries,
+  block: v.string(),
+  name: v.optional(v.string()),
+});
+
+/** The `permissions` entry takes the permissions block's own keys. */
+const permissionsListEntry = v.strictObject({
+  ...permissionsBlock.entries,
+  block: v.literal("permissions"),
+  name: v.optional(v.string()),
+});
+
+const listEntry = v.lazy((input) =>
+  typeof input === "string"
+    ? v.string()
+    : typeof input === "object" &&
+        input !== null &&
+        "block" in input &&
+        input.block === "permissions"
+      ? permissionsListEntry
+      : blockListEntry,
+);
+
+// SAFETY: resolveConfig checks the names each block narrows.
 const blocksSchema = v.lazy((input) =>
   Array.isArray(input)
-    ? strings
-    : v.objectWithRest(
-        { permissions: v.optional(permissionsBlock) },
-        v.strictObject(blockEntries),
+    ? v.array(listEntry)
+    : v.never(
+        "blocks is a list of names and { block, name?, ... } objects. Run `better-supabase codemod blocks-list` to convert the object keyed by block name.",
       ),
-) as v.GenericSchema<unknown, readonly string[] | BlocksConfig>;
+) as v.GenericSchema<unknown, BlocksList | BlocksInput>;
 
 const SCOPE_NAME = /^[a-z][a-z0-9_]*$/;
 
@@ -344,8 +381,32 @@ const authorization = v.strictObject({
             title: v.optional(v.string()),
           }),
         ),
+        approval: v.optional(
+          v.strictObject({
+            steps: v.array(v.record(v.string(), v.unknown())),
+            mode: v.optional(v.picklist(["sequential", "parallel"])),
+            effects: v.optional(strings),
+          }),
+        ),
       }),
     ),
+  ),
+  doctor: v.optional(v.strictObject({ command: v.array(v.string()) })),
+  actionKeys: v.optional(
+    v.strictObject({
+      blocks: v.optional(
+        v.record(v.string(), v.record(v.string(), v.string())),
+      ),
+      recordTypes: v.optional(
+        v.record(v.string(), v.record(v.string(), v.string())),
+      ),
+      buckets: v.optional(
+        v.record(v.string(), v.record(v.string(), v.string())),
+      ),
+      topics: v.optional(
+        v.record(v.string(), v.record(v.string(), v.string())),
+      ),
+    }),
   ),
   memberships: v.optional(
     v.array(
@@ -491,6 +552,9 @@ const checkedAuthorization = v.pipe(
 );
 
 const jsonSchema = v.record(v.string(), v.unknown());
+
+/** A JSON Schema object, or a `"./file.ts#name"` module reference. */
+const jsonSchemaOrRef = v.union([jsonSchema, v.string()]);
 
 const presetInstance = v.strictObject({
   ...instanceKeys,
@@ -664,11 +728,15 @@ const FLAT = {
         [
           v.strictObject({
             import: v.string(),
-            schema: v.optional(jsonSchema),
+            schema: v.optional(jsonSchemaOrRef),
           }),
-          v.strictObject({ type: v.string(), schema: v.optional(jsonSchema) }),
+          v.strictObject({
+            type: v.string(),
+            schema: v.optional(jsonSchemaOrRef),
+          }),
+          v.strictObject({ schema: v.string() }),
         ],
-        "Use { import } or { type }, with an optional schema",
+        "Use { import } or { type } with an optional schema, or { schema: './file.ts#name' }",
       ),
     ),
   ),
@@ -868,6 +936,7 @@ const FLAT = {
       ),
       v.strictObject({
         table: v.string(),
+        alias: v.optional(v.string()),
         id: v.optional(v.string()),
         idType: v.optional(v.string()),
         tenant: v.optional(v.union([v.string(), v.literal(false)])),
@@ -915,10 +984,18 @@ const FLAT = {
       testsDir: v.optional(v.string()),
       schema: v.optional(v.string()),
       api: v.optional(v.string()),
+      audit: v.optional(v.boolean()),
       owner: v.optional(v.picklist(["tenant", "user", "none"])),
       ownTablePolicies: v.optional(v.picklist(["block", "app"])),
       tenantScope: v.optional(blockSchemas.tenantScopeSchema),
       tenantColumn: v.optional(v.string()),
+      brand: v.optional(
+        v.strictObject({
+          table: v.string(),
+          column: v.string(),
+          tenant: v.optional(v.string()),
+        }),
+      ),
     }),
   ),
   seed: v.optional(

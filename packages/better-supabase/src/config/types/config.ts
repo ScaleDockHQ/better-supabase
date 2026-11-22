@@ -305,6 +305,14 @@ export interface ResolvedConfig {
   readonly blockNames: readonly string[];
   /** Every install of a block, keyed by its key in `blocks`. */
   readonly instances: Readonly<Record<string, ResolvedInstance>>;
+  /**
+   * The `api` and `audit` keys of a block entry that equal the project default
+   * (`sql.api`, `sql.audit`), read before the defaults fill them in.
+   */
+  readonly restatedDefaults: readonly {
+    readonly block: string;
+    readonly key: "api" | "audit";
+  }[];
   /** `appTables`, checked; empty without any. */
   readonly appTables: AppTablesConfig;
   readonly sql: ResolvedSqlConfig;
@@ -374,8 +382,10 @@ export type {
   ApiConfig,
   AuthConfig,
   BetterSupabaseConfig,
+  BlockEntry,
   BlockInput,
   BlocksInput,
+  BlocksList,
   DatabaseConfig,
   EnvironmentConfig,
   GenGroupConfig,

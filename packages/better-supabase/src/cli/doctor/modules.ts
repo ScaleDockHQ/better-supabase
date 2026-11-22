@@ -283,7 +283,11 @@ async function missingAdoptedColumns(
         ([logical, column]) =>
           !present.has(column) &&
           (spec?.optional?.includes(logical) !== true ||
-            typeof configured?.[logical] === "string"),
+            (typeof configured?.[logical] === "string" &&
+              (configured[logical] !== spec.columns[logical] ||
+                context.config.blocks[table.module]?.requiredColumns?.[
+                  table.logical
+                ]?.includes(logical) === true))),
       )
       .map(([logical, column]) => ({
         message: `blocks.${table.module} runs over ${target} and uses ${target}.${column} (${table.logical}.${logical}), but the table has no such column. ${fix(logical)}`,

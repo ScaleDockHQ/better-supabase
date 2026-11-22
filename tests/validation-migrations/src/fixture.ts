@@ -30,7 +30,7 @@ const CONFIG_TOML: Readonly<Record<Workflow, string>> = {
 };
 
 export interface ProjectOptions {
-  /** Extra blocks in the config, as `name: {}` entries. */
+  /** Extra blocks in the config, as plain names. */
   readonly blocks?: readonly string[];
   /** `[db] driver`, for a Supabase Lite project. */
   readonly lite?: string;
@@ -45,18 +45,20 @@ export const configText = (
 
 export default defineConfig({
   database: { sql: { workflow: "${workflow}" } },
-  blocks: {
-    organizations: { tables: { organizations: "public.organizations" } },
-    memberships: {
+  blocks: [
+    { block: "organizations", tables: { organizations: "public.organizations" } },
+    {
+      block: "memberships",
       tables: { memberships: "public.memberships" },
       columns: { memberships: { tenant: "organization_id" } },
     },
-    profiles: {
+    {
+      block: "profiles",
       tables: { profiles: "public.profiles" },
       columns: { profiles: { key: "user_id" } },
     },
-${(options.blocks ?? []).map((name) => `    ${name}: {},`).join("\n")}
-  },
+${(options.blocks ?? []).map((name) => `    "${name}",`).join("\n")}
+  ],
 });
 `;
 

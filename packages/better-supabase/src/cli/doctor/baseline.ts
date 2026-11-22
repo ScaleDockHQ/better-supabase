@@ -58,8 +58,9 @@ function listedKey(
 const text = (value: unknown): value is string => typeof value === "string";
 
 /**
- * Parses a baseline file, `[{ code, target, reason }]`. Throws a `TypeError`
- * naming the first entry that isn't one.
+ * Parses a baseline file: an array of `{ code, target, reason }` entries, or
+ * grouped entries `{ code, reason, targets: [] }` that share a reason, in any
+ * mix. Throws a `TypeError` naming the first entry that isn't one.
  */
 export function parseBaseline(contents: string, path: string): BaselineEntry[] {
   let value: unknown;
@@ -72,19 +73,12 @@ export function parseBaseline(contents: string, path: string): BaselineEntry[] {
 
   if (!Array.isArray(value)) {
     throw new TypeError(
-      `${path} must be an array of { code, target, reason } entries.`,
+      `${path} must be an array of { code, target, reason } or { code, reason, targets } entries.`,
     );
   }
 
-  return value.map((entry: unknown, index): BaselineEntry => {
-    if (
-      typeof entry !== "object" ||
-      entry === null ||
-      !("code" in entry) ||
-      !("target" in entry) ||
-      !text(entry.code) ||
-      !text(entry.target)
-    ) {
+  return value.flatMap((entry: unknown, index): BaselineEntry[] => {
+    if (typeof entry !== "object" || entry === null || !("code" in entry)) {
       throw new TypeError(
         `${path} entry ${String(index)} needs a string code and target.`,
       );
@@ -92,8 +86,67 @@ export function parseBaseline(contents: string, path: string): BaselineEntry[] {
 
     const reason = "reason" in entry && text(entry.reason) ? entry.reason : "";
 
-    return { code: entry.code, target: entry.target, reason };
+    if (
+      "targets" in entry &&
+      text(entry.code) &&
+      Array.isArray(entry.targets) &&
+      entry.targets.every((target: unknown) => text(target))
+    ) {
+      const { code } = entry;
+
+      return entry.targets.map((target: string) => ({ code, target, reason }));
+    }
+
+    if (!("target" in entry) || !text(entry.code) || !text(entry.target)) {
+      throw new TypeError(
+        `${path} entry ${String(index)} needs a string code and target.`,
+      );
+    }
+
+    return [{ code: entry.code, target: entry.target, reason }];
   });
+}
+
+/** Whether the file holds a grouped `{ code, reason, targets }` entry. */
+export function isGroupedBaseline(contents: string): boolean {
+  try {
+    const value: unknown = JSON.parse(contents);
+
+    return (
+      Array.isArray(value) &&
+      value.some(
+        (entry: unknown) =>
+          typeof entry === "object" && entry !== null && "targets" in entry,
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** The entries as grouped `{ code, reason, targets }`: one per code and reason. */
+export function groupBaseline(
+  entries: readonly BaselineEntry[],
+): { code: string; reason: string; targets: string[] }[] {
+  const groups = new Map<
+    string,
+    { code: string; reason: string; targets: string[] }
+  >();
+
+  for (const entry of entries) {
+    const key = keyOf(entry.code, entry.reason);
+
+    const group = groups.get(key) ?? {
+      code: entry.code,
+      reason: entry.reason,
+      targets: [],
+    };
+
+    group.targets.push(entry.target);
+    groups.set(key, group);
+  }
+
+  return [...groups.values()];
 }
 
 /**
@@ -161,9 +214,23 @@ export function applyBaseline(
       judged(entry.code, ran, context),
   );
 
+  const unexplained = entries.filter(
+    (entry) =>
+      entry.reason.trim() === "" &&
+      matched.has(keyOf(entry.code, entry.target)),
+  );
+
   return {
     findings: [
       ...kept,
+      ...unexplained.map((entry): Finding => ({
+        code: entry.code,
+        severity: "error",
+        title: "A baseline entry has no reason",
+        message: `${path} accepts ${entry.code} at ${entry.target} without a reason. Say why the finding is accepted.`,
+        target: entry.target,
+        help: `${DOCS_URL}#baseline`,
+      })),
       ...stale.map((entry): Finding => ({
         code: entry.code,
         severity: "error",

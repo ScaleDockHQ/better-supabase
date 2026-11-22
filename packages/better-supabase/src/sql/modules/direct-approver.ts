@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { sqlIdent } from "../../core/template.ts";
+import { fillTemplate } from "../../core/access-sql.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { managerMatch } from "./approvals-tenant.ts";
 
 /**
@@ -51,10 +52,31 @@ export function managerDecides(
 
 const FUNCTION = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
 
+/** The request kind the provider's `approverFor` template receives. */
+const DECIDER_KINDS: Readonly<Record<string, string>> = {
+  expenses: "expense",
+  leave: "leave",
+  "time-entries": "time-entry",
+};
+
 /**
- * ` or <schema.function>(<id>)` for `options.decider`, an app function `(id
- * uuid) returns boolean` that lets more callers decide, such as the managers up
- * the requester's reporting chain; else `""`. A null answer denies.
+ * Whether a caller beyond the permission holders can decide: the app's
+ * `options.decider`, or the provider's `approverFor` under the provider model.
+ */
+export function hasDecider(ctx: BlockSqlContext): boolean {
+  return (
+    ctx.text("decider", "") !== "" ||
+    (ctx.providerApproverFor !== undefined &&
+      DECIDER_KINDS[ctx.module] !== undefined)
+  );
+}
+
+/**
+ * ` or <the caller may decide request id>` for `options.decider`, an app
+ * function `(id uuid) returns boolean` that lets more callers decide, such as
+ * the managers up the requester's reporting chain; else, when the provider's
+ * `approverFor` names the request with `{id}`, a caller in its set; else `""`.
+ * The explicit option wins. A null answer denies.
  */
 export function deciderCall(
   ctx: BlockSqlContext,
@@ -62,6 +84,18 @@ export function deciderCall(
   id: string,
 ): string {
   const name = ctx.text("decider", "");
+
+  const kind = DECIDER_KINDS[ctx.module];
+
+  if (name === "" && ctx.providerApproverFor !== undefined && kind) {
+    const approvers = fillTemplate(
+      "authorization.functions.approverFor",
+      ctx.providerApproverFor,
+      { kind: sqlString(kind), id },
+    );
+
+    return ` or coalesce(auth.uid() in (select t.u from ${approvers} as t(u)), false)`;
+  }
 
   if (name === "") {
     return "";

@@ -1,3 +1,4 @@
+import type { AuthorizationApproval } from "../config/authorization.ts";
 /* oxlint-disable eslint/max-lines -- the former permission key check adds two lines past the limit. 1 finding. */
 import type {
   BlockMode,
@@ -14,6 +15,7 @@ import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { BlockSqlAction, BlockSqlEmit } from "./audit-actions.ts";
 import type { BlockContributions } from "./contributions.ts";
+import type { DeclaredForeignKey } from "./foreign-keys.ts";
 import type { BlockSqlAppTable, OwnView } from "./module-types.ts";
 import type { BlockSqlComposition } from "./reads.ts";
 import type { ResolvedNames } from "./resolved-names.ts";
@@ -346,6 +348,15 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   /** The provider's `rowsWith` and `rowsWithFor` templates under `provider`. */
   readonly providerRowsWith: string | undefined;
   readonly providerRowsWithFor: string | undefined;
+  /** The provider's `approverFor` (with `{id}`) and `managedUsers` templates. */
+  readonly providerApproverFor: string | undefined;
+  readonly providerManagedUsers: string | undefined;
+  /** The provider's operation approval floors, by `<subjectType>:<action>`. */
+  readonly providerApprovals: Readonly<Record<string, AuthorizationApproval>>;
+  /** The single-column foreign keys the app's schema files declare. */
+  readonly foreignKeys: readonly DeclaredForeignKey[];
+  /** The declared id-like column types of the app's tables, by `schema.table`. */
+  readonly idTypes: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** The `provider` model's `can_user` answers only for the caller. */
   readonly providerCallerOnly?: boolean;
   /**
@@ -358,6 +369,18 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
    * tenant, user or shared-space check goes through.
    */
   readonly scope: BlockSqlScope;
+  /** Whether the app's schema files create the function `schema.name`. */
+  appHasFunction(name: string): boolean;
+  /** Whether the app's own table `schema.table` is known to have `column`. */
+  ownHasColumn(table: string, column: string): boolean;
+  /** `sql.tenantColumn`, the tenant column an option that names none uses. */
+  readonly tenantColumn?: string;
+  /** `sql.brand`, the brand source `options.brand` overrides. */
+  readonly brand?: {
+    readonly table: string;
+    readonly column: string;
+    readonly tenant?: string;
+  };
   /**
    * The module's final names: its entities as `blocks.<name>.entities` and
    * `blocks.memberships.names.organization` rename them.
@@ -626,6 +649,11 @@ export interface BlockSqlContextSource {
   /** `sql.scope`: the scope of a module whose config sets none. */
   readonly scope?: BlockScope;
   readonly tenantColumn?: string;
+  readonly brand?: {
+    readonly table: string;
+    readonly column: string;
+    readonly tenant?: string;
+  };
   /**
    * The modules `module` may read through `installed` and `of`: what it
    * requires and what it lists in `integrates`. Without it nothing is checked.
@@ -650,6 +678,19 @@ export interface BlockSqlContextSource {
   readonly ownTables?: Readonly<Record<string, string>>;
   /** `layout.permissionCatalog`: the permission keys the provider lists. */
   readonly permissionCatalog?: readonly string[];
+  /** `layout.providerActionKeys.blocks`: the provider's keys by instance. */
+  readonly providerActionKeys?: Readonly<
+    Record<string, Readonly<Record<string, string>>>
+  >;
+  /**
+   * The provider's `approverFor` and `managedUsers` templates, under
+   * `provider`.
+   */
+  readonly providerApproverFor?: string;
+  readonly providerManagedUsers?: string;
+  readonly providerApprovals?: Readonly<Record<string, AuthorizationApproval>>;
+  readonly foreignKeys?: readonly DeclaredForeignKey[];
+  readonly idTypes?: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** The layout applies statements in file order (`layout.rerunnable`). */
   readonly rerunnable?: boolean;
   /** The tables `expose` lists, as `schema.table`. */
@@ -664,6 +705,8 @@ export interface BlockSqlContextSource {
    * 0580).
    */
   readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
+  /** `layout.appFunctions`. */
+  readonly appFunctions?: readonly string[];
   /** `layout.appColumns`: the columns the app's files add to tables. */
   readonly appColumns?: Readonly<
     Record<string, readonly { readonly name: string; readonly type: string }[]>
@@ -677,6 +720,35 @@ export interface Contributor<K extends keyof BlockContributions> {
   readonly contribute: (
     target: BlockSqlContext,
   ) => readonly BlockContributions[K][];
+}
+
+let columnSink: Set<string> | undefined;
+let offFlagSink: Set<string> | undefined;
+
+/**
+ * Runs `run` and returns the `table.logical` columns the render read through
+ * `ctx.col`, `ctx.has` and the helpers over them. A column the render never
+ * reads belongs to a feature that is off.
+ */
+export function trackColumnReads<T>(run: () => T): {
+  readonly value: T;
+  readonly reads: ReadonlySet<string>;
+  /** The boolean options the render read as `false`: features that are off. */
+  readonly offFlags: ReadonlySet<string>;
+} {
+  const previous = columnSink;
+  const previousFlags = offFlagSink;
+  const reads = new Set<string>();
+  const offFlags = new Set<string>();
+  columnSink = reads;
+  offFlagSink = offFlags;
+
+  try {
+    return { value: run(), reads, offFlags };
+  } finally {
+    columnSink = previous;
+    offFlagSink = previousFlags;
+  }
 }
 
 const IDENT = /^[A-Za-z_][A-Za-z0-9_$]*$/;
@@ -864,6 +936,7 @@ export function createModuleContext(
 
   const permissionKey = (action: string, fallback: string): string =>
     config.permissions[action] ??
+    source.providerActionKeys?.[instance]?.[action] ??
     resourcePermissionKey(
       ownKey(fallback),
       action,
@@ -946,6 +1019,7 @@ export function createModuleContext(
       );
     }
 
+    columnSink?.add(`${table}.${logical}`);
     const mapped = config.columns[table]?.[logical];
 
     checkTenantEntry(
@@ -989,6 +1063,10 @@ export function createModuleContext(
     const value = option(name);
 
     if (value === undefined) {
+      if (type === "boolean" && fallback === false) {
+        offFlagSink?.add(name);
+      }
+
       return fallback;
     }
 
@@ -1002,6 +1080,10 @@ export function createModuleContext(
 
     if (typeof value !== type) {
       throw new TypeError(`${where}.options.${name} must be a ${type}`);
+    }
+
+    if (value === false) {
+      offFlagSink?.add(name);
     }
 
     return value;
@@ -1300,9 +1382,19 @@ export function createModuleContext(
     subjects: source.subjects ?? {},
     providerRowsWith: source.providerRowsWith,
     providerRowsWithFor: source.providerRowsWithFor,
+    providerApproverFor: source.providerApproverFor,
+    providerManagedUsers: source.providerManagedUsers,
+    providerApprovals: source.providerApprovals ?? {},
+    foreignKeys: source.foreignKeys ?? [],
+    idTypes: source.idTypes ?? {},
     ...(source.providerCallerOnly === true ? { providerCallerOnly: true } : {}),
     appTables: new Set(source.appTables),
     scope,
+    appHasFunction: (name) => source.appFunctions?.includes(name) === true,
+    ownHasColumn: (table, column) =>
+      source.ownColumns?.[table]?.includes(column) === true,
+    ...(tenantColumn === undefined ? {} : { tenantColumn }),
+    ...(source.brand === undefined ? {} : { brand: source.brand }),
     resolved,
     naming,
     blockNaming: () =>

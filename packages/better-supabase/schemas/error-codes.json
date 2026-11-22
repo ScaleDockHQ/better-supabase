@@ -4664,7 +4664,7 @@
   },
   {
     "code": "QUOTE_FORBIDDEN",
-    "message": "not allowed to change quotes"
+    "message": "not allowed to read this organization"
   },
   {
     "code": "QUOTE_LINK_INVALID",

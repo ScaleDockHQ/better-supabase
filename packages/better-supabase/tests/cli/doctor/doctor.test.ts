@@ -2985,7 +2985,7 @@ describe("doctor command", () => {
       "utf-8",
     );
 
-    for (const code of RULE_CODES) {
+    for (const code of [...RULE_CODES, "BS426"]) {
       expect(docs).toContain(`### ${code}`);
     }
 
@@ -3002,8 +3002,11 @@ describe("doctor command", () => {
       };
     };
 
-    expect(schema.properties.findings.items.properties.code.enum).toEqual(
-      RULE_CODES,
-    );
+    // A retired code stays in the schema so an old report still validates.
+    const RETIRED = ["BS426"];
+
+    expect(
+      schema.properties.findings.items.properties.code.enum.toSorted(),
+    ).toEqual([...RULE_CODES, ...RETIRED].toSorted());
   });
 });

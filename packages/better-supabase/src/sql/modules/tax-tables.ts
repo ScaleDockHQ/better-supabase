@@ -8,6 +8,54 @@ import { EPOCH, EU_SALES_KINDS, RETURN_STATUSES, taxSql } from "./tax-sql.ts";
 const list = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
+/**
+ * The unique index that lets `tax_rates` reference a code together with its
+ * tenant.
+ */
+function taxCodeTenantKey(ctx: BlockSqlContext): string {
+  const { name } = ctx.tableName("codes");
+
+  return sqlIdent(
+    ctx.owns("codes") ? `${name}_id_tenant_key` : `bsb_${name}_id_tenant_key`,
+  );
+}
+
+/** The composite foreign key from a rate to its code in the same tenant. */
+function taxRateCodeKey(ctx: BlockSqlContext): string {
+  return sqlIdent(`${ctx.tableName("rates").name}_tenant_code_fkey`);
+}
+
+/**
+ * The upgrade from tax version 1: the unique index and the composite key a
+ * fresh install creates with the tables. The key goes in `not valid`, so the
+ * upgrade never fails on old rows; existing rows are checked by `validate
+ * constraint`, which the migration guide tells the app to run once.
+ */
+export function taxRateKeyUpgrade(ctx: BlockSqlContext): string {
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
+  const q = taxSql(ctx);
+  const { c, r } = q;
+  const rates = ctx.tableName("rates").name;
+
+  return `
+create unique index if not exists ${taxCodeTenantKey(ctx)} on ${q.codes} (${c("id")}, ${c("tenant")});
+create index if not exists ${sqlIdent(`${rates}_tenant_code_idx`)} on ${q.rates} (${r("taxCode")}, ${r("tenant")});
+do $upgrade$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = '${rates}_tenant_code_fkey' and conrelid = '${ctx.tableName("rates").schema}.${rates}'::regclass
+  ) then
+    alter table ${q.rates} add constraint ${taxRateCodeKey(ctx)} foreign key (${r("taxCode")}, ${r("tenant")}) references ${q.codes} (${c("id")}, ${c("tenant")}) on delete cascade not valid;
+  end if;
+end
+$upgrade$;
+`;
+}
+
 const NO_ENTITY = "'00000000-0000-0000-0000-000000000000'::uuid";
 
 /**
@@ -74,7 +122,7 @@ create table if not exists ${q.codes} (
   ${c("archivedAt")} timestamptz,
   ${c("createdAt")} timestamptz not null default now(),
   ${c("updatedAt")} timestamptz not null default now()
-);${unique("codes", "code_key", `${c("tenant")}, (coalesce(${c("legalEntity")}, ${NO_ENTITY})), ${c("code")}`)}
+);${unique("codes", "id_tenant_key", `${c("id")}, ${c("tenant")}`)}${unique("codes", "code_key", `${c("tenant")}, (coalesce(${c("legalEntity")}, ${NO_ENTITY})), ${c("code")}`)}
 create index if not exists ${name("codes", "tenant_idx")} on ${q.codes} (${c("tenant")}, ${c("code")});
 ${lockModuleTable(ctx, "codes", { read: true })}
 ${readPolicy("codes", ctx.scope.check(c("tenant"), q.read))}
@@ -84,14 +132,16 @@ ${readPolicy("codes", ctx.scope.check(c("tenant"), q.read))}
 create table if not exists ${q.rates} (
   ${r("id")} uuid primary key default gen_random_uuid(),
   ${r("tenant")} ${ctx.idType} not null,
-  ${r("taxCode")} uuid not null references ${q.codes} (${c("id")}) on delete cascade,
+  ${r("taxCode")} uuid not null,
   -- Basis points: 2100 is 21%.
   ${r("rateBps")} integer not null check (${r("rateBps")} >= 0 and ${r("rateBps")} <= 100000),
   ${r("validFrom")} date not null default date '${EPOCH}',
   ${r("validTo")} date,
   ${r("createdAt")} timestamptz not null default now(),
-  check (${r("validTo")} is null or ${r("validTo")} >= ${r("validFrom")})
+  check (${r("validTo")} is null or ${r("validTo")} >= ${r("validFrom")}),
+  constraint ${taxRateCodeKey(ctx)} foreign key (${r("taxCode")}, ${r("tenant")}) references ${q.codes} (${c("id")}, ${c("tenant")}) on delete cascade
 );${unique("rates", "from_key", `${r("taxCode")}, ${r("validFrom")}`)}
+create index if not exists ${name("rates", "tenant_code_idx")} on ${q.rates} (${r("taxCode")}, ${r("tenant")});
 ${lockModuleTable(ctx, "rates", { read: true })}
 ${readPolicy("rates", ctx.scope.check(r("tenant"), q.read))}
 

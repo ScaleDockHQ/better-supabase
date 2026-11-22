@@ -1,6 +1,6 @@
 import { posix, resolve } from "node:path";
 
-import type { ResolvedConfig } from "../config/index.ts";
+import type { ResolvedConfig, ColumnMapping } from "../config/index.ts";
 import type { OwnedColumn } from "../sql/index.ts";
 import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
@@ -76,7 +76,7 @@ function optionalColumns(config: ResolvedConfig): Map<string, OptionalColumn> {
         | Readonly<
             Record<
               string,
-              Readonly<Record<string, string | null | undefined>> | undefined
+              Readonly<Record<string, ColumnMapping | undefined>> | undefined
             >
           >
         | undefined;

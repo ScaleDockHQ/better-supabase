@@ -426,6 +426,7 @@ export function tenantColumnOf(
   table: string,
   subjects: SubjectsConfig,
   naming: EntityNames = tenantNames(),
+  fallback?: string,
 ): string | undefined {
   const qualify = (name: string): string =>
     name.includes(".") ? name : `public.${name}`;
@@ -438,7 +439,7 @@ export function tenantColumnOf(
     return undefined;
   }
 
-  return entry?.tenant ?? naming.rename("organization_id");
+  return entry?.tenant ?? fallback ?? naming.rename("organization_id");
 }
 
 /**

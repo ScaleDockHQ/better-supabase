@@ -777,7 +777,8 @@ function importFunctions(ctx: BlockSqlContext, names: Names): string {
 -- The import target of the supplier_item entity (ADR 0141): item.data is {
 -- supplierId, row?, code?, description?, price?, currency?, unit?, keywords? }.
 -- A row goes through the supplier's column mapping; the fields named next to
--- it win. price is in minor units. A key that is new but names a code the
+-- it win. Without supplierId the supplier or customer ref the item names, once
+-- an earlier entity imported it, gives the supplier. price is in minor units. A key that is new but names a code the
 -- supplier already has takes over that row.
 create or replace function ${fn("import_supplier_item")}(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -796,12 +797,16 @@ declare
   v_updated timestamptz;
 begin
   begin
-    v_supplier := nullif(v_data ->> 'supplierId', '')::uuid;
+    v_supplier := coalesce(
+      nullif(v_data ->> 'supplierId', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'supplier', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'customer', '')::uuid
+    );
   exception when invalid_text_representation then
     ${fail("IMPORT_ITEM_INVALID", "supplierId must be a uuid", "22023")}
   end;
   if v_supplier is null then
-    ${fail("IMPORT_ITEM_INVALID", "a supplier item needs a supplierId", "22023")}
+    ${fail("IMPORT_ITEM_INVALID", "a supplier item needs a supplierId, or a supplier or customer ref that an earlier entity imported", "22023")}
   end if;
   v_merged := (case when jsonb_typeof(v_data -> 'row') = 'object' then ${mappingsOn(ctx) ? `${fn("supplier_item_from_row")}(v_tenant, v_supplier, v_data -> 'row')` : "'{}'::jsonb"} else '{}'::jsonb end) || (v_data - 'row' - 'supplierId');
   v_code := nullif(btrim(v_merged ->> 'code'), '');
@@ -1046,6 +1051,7 @@ export function supplyImportTargets(
             entity: "supplier_item",
             subjectType: "supplier_item",
             write: plain(own.fn("import_supplier_item")),
+            refs: { supplier: "supplier", customer: "customer" },
             updatedAt: plain(own.fn("supplier_item_updated_at")),
           },
         ]

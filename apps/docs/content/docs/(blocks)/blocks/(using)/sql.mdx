@@ -608,7 +608,7 @@ export default defineConfig({
 | `ownership`        | `managed` or `custom`                                                                                                                                                                                                                                                    |
 | `schema`           | the schema of the module's functions and managed tables (`database.sql.schema`, then `better_supabase`); `queue` takes none, and `access` keeps its functions in `better_supabase`                                                                                       |
 | `tables`           | logical table to `table` or `schema.table`; `null` for an optional table you don't have                                                                                                                                                                                  |
-| `columns`          | logical table to logical column to column name; `null` for an optional column                                                                                                                                                                                            |
+| `columns`          | logical table to logical column to column name; `null` for an optional column; `{ column, required: true }` for an optional column the table must have (a bare name equal to the default does nothing)                                                                   |
 | `idType`           | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                                                                                                                                                                                                      |
 | `permissions`      | block action to permission key, checked through the [access contract](/docs/repository/permissions)                                                                                                                                                                      |
 | `options`          | module options, listed on each module's page                                                                                                                                                                                                                             |
@@ -1221,16 +1221,16 @@ and runs before reads.
 With an authorization provider, set `authorization.functions.actorMayWrite`
 and the writes call that instead of the built-in check.
 
-| Option                 | Default    | What it does                                                                    |
-| ---------------------- | ---------- | ------------------------------------------------------------------------------- |
-| `maxTtl`               | `4 hours`  | the longest session `start_support_session` accepts                             |
-| `requireReason`        | `true`     | refuses a start or request with an empty or blank reason                        |
-| `approval`             | `distinct` | `none` starts without a second admin's approval                                 |
-| `approvalTtl`          | `1 hour`   | how long a request stays open for approval and a start                          |
-| `allowWrites`          | `false`    | accepts `read_only => false`                                                    |
-| `allowPlatformTargets` | `false`    | lets a session target platform staff                                            |
-| `auditCategory`        | `support`  | the audit log category of `support_session.started` and `support_session.ended` |
-| `claimsHook`           | none       | `schema.function` of your access token hook, for `support_target_claims`        |
+| Option                 | Default                                    | What it does                                                                    |
+| ---------------------- | ------------------------------------------ | ------------------------------------------------------------------------------- |
+| `maxTtl`               | `4 hours`                                  | the longest session `start_support_session` accepts                             |
+| `requireReason`        | `true`                                     | refuses a start or request with an empty or blank reason                        |
+| `approval`             | `distinct`                                 | `none` starts without a second admin's approval                                 |
+| `approvalTtl`          | `1 hour`                                   | how long a request stays open for approval and a start                          |
+| `allowWrites`          | `false`                                    | accepts `read_only => false`                                                    |
+| `allowPlatformTargets` | `false`                                    | lets a session target platform staff                                            |
+| `auditCategory`        | `support`                                  | the audit log category of `support_session.started` and `support_session.ended` |
+| `claimsHook`           | provider's `tokenHook.function`, else none | `schema.function` of your access token hook, for `support_target_claims`        |
 
 The permission keys are `impersonation.start`, `impersonation.read` and `impersonation.revoke`;
 rename them with `blocks["impersonation"].permissions`. The hooks

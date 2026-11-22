@@ -15,7 +15,9 @@ import {
 import {
   accessProviderMode,
   entitlementsMode,
+  catalogKeyProblems,
   moduleKeyProblems,
+  providerKeyUses,
 } from "../authorization.ts";
 import { CliError } from "../core/errors.ts";
 import { compiledReadSets } from "../read-sets.ts";
@@ -105,7 +107,12 @@ function accessProviderFor(
       let keys: ReturnType<typeof modulePermissionKeys>;
 
       try {
-        keys = modulePermissionKeys(config.blocks, names, config.subjects);
+        keys = modulePermissionKeys(
+          config.blocks,
+          names,
+          config.subjects,
+          config.authorization.actionKeys,
+        );
       } catch (error) {
         if (error instanceof FormerPermissionKeyError) {
           throw new CliError("config_invalid", error.message, { cause: error });
@@ -114,7 +121,13 @@ function accessProviderFor(
         throw error;
       }
 
-      const problems = moduleKeyProblems(config.authorization, keys);
+      const problems = [
+        ...moduleKeyProblems(config.authorization, keys),
+        ...catalogKeyProblems(
+          config.authorization,
+          providerKeyUses(config.authorization),
+        ),
+      ];
 
       if (problems.length > 0) {
         throw new TypeError(

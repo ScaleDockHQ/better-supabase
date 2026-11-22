@@ -6,6 +6,13 @@
 export interface SubjectConfig {
   /** `schema.table`, or a table in `public`. */
   readonly table: string;
+  /**
+   * The wire name: the value stored in `subject_type` columns, sent in events
+   * and used in SQL. Defaults to the key. Set it when it must differ from the
+   * key, such as a key `time_entry` stored as `time-entry`. An `on` key may use
+   * the key or the alias.
+   */
+  readonly alias?: string;
   /** The id column. Defaults to `id`. */
   readonly id?: string;
   /**

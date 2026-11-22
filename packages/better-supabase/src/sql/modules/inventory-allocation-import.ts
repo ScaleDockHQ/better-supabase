@@ -18,6 +18,10 @@ export function allocationImportFunctions(
   ctx: BlockSqlContext,
   names: InventoryNames,
 ): string {
+  if (!ctx.hasTable("allocations")) {
+    return "";
+  }
+
   const { fn } = names;
   const allocations = ctx.table("allocations");
   const levels = ctx.table("levels");
@@ -147,6 +151,10 @@ ${serviceGrant(`${fn("stock_allocation_updated_at")}(text)`)}
 export function allocationImportTargets(
   own: BlockSqlContext,
 ): readonly ImportTargetContribution[] {
+  if (!own.hasTable("allocations")) {
+    return [];
+  }
+
   return [
     {
       entity: "stock_allocation",

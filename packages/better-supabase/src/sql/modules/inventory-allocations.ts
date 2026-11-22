@@ -19,6 +19,7 @@ export const ALLOCATION_TABLES = {
   allocations: {
     name: "stock_allocations",
     app: {},
+    optionalTable: true,
     lifecycle: { tenant: "tenant", export: true },
     columns: {
       id: "id",
@@ -44,6 +45,10 @@ export function allocationTable(
   read: (table: string) => string,
   lock: (table: string) => string,
 ): string {
+  if (!ctx.hasTable("allocations")) {
+    return "";
+  }
+
   const catalog = ctx.of("catalog");
   const loc = locationsOf(ctx);
   const a = columns(ctx, "allocations");
@@ -95,6 +100,10 @@ export function allocationFunctions(
   ctx: BlockSqlContext,
   names: InventoryNames,
 ): string {
+  if (!ctx.hasTable("allocations")) {
+    return "";
+  }
+
   const { fn } = names;
   const allocations = ctx.table("allocations");
   const levels = ctx.table("levels");

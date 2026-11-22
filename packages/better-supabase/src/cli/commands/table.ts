@@ -14,6 +14,7 @@ import {
   setTableFeature,
   TABLE_FEATURES,
 } from "../../sql/index.ts";
+import { tagKeyProblem } from "../authorization.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { applyPlan, PLAN_ARGS, planResult } from "../core/files.ts";
@@ -140,6 +141,8 @@ async function runTable(
       canIn: config.authorization?.functions.canIn,
       actorMayWrite: config.authorization?.functions.actorMayWrite,
       scope: config.authorization?.tenantScope,
+      tenantColumn: config.sql.tenantColumn,
+      keyProblem: tagKeyProblem(config.authorization),
     },
   );
 

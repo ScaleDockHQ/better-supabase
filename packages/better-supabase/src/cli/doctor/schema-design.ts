@@ -6,6 +6,7 @@ import type {
 } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { sameTenantLayout } from "../../sql/index.ts";
 import { configFor } from "../gen/shared.ts";
 import { splinterTables } from "./advisor-rules.ts";
 import { enrichedAppTables } from "./app-table-scope.ts";
@@ -202,7 +203,7 @@ const DESIGN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant foreign key that can cross tenants",
     description:
-      "When a tenant table references another tenant table by `id` alone, a row can point at a parent in another organization; RLS checks each row, not the pair. Reference `(id, organization_id)` with a composite foreign key, backed by `unique (id, organization_id)` on the parent.",
+      "When a tenant table references another tenant table by `id` alone, a row can point at a parent in another organization; RLS checks each row, not the pair. Reference `(id, organization_id)` with a composite foreign key, backed by `unique (id, organization_id)` on the parent. A same-tenant trigger satisfies it: the one `sameTenant` generates, or an app trigger whose body compares the tenant column (BS398 checks that). Where the parent has a unique `(id, organization_id)`, an info finding still recommends the composite key.",
     check: (context) => {
       const column = context.config.extensions.tenant?.column;
 
@@ -213,6 +214,24 @@ const DESIGN_RULES: readonly Rule[] = [
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),
       );
+
+      const appFiles = (context.sqlFiles ?? []).filter(
+        (file) =>
+          !file.path.includes("migrations/") &&
+          !file.path.includes("better-supabase-data/"),
+      );
+
+      const app = sameTenantLayout(appFiles, context.config.schemas);
+
+      const appGuards = new Map(
+        Object.entries(app.appTriggerColumns).map(([name, columns]) => [
+          name,
+          new Set(columns),
+        ]),
+      );
+
+      const appBodies = app.appTriggerBodies;
+      const mentions = new RegExp(`\\b${escape(column)}\\b`, "i");
 
       const hasTenant = (table: CatalogTable | undefined): boolean =>
         table?.columns.some((entry) => entry.name === column) ?? false;
@@ -229,8 +248,52 @@ const DESIGN_RULES: readonly Rule[] = [
 
           const parent = tables.get(`${key.refSchema}.${key.refTable}`);
 
-          if (!hasTenant(parent) || parent === table) {
+          if (parent === undefined || !hasTenant(parent) || parent === table) {
             return [];
+          }
+
+          const [own] = key.columns;
+
+          // A same-tenant trigger the block generates, or an app trigger that
+          // compares the tenant (BS398 checks it does), makes the database
+          // refuse a cross-tenant row, so the key needs no tenant column.
+          const guarded =
+            key.columns.length === 1 &&
+            own !== undefined &&
+            (table.triggers.some(
+              (trigger) =>
+                trigger.name === `bsb_same_tenant_${own}`.slice(0, 63) &&
+                trigger.function.endsWith("same_tenant"),
+            ) ||
+              (appGuards.get(qualified(table))?.has(own) === true &&
+                (appBodies[qualified(table)] ?? []).some((body) =>
+                  mentions.test(body),
+                )));
+
+          if (guarded) {
+            const composite = [...key.refColumns, column];
+
+            const unique = [
+              ...parent.uniques.map((entry) => entry.columns),
+              ...parent.indexes
+                .filter((index) => index.unique)
+                .map((index) => index.columns),
+            ].some(
+              (columns) =>
+                columns.length === composite.length &&
+                composite.every((name) => columns.includes(name)),
+            );
+
+            return unique
+              ? [
+                  {
+                    severity: "info",
+                    message: `${qualified(table)}.${key.name} is guarded by a same-tenant trigger, and ${key.refTable} already has \`unique (${composite.join(", ")})\`. A composite foreign key \`(${[...key.columns, column].join(", ")})\` makes the database enforce it without a trigger.`,
+                    target: `${qualified(table)}.${key.name}`,
+                    object: tableObject(table),
+                  },
+                ]
+              : [];
           }
 
           return [

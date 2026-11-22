@@ -70,6 +70,29 @@ describe("db squash", () => {
     ).toBe("insert 1;\ninsert 2;");
   });
 
+  it("stamps kept data after the baseline even when the baseline is stamped later than the clock", async () => {
+    const { root, dir } = await project();
+
+    await runSquash(
+      resolveConfig({ database: { sql: { dir: "supabase" } } }, root),
+      args(["--keep", "reference_data"]),
+      {},
+      {
+        now: () => new Date("2026-06-01T00:00:10Z"),
+        supabase: async (_argv, cwd) => {
+          await writeFile(
+            join(cwd, "supabase/migrations/20260601000030_init.sql"),
+            "baseline",
+          );
+
+          return ok;
+        },
+      },
+    );
+
+    expect(await readdir(dir)).toContain("20260601000031_reference_data.sql");
+  });
+
   it("restores the migrations when the baseline fails", async () => {
     const { root, dir } = await project();
 

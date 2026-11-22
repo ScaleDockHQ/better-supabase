@@ -237,6 +237,9 @@
               "type": "string",
               "description": "The Data API schema every block writes its security invoker entry points to, unless the block sets its own api or false."
             },
+            "audit": {
+              "type": "boolean"
+            },
             "owner": {
               "enum": ["tenant", "user", "none"],
               "type": "string",
@@ -266,6 +269,22 @@
             },
             "tenantColumn": {
               "type": "string"
+            },
+            "brand": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "column": {
+                  "type": "string"
+                },
+                "tenant": {
+                  "type": "string"
+                }
+              },
+              "required": ["table", "column"],
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -1068,11 +1087,90 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  "approval": {
+                    "type": "object",
+                    "properties": {
+                      "steps": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "mode": {
+                        "enum": ["sequential", "parallel"],
+                        "type": "string"
+                      },
+                      "effects": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["steps"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["permission"],
                 "additionalProperties": false
               }
+            },
+            "doctor": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["command"],
+              "additionalProperties": false
+            },
+            "actionKeys": {
+              "type": "object",
+              "properties": {
+                "blocks": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "recordTypes": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "buckets": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "topics": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "additionalProperties": false
             },
             "memberships": {
               "type": "array",
@@ -1630,6 +1728,9 @@
           "table": {
             "type": "string",
             "description": "`schema.table`, or a table in `public`."
+          },
+          "alias": {
+            "type": "string"
           },
           "id": {
             "type": "string",
@@ -3422,8 +3523,15 @@
                     "description": "`./path.ts#TypeName`"
                   },
                   "schema": {
-                    "type": "object",
-                    "additionalProperties": {},
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
                     "description": "JSON Schema enforced by `better-supabase add jsonb-schemas` (pg_jsonschema)."
                   }
                 },
@@ -3438,12 +3546,30 @@
                     "description": "Inline TypeScript type."
                   },
                   "schema": {
-                    "type": "object",
-                    "additionalProperties": {},
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
                     "description": "JSON Schema enforced by `better-supabase add jsonb-schemas` (pg_jsonschema)."
                   }
                 },
                 "required": ["type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "schema": {
+                    "type": "string",
+                    "description": "JSON Schema enforced by `better-supabase add jsonb-schemas` (pg_jsonschema)."
+                  }
+                },
+                "required": ["schema"],
                 "additionalProperties": false
               }
             ]
@@ -3885,10 +4011,27 @@
             "additionalProperties": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 {
-                  "type": "null"
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["column"],
+                  "additionalProperties": false
                 }
               ]
             }
@@ -4205,10 +4348,27 @@
             "additionalProperties": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 {
-                  "type": "null"
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["column"],
+                  "additionalProperties": false
                 }
               ]
             }
@@ -6415,6 +6575,7 @@
             "additionalProperties": false,
             "properties": {
               "targets": {},
+              "targetConvention": {},
               "events": {},
               "audit": {
                 "type": "string"
@@ -7132,6 +7293,10 @@
               },
               "createdEvent": {
                 "type": "string"
+              },
+              "externalRecipients": {
+                "type": "boolean",
+                "default": false
               },
               "maxRecipients": {
                 "type": "number",

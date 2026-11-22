@@ -173,9 +173,7 @@ describe("blocks", () => {
 
 describe("apply", () => {
   it("sets preset in the config, shows the diff and writes the modules", async () => {
-    await files({
-      "better-supabase.config.json": json({ blocks: { tags: {} } }),
-    });
+    await files({ "better-supabase.config.json": json({ blocks: ["tags"] }) });
     const result = await run(["add", "--preset", "minimal", "--cwd", dir]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('+  "preset": "minimal"');
@@ -183,7 +181,7 @@ describe("apply", () => {
       JSON.parse(
         await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
-    ).toEqual({ blocks: { tags: {} }, preset: "minimal" });
+    ).toEqual({ blocks: ["tags"], preset: "minimal" });
     expect(
       existsSync(
         join(dir, "supabase/schemas/900_better_supabase_022_profiles.sql"),
@@ -227,14 +225,14 @@ describe("apply", () => {
         await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
     ).toEqual({
-      blocks: {
-        "updated-at": {},
-        memberships: {},
-        permissions: {},
-        comments: {},
-        subjects: {},
-        messaging: {},
-      },
+      blocks: [
+        "updated-at",
+        "memberships",
+        "permissions",
+        "comments",
+        "subjects",
+        "messaging",
+      ],
     });
   });
 
@@ -497,7 +495,7 @@ describe("add <block>", () => {
   it("lists the block, writes its modules, wires its client and names its glue", async () => {
     await files({
       "package.json": json({ name: "app", dependencies: { next: "16" } }),
-      "better-supabase.config.json": json({ blocks: {} }),
+      "better-supabase.config.json": json({ blocks: [] }),
       "lib/blocks.ts": [
         'import { createBlocks, rpcTransport } from "better-supabase/blocks";',
         'import { profilesBlock } from "better-supabase/blocks/profiles";',
@@ -538,7 +536,7 @@ describe("add <block>", () => {
       JSON.parse(
         await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ).blocks,
-    ).toMatchObject({ comments: {}, outbox: {} });
+    ).toEqual(expect.arrayContaining(["comments", "outbox"]));
   });
 
   it("prints the wiring without lib/blocks.ts, and stops on an unknown block", async () => {
@@ -642,7 +640,7 @@ describe("init --preset", () => {
     expect(config).not.toContain("preset:");
     expect(config).toContain("  database: { sql: { workflow: 'migra' } },");
     expect(config).toContain(
-      "  blocks: { permissions: { model: 'catalog', idType: 'bigint' }, memberships: { names: { organization: 'club' } }, 'rls-guard': {} },",
+      "  blocks: [{ block: 'permissions', model: 'catalog', idType: 'bigint' }, { block: 'memberships', names: { organization: 'club' } }, 'rls-guard'],",
     );
     expect(
       (await run(["init", "--tenant-name", "Club", "--cwd", dir])).code,

@@ -1,7 +1,7 @@
 import { readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, resolve } from "node:path";
 
-import type { ResolvedConfig } from "../../config/index.ts";
+import type { ResolvedConfig, ColumnMapping } from "../../config/index.ts";
 import type { TenantColumnSkip } from "../codemod-naming-pins.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { FilePlan, PlannedFile } from "../core/files.ts";
@@ -41,6 +41,11 @@ const CODEMOD_ARGS = {
   check: {
     type: "boolean",
     description: "Write nothing; exit 1 with a diff when a file would change",
+  },
+  prune: {
+    type: "boolean",
+    description:
+      "config: remove every entry equal to its default, unless the render changes",
   },
 } as const;
 
@@ -170,7 +175,7 @@ function tenantColumnsOf(config: ResolvedConfig): TenantColumnSkip {
         | Readonly<
             Record<
               string,
-              Readonly<Record<string, string | null | undefined>> | undefined
+              Readonly<Record<string, ColumnMapping | undefined>> | undefined
             >
           >
         | undefined;
@@ -371,6 +376,7 @@ export async function runCodemod(
   const projectInput = {
     config,
     configLoaded: configError === undefined,
+    ...(args.prune === true ? { prune: true } : {}),
     sql: await projectSqlFiles(config.root),
     ...(env === undefined
       ? {}

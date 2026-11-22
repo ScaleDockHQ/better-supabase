@@ -85,6 +85,15 @@ export function moduleContext(
       ...(layout.permissionCatalog
         ? { permissionCatalog: layout.permissionCatalog }
         : {}),
+      ...(layout.providerActionKeys?.blocks
+        ? { providerActionKeys: layout.providerActionKeys.blocks }
+        : {}),
+      ...providerPeople(modules, layout),
+      ...(layout.foreignKeys ? { foreignKeys: layout.foreignKeys } : {}),
+      ...(layout.idTypes ? { idTypes: layout.idTypes } : {}),
+      ...(layout.providerApprovals
+        ? { providerApprovals: layout.providerApprovals }
+        : {}),
       ...(layout.rerunnable === true ? { rerunnable: true } : {}),
       ...(layout.grants
         ? {
@@ -98,6 +107,7 @@ export function moduleContext(
         : {}),
       ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
       ...(layout.appColumns ? { appColumns: layout.appColumns } : {}),
+      ...(layout.appFunctions ? { appFunctions: layout.appFunctions } : {}),
       ...(layout.ownColumns && layout.keepUndeclaredColumns !== true
         ? { ownColumns: layout.ownColumns }
         : {}),
@@ -109,6 +119,7 @@ export function moduleContext(
       ...(layout.blockTenantColumn
         ? { tenantColumn: layout.blockTenantColumn }
         : {}),
+      ...(layout.blockBrand ? { brand: layout.blockBrand } : {}),
       ...providerIdType(layout),
       ...providerGuests(layout),
       ...(modules?.permissions?.model === "provider" &&
@@ -151,6 +162,18 @@ export function moduleContext(
       },
     },
   );
+}
+
+/**
+ * One fact, in the order every block default follows: the config entry, then
+ * the authorization provider's value, then the fallback.
+ */
+function resolveFact<T>(
+  configured: T | undefined,
+  provided: T | undefined,
+  fallback?: T,
+): T | undefined {
+  return configured ?? provided ?? fallback;
 }
 
 /**
@@ -199,11 +222,14 @@ export function viewColumnsOf(
 function viewColumnsFrom(layout: BlockSqlLayout): ViewColumns {
   return viewColumns(
     layout,
-    withProviderPlatformRoles(
+    withProviderClaimsHook(
       layout,
-      withProviderDisabledAt(
+      withProviderPlatformRoles(
         layout,
-        withProviderRoles(layout, withProviderSuspension(layout)),
+        withProviderDisabledAt(
+          layout,
+          withProviderRoles(layout, withProviderSuspension(layout)),
+        ),
       ),
     ),
     (module) => registry().modules[module]?.names,
@@ -230,17 +256,18 @@ function withProviderSuspension(
   const useProviderUser =
     configured.user === undefined && suspension.user !== undefined;
 
+  const tenant = resolveFact(configured.tenant, suspension.tenant);
+
+  const userKey = resolveFact(
+    configured.userKey,
+    useProviderUser ? suspension.userKey : undefined,
+  );
+
   const disabled: NonNullable<AccessBlockConfig["disabled"]> = {
     ...configured,
-    ...(configured.tenant === undefined && suspension.tenant
-      ? { tenant: suspension.tenant }
-      : {}),
+    ...(tenant === undefined ? {} : { tenant }),
     ...(useProviderUser ? { user: suspension.user } : {}),
-    ...(useProviderUser &&
-    configured.userKey === undefined &&
-    suspension.userKey !== undefined
-      ? { userKey: suspension.userKey }
-      : {}),
+    ...(userKey === undefined ? {} : { userKey }),
   };
 
   if (
@@ -304,6 +331,39 @@ function withProviderDisabledAt(
 }
 
 /**
+ * `blocks.impersonation.options.claimsHook` from the provider's `tokenHook`
+ * function, unless the config sets one.
+ */
+function withProviderClaimsHook(
+  layout: BlockSqlLayout,
+  modules: AnyBlocksConfig | undefined,
+): AnyBlocksConfig | undefined {
+  const hook = layout.accessProvider?.tokenHook?.function;
+  const impersonation = modules?.["impersonation"];
+
+  if (
+    !modules ||
+    hook === undefined ||
+    impersonation === undefined ||
+    impersonation.mode === "custom" ||
+    impersonation.options?.["claimsHook"] !== undefined
+  ) {
+    return modules;
+  }
+
+  return {
+    ...modules,
+    impersonation: {
+      ...impersonation,
+      options: {
+        ...impersonation.options,
+        claimsHook: resolveFact(undefined, hook),
+      },
+    },
+  };
+}
+
+/**
  * `blocks.invitations.options.platformRoles` from the provider's
  * `platformRoles` under the `provider` model, unless the config sets it.
  */
@@ -329,7 +389,13 @@ function withProviderPlatformRoles(
     ...modules,
     invitations: {
       ...invitations,
-      options: { ...invitations.options, platformRoles: platform },
+      options: {
+        ...invitations.options,
+        platformRoles: resolveFact(
+          invitations.options?.["platformRoles"],
+          platform,
+        ),
+      },
     },
   };
 }
@@ -381,6 +447,30 @@ function withProviderRoles(
       ...tenant,
       options: { ...tenant.options, roleThrough: source.role.through },
     },
+  };
+}
+
+/**
+ * The provider's `approverFor` (when it names the request with `{id}`) and
+ * `managedUsers` templates, which only count under the `provider` model.
+ */
+function providerPeople(
+  modules: AnyBlocksConfig | undefined,
+  layout: BlockSqlLayout,
+): { providerApproverFor?: string; providerManagedUsers?: string } {
+  const functions = layout.accessProvider?.functions;
+
+  if (modules?.permissions?.model !== "provider" || functions === undefined) {
+    return {};
+  }
+
+  return {
+    ...(functions.approverFor?.includes("{id}")
+      ? { providerApproverFor: functions.approverFor }
+      : {}),
+    ...(functions.managedUsers === undefined
+      ? {}
+      : { providerManagedUsers: functions.managedUsers }),
   };
 }
 

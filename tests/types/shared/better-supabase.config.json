@@ -34,13 +34,14 @@
       "column": "organization_id"
     }
   },
-  "blocks": {
-    "updated-at": {},
-    "created-by": {},
-    "trash": {
+  "blocks": [
+    "updated-at",
+    "created-by",
+    {
+      "block": "trash",
       "options": {
         "deletedAt": "archived_at"
       }
     }
-  }
+  ]
 }

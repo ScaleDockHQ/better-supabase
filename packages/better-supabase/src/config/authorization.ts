@@ -152,18 +152,22 @@ export interface AuthorizationFunctions {
    */
   readonly bootstrapPermissions?: string;
   /**
-   * The user ids the caller approves for (out-of-office covers and delegations
-   * included), as a set of uuid: it is used as `select u from <template> as
-   * t(u)`. No placeholders. No module reads this yet. Without it `isApprover`
-   * alone decides.
+   * The user ids that may decide the request `{id}` (a uuid expression) of kind
+   * `{kind}` (a text literal: `'leave'`, `'expense'` or `'time-entry'`), as a
+   * set of uuid: it is used as `select u from <template> as t(u)`. Out of
+   * office covers, delegations and the manager chain belong in it. Leave,
+   * expenses and time entries let a caller in the set decide the request when
+   * the block sets no `options.decider`; the explicit option wins. A template
+   * without `{id}` is not read.
    */
   readonly approverFor?: string;
   /**
    * The user ids the caller manages in `{tenant}` (the manager chain and
    * delegations included), as a set of uuid: it is used as `select u from
    * <template> as t(u)`. `{tenant}` is optional: a template that leaves it out
-   * returns the users the caller manages in every tenant. No module reads this
-   * yet.
+   * returns the users the caller manages in every tenant. Leave, expenses and
+   * time entries count a caller who manages the requester as their manager when
+   * they read or list requests.
    */
   readonly managedUsers?: string;
   /**
@@ -239,6 +243,38 @@ export interface AuthorizationOperation<Key extends string = string> {
     readonly effects?: readonly ("read" | "write" | "delete" | "external")[];
     readonly title?: string;
   };
+  /**
+   * The approval floor of an operation named `<subjectType>:<action>` (for
+   * example `quote:send`; `*` covers every subject type or action): the steps a
+   * request needs before it runs. `blocks.approvals.options.policies` entries
+   * win, and a subject type without either has no floor.
+   */
+  readonly approval?: AuthorizationApproval;
+}
+
+/**
+ * The approval an operation or a subject type needs, as the approvals block
+ * reads it.
+ */
+export interface AuthorizationApproval {
+  readonly steps: readonly Readonly<Record<string, unknown>>[];
+  readonly mode?: "sequential" | "parallel";
+  readonly effects?: readonly string[];
+}
+
+/**
+ * The permission keys a provider maps to the actions of a block instance, a
+ * record type, a bucket or a realtime topic. Each map is keyed by the instance,
+ * type, bucket or topic, then by action. The config's own `permissions` entry
+ * wins, then these, then the key the block derives.
+ */
+export interface AuthorizationActionKeys<Key extends string = string> {
+  readonly blocks?: Readonly<Record<string, Readonly<Record<string, Key>>>>;
+  readonly recordTypes?: Readonly<
+    Record<string, Readonly<Record<string, Key>>>
+  >;
+  readonly buckets?: Readonly<Record<string, Readonly<Record<string, Key>>>>;
+  readonly topics?: Readonly<Record<string, Readonly<Record<string, Key>>>>;
 }
 
 /** A table of memberships the provider reads. */
@@ -491,6 +527,19 @@ export interface AuthorizationProvider<Key extends string = string> {
    * up here first and uses its own default permission otherwise.
    */
   readonly operations?: Readonly<Record<string, AuthorizationOperation<Key>>>;
+  /**
+   * The permission keys the provider gives the actions of blocks, record types,
+   * buckets and topics, so the config does not repeat them.
+   */
+  readonly actionKeys?: AuthorizationActionKeys<Key>;
+  /**
+   * A command that runs the provider's own doctor, for example `["pnpm",
+   * "exec", "provider", "doctor", "--json"]`. `better-supabase doctor` runs it
+   * in the project root and reads `{ findings: [{ code, severity?, title?,
+   * message, target?, help? }] }` from its output. Its findings join the report
+   * as BS705 and the baseline.
+   */
+  readonly doctor?: { readonly command: readonly string[] };
   readonly memberships?: readonly AuthorizationMembership[];
   /** Rows that say whether a user or a tenant is active. */
   readonly suspension?: {

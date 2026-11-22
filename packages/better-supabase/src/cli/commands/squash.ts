@@ -13,7 +13,7 @@ import { CliError, errorText } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { supabaseCli } from "../exec.ts";
 import { migrationsDir } from "../sql-layout.ts";
-import { migrationStamp } from "../sql/migration-names.ts";
+import { migrationStamp, stampAfter } from "../sql/migration-names.ts";
 
 const EXTENSIONS = "better_supabase_extensions";
 
@@ -63,20 +63,6 @@ const DEFAULT_DEPS: SquashDeps = {
 /** The migration's name without its `<stamp>_` prefix and `.sql` suffix. */
 const migrationName = (file: string): string =>
   file.replace(/^\d{14}_?/, "").replace(/\.sql$/, "");
-
-const STAMP = /^(\d{14})/;
-
-/** A `YYYYMMDDHHMMSS` stamp as milliseconds since the epoch (UTC). */
-function stampTime(stamp: string): number {
-  return Date.UTC(
-    Number(stamp.slice(0, 4)),
-    Number(stamp.slice(4, 6)) - 1,
-    Number(stamp.slice(6, 8)),
-    Number(stamp.slice(8, 10)),
-    Number(stamp.slice(10, 12)),
-    Number(stamp.slice(12, 14)),
-  );
-}
 
 /** The names `--keep` lists, trimmed and without empties. */
 function keepNames(flag: string | undefined): string[] {
@@ -228,31 +214,16 @@ export async function runSquash(
       );
     }
 
-    const baseline = (await readdir(folder))
-      .filter((file) => migrationName(file) === name)
-      .toSorted()
-      .at(-1);
-
-    const base = stampTime(
-      STAMP.exec(baseline ?? "")?.[1] ?? migrationStamp(start),
-    );
-
-    let offset = 0;
-
     for (const [wanted, text] of carried) {
       if (wanted === EXTENSIONS) {
         continue;
       }
 
-      offset += 1;
+      // After every migration in the folder, the baseline and the data files
+      // written so far included, so no two share a stamp.
+      const stamp = stampAfter(await readdir(folder), start);
 
-      await writeFile(
-        resolve(
-          folder,
-          `${migrationStamp(new Date(base + offset * 1000))}_${wanted}.sql`,
-        ),
-        text,
-      );
+      await writeFile(resolve(folder, `${stamp}_${wanted}.sql`), text);
     }
   } catch (cause) {
     await restore();

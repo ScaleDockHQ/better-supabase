@@ -95,7 +95,7 @@ function constraintOf(
  * constraints and `alter table ... add constraint ... foreign key`, in the
  * order they appear. Only tables in `schemas` are kept.
  */
-function declaredForeignKeys(
+export function declaredForeignKeys(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
 ): DeclaredForeignKey[] {
@@ -271,13 +271,30 @@ function appTriggerColumns(
 }
 
 /**
+ * The last layout by its input. A render asks for it once per module, and the
+ * scans of a large schema folder cost seconds, so the same files are read
+ * once.
+ */
+let lastLayout: { key: string; layout: SameTenantLayout } | undefined;
+
+/**
  * The layout fields `blocks.memberships.options.sameTenant.auto` derives its
  * entries from.
  */
 export function sameTenantLayout(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
-): Required<
+): SameTenantLayout {
+  const key = `${schemas.join(",")}\0${files.map((file) => file.text).join("\0")}`;
+
+  if (lastLayout?.key !== key) {
+    lastLayout = { key, layout: computeSameTenantLayout(files, schemas) };
+  }
+
+  return lastLayout.layout;
+}
+
+export type SameTenantLayout = Required<
   Pick<
     BlockSqlLayout,
     "foreignKeys" | "declaredColumns" | "notNullColumns" | "appTriggerColumns"
@@ -288,7 +305,12 @@ export function sameTenantLayout(
    * BS398).
    */
   readonly appTriggerBodies: Readonly<Record<string, readonly string[]>>;
-} {
+};
+
+function computeSameTenantLayout(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): SameTenantLayout {
   return {
     foreignKeys: declaredForeignKeys(files, schemas),
     appTriggerColumns: appTriggerColumns(files, schemas),

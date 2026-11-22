@@ -12,6 +12,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { SubjectTableBinding } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { inferredLink } from "../inferred-bindings.ts";
 import {
   filterAny,
   listBody,
@@ -143,14 +144,44 @@ const SLUG = "'^[a-z0-9]+(-[a-z0-9]+)*$'";
 const RESERVED = ["fields"] as const;
 
 function subjects(ctx: BlockSqlContext) {
-  return subjectsOption(ctx, ["links", "kinds"]);
+  const tags = ctx.table("tags");
+
+  return subjectsOption(ctx, ["links", "kinds"]).map(
+    ([type, subject]): [string, typeof subject] => {
+      if (subject.extra["links"] !== undefined) {
+        return [type, subject];
+      }
+
+      const link = inferredLink(
+        ctx,
+        subject,
+        tags,
+        `blocks.${ctx.instance}.on.${type}`,
+      );
+
+      return link === undefined
+        ? [type, subject]
+        : [type, { ...subject, extra: { ...subject.extra, links: link } }];
+    },
+  );
 }
 
 function links(ctx: BlockSqlContext) {
-  return subjectTableBindings(ctx, subjects(ctx), "links", {
+  const bindings = subjectTableBindings(ctx, subjects(ctx), "links", {
     columns: [...LINK_COLUMNS],
     optional: ["tenant", "createdAt"],
   });
+
+  const column = ctx.tenantColumn;
+
+  // A link table that has `sql.tenantColumn` and names no `tenant` uses it.
+  return bindings.map((link) =>
+    column === undefined ||
+    link.columns["tenant"] !== undefined ||
+    !ctx.ownHasColumn(`${link.schema}.${link.table}`, column)
+      ? link
+      : { ...link, columns: { ...link.columns, tenant: column } },
+  );
 }
 
 function kindsOf(extra: Readonly<Record<string, unknown>>): readonly string[] {
