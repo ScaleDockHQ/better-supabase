@@ -18,6 +18,17 @@ export function once(sql: string): string {
     );
 }
 
+function pairedFrom(pair: { recordSql: string } | undefined): string {
+  if (pair === undefined) {
+    return `from (select x.entry_id, row_number() over () as rn from logged x) lg
+    join final f on f.rn = lg.rn`;
+  }
+
+  return `from (select x.entry_id, x.entry_record, x.entry_op, row_number() over (partition by x.entry_record, x.entry_op order by x.entry_id) as n from logged x) lg
+    join (select f1.*, (${pair.recordSql})::text as f_record, row_number() over (partition by (${pair.recordSql})::text, f1.op order by f1.rn) as n from final f1) f
+      on f.f_record is not distinct from lg.entry_record and f.op = lg.entry_op and f.n = lg.n`;
+}
+
 const KEY = (row: string): string =>
   `(select string_agg(to_jsonb(${row}) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord))`;
 
@@ -39,7 +50,17 @@ export function statementFunction(
      * read `f` (the entry's source row) and `lg` (the log row just written).
      */
     restricted?:
-      | { table: string; columns: string; values: string; logId: string }
+      | {
+          table: string;
+          columns: string;
+          values: string;
+          logId: string;
+          /**
+           * The log's record and op columns: entries are matched to their
+           * source rows by them, not by the order RETURNING emits.
+           */
+          pair?: { record: string; op: string; recordSql: string };
+        }
       | undefined;
     grant: string;
   },
@@ -54,9 +75,11 @@ export function statementFunction(
 
   const restricted = parts.restricted;
 
-  // The restricted rows are matched to their entries by position: the entries
-  // are inserted in `rn` order, and RETURNING emits them in insertion order.
-  // The log's id can be a uuid, so it can't carry the order.
+  // The restricted rows are matched to their entries by record and op (the Nth
+  // entry of a repeated pair with the Nth source row) when the log has both
+  // columns: a join on them doesn't depend on the order RETURNING emits, which
+  // SQL doesn't promise. Without them it falls back to insertion order, as the
+  // log's id can be a uuid and can't carry the order.
   const changedValues = `(select jsonb_object_agg(k, jsonb_build_object(
           'old', case when length((r.old_row -> k)::text) > 1000 then to_jsonb(left((r.old_row -> k)::text, 1000)) else r.old_row -> k end,
           'new', case when length((r.new_row -> k)::text) > 1000 then to_jsonb(left((r.new_row -> k)::text, 1000)) else r.new_row -> k end
@@ -113,12 +136,11 @@ export function statementFunction(
       insert into ${ctx.table("log")} (${parts.insert.columns})
       ${entries}
       order by final.rn
-      returning ${restricted.logId} as entry_id
+      returning ${restricted.logId} as entry_id${restricted.pair ? `, ${restricted.pair.record}::text as entry_record, ${restricted.pair.op}::text as entry_op` : ""}
     )
     insert into ${restricted.table} (${restricted.columns})
     select ${once(restricted.values)}
-    from (select x.entry_id, row_number() over () as rn from logged x) lg
-    join final f on f.rn = lg.rn;`
+    ${pairedFrom(restricted.pair)};`
         : `
     insert into ${ctx.table("log")} (${parts.insert.columns})
     ${entries};`

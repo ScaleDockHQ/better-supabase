@@ -299,3 +299,10 @@ clones, passes that tenant to the clone as `overrides.tenantId`, and `clone_invo
 `clone_task` copy every header column the table has, not only the title and currency. A clone into another tenant
 is allowed only for a row a template owns or for the service role, so a user cannot copy a row from a tenant they
 cannot read. These are `create or replace` changes, so `add` and `upgrade` need no version bump.
+
+**Audit statement trigger and squash.** With the restricted table, the statement-level audit trigger matches each
+restricted row to its entry by record and operation instead of by the order `RETURNING` emits, which SQL does not
+promise. A log without a record or op column keeps the order match. `db squash` stamps the kept data migrations with
+`stampAfter` over the whole migrations folder, so a baseline stamped later than the CLI's clock no longer shares a
+stamp with the data. A test now lists the tenant tables that declare no `lifecycle` (35 today, the data-lifecycle
+module's own tables among them) and fails when the list grows.

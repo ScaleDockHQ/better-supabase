@@ -45,7 +45,7 @@ import {
 } from "./audit-request.ts";
 import { retention } from "./audit-retention.ts";
 import { revert } from "./audit-revert.ts";
-import { rowPairs } from "./audit-row.ts";
+import { RECORD_KEY, rowPairs } from "./audit-row.ts";
 import { once, statementFunction } from "./audit-statement.ts";
 import {
   actorKind,
@@ -687,6 +687,15 @@ function statementTrigger(
           columns: kept.map(([l]) => ctx.col("restricted", l)).join(", "),
           values: kept.map(([, value]) => value).join(", "),
           logId: ctx.col("log", "id"),
+          ...(ctx.has("log", "record") && ctx.has("log", "op")
+            ? {
+                pair: {
+                  record: ctx.col("log", "record"),
+                  op: ctx.col("log", "op"),
+                  recordSql: RECORD_KEY,
+                },
+              }
+            : {}),
         }
       : undefined,
     grant: triggerGrant("better_supabase.audit_statement_change()"),
