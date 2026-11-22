@@ -414,6 +414,139 @@ export class ConfigDocument {
   }
 
   /**
+   * The names of the entries of the object or list at `path` (an empty path is
+   * the config), in source order. A spread contributes the names of the object
+   * it spreads. Undefined when `path` is not an object or list literal here.
+   */
+  keys(path: readonly PathSegment[]): readonly string[] | undefined {
+    const root =
+      path.length === 0 ? this.configObject() : this.locate(path)?.value;
+
+    if (root === undefined) {
+      return undefined;
+    }
+
+    const names: string[] = [];
+    const seen = new Set<Node>();
+
+    const collect = (node: Node): boolean => {
+      const resolved = this.#resolve(node);
+
+      if (seen.has(resolved)) {
+        return true;
+      }
+
+      seen.add(resolved);
+
+      if (resolved.type === "ObjectExpression") {
+        for (const property of resolved.properties) {
+          if (property.type === "SpreadElement") {
+            collect(property.argument);
+          } else {
+            const name = propertyName(property);
+
+            if (name !== undefined && !names.includes(name)) {
+              names.push(name);
+            }
+          }
+        }
+
+        return true;
+      }
+
+      if (resolved.type === "ArrayExpression") {
+        for (const element of resolved.elements) {
+          const label =
+            element === null || element.type === "SpreadElement"
+              ? undefined
+              : this.#label(unwrap(element));
+
+          if (label !== undefined && !names.includes(label)) {
+            names.push(label);
+          }
+        }
+
+        return true;
+      }
+
+      return false;
+    };
+
+    return collect(root) ? names : undefined;
+  }
+
+  /**
+   * Writes `valueText` at `path` and creates the object literals above it that
+   * the file lacks, so `ensure(["blocks", "drive", "columns", "nodes", "x"],
+   * '"y"')` works in a block that has no `columns` yet. The deepest entry that
+   * exists must be an object literal in this file; otherwise the result is a
+   * review line and the text stays.
+   */
+  ensure(path: readonly PathSegment[], valueText: string): EditResult {
+    let depth = path.length;
+
+    while (depth > 0 && this.locate(path.slice(0, depth)) === undefined) {
+      depth -= 1;
+    }
+
+    if (depth === path.length) {
+      return this.set(path, valueText);
+    }
+
+    const owner =
+      depth === 0 ? undefined : this.locate(path.slice(0, depth))?.value;
+
+    const keys = path.slice(depth);
+
+    if (
+      keys.some((key) => typeof key !== "string") ||
+      (depth > 0 && owner?.type !== "ObjectExpression")
+    ) {
+      return this.#flag(
+        `${this.#path}: cannot add ${path.join(".")}, because ${path
+          .slice(0, depth)
+          .join(".")} is not an object literal in this file; add it by hand.`,
+      );
+    }
+
+    const object =
+      depth === 0
+        ? this.configObject()
+        : owner?.type === "ObjectExpression"
+          ? owner
+          : undefined;
+
+    if (object === undefined) {
+      return this.#flag(`${this.#path}: no config object found.`);
+    }
+
+    const { text } = this.#module;
+    const style = this.style;
+    const last = object.properties.at(-1);
+    const closing = lineStartOf(text, object.end - 1);
+
+    const base =
+      last === undefined
+        ? `${/^[\t ]*/.exec(text.slice(closing))?.[0] ?? ""}${style.indent}`
+        : (/^[\t ]*/.exec(text.slice(lineStartOf(text, last.start)))?.[0] ??
+          style.indent);
+
+    const name = (key: PathSegment): string =>
+      IDENTIFIER.test(String(key))
+        ? String(key)
+        : `${style.quote}${String(key)}${style.quote}`;
+
+    const build = (at: number, pad: string): string =>
+      at === keys.length - 1
+        ? valueText
+        : `{${style.eol}${pad}${style.indent}${name(keys[at + 1]!)}: ${build(at + 1, pad + style.indent)},${style.eol}${pad}}`;
+
+    this.#addProperty(object, String(keys[0]), build(0, base));
+
+    return { status: "done" };
+  }
+
+  /**
    * Adds `valueText` as the last element of the array at `path`, in the form
    * the array has (one line or one element per line).
    */
@@ -763,40 +896,42 @@ export class ConfigDocument {
     return undefined;
   }
 
+  /** The instance name a list element stands for: its text, `name` or `block`. */
+  #label(inner: Node): string | undefined {
+    const text = (node: Node | undefined): string | undefined =>
+      node?.type === "Literal" && typeof node.value === "string"
+        ? node.value
+        : undefined;
+
+    if (inner.type !== "ObjectExpression") {
+      return text(inner);
+    }
+
+    const read = (key: string): string | undefined => {
+      const property = inner.properties.find(
+        (each) => each.type === "Property" && propertyName(each) === key,
+      );
+
+      return property?.type === "Property" ? text(property.value) : undefined;
+    };
+
+    return read("name") ?? read("block");
+  }
+
   /**
    * The element of a list that an instance name picks: a string with that text,
    * or an object whose `name` (else `block`) is that text. This is how
    * `blocks.<name>` reads in the `blocks` list.
    */
   #named(list: ArrayExpression, name: string): Located | undefined {
-    const text = (node: Node | undefined): string | undefined =>
-      node?.type === "Literal" && typeof node.value === "string"
-        ? node.value
-        : undefined;
-
     for (const element of list.elements) {
       if (element === null || element.type === "SpreadElement") {
         continue;
       }
 
       const inner = unwrap(element);
-      let label = text(inner);
 
-      if (inner.type === "ObjectExpression") {
-        const read = (key: string): string | undefined => {
-          const property = inner.properties.find(
-            (each) => each.type === "Property" && propertyName(each) === key,
-          );
-
-          return property?.type === "Property"
-            ? text(property.value)
-            : undefined;
-        };
-
-        label = read("name") ?? read("block");
-      }
-
-      if (label === name) {
+      if (this.#label(inner) === name) {
         return {
           entry: element,
           value: inner,
