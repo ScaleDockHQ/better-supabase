@@ -567,7 +567,8 @@ export function outcomesSql(
 -- or open. stage defaults to the first stage of the matching category in the
 -- task's pipeline. failed lands in the canceled category with close reason
 -- failed (not_planned where the column can't hold it). The note rides on
--- task.closed, and failed also records task.failed.
+-- task.closed, and failed also records task.failed. The before_task_close hook
+-- runs from the close trigger on the task, so every way of closing reaches it.
 create or replace function ${fn("close_task")}(task uuid, outcome text, note text default null, stage uuid default null)
 returns jsonb
 language plpgsql
@@ -578,6 +579,7 @@ declare
   v_row ${t("items")};
   v_stage uuid;
   v_note text := nullif(trim(close_task.note), '');
+  v_constraint text;
 begin
   if close_task.outcome is null or close_task.outcome not in ('completed', 'canceled', 'failed', 'open') then
     ${fail("TASK_OUTCOME_INVALID", "outcome is completed, canceled, failed or open", "22023")}
@@ -596,11 +598,6 @@ begin
   if close_task.outcome <> 'open' and v_row.${w("closedAt")} is not null then
     ${fail("TASK_CLOSED", "the task is already closed", "55000")}
   end if;
-  ${ctx.hook("before_task_close", [
-    ["uuid", `v_row.${w("id")}`],
-    ["text", "close_task.outcome"],
-    ["text", "v_note"],
-  ])}
   v_stage := coalesce(close_task.stage, case close_task.outcome
     when 'completed' then ${stageByCategory(ctx, `v_row.${w("pipeline")}`, "completed")}
     when 'open' then ${stageByCategory(ctx, `v_row.${w("pipeline")}`, "unstarted")}
@@ -616,6 +613,10 @@ begin
       update ${t("items")} x set ${w("stage")} = v_stage where x.${w("id")} = v_row.${w("id")};
     end if;
   exception when check_violation or foreign_key_violation then
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint is null then
+      raise;
+    end if;
     ${fail("TASK_ATTRS_INVALID", "the stage can't be used for this task", "22023")}
   end;
   perform set_config('bsb.close_note', '', true);

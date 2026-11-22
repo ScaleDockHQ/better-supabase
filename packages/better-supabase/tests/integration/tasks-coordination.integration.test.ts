@@ -536,6 +536,66 @@ describe.skipIf(!live)("task coordination", () => {
     }
   });
 
+  it("runs before_task_close once on every closing path and lets it refuse", async () => {
+    const env = await setup();
+
+    try {
+      const { s, tasks, org, team, alice } = env;
+      const stage = await stages(env);
+
+      await s.service();
+      await s.rows("create table public.close_log (task uuid, outcome text, note text)");
+
+      await s.rows(`create function public.before_task_close(t uuid, o text, n text)
+        returns void language plpgsql as $$
+        begin
+          insert into public.close_log values (t, o, n);
+          if n = 'refuse' then raise exception 'refused' using errcode = '23514'; end if;
+        end $$`);
+
+      await s.as(alice);
+
+      const make = (title: string) =>
+        tasks
+          .create({ organizationId: org, input: { title, teamId: team } })
+          .orThrow();
+
+      const one = await make("One");
+      const two = await make("Two");
+      const three = await make("Three");
+      const four = await make("Four");
+
+      await tasks.complete({ taskId: one.id, note: "done" }).orThrow();
+      await tasks.move({ taskId: two.id, stageId: stage("done") }).orThrow();
+
+      await s.service();
+
+      await s.rows(
+        "update better_supabase.tasks set state = 'completed' where id = $1",
+        [three.id],
+      );
+
+      const log = await s.rows<{ task: string; outcome: string; note: string }>(
+        "select task, outcome, note from public.close_log order by outcome, task",
+      );
+
+      expect(log.filter((row) => row.task === one.id)).toEqual([
+        { task: one.id, outcome: "completed", note: "done" },
+      ]);
+      expect(log.filter((row) => row.task === two.id)).toHaveLength(1);
+      expect(log.filter((row) => row.task === three.id)).toHaveLength(1);
+
+      // A hook that raises refuses the close, and keeps its own error.
+      await s.as(alice);
+
+      const refused = await tasks.cancel({ taskId: four.id, note: "refuse" });
+      expect(refused.ok).toBe(false);
+      expect((await tasks.getTask(four.id).orThrow()).closedAt).toBeUndefined();
+    } finally {
+      await env.s.close();
+    }
+  });
+
   it("refuses every new write to a read-only agent and a writable one meets the permission check", async () => {
     const env = await setup();
 

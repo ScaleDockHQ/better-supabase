@@ -601,6 +601,45 @@ ${ctx.has("items", "holdKind") ? `    new.${w("holdKind")} := null;\n` : ""}${ct
     .map((column) => `new.${column} is distinct from old.${column}`)
     .join(" or ");
 
+  const hookName = ctx.naming.rename("bsb_task_close_hook");
+
+  const outcome = ctx.has("items", "closeReason")
+    ? `case new.${w("closeReason")}::text when 'completed' then 'completed' when 'failed' then 'failed' else 'canceled' end`
+    : `case when ${state(`new.${w("state")}`, ["completed"])} then 'completed' else 'canceled' end`;
+
+  // After the row is closed, so that every closing path (close_task, a plain
+  // update, a bulk set, a stage move) reaches the hook once; a hook that raises
+  // refuses the close. Templates never close as work.
+  const closeHook = `
+create or replace function better_supabase.${hookName}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin${
+    templatesOn(ctx)
+      ? `
+  if new.${w("template")} is not null then
+    return null;
+  end if;`
+      : ""
+  }
+  ${ctx.hook("before_task_close", [
+    ["uuid", `new.${w("id")}`],
+    ["text", outcome],
+    ["text", `coalesce(nullif(current_setting('bsb.close_note', true), ''), ${ctx.has("items", "closeNote") ? `new.${w("closeNote")}` : "null"})`],
+  ])}
+  return null;
+end;
+$$;
+${triggerGrant(`better_supabase.${hookName}()`)}
+drop trigger if exists ${hookName} on ${t("items")};
+create trigger ${hookName} after update on ${t("items")}
+for each row when (old.${w("closedAt")} is null and new.${w("closedAt")} is not null)
+execute function better_supabase.${hookName}();
+`;
+
   return `
 create or replace function better_supabase.${guardName}()
 returns trigger
@@ -665,7 +704,7 @@ ${triggerGrant(`better_supabase.${guardName}()`)}
 drop trigger if exists ${guardName} on ${t("items")};
 create trigger ${guardName} before insert or update on ${t("items")}
 for each row execute function better_supabase.${guardName}();
-`;
+${closeHook}`;
 }
 
 /**
