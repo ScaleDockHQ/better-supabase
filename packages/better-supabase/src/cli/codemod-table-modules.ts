@@ -3,7 +3,7 @@ import { posix } from "node:path";
 
 import type { Codemod, FileRewrite, ReviewLine } from "./codemod.ts";
 
-import { codeRanges } from "./code-ranges.ts";
+import { codeRanges } from "./config-document/ranges.ts";
 import { schemaModulePath } from "./gen/emit.ts";
 
 /** A table module on disk: the table's key and where its module is. */

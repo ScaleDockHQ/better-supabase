@@ -2,8 +2,8 @@ import type { ResolvedConfig } from "../config/index.ts";
 import type { NamingRename } from "./codemod-naming.ts";
 
 import { LEGACY_OPTION, moduleContext, SQL_MODULES } from "../sql/index.ts";
-import { codeRanges } from "./code-ranges.ts";
 import { closing as closingBrace } from "./codemod-config.ts";
+import { codeRanges } from "./config-document/ranges.ts";
 import { isRecord } from "./guards.ts";
 
 /** One `blocks.<block>.columns.<table>.<column>` entry that keeps an old name. */

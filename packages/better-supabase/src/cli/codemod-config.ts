@@ -7,8 +7,8 @@ import type { PlannedFile } from "./core/files.ts";
 
 import { restatedEntries } from "../config/index.ts";
 import { clientNotNull, redundantNulls, SQL_MODULES } from "../sql/index.ts";
-import { codeRanges } from "./code-ranges.ts";
 import { settleGroups, withoutConfigPaths } from "./codemod-prune.ts";
+import { codeRanges } from "./config-document/ranges.ts";
 import { loadConfig } from "./config.ts";
 import { mergeRestated, probeRestated } from "./restated-probe.ts";
 import { ownLayout } from "./sql-layout.ts";

@@ -1,6 +1,6 @@
 import type { NamingRename } from "./codemod-naming.ts";
 
-import { codeRanges } from "./code-ranges.ts";
+import { codeRanges } from "./config-document/ranges.ts";
 
 /** The innermost unclosed bracket before `at`, counting only code. */
 function openBracket(

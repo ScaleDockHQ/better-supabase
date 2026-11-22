@@ -9,7 +9,6 @@ import type { ResolvedConfig } from "../config/index.ts";
 import type { TenantColumnSkip } from "./codemod-naming-pins.ts";
 import type { PlannedFile } from "./core/files.ts";
 
-import { codeRanges } from "./code-ranges.ts";
 import { accountCallsCodemod } from "./codemod-account-calls.ts";
 import { blocksListCodemod } from "./codemod-blocks-list.ts";
 import { configCodemod } from "./codemod-config.ts";
@@ -23,6 +22,7 @@ import { serverImportsCodemod } from "./codemod-server-imports.ts";
 import { renameSubpaths } from "./codemod-subpaths.ts";
 import { tableModulesCodemod } from "./codemod-table-modules.ts";
 import { tableTagsCodemod } from "./codemod-table-tags.ts";
+import { codeRanges } from "./config-document/ranges.ts";
 import { generatorsCodemod } from "./generators/codemod.ts";
 
 /** What a project-level codemod reads. */

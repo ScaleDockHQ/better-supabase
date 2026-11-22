@@ -9,7 +9,7 @@
 
 import type { PresetSpec } from "../../preset/index.ts";
 
-import { codeRanges } from "../code-ranges.ts";
+import { codeRanges } from "../config-document/ranges.ts";
 import { isRecord } from "../guards.ts";
 
 export type ConfigEdit =

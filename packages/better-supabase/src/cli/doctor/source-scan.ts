@@ -2,7 +2,7 @@
  * Source scanning shared by the code checks: brackets and statements in code
  * with strings and comments blanked, and line-independent finding targets.
  */
-import { codeRanges } from "../code-ranges.ts";
+import { codeRanges } from "../config-document/ranges.ts";
 
 export const OPEN: ReadonlySet<string> = new Set(["(", "[", "{"]);
 export const CLOSE: ReadonlySet<string> = new Set([")", "]", "}"]);

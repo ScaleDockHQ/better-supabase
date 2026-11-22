@@ -9,7 +9,7 @@ import {
   legacyOptionTarget,
   moduleContext,
 } from "../sql/index.ts";
-import { codeRanges } from "./code-ranges.ts";
+import { codeRanges } from "./config-document/ranges.ts";
 import { CliError } from "./core/errors.ts";
 import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 import { layoutFor } from "./sql/providers.ts";
