@@ -54,6 +54,9 @@ export function subjectFromTag(args: Args, table: string): SubjectConfig {
   const scope = text(args["scope"]);
   const deletedAt = text(args["deleted-at"]);
   const rankGroup = text(args["rank-group"]);
+  const held = text(args["held"]);
+  const template = text(args["template"]);
+  const readAccess = text(args["read-access"]);
 
   return {
     table,
@@ -67,6 +70,11 @@ export function subjectFromTag(args: Args, table: string): SubjectConfig {
     ...(scope === undefined ? {} : { scope }),
     ...(args["cascade"] === true ? { cascade: true } : {}),
     ...(deletedAt === undefined ? {} : { deletedAt }),
+    ...(held === undefined ? {} : { held }),
+    ...(template === undefined ? {} : { template }),
+    ...(readAccess === "tenant" || readAccess === "record"
+      ? { readAccess }
+      : {}),
     ...(Object.keys(permissions).length === 0 ? {} : { permissions }),
     ...(search
       ? {
@@ -111,7 +119,12 @@ export function subjectTagArgs(
   if (
     permissions.some(([, value]) => typeof value !== "string") ||
     subject.search?.from !== undefined ||
-    subject.search?.watch !== undefined
+    subject.search?.watch !== undefined ||
+    subject.team !== undefined ||
+    subject.auditReads !== undefined ||
+    subject.history !== undefined ||
+    (typeof subject.template === "object" &&
+      (subject.template.children?.length ?? 0) > 0)
   ) {
     return undefined;
   }
@@ -133,6 +146,14 @@ export function subjectTagArgs(
   set("scope", subject.scope);
   set("cascade", subject.cascade === true ? true : undefined);
   set("deleted-at", subject.deletedAt);
+  set("held", subject.held);
+  set(
+    "template",
+    typeof subject.template === "object"
+      ? subject.template.column
+      : subject.template,
+  );
+  set("read-access", subject.readAccess);
   set("search-title", subject.search?.title);
   set(
     "search-body",

@@ -50,6 +50,11 @@ export interface CodemodProject {
   readonly configLoaded?: boolean;
   /** `adopt-names`: the table to rename, as `<block>.<table>`. */
   readonly table?: string;
+  /**
+   * `table-tags --explain`: list what moves and where each tag reaches, write
+   * nothing.
+   */
+  readonly explain?: boolean;
   /** `config --prune`: remove every entry that equals its default. */
   readonly prune?: boolean;
   /**

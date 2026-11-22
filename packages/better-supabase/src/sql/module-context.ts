@@ -91,6 +91,9 @@ export function moduleContext(
         : {}),
       ...providerPeople(modules, layout),
       ...(layout.foreignKeys ? { foreignKeys: layout.foreignKeys } : {}),
+      ...(layout.declaredColumns
+        ? { declaredColumns: layout.declaredColumns }
+        : {}),
       ...(layout.idTypes ? { idTypes: layout.idTypes } : {}),
       ...(layout.providerApprovals
         ? { providerApprovals: layout.providerApprovals }

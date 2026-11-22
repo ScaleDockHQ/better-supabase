@@ -355,6 +355,13 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   readonly providerApprovals: Readonly<Record<string, AuthorizationApproval>>;
   /** The single-column foreign keys the app's schema files declare. */
   readonly foreignKeys: readonly DeclaredForeignKey[];
+  /**
+   * The columns each table the app's schema files declare has, by
+   * `schema.table`, or undefined when the layout did not read them.
+   */
+  readonly declaredColumns:
+    | Readonly<Record<string, readonly string[]>>
+    | undefined;
   /** The declared id-like column types of the app's tables, by `schema.table`. */
   readonly idTypes: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** The `provider` model's `can_user` answers only for the caller. */
@@ -696,6 +703,8 @@ export interface BlockSqlContextSource {
   readonly providerManagedUsers?: string;
   readonly providerApprovals?: Readonly<Record<string, AuthorizationApproval>>;
   readonly foreignKeys?: readonly DeclaredForeignKey[];
+  /** `layout.declaredColumns`. */
+  readonly declaredColumns?: Readonly<Record<string, readonly string[]>>;
   readonly idTypes?: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** The layout applies statements in file order (`layout.rerunnable`). */
   readonly rerunnable?: boolean;
@@ -1402,6 +1411,7 @@ export function createModuleContext(
     providerManagedUsers: source.providerManagedUsers,
     providerApprovals: source.providerApprovals ?? {},
     foreignKeys: source.foreignKeys ?? [],
+    declaredColumns: source.declaredColumns,
     idTypes: source.idTypes ?? {},
     ...(source.providerCallerOnly === true ? { providerCallerOnly: true } : {}),
     appTables: new Set(source.appTables),
