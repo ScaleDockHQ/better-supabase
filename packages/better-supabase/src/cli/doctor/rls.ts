@@ -233,6 +233,36 @@ export function functionBody(
   schema: string,
   name: string,
 ): string | undefined {
+  let cache = bodiesByContext.get(context);
+
+  if (!cache) {
+    cache = new Map();
+    bodiesByContext.set(context, cache);
+  }
+
+  const key = `${schema}.${name}`;
+
+  if (!cache.has(key)) {
+    cache.set(key, findFunctionBody(context, schema, name));
+  }
+
+  return cache.get(key);
+}
+
+/**
+ * Bodies by `schema.name`; a lookup scans every SQL file, and callers repeat it
+ * per statement.
+ */
+const bodiesByContext = new WeakMap<
+  DoctorContext,
+  Map<string, string | undefined>
+>();
+
+function findFunctionBody(
+  context: DoctorContext,
+  schema: string,
+  name: string,
+): string | undefined {
   const introspected = context.snapshot.generator.functions.find(
     (fn) => fn.schema === schema && fn.name === name && fn.definition,
   )?.definition;

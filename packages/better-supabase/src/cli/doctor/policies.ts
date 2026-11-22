@@ -118,6 +118,12 @@ function checksCaller(
 }
 
 /**
+ * Whether a callee checks the caller, by the provider's `requires` list and
+ * `schema.name`.
+ */
+const calleeChecks = new WeakMap<object, Map<string, boolean>>();
+
+/**
  * Whether `body` checks the caller, or calls one app function whose own body
  * does (one level, so a thin wrapper over a checked helper passes).
  */
@@ -145,9 +151,19 @@ function callsAccessCheck(
         continue;
       }
 
-      const inner = functionBody(context, callee.schema, callee.name);
+      const key = `${callee.schema}.${callee.name}`;
+      let checked = calleeChecks.get(requires)?.get(key);
 
-      if (inner !== undefined && checksCaller(inner, requires)) {
+      if (checked === undefined) {
+        const inner = functionBody(context, callee.schema, callee.name);
+        checked = inner !== undefined && checksCaller(inner, requires);
+
+        const perKey = calleeChecks.get(requires) ?? new Map<string, boolean>();
+        perKey.set(key, checked);
+        calleeChecks.set(requires, perKey);
+      }
+
+      if (checked) {
         return true;
       }
     }

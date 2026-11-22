@@ -956,16 +956,16 @@ export default defineConfig({
     "leave",
     // Time is logged on companies and projects only.
     { block: "time-entries", options: { on: ["company", "project"] } },
-    // Fixed deposit invoices and a discount on the invoice header.
     {
       block: "invoices",
       names: { invoice: { url: "/finance/payables" } },
+      // Fixed deposit invoices and a discount on the invoice header.
       columns: {
         invoices: {
-          archivedAt: "archived_at",
-          depositAmount: "deposit_amount",
-          discountBps: "discount_bps",
-          discountAmount: "discount_amount",
+          archivedAt: { column: "archived_at", required: true },
+          depositAmount: { column: "deposit_amount", required: true },
+          discountBps: { column: "discount_bps", required: true },
+          discountAmount: { column: "discount_amount", required: true },
         },
       },
     },

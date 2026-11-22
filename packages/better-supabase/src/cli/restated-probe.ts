@@ -1,6 +1,7 @@
 import type { RestatedEntry, ResolvedConfig } from "../config/index.ts";
 
 import { renderBlocks } from "../sql/index.ts";
+import { withLayoutSession } from "./sql-layout.ts";
 import { layoutFor } from "./sql/providers.ts";
 
 interface Candidate {
@@ -190,11 +191,22 @@ const reasonOf = (candidate: Candidate): string =>
  * their default: a render without the entry gives the same files. It removes
  * the whole set, and splits the set until each survivor is a single entry, so a
  * clean config costs one render. It stops after a fixed number of renders and
- * reports what it found.
+ * reports what it found. `budgetMs` also stops it after that much time, so
+ * doctor stays fast on a large project; `codemod config --prune` has no
+ * budget.
  */
 export async function probeRestated(
   config: ResolvedConfig,
+  options: { readonly budgetMs?: number } = {},
 ): Promise<RestatedEntry[]> {
+  return withLayoutSession(() => probeWithin(config, options.budgetMs));
+}
+
+async function probeWithin(
+  config: ResolvedConfig,
+  budgetMs: number | undefined,
+): Promise<RestatedEntry[]> {
+  const deadline = budgetMs === undefined ? undefined : Date.now() + budgetMs;
   const base = await renderOf(config);
   const found: Candidate[] = [];
   let renders = 0;
@@ -211,7 +223,11 @@ export async function probeRestated(
   };
 
   const search = async (group: readonly Candidate[]): Promise<void> => {
-    if (group.length === 0 || renders >= MAX_RENDERS) {
+    if (
+      group.length === 0 ||
+      renders >= MAX_RENDERS ||
+      (deadline !== undefined && Date.now() > deadline)
+    ) {
       return;
     }
 

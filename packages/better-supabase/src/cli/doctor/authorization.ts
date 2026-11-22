@@ -442,6 +442,9 @@ function requirementProblem(
       };
 }
 
+/** Doctor spends at most this long rendering blocks without a config entry. */
+const PROBE_BUDGET_MS = 20_000;
+
 /**
  * Config entries that equal their resolved default (BS427): identity column
  * mappings, `null`s for columns the views lack, empty maps, a tenant column
@@ -455,7 +458,9 @@ async function restatedDefaults(
       ? context.config.authorization
       : undefined;
 
-  const probed = await probeRestated(context.config).catch(() => []);
+  const probed = await probeRestated(context.config, {
+    budgetMs: PROBE_BUDGET_MS,
+  }).catch(() => []);
 
   return mergeRestated(
     restatedEntries({

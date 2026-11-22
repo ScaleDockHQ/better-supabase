@@ -1,6 +1,6 @@
 -- better-supabase module: tax
 -- @bsb-block tax@2 managed
--- @bsb-hash sha256:96b2de0cae84f5a76e81864e10c5d94856a80ae6235aec07d71028b9e9b69faf
+-- @bsb-hash sha256:9aac7c1c364e41817a485b77725be028dee0bcab15a26b96118e84f6dfc746a7
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -55,6 +55,7 @@ create table "better_supabase"."tax_rates" (
   constraint "tax_rates_tenant_code_fkey" foreign key ("tax_code_id", "tenant_id") references "better_supabase"."tax_codes" ("id", "tenant_id") on delete cascade
 );
 create unique index "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
+create index "tax_rates_tenant_code_idx" on "better_supabase"."tax_rates" ("tax_code_id", "tenant_id");
 alter table "better_supabase"."tax_rates" enable row level security;
 revoke all on "better_supabase"."tax_rates" from public, anon, authenticated;
 grant select on "better_supabase"."tax_rates" to authenticated;

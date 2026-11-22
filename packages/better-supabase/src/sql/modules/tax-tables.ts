@@ -42,6 +42,7 @@ export function taxRateKeyUpgrade(ctx: BlockSqlContext): string {
 
   return `
 create unique index if not exists ${taxCodeTenantKey(ctx)} on ${q.codes} (${c("id")}, ${c("tenant")});
+create index if not exists ${sqlIdent(`${rates}_tenant_code_idx`)} on ${q.rates} (${r("taxCode")}, ${r("tenant")});
 do $upgrade$
 begin
   if not exists (
@@ -140,6 +141,7 @@ create table if not exists ${q.rates} (
   check (${r("validTo")} is null or ${r("validTo")} >= ${r("validFrom")}),
   constraint ${taxRateCodeKey(ctx)} foreign key (${r("taxCode")}, ${r("tenant")}) references ${q.codes} (${c("id")}, ${c("tenant")}) on delete cascade
 );${unique("rates", "from_key", `${r("taxCode")}, ${r("validFrom")}`)}
+create index if not exists ${name("rates", "tenant_code_idx")} on ${q.rates} (${r("taxCode")}, ${r("tenant")});
 ${lockModuleTable(ctx, "rates", { read: true })}
 ${readPolicy("rates", ctx.scope.check(r("tenant"), q.read))}
 
