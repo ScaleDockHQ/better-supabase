@@ -9,7 +9,7 @@ import {
   legacyOptionTarget,
   moduleContext,
 } from "../sql/index.ts";
-import { codeRanges } from "./config-document/ranges.ts";
+import { ConfigDocument } from "./config-document/index.ts";
 import { CliError } from "./core/errors.ts";
 import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 import { layoutFor } from "./sql/providers.ts";
@@ -131,53 +131,26 @@ function taggedFields(
 }
 
 /**
- * `text` without the `<key>: { ... }` properties named in `keys`, with the
- * comma and the line each leaves behind. Only code counts: a key in a string or
- * a comment stays.
+ * `text` without the `options.<key>` entries named in `keys`, under each block
+ * of `blocks` and `instances`, with the comma, the line and the comments each
+ * leaves behind. A key in a string or a comment stays, and an option the file
+ * builds elsewhere (a spread of an import, a method) stays with a review line.
  */
 export function withoutOptionKeys(
   text: string,
   keys: ReadonlySet<string>,
-): string {
-  const ranges = codeRanges(text);
+): { readonly text: string; readonly review: readonly string[] } {
+  const document = ConfigDocument.parse(text);
 
-  const inCode = (index: number): boolean =>
-    ranges.some(([start, end]) => index >= start && index < end);
-
-  const edits: [number, number][] = [];
-
-  for (const match of text.matchAll(/\b([A-Za-z_]\w*)\s*:\s*\{/g)) {
-    if (!keys.has(match[1]!) || !inCode(match.index)) {
-      continue;
-    }
-
-    let depth = 0;
-    let end = match.index + match[0].length - 1;
-
-    for (; end < text.length; end += 1) {
-      if (!inCode(end)) {
-        continue;
-      }
-
-      depth += text[end] === "{" ? 1 : text[end] === "}" ? -1 : 0;
-
-      if (depth === 0) {
-        break;
+  for (const root of ["blocks", "instances"]) {
+    for (const name of document.keys([root]) ?? []) {
+      for (const key of keys) {
+        document.remove([root, name, "options", key]);
       }
     }
-
-    end += 1;
-
-    const after = /^[ \t]*,?[ \t]*\n?/.exec(text.slice(end))![0];
-    const lineStart = text.lastIndexOf("\n", match.index) + 1;
-    const alone = text.slice(lineStart, match.index).trim() === "";
-
-    edits.push([alone ? lineStart : match.index, end + after.length]);
   }
 
-  return edits
-    .toSorted((a, b) => b[0] - a[0])
-    .reduce((out, [start, end]) => out.slice(0, start) + out.slice(end), text);
+  return { text: document.text, review: document.review };
 }
 
 /**
@@ -277,10 +250,32 @@ export function extraColumnsFiles(input: ExtraColumnsInput): {
       options.map((option) => option.key).filter((key) => !kept.has(key)),
     );
 
-    const text = withoutOptionKeys(input.config.text, keys);
+    const edit = withoutOptionKeys(input.config.text, keys);
+    const left = ConfigDocument.parse(edit.text);
 
-    if (text !== input.config.text) {
-      files.push({ path: input.config.path, contents: text, policy: "edit" });
+    review.push(...edit.review.map((message) => ({ message })));
+
+    for (const option of options) {
+      const own = left.valueText(["blocks", option.block, "options"]);
+
+      if (
+        keys.has(option.key) &&
+        (left.has(["blocks", option.block, "options", option.key]) ||
+          (own !== undefined && !own.startsWith("{"))) &&
+        !edit.review.some((line) => line.includes(option.key))
+      ) {
+        review.push({
+          message: `blocks.${option.block}.options.${option.key}: the codemod could not remove it from the config file (it may come from another file); remove it by hand.`,
+        });
+      }
+    }
+
+    if (edit.text !== input.config.text) {
+      files.push({
+        path: input.config.path,
+        contents: edit.text,
+        policy: "edit",
+      });
     }
   }
 

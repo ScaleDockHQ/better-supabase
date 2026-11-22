@@ -71,7 +71,7 @@ describe("withoutOptionKeys", () => {
 };
 `;
 
-    expect(withoutOptionKeys(text, keys)).toBe(`export default {
+    expect(withoutOptionKeys(text, keys).text).toBe(`export default {
   blocks: {
     tags: {
       options: {
@@ -85,18 +85,67 @@ describe("withoutOptionKeys", () => {
   });
 
   it("drops several properties, last first", async () => {
-    const text = `a: { extraColumns: { x: "text" }, calendarExtraColumns: { y: "text" }, keep: 1 }`;
+    const text = `export default { blocks: { a: { options: { extraColumns: { x: "text" }, calendarExtraColumns: { y: "text" }, keep: 1 } } } };`;
 
-    expect(withoutOptionKeys(text, keys)).toBe("a: { keep: 1 }");
+    expect(withoutOptionKeys(text, keys).text).toBe(
+      "export default { blocks: { a: { options: { keep: 1 } } } };",
+    );
   });
 
   it("handles an only property and an inline one", async () => {
     expect(
       withoutOptionKeys(
-        `a: { options: { extraColumns: { x: "text" } } }`,
+        `export default { blocks: { a: { options: { extraColumns: { x: "text" } } } } };`,
         keys,
-      ),
-    ).toBe("a: { options: { } }");
+      ).text,
+    ).toBe("export default { blocks: { a: { options: {} } } };");
+  });
+
+  it("keeps comments, follows a spread and a shorthand, and keeps CRLF", async () => {
+    const text = [
+      "const options = {",
+      "  // the region",
+      '  extraColumns: { region: "text" }, // moved',
+      "  keep: 1, // stays",
+      "};",
+      "const tags = { options };",
+      "export default {",
+      "  // blocks",
+      "  blocks: { tags },",
+      "};",
+      "",
+    ].join("\r\n");
+
+    const result = withoutOptionKeys(text, keys);
+
+    expect(result.review).toEqual([]);
+    expect(result.text).toContain("keep: 1, // stays");
+    expect(result.text).toContain("// blocks");
+    expect(result.text).not.toContain("extraColumns");
+    expect(result.text).not.toContain("moved");
+    expect(result.text).not.toMatch(/[^\r]\n/);
+  });
+
+  it("lists an option it cannot follow instead of skipping it", async () => {
+    const text = `import { options } from "./options.ts";
+export default { blocks: { tags: { options } } };
+`;
+
+    const result = extraColumnsFiles({
+      options: { tags: { extraColumns: { region: "text" } } },
+      tableOf: () => "better_supabase.tags",
+      sql: [],
+      schemasDir: "/p/supabase/schemas",
+      config: { path: "/p/better-supabase.config.ts", text },
+    });
+
+    expect(result.review[0]?.message).toContain(
+      "blocks.tags.options.extraColumns",
+    );
+    expect(result.review[0]?.message).toContain("remove it by hand");
+    expect(result.files.some((file) => file.path.endsWith(".config.ts"))).toBe(
+      false,
+    );
   });
 });
 
@@ -109,7 +158,7 @@ describe("extraColumnsFiles", () => {
       schemasDir: "/p/supabase/schemas",
       config: {
         path: "/p/better-supabase.config.ts",
-        text: `tags: { options: { extraColumns: { region: "text not null default 'eu'" }, keep: 1 } },\n`,
+        text: `export default { blocks: { tags: { options: { extraColumns: { region: "text not null default 'eu'" }, keep: 1 } } } };\n`,
       },
     });
 
@@ -125,7 +174,7 @@ describe("extraColumnsFiles", () => {
 
     expect(
       files.find((file) => file.path.endsWith("config.ts"))?.contents,
-    ).toBe(`tags: { options: { keep: 1 } },\n`);
+    ).toBe(`export default { blocks: { tags: { options: { keep: 1 } } } };\n`);
   });
 
   it("appends to the app file that already alters the table", async () => {
@@ -164,7 +213,7 @@ describe("extraColumnsFiles", () => {
       schemasDir: "/p/supabase/schemas",
       config: {
         path: "/p/c.ts",
-        text: `tags: { options: { unknownExtraColumns: { missing: "text" } } }\n`,
+        text: `export default { blocks: { tags: { options: { unknownExtraColumns: { missing: "text" } } } } };\n`,
       },
     });
 
