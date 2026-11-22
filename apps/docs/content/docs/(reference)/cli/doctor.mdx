@@ -2482,6 +2482,10 @@ uses without it, so it is a second copy that goes stale. Doctor reports:
   `tokenHook.function` for `impersonation.options.claimsHook`;
 - `blocks.permissions.activeTenant` set to `"resolver"`, the request and the
   default;
+- a block `api` written as `{ schema: "api" }` (no function list) that equals
+  `database.sql.api`;
+- a `recordTypes.<type>.permissions.<action>` key equal to the provider's
+  `actionKeys.recordTypes` entry;
 - a `permissions` key, an `options` entry or a `sameTenant` element of an
   installed block whose removal leaves every rendered file unchanged: a key
   the block would pick anyway, an option equal to its default, an entry the

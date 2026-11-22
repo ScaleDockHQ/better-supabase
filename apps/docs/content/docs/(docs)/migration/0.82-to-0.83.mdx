@@ -152,13 +152,26 @@ generated file differs. It removes the entries in batches and halves a batch
 whose render changes or throws, so it lists the block groups it kept and why
 instead of stopping at the first entry another option needs.
 
-| 0.82                                                                  | 0.83                                  |
-| --------------------------------------------------------------------- | ------------------------------------- |
-| `columns: { tasks: { title: "title" } }`                              | removed; the column has the same name |
-| `tenant: "org_id"` equal to `sql.tenantColumn`                        | removed                               |
-| `api: "api"` equal to `database.sql.api`                              | removed                               |
-| `permissions: { read: "tasks.read" }` equal to the key the block uses | removed                               |
-| `options.feed.names: false` equal to the default                      | removed                               |
+| 0.82                                                                  | 0.83                                       |
+| --------------------------------------------------------------------- | ------------------------------------------ |
+| `columns: { tasks: { title: "title" } }`                              | removed; the column has the same name      |
+| `tenant: "org_id"` equal to `sql.tenantColumn`                        | removed                                    |
+| `api: "api"` equal to `database.sql.api`                              | removed                                    |
+| `permissions: { read: "tasks.read" }` equal to the key the block uses | removed                                    |
+| `options.feed.names: false` equal to the default                      | removed                                    |
+| `api: { schema: "api" }` equal to `database.sql.api`                  | removed                                    |
+| `api: "api"` on most blocks and no `database.sql.api`                 | `sql.api: "api"`, `api: false` on the rest |
+
+When no `database.sql.api` is set and more than half of the blocks (at least
+two) name the same schema without a function list, the codemod sets
+`database.sql.api`, removes the matching entries and writes `api: false` on each
+block that had no entry, so it still writes no wrappers. It keeps the change
+only when the render stays the same.
+
+The BS427 target for a record type permission that repeats the provider's
+`actionKeys` is now `recordTypes.<type>.permissions.<action>` (it said
+`subjects.` before). A doctor baseline entry for the old target is stale: run
+`codemod doctor-baseline` or edit the target.
 
 ## Provider fields
 
