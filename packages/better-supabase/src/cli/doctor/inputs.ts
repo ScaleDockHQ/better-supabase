@@ -4,12 +4,12 @@ import { dirname, resolve } from "node:path";
 
 import type { ResolvedConfig, SqlWorkflow } from "../../config/index.ts";
 import type { TextFile } from "../doctor/rules.ts";
-import type { SupabaseToml } from "../supabase-toml.ts";
+import type { SupabaseConfig } from "../supabase-config.ts";
 
 import { CONFIG_DEFAULTS } from "../../config/index.ts";
 import { byCodePoint } from "../compare.ts";
 import { detectWorkspace } from "../project/workspace.ts";
-import { schemaPaths } from "../supabase-toml.ts";
+import { schemaPaths } from "../supabase-config.ts";
 
 export const ENV_FILES: readonly string[] = [
   ".env",
@@ -66,7 +66,7 @@ export async function readGitignores(root: string): Promise<string> {
  */
 export async function sqlFiles(
   root: string,
-  toml: SupabaseToml | undefined,
+  toml: SupabaseConfig | undefined,
   workflow?: SqlWorkflow,
 ): Promise<TextFile[]> {
   const read = async (path: string): Promise<TextFile> => ({
@@ -114,13 +114,13 @@ async function sqlInFolder(root: string, folder: string): Promise<TextFile[]> {
 /** The `.sql` files under the seeds folder, sorted by name (BS356). */
 export const seedFiles = (
   root: string,
-  toml: SupabaseToml | undefined,
+  toml: SupabaseConfig | undefined,
 ): Promise<TextFile[]> => sqlInFolder(root, `${toml?.dir ?? "supabase"}/seeds`);
 
 /** The TypeScript and JavaScript files of the Edge Functions (BS395). */
 export async function functionFiles(
   root: string,
-  toml: SupabaseToml | undefined,
+  toml: SupabaseConfig | undefined,
 ): Promise<TextFile[]> {
   const folder = `${toml?.dir ?? "supabase"}/functions`;
 
@@ -149,7 +149,7 @@ export async function functionFiles(
 /** The block data files, next to the schema folder (BS357, BS358). */
 export const dataFiles = (
   root: string,
-  toml: SupabaseToml | undefined,
+  toml: SupabaseConfig | undefined,
 ): Promise<TextFile[]> =>
   sqlInFolder(root, `${toml?.dir ?? "supabase"}/better-supabase-data`);
 

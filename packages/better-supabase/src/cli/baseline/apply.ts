@@ -7,7 +7,7 @@ import type { BaselineContext } from "./stack.ts";
 import { CliError, errorText } from "../core/errors.ts";
 import { connect } from "../db.ts";
 import { migrationFiles } from "../in-stack-diff.ts";
-import { readSupabaseToml, supabaseDir } from "../supabase-toml.ts";
+import { readSupabaseConfig, supabaseDir } from "../supabase-config.ts";
 import { VERSION } from "../version.ts";
 import { baselineRoot, findArtifact } from "./artifact.ts";
 import { serverVersion } from "./catalog.ts";
@@ -114,7 +114,7 @@ export async function applyBaseline(
   const timer = stepTimer();
   const { dbUrl } = options.target;
   const state = await timer.step("inspect", () => migrationsApplied(dbUrl));
-  const toml = await readSupabaseToml(root);
+  const toml = await readSupabaseConfig(root);
   const dir = supabaseDir(root);
   const sources = await seedSources(root, toml);
   const current = await hashFiles(root, await migrationFiles(root, dir));

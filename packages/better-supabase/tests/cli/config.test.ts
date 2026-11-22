@@ -15,7 +15,7 @@ import {
 } from "../../src/cli/config.ts";
 import { run } from "../../src/cli/core/run.ts";
 import { configEnvironment } from "../../src/cli/env.ts";
-import { findRepoRoot } from "../../src/cli/supabase-toml.ts";
+import { findRepoRoot } from "../../src/cli/supabase-config.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
 
 describe("defaultConfig", () => {

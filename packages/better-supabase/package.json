@@ -2933,6 +2933,7 @@
     "h3": "catalog:",
     "h3-v1": "catalog:",
     "hono": "catalog:",
+    "jsonc-parser": "catalog:",
     "jsonpath-rfc9535": "catalog:",
     "koa": "catalog:",
     "mammoth": "catalog:",

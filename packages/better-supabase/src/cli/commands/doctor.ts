@@ -71,9 +71,9 @@ import { listedDependencies, peerVersions } from "../peers.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import {
   findRepoRoot,
-  readSupabaseToml,
+  readSupabaseConfig,
   sqlWorkflow,
-} from "../supabase-toml.ts";
+} from "../supabase-config.ts";
 import { VERSION } from "../version.ts";
 import { loadSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceFlags } from "./source-args.ts";
@@ -469,7 +469,7 @@ export async function runDoctor(
     Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
       (files) => files.filter((file): file is TextFile => file !== undefined),
     ),
-    readSupabaseToml(config.root).then(
+    readSupabaseConfig(config.root).then(
       async (toml) =>
         [
           toml,

@@ -8,7 +8,7 @@ import type { FrameworkBinding } from "../../plugins/index.ts";
 import { frameworkRegistry } from "../../plugins/index.ts";
 import { shellQuote } from "../core/shell.ts";
 import { isRecord } from "../guards.ts";
-import { findSupabaseRoot } from "../supabase-toml.ts";
+import { findSupabaseRoot } from "../supabase-config.ts";
 
 export type Framework =
   | "next"

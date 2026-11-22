@@ -40,16 +40,17 @@ import { parseSnapshot } from "./commands/snapshot.ts";
 import { toCatalog } from "./introspect/catalog.ts";
 import { TypegenMissingError } from "./introspect/typegen.ts";
 import {
+  configFileInDir,
   declarativeSchemasDir,
   pgFunctionHooks,
-  readSupabaseToml,
+  readSupabaseConfig,
   schemaPaths,
   sqlWorkflow,
-} from "./supabase-toml.ts";
+} from "./supabase-config.ts";
 
 /** The folder the module data files sit next to, for the project's workflow. */
 export async function schemasDirOf(config: ResolvedConfig): Promise<string> {
-  const toml = await readSupabaseToml(config.root);
+  const toml = await readSupabaseConfig(config.root);
 
   return declarativeSchemasDir(toml, sqlWorkflow(config, toml));
 }
@@ -128,7 +129,7 @@ const auditedTables = (
 async function readSchemaTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly path: string; readonly text: string }[]> {
-  const toml = await readSupabaseToml(config.root);
+  const toml = await readSupabaseConfig(config.root);
   const migrations = resolve(config.root, migrationsDir(config));
 
   const paths = [
@@ -152,7 +153,7 @@ async function readSchemaTexts(
 async function readDeclarativeTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly path: string; readonly text: string }[]> {
-  const toml = await readSupabaseToml(config.root);
+  const toml = await readSupabaseConfig(config.root);
   const workflow = sqlWorkflow(config, toml);
   const { files } = await schemaPaths(config.root, toml, workflow);
 
@@ -186,7 +187,7 @@ async function readAuditedTables(
 async function accessTokenHookOf(
   config: ResolvedConfig,
 ): Promise<{ customAccessTokenHook?: string }> {
-  const toml = await readSupabaseToml(config.root);
+  const toml = await readSupabaseConfig(config.root);
 
   const hook = toml
     ? pgFunctionHooks(toml.document).find(
@@ -284,7 +285,7 @@ export async function moduleLayoutFor(
   const apiUsed = await apiUsedNames(config);
 
   const rerunnable =
-    sqlWorkflow(config, await readSupabaseToml(config.root)) === "migrations";
+    sqlWorkflow(config, await readSupabaseConfig(config.root)) === "migrations";
 
   return {
     ...base,
@@ -850,7 +851,7 @@ function notNullKeyPredicate(
 }
 
 /**
- * The migrations folder next to the `config.toml` found walking up from
+ * The migrations folder next to the config file found walking up from
  * `sql.dir`, relative to the root; `supabase/migrations` without one. The walk
  * stops where `sql.dir` and the root meet, so a `sql.dir` outside the project
  * (a shared stack in a monorepo) finds that stack's folder.
@@ -861,7 +862,7 @@ export function migrationsDir(config: ResolvedConfig): string {
   const stop = sqlRoot(config);
 
   for (;;) {
-    if (existsSync(join(dir, "config.toml"))) {
+    if (configFileInDir(dir) !== undefined) {
       return relative(root, join(dir, "migrations")).replaceAll("\\", "/");
     }
 

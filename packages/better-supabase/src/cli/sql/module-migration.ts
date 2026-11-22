@@ -7,7 +7,7 @@ import type { BlockSqlFile } from "../../sql/index.ts";
 import { moduleSchemaExtensions } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
-import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
+import { readSupabaseConfig, sqlWorkflow } from "../supabase-config.ts";
 import { hasMigrationSuffix, migrationFile } from "./migration-names.ts";
 
 /** The migration the migrations workflow writes the SQL modules into. */
@@ -30,7 +30,7 @@ export async function writesMigrations(
   config: ResolvedConfig,
 ): Promise<boolean> {
   return (
-    sqlWorkflow(config, await readSupabaseToml(config.root)) === "migrations"
+    sqlWorkflow(config, await readSupabaseConfig(config.root)) === "migrations"
   );
 }
 

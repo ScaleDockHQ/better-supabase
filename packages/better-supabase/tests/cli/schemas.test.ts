@@ -20,7 +20,10 @@ import { formatReport } from "../../src/cli/doctor/format.ts";
 import { RULES, runRules } from "../../src/cli/doctor/rules.ts";
 import { generatorJsonSchema } from "../../src/cli/introspect/typegen.ts";
 import { buildManifest } from "../../src/cli/spec/diagnostics.ts";
-import { parseToml } from "../../src/cli/supabase-toml.ts";
+import {
+  parseToml,
+  makeSupabaseConfig,
+} from "../../src/cli/supabase-config.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { resultDoc } from "./error-doc.ts";
 import { snapshotFixture as fixture } from "./fixtures/library.ts";
@@ -393,13 +396,14 @@ describe("shipped JSON Schemas", () => {
     const context = {
       config: resolveConfig({}, "/project"),
       snapshot: snapshot as unknown as Snapshot,
-      configToml: {
+      configToml: makeSupabaseConfig({
         path: "supabase/config.toml",
         dir: "supabase",
         text: "[auth]\njwt_expiry = 7200\n",
         document: parseToml("[auth]\njwt_expiry = 7200\n"),
         parser: "smol-toml" as const,
-      },
+        format: "toml",
+      }),
       envFiles: [{ path: ".env", text: "SUPABASE_SECRET_KEY=x\n" }],
       gitignore: "",
       sources: [],

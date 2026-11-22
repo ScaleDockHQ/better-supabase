@@ -8,7 +8,7 @@ import type {
 import type { DoctorContext, SqlObject } from "./rules.ts";
 
 import { toCatalog } from "../introspect/catalog.ts";
-import { detectWorkflow, sqlWorkflow, tomlGet } from "../supabase-toml.ts";
+import { detectWorkflow, sqlWorkflow, tomlGet } from "../supabase-config.ts";
 
 /**
  * A policy that is `false` for every row. An insert policy has no `using`, so

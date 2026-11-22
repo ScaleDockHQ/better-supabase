@@ -29,10 +29,10 @@ import {
 } from "../in-stack-diff.ts";
 import {
   declarativeSchemasDir,
-  readSupabaseToml,
+  readSupabaseConfig,
   schemaPaths,
   sqlWorkflow,
-} from "../supabase-toml.ts";
+} from "../supabase-config.ts";
 import { DB_URL_STDIN_ARG, STACK_ARG } from "./source-args.ts";
 
 const ARGS = {
@@ -260,7 +260,7 @@ export async function runDbDiff(
     );
   }
 
-  const toml = await readSupabaseToml(config.root);
+  const toml = await readSupabaseConfig(config.root);
   const workflow = sqlWorkflow(config, toml);
 
   if (workflow === "migrations") {

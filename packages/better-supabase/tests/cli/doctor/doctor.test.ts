@@ -15,7 +15,7 @@ import type {
   ExtrasHookFunction,
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
-import type { SupabaseToml } from "../../../src/cli/supabase-toml.ts";
+import type { SupabaseConfig } from "../../../src/cli/supabase-config.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { run } from "../../../src/cli/core/run.ts";
@@ -29,7 +29,11 @@ import { locate } from "../../../src/cli/doctor/locate.ts";
 import { RULE_CODES, RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
-import { parseToml, pgFunctionHooks } from "../../../src/cli/supabase-toml.ts";
+import {
+  parseToml,
+  pgFunctionHooks,
+  supabaseConfigFromText,
+} from "../../../src/cli/supabase-config.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
   stubProvider,
@@ -43,13 +47,7 @@ const AUTHZ = {
   config: resolveConfig({ auth: { authorization: stubProvider } }, "/project"),
 };
 
-const toml = (text: string): SupabaseToml => ({
-  path: "supabase/config.toml",
-  dir: "supabase",
-  text,
-  document: parseToml(text),
-  parser: "smol-toml",
-});
+const toml = (text: string): SupabaseConfig => supabaseConfigFromText(text);
 
 function snapshot(
   change: (tables: CatalogTable[], functions: CatalogFunction[]) => void,
@@ -2000,7 +1998,7 @@ uri = "https://example.com/hook"
 
       const message = async (
         sqlFiles: NonNullable<DoctorContext["sqlFiles"]>,
-        configToml?: SupabaseToml,
+        configToml?: SupabaseConfig,
       ) =>
         (
           await runRules(

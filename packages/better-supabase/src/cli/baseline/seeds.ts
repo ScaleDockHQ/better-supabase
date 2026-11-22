@@ -16,11 +16,11 @@ import {
   resolve,
 } from "node:path";
 
-import type { SupabaseToml, TomlTable } from "../supabase-toml.ts";
+import type { SupabaseConfig, TomlTable } from "../supabase-config.ts";
 import type { BaselineContext } from "./stack.ts";
 
 import { CliError } from "../core/errors.ts";
-import { tomlGet } from "../supabase-toml.ts";
+import { tomlGet } from "../supabase-config.ts";
 import { runPg } from "./stack.ts";
 
 export interface Bucket {
@@ -70,7 +70,7 @@ async function walk(folder: string): Promise<string[]> {
  */
 export async function seedSources(
   root: string,
-  toml: SupabaseToml | undefined,
+  toml: SupabaseConfig | undefined,
 ): Promise<SeedSources> {
   const dir = join(root, toml?.dir ?? "supabase");
   const document: TomlTable = toml?.document ?? {};

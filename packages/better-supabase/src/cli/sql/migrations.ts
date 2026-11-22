@@ -13,7 +13,7 @@ import {
 } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
-import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
+import { readSupabaseConfig, sqlWorkflow } from "../supabase-config.ts";
 import { hasMigrationSuffix, migrationFile } from "./migration-names.ts";
 import { layoutFor } from "./providers.ts";
 import { renderBlocksCached } from "./render-cache.ts";
@@ -210,7 +210,7 @@ export async function dataMigration(
   }
 
   if (
-    sqlWorkflow(config, await readSupabaseToml(config.root)) === "migrations"
+    sqlWorkflow(config, await readSupabaseConfig(config.root)) === "migrations"
   ) {
     return {
       code: 0,

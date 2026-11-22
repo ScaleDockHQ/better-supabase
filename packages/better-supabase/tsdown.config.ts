@@ -521,6 +521,7 @@ const cli = defineConfig({
       "fast-wrap-ansi",
       "fastest-levenshtein",
       "json-schema-traverse",
+      "jsonc-parser",
       "jsonpath-rfc9535",
       "pathe",
       "pkg-types",

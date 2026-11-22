@@ -23,7 +23,7 @@ import {
 import { cliAdvisors, withFallback } from "../doctor/cli-advisors.ts";
 import { supabaseCli } from "../exec.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
-import { readSupabaseToml } from "../supabase-toml.ts";
+import { readSupabaseConfig } from "../supabase-config.ts";
 
 /** Checks that read the database itself rather than the snapshot. */
 export const LIVE_CODES: ReadonlySet<string> = new Set([
@@ -112,7 +112,7 @@ export function openLive(
     async lints(category) {
       splinter ??= Promise.all([
         open(),
-        readSupabaseToml(config.root).catch(() => undefined),
+        readSupabaseConfig(config.root).catch(() => undefined),
       ]).then(([db, toml]) =>
         splinterAdvisors(db.queryable, db.describe, {
           cacheDir,

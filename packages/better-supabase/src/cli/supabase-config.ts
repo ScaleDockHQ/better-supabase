@@ -1,3 +1,10 @@
+import {
+  applyEdits,
+  findNodeAtLocation,
+  modify,
+  parse as parseJsonc,
+  parseTree,
+} from "jsonc-parser";
 import { existsSync, readdirSync } from "node:fs";
 import { glob, readFile } from "node:fs/promises";
 import { dirname, join, posix, relative } from "node:path";
@@ -16,8 +23,23 @@ export interface TomlTable {
   readonly [key: string]: TomlValue;
 }
 
-/** `supabase/config.toml`, parsed. */
-export interface SupabaseToml {
+/** The formats the Supabase CLI reads its project config from. */
+export type ConfigFormat = "toml" | "json" | "jsonc";
+
+/** A key or table in the config file, 1-based. */
+export interface ConfigLocation {
+  readonly line: number;
+  readonly column: number;
+  /** False when only an enclosing table or object holds the key. */
+  readonly exact: boolean;
+}
+
+/**
+ * The Supabase project config, parsed from `config.toml`, `config.json` or
+ * `config.jsonc` (the name `SupabaseToml` had before CLI 3.2.0 read all
+ * three).
+ */
+export interface SupabaseConfig {
   /**
    * Relative to the project root (`../../supabase/config.toml` in a monorepo
    * package).
@@ -25,16 +47,73 @@ export interface SupabaseToml {
   readonly path: string;
   /** The `supabase` directory, relative to the project root. */
   readonly dir: string;
+  readonly format: ConfigFormat;
   readonly text: string;
   /**
    * The keys present in the file (snake_case, as written), after `env()`
    * interpolation when parsed by `@supabase/config`.
    */
   readonly document: TomlTable;
-  readonly parser: "@supabase/config" | "smol-toml";
+  readonly parser: "@supabase/config" | "jsonc-parser" | "smol-toml";
+  /** Where `keyPath` (`['auth', 'jwt_expiry']`) sits in the file. */
+  locate(keyPath: readonly string[]): ConfigLocation | undefined;
+  /** The value at `keyPath` as written, before `env()` interpolation. */
+  raw(keyPath: readonly string[]): TomlValue | undefined;
 }
 
-const CONFIG_TOML = "supabase/config.toml";
+/** The file names the CLI looks for in `supabase/`, in its order of preference. */
+export const CONFIG_FILES: readonly {
+  readonly name: string;
+  readonly format: ConfigFormat;
+}[] = [
+  { name: "config.json", format: "json" },
+  { name: "config.jsonc", format: "jsonc" },
+  { name: "config.toml", format: "toml" },
+];
+
+/**
+ * The config file in `dir` (a `supabase` folder, or a stack folder under
+ * `supabase/stacks`), by the CLI's order of preference.
+ */
+export function configFileInDir(
+  dir: string,
+): { readonly name: string; readonly format: ConfigFormat } | undefined {
+  return CONFIG_FILES.find(({ name }) => existsSync(join(dir, name)));
+}
+
+/** The config file in `<root>/supabase`, by the CLI's order of preference. */
+export function configFileIn(
+  root: string,
+): { readonly name: string; readonly format: ConfigFormat } | undefined {
+  return configFileInDir(join(root, "supabase"));
+}
+
+/**
+ * The config of one folder (such as `supabase/stacks/<name>`), parsed without
+ * `env()` interpolation; undefined without a config file there.
+ */
+export async function readConfigInDir(
+  dir: string,
+): Promise<SupabaseConfig | undefined> {
+  const file = configFileInDir(dir);
+
+  if (file === undefined) {
+    return undefined;
+  }
+
+  return supabaseConfigFromText(
+    await readFile(join(dir, file.name), "utf-8"),
+    join(dir, file.name),
+  );
+}
+
+/** Both `config.json` and `config.jsonc` exist, which the CLI refuses. */
+export function configFileConflict(root: string): boolean {
+  return (
+    existsSync(join(root, "supabase", "config.json")) &&
+    existsSync(join(root, "supabase", "config.jsonc"))
+  );
+}
 
 /**
  * The nearest directory at or above `start` where `found` is true. The search
@@ -64,10 +143,11 @@ export function findUp(
 
 /**
  * The nearest directory at or above `start` that has `supabase/config.toml`,
- * like the Supabase CLI's search, within the same `.git` boundary.
+ * `config.json` or `config.jsonc`, like the Supabase CLI's search, within the
+ * same `.git` boundary.
  */
 export function findSupabaseRoot(start: string): string | undefined {
-  return findUp(start, (dir) => existsSync(join(dir, CONFIG_TOML)));
+  return findUp(start, (dir) => configFileIn(dir) !== undefined);
 }
 
 /**
@@ -180,76 +260,401 @@ export function parseToml(text: string): TomlTable {
   }
 }
 
+/**
+ * `text` as a JSON document with comments and trailing commas; an empty table
+ * when it does not parse.
+ */
+export function parseJsonConfig(text: string): TomlTable {
+  const value: unknown = parseJsonc(text, [], { allowTrailingComma: true });
+
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? toTomlTable(value)
+    : {};
+}
+
+function toTomlTable(value: object): TomlTable {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, toTomlValue(item)]),
+  );
+}
+
+function parseText(text: string, format: ConfigFormat): TomlTable {
+  return format === "toml" ? parseToml(text) : parseJsonConfig(text);
+}
+
+/** Splits a dotted TOML key (`a."b.c".d`) into its parts. */
+function splitTomlKey(key: string): string[] {
+  const parts: string[] = [];
+
+  const pattern =
+    /\s*(?:"((?:[^"\\]|\\.)*)"|'([^']*)'|([A-Za-z0-9_-]+))\s*(?:\.|$)/y;
+
+  for (;;) {
+    const match = pattern.exec(key);
+
+    if (match === null || match[0] === "") {
+      return parts;
+    }
+
+    parts.push(match[1] ?? match[2] ?? match[3] ?? "");
+
+    if (pattern.lastIndex >= key.length) {
+      return parts;
+    }
+  }
+}
+
+const sameKeys = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && a.every((key, index) => key === b[index]);
+
+interface TomlEntry {
+  readonly kind: "table" | "key";
+  readonly path: readonly string[];
+  readonly line: number;
+  readonly column: number;
+}
+
+/** The tables and keys of a TOML file with their full paths and positions. */
+function tomlEntries(text: string): TomlEntry[] {
+  const entries: TomlEntry[] = [];
+  let table: string[] = [];
+
+  for (const [index, line] of text.split(/\r?\n/).entries()) {
+    const header = /^(\s*)\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/.exec(line);
+
+    if (header !== null) {
+      table = splitTomlKey(header[2] ?? "");
+      entries.push({
+        kind: "table",
+        path: table,
+        line: index + 1,
+        column: (header[1]?.length ?? 0) + 1,
+      });
+      continue;
+    }
+
+    const key =
+      /^(\s*)((?:"[^"]*"|'[^']*'|[A-Za-z0-9_-]+)(?:\s*\.\s*(?:"[^"]*"|'[^']*'|[A-Za-z0-9_-]+))*)\s*=/.exec(
+        line,
+      );
+
+    if (key !== null) {
+      entries.push({
+        kind: "key",
+        path: [...table, ...splitTomlKey(key[2] ?? "")],
+        line: index + 1,
+        column: (key[1]?.length ?? 0) + 1,
+      });
+    }
+  }
+
+  return entries;
+}
+
+function locateToml(
+  text: string,
+  keyPath: readonly string[],
+): ConfigLocation | undefined {
+  const entries = tomlEntries(text);
+
+  const exact =
+    entries.find(
+      (entry) => entry.kind === "key" && sameKeys(entry.path, keyPath),
+    ) ?? entries.find((entry) => sameKeys(entry.path, keyPath));
+
+  if (exact !== undefined) {
+    return { line: exact.line, column: exact.column, exact: true };
+  }
+
+  for (let length = keyPath.length - 1; length > 0; length -= 1) {
+    const table = entries.find(
+      (entry) =>
+        entry.kind === "table" &&
+        sameKeys(entry.path, keyPath.slice(0, length)),
+    );
+
+    if (table !== undefined) {
+      return { line: table.line, column: table.column, exact: false };
+    }
+  }
+
+  return undefined;
+}
+
+function positionAt(text: string, offset: number): ConfigLocation {
+  const before = text.slice(0, offset);
+  const line = before.split("\n").length;
+
+  return {
+    line,
+    column: offset - (before.lastIndexOf("\n") + 1) + 1,
+    exact: true,
+  };
+}
+
+function locateJson(
+  text: string,
+  keyPath: readonly string[],
+): ConfigLocation | undefined {
+  const tree = parseTree(text, [], { allowTrailingComma: true });
+
+  if (tree === undefined) {
+    return undefined;
+  }
+
+  for (let length = keyPath.length; length > 0; length -= 1) {
+    const node = findNodeAtLocation(tree, [...keyPath.slice(0, length)]);
+    const property = node?.parent?.type === "property" ? node.parent : node;
+
+    if (property !== undefined) {
+      return {
+        ...positionAt(text, property.offset),
+        exact: length === keyPath.length,
+      };
+    }
+  }
+
+  return undefined;
+}
+
+/** The value at `keyPath` in `document`, with `unknown` for anything absent. */
+function valueAt(
+  document: TomlTable,
+  keyPath: readonly string[],
+): TomlValue | undefined {
+  let value: TomlValue | undefined = document;
+
+  for (const key of keyPath) {
+    if (typeof value !== "object" || Array.isArray(value)) {
+      return undefined;
+    }
+
+    // SAFETY: the check above narrows value to a table.
+    value = (value as TomlTable)[key];
+  }
+
+  return value;
+}
+
+/** A config from its parts, for code that already holds the document. */
+export function makeSupabaseConfig(parts: {
+  readonly path: string;
+  readonly dir: string;
+  readonly format: ConfigFormat;
+  readonly text: string;
+  readonly document: TomlTable;
+  readonly parser: SupabaseConfig["parser"];
+}): SupabaseConfig {
+  const { format, text } = parts;
+  let rawDocument: TomlTable | undefined;
+
+  return {
+    ...parts,
+    locate: (keyPath) =>
+      format === "toml" ? locateToml(text, keyPath) : locateJson(text, keyPath),
+    raw: (keyPath) => {
+      rawDocument ??= parseText(text, format);
+
+      return valueAt(rawDocument, keyPath);
+    },
+  };
+}
+
+/**
+ * A config from its text, parsed without `@supabase/config` (so `env()` values
+ * stay as written). `file` is `config.toml`, `config.json` or `config.jsonc`;
+ * the format follows its extension.
+ */
+export function supabaseConfigFromText(
+  text: string,
+  file = "supabase/config.toml",
+): SupabaseConfig {
+  const format: ConfigFormat = file.endsWith(".toml")
+    ? "toml"
+    : file.endsWith(".jsonc")
+      ? "jsonc"
+      : "json";
+
+  return makeSupabaseConfig({
+    path: file,
+    dir: posix.dirname(file),
+    format,
+    text,
+    document: parseText(text, format),
+    parser: format === "toml" ? "smol-toml" : "jsonc-parser",
+  });
+}
+
 const parsed = new Map<
   string,
-  { readonly text: string; readonly toml: Promise<SupabaseToml> }
+  { readonly text: string; readonly config: Promise<SupabaseConfig> }
 >();
 
 /**
- * Reads `supabase/config.toml` from `root` or the nearest parent that has one
+ * Reads the project config (`config.json`, `config.jsonc` or `config.toml`, the
+ * order the CLI prefers) from `root` or the nearest parent that has one
  * (`findSupabaseRoot`). A file with `env()` values goes through
  * `@supabase/config` when it is installed, which resolves them; any other file,
- * or a project without it, is parsed with smol-toml, since loading
- * `@supabase/config` costs hundreds of milliseconds. Parses are reused while
- * the file's text is unchanged.
+ * or a project without it, is parsed directly (smol-toml, jsonc-parser), since
+ * loading `@supabase/config` costs hundreds of milliseconds. Parses are reused
+ * while the file's text is unchanged.
  */
-export async function readSupabaseToml(
+export async function readSupabaseConfig(
   root: string,
-): Promise<SupabaseToml | undefined> {
+): Promise<SupabaseConfig | undefined> {
   const found = findSupabaseRoot(root);
 
   if (found === undefined) {
     return undefined;
   }
 
-  const absolute = join(found, CONFIG_TOML);
+  const file = configFileIn(found);
+
+  if (file === undefined) {
+    return undefined;
+  }
+
+  const absolute = join(found, "supabase", file.name);
   const text = await readFile(absolute, "utf-8");
   const key = `${root}\0${absolute}`;
   const cached = parsed.get(key);
 
   if (cached?.text === text) {
-    return cached.toml;
+    return cached.config;
   }
 
-  const toml = parseSupabaseToml(found, text, {
+  const config = parseSupabaseConfig(found, text, file.format, {
     path: relativePath(root, absolute),
     dir: relativePath(root, join(found, "supabase")),
   });
 
-  parsed.set(key, { text, toml });
+  parsed.set(key, { text, config });
 
-  return toml;
+  return config;
 }
 
-async function parseSupabaseToml(
+async function parseSupabaseConfig(
   found: string,
   text: string,
+  format: ConfigFormat,
   location: { readonly path: string; readonly dir: string },
-): Promise<SupabaseToml> {
+): Promise<SupabaseConfig> {
   const io = text.includes("env(") ? await loadSupabaseConfig() : undefined;
 
   if (io) {
     try {
       const loaded = await io.loadCliConfig(found, {
-        tomlOnly: true,
+        tomlOnly: format === "toml",
         search: false,
       });
 
       if (loaded?.document) {
-        // SAFETY: @supabase/config parses config.toml into plain TOML values.
-        return {
+        return makeSupabaseConfig({
           ...location,
+          format,
           text,
+          // SAFETY: @supabase/config parses the config into plain values.
           document: loaded.document as TomlTable,
           parser: "@supabase/config",
-        };
+        });
       }
     } catch {
       // An invalid file for @supabase/config's schema still has readable keys.
     }
   }
 
-  return { ...location, text, document: parseToml(text), parser: "smol-toml" };
+  return makeSupabaseConfig({
+    ...location,
+    format,
+    text,
+    document: parseText(text, format),
+    parser: format === "toml" ? "smol-toml" : "jsonc-parser",
+  });
+}
+
+/** What `withConfigValue` writes: scalars and lists of strings. */
+export type ConfigScalar = string | number | boolean | readonly string[];
+
+function tomlValueText(value: ConfigScalar): string {
+  return typeof value === "string" || Array.isArray(value)
+    ? JSON.stringify(value)
+    : String(value);
+}
+
+function withTomlValue(
+  text: string,
+  keyPath: readonly string[],
+  value: ConfigScalar,
+): string {
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = text.split(/\r?\n/);
+  const entries = tomlEntries(text);
+  const key = keyPath.at(-1) ?? "";
+  const table = keyPath.slice(0, -1);
+  const rendered = `${key} = ${tomlValueText(value)}`;
+
+  const existing = entries.find(
+    (entry) => entry.kind === "key" && sameKeys(entry.path, keyPath),
+  );
+
+  if (existing !== undefined) {
+    const line = lines[existing.line - 1] ?? "";
+    const indent = line.slice(0, existing.column - 1);
+    const comment = /\s+#[^"']*$/.exec(line)?.[0] ?? "";
+
+    lines[existing.line - 1] = `${indent}${rendered}${comment}`;
+
+    return lines.join(eol);
+  }
+
+  const header = entries.find(
+    (entry) => entry.kind === "table" && sameKeys(entry.path, table),
+  );
+
+  if (header === undefined) {
+    const body = text === "" || text.endsWith("\n") ? text : `${text}${eol}`;
+    const gap = body === "" || body.endsWith(`${eol}${eol}`) ? "" : eol;
+
+    return `${body}${gap}[${table.join(".")}]${eol}${rendered}${eol}`;
+  }
+
+  const next = entries.find(
+    (entry) => entry.kind === "table" && entry.line > header.line,
+  );
+
+  let at = (next?.line ?? lines.length + 1) - 1;
+
+  while (at > header.line && (lines[at - 1] ?? "").trim() === "") {
+    at -= 1;
+  }
+
+  lines.splice(at, 0, rendered);
+
+  return lines.join(eol);
+}
+
+/**
+ * `text` with the value at `keyPath` set, in the format of the file: the one
+ * place that edits the project config. Comments and the other keys stay as they
+ * are. The caller writes the result (through `applyPlan`).
+ */
+export function withConfigValue(
+  config: Pick<SupabaseConfig, "format" | "text">,
+  keyPath: readonly string[],
+  value: ConfigScalar,
+): string {
+  if (config.format === "toml") {
+    return withTomlValue(config.text, keyPath, value);
+  }
+
+  const eol = config.text.includes("\r\n") ? "\r\n" : "\n";
+
+  return applyEdits(
+    config.text,
+    modify(config.text, [...keyPath], value, {
+      formattingOptions: { insertSpaces: true, tabSize: 2, eol },
+    }),
+  );
 }
 
 /** The value at `path` (`['auth', 'jwt_expiry']`), if present. */
@@ -389,7 +794,7 @@ export type DiffEngine = "pg-delta" | "migra";
  * The engine the Supabase CLI runs: pg-delta when `[experimental.pgdelta]
  * enabled = true`, otherwise the legacy migra engine.
  */
-export function diffEngine(toml?: SupabaseToml): DiffEngine {
+export function diffEngine(toml?: SupabaseConfig): DiffEngine {
   const enabled = tomlGet(toml?.document ?? {}, [
     "experimental",
     "pgdelta",
@@ -423,7 +828,7 @@ function hasSqlFiles(dir: string): boolean {
  */
 export function detectWorkflow(
   root: string,
-  toml?: SupabaseToml,
+  toml?: SupabaseConfig,
   schemaFiles?: boolean,
 ): Exclude<SqlWorkflow, "migrations"> {
   if (diffEngine(toml) === "pg-delta" || toml === undefined) {
@@ -453,13 +858,10 @@ export function sqlWorkflow(
     readonly root: string;
     readonly sql: { readonly workflow?: SqlWorkflow | undefined };
   },
-  toml?: SupabaseToml,
+  toml?: SupabaseConfig,
 ): SqlWorkflow {
   return config.sql.workflow ?? detectWorkflow(config.root, toml);
 }
-
-/** The `config.toml` table that turns pg-delta on. */
-export const PGDELTA_TABLE = "[experimental.pgdelta]\nenabled = true\n";
 
 /**
  * The command that turns the files into a migration (named `name`, when given).
@@ -512,7 +914,7 @@ export interface SchemaPaths {
  * `experimental.pgdelta.declarative_schema_path` (relative to `supabase/`), or
  * `./schemas`.
  */
-function pgDeltaSchemasDir(toml?: SupabaseToml): string {
+function pgDeltaSchemasDir(toml?: SupabaseConfig): string {
   const dir = tomlGet(toml?.document ?? {}, [
     "experimental",
     "pgdelta",
@@ -534,7 +936,7 @@ function pgDeltaSchemasDir(toml?: SupabaseToml): string {
  * otherwise. `workflow` defaults to what `config.toml` turns on.
  */
 export function declarativeSchemasDir(
-  toml?: SupabaseToml,
+  toml?: SupabaseConfig,
   workflow: SqlWorkflow = diffEngine(toml),
 ): string {
   return workflow === "pg-delta"
@@ -565,7 +967,7 @@ async function expand(cwd: string, pattern: string): Promise<string[]> {
  */
 export async function schemaPaths(
   root: string,
-  toml?: SupabaseToml,
+  toml?: SupabaseConfig,
   workflow: SqlWorkflow = detectWorkflow(root, toml),
 ): Promise<SchemaPaths> {
   if (workflow === "migrations") {

@@ -9,7 +9,7 @@ import type { CliEnv } from "./env.ts";
 import { CliError, errorText } from "./core/errors.ts";
 import { EXEC_CHANNEL } from "./core/trace.ts";
 import { PROCESS_ENV } from "./env.ts";
-import { findUp } from "./supabase-toml.ts";
+import { findUp } from "./supabase-config.ts";
 
 export interface ExecResult {
   readonly code: number;

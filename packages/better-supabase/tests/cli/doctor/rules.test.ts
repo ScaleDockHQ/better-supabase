@@ -21,7 +21,7 @@ import { renderFiles } from "../../../src/cli/gen/render.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
-import { parseToml } from "../../../src/cli/supabase-toml.ts";
+import { supabaseConfigFromText } from "../../../src/cli/supabase-config.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
   renderBlocks,
@@ -51,13 +51,8 @@ const table = (tables: Mutable<CatalogTable>[], name: string) =>
   tables.find((entry) => entry.schema === "public" && entry.name === name) ??
   tables.find((entry) => entry.name === name)!;
 
-const toml = (text: string): DoctorContext["configToml"] => ({
-  path: "supabase/config.toml",
-  dir: "supabase",
-  text,
-  document: parseToml(text),
-  parser: "smol-toml",
-});
+const toml = (text: string): DoctorContext["configToml"] =>
+  supabaseConfigFromText(text);
 
 function context(
   snap: Snapshot = base,
@@ -474,7 +469,7 @@ describe("BS302 bucket drift in config.toml", () => {
     ).toBe(true);
   });
 
-  it("finds a declared bucket whose header it can't locate", async () => {
+  it("locates a bucket header that quotes the bucket name", async () => {
     const findings = await run(
       "BS302",
       context(
@@ -497,7 +492,10 @@ describe("BS302 bucket drift in config.toml", () => {
         message: "supabase/config.toml [storage.buckets.docs]: public is true",
       }),
     ]);
-    expect(inToml[0]).not.toHaveProperty("location");
+    expect(inToml[0]?.location).toEqual({
+      file: "supabase/config.toml",
+      line: 1,
+    });
   });
 
   it("compares versioning and lifecycle when Storage reports them", async () => {

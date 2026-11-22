@@ -7,7 +7,7 @@ import type { ContentMapperSetup } from "../content-mapper.ts";
 import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
 import type { PackageInstall } from "../lockfile.ts";
 import type { PeerVersion } from "../peers.ts";
-import type { SupabaseToml, TomlValue } from "../supabase-toml.ts";
+import type { SupabaseConfig, TomlValue } from "../supabase-config.ts";
 import type { AdvisorSource } from "./advisors.ts";
 import type { StackEnvCheck } from "./env.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
@@ -27,7 +27,7 @@ import { sameText } from "../core/io.ts";
 import { renderFiles } from "../gen/render.ts";
 import { configFor } from "../gen/shared.ts";
 import { orphanedBlockFiles } from "../sql/orphans.ts";
-import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
+import { diffEngine, migrationCommand, tomlGet } from "../supabase-config.ts";
 import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";
 import { APP_TABLE_SCOPE_RULES } from "./app-table-scope.ts";
@@ -137,7 +137,7 @@ export interface TextFile {
 export interface DoctorContext {
   readonly config: ResolvedConfig;
   readonly snapshot: Snapshot;
-  readonly configToml: SupabaseToml | undefined;
+  readonly configToml: SupabaseConfig | undefined;
   readonly envFiles: readonly TextFile[];
   readonly gitignore: string;
   /**
@@ -315,11 +315,9 @@ function tomlLocation(
     return undefined;
   }
 
-  const line =
-    lineOf(context.configToml.text, new RegExp(`^\\s*${key}\\s*=`)) ??
-    lineOf(context.configToml.text, /^\[auth\]/);
+  const at = context.configToml.locate(["auth", key]);
 
-  return line ? { file: context.configToml.path, line } : undefined;
+  return at ? { file: context.configToml.path, line: at.line } : undefined;
 }
 
 /**
@@ -791,12 +789,8 @@ const OWN_RULES: readonly Rule[] = [
         const size = entry["file_size_limit"];
         const mimes = entry["allowed_mime_types"];
 
-        const line = lineOf(
-          toml.text,
-          new RegExp(
-            `^\\[storage\\.buckets\\.${id.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]`,
-          ),
-        );
+        const at = toml.locate(["storage", "buckets", id]);
+        const line = at?.exact ? at.line : undefined;
 
         const inToml = defined
           .drift({

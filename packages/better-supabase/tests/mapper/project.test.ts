@@ -50,6 +50,8 @@ describe("loadProject", () => {
     expect(project.watchedFiles).toEqual([
       join(root, "better-supabase.config.json"),
       realpathSync(snapshot),
+      join(root, "supabase/config.json"),
+      join(root, "supabase/config.jsonc"),
       join(root, "supabase/config.toml"),
       schemaStampPath(root, "src/generated.ts"),
     ]);

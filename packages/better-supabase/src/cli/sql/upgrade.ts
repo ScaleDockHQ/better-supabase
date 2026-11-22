@@ -29,7 +29,7 @@ import { applyPlan, changeLines } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
-import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
+import { readSupabaseConfig, sqlWorkflow } from "../supabase-config.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
 import { migrationFile } from "./migration-names.ts";
 import {
@@ -197,7 +197,7 @@ export async function upgrade(
     const dir = migrationsDir(config);
 
     const reviewed =
-      sqlWorkflow(config, await readSupabaseToml(config.root)) === "pg-delta";
+      sqlWorkflow(config, await readSupabaseConfig(config.root)) === "pg-delta";
 
     // Under pg-delta the module files own every statement the diff can
     // express, so what is left (renames, backfills, expression changes) is a

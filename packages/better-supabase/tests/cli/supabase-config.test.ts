@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { SupabaseToml } from "../../src/cli/supabase-toml.ts";
+import type { SupabaseConfig } from "../../src/cli/supabase-config.ts";
 import type { SqlWorkflow } from "../../src/config/index.ts";
 
 import { readSupabasePort } from "../../src/cli/config.ts";
@@ -14,18 +14,20 @@ import {
   findSupabaseRoot,
   migrationCommand,
   parseToml,
-  readSupabaseToml,
+  readSupabaseConfig,
   schemaPaths,
   sqlWorkflow,
   supabaseDir,
   tomlGet,
-} from "../../src/cli/supabase-toml.ts";
+  makeSupabaseConfig,
+  supabaseConfigFromText,
+} from "../../src/cli/supabase-config.ts";
 
-describe("readSupabaseToml", () => {
+describe("readSupabaseConfig", () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "better-supabase-toml-"));
+    dir = await mkdtemp(join(tmpdir(), "better-supabase-config-"));
     await mkdir(join(dir, "supabase"));
   });
 
@@ -49,7 +51,7 @@ describe("readSupabaseToml", () => {
     process.env["BS_TOML_SITE_URL"] = "https://example.test";
 
     try {
-      const toml = await readSupabaseToml(dir);
+      const toml = await readSupabaseConfig(dir);
       expect(toml?.parser).toBe("@supabase/config");
       expect(tomlGet(toml!.document, ["auth", "site_url"])).toBe(
         "https://example.test",
@@ -65,17 +67,17 @@ describe("readSupabaseToml", () => {
   it("parses a file without env() with smol-toml and reuses the parse", async () => {
     const path = join(dir, "supabase/config.toml");
     await writeFile(path, "[db]\nport = 55422\n");
-    const first = await readSupabaseToml(dir);
+    const first = await readSupabaseConfig(dir);
     expect(first?.parser).toBe("smol-toml");
-    expect(await readSupabaseToml(dir)).toBe(first);
+    expect(await readSupabaseConfig(dir)).toBe(first);
     await writeFile(path, "[db]\nport = 55432\n");
-    const changed = await readSupabaseToml(dir);
+    const changed = await readSupabaseConfig(dir);
     expect(changed).not.toBe(first);
     expect(tomlGet(changed!.document, ["db", "port"])).toBe(55_432);
   });
 
   it("returns undefined without a config.toml", async () => {
-    expect(await readSupabaseToml(join(dir, "missing"))).toBeUndefined();
+    expect(await readSupabaseConfig(join(dir, "missing"))).toBeUndefined();
   });
 
   it("finds supabase/config.toml in a parent directory", async () => {
@@ -85,13 +87,13 @@ describe("readSupabaseToml", () => {
     expect(findSupabaseRoot(app)).toBe(dir);
     expect(supabaseDir(app)).toBe("../../supabase");
     expect(supabaseDir(dir)).toBe("supabase");
-    const toml = await readSupabaseToml(app);
+    const toml = await readSupabaseConfig(app);
     expect(toml).toMatchObject({
       path: "../../supabase/config.toml",
       dir: "../../supabase",
     });
     expect(await readSupabasePort(app, "db")).toBe(55_422);
-    expect((await readSupabaseToml(dir))?.path).toBe("supabase/config.toml");
+    expect((await readSupabaseConfig(dir))?.path).toBe("supabase/config.toml");
   });
 
   it("stops the search at a .git directory", async () => {
@@ -160,13 +162,8 @@ describe("schemaPaths", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  const tomlWith = (text: string): SupabaseToml => ({
-    path: "supabase/config.toml",
-    dir: "supabase",
-    text,
-    document: parseToml(text),
-    parser: "smol-toml",
-  });
+  const tomlWith = (text: string): SupabaseConfig =>
+    supabaseConfigFromText(text);
 
   it("keeps the listed order, expands globs by name and puts unmatched files last", async () => {
     const order = await schemaPaths(
@@ -200,7 +197,7 @@ describe("schemaPaths", () => {
     const app = join(dir, "apps/web");
     await mkdir(app, { recursive: true });
     await writeFile(join(dir, "supabase/config.toml"), "");
-    const toml = await readSupabaseToml(app);
+    const toml = await readSupabaseConfig(app);
     expect((await schemaPaths(app, toml)).files).toEqual([
       "../../supabase/schemas/010_extensions.sql",
       "../../supabase/schemas/020_types.sql",
@@ -273,13 +270,8 @@ describe("schemaPaths", () => {
 });
 
 describe("migrationCommand", () => {
-  const tomlWith = (text: string): SupabaseToml => ({
-    path: "supabase/config.toml",
-    dir: "supabase",
-    text,
-    document: parseToml(text),
-    parser: "smol-toml",
-  });
+  const tomlWith = (text: string): SupabaseConfig =>
+    supabaseConfigFromText(text);
 
   it("names the command of each workflow", () => {
     expect(diffEngine(undefined)).toBe("migra");
@@ -314,13 +306,8 @@ describe("sqlWorkflow", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  const tomlWith = (text: string): SupabaseToml => ({
-    path: "supabase/config.toml",
-    dir: "supabase",
-    text,
-    document: parseToml(text),
-    parser: "smol-toml",
-  });
+  const tomlWith = (text: string): SupabaseConfig =>
+    supabaseConfigFromText(text);
 
   const config = (workflow?: SqlWorkflow) => ({
     root: dir,
@@ -379,13 +366,15 @@ describe("sqlWorkflow", () => {
 });
 
 describe("declarativeSchemasDir", () => {
-  const tomlAt = (dir: string, text = ""): SupabaseToml => ({
-    path: `${dir}/config.toml`,
-    dir,
-    text,
-    document: parseToml(text),
-    parser: "smol-toml",
-  });
+  const tomlAt = (dir: string, text = ""): SupabaseConfig =>
+    makeSupabaseConfig({
+      path: `${dir}/config.toml`,
+      dir,
+      format: "toml",
+      text,
+      document: parseToml(text),
+      parser: "smol-toml",
+    });
 
   it("resolves the schemas folder next to the config.toml it found", () => {
     expect(declarativeSchemasDir(undefined)).toBe("supabase/schemas");

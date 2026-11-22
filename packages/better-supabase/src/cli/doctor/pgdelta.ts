@@ -1,11 +1,11 @@
-import type { SupabaseToml } from "../supabase-toml.ts";
+import type { SupabaseConfig } from "../supabase-config.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { declarativeSchemasDir } from "../supabase-toml.ts";
+import { declarativeSchemasDir } from "../supabase-config.ts";
 import { workflowOf } from "./shared.ts";
 
 /** `config.toml` when the project runs the pg-delta workflow. */
-function pgdeltaToml(context: DoctorContext): SupabaseToml | undefined {
+function pgdeltaToml(context: DoctorContext): SupabaseConfig | undefined {
   const toml = context.configToml;
 
   return toml !== undefined && workflowOf(context) === "pg-delta"

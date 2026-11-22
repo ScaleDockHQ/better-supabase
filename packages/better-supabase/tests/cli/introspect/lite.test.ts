@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CliError } from "../../../src/cli/core/errors.ts";
 import { introspect } from "../../../src/cli/introspect/index.ts";
 import { liteDriverOf, liteSource } from "../../../src/cli/introspect/lite.ts";
-import { readSupabaseToml } from "../../../src/cli/supabase-toml.ts";
+import { readSupabaseConfig } from "../../../src/cli/supabase-config.ts";
 
 const dirs: string[] = [];
 
@@ -35,19 +35,19 @@ describe("liteDriverOf", () => {
       "supabase/config.toml": '[db]\ndriver = "pglite"\n',
     });
 
-    expect(liteDriverOf(await readSupabaseToml(lite))).toBe("pglite");
+    expect(liteDriverOf(await readSupabaseConfig(lite))).toBe("pglite");
 
     const plain = await project({
       "supabase/config.toml": "[db]\nport = 54322\n",
     });
 
-    expect(liteDriverOf(await readSupabaseToml(plain))).toBeUndefined();
+    expect(liteDriverOf(await readSupabaseConfig(plain))).toBeUndefined();
 
     const wrong = await project({
       "supabase/config.toml": '[db]\ndriver = "mysql"\n',
     });
 
-    const toml = await readSupabaseToml(wrong);
+    const toml = await readSupabaseConfig(wrong);
     expect(() => liteDriverOf(toml)).toThrow(CliError);
   });
 });
@@ -65,7 +65,7 @@ describe("liteSource", { timeout: 30_000 }, () => {
         "create function public.note_count() returns bigint language sql as $$ select count(*) from public.notes $$;",
     });
 
-    const toml = await readSupabaseToml(root);
+    const toml = await readSupabaseConfig(root);
     const source = await liteSource(root, toml, "sqlite-postgres");
     expect(source.replay).toMatch(/replayed into an in-memory PGlite/);
 
@@ -94,7 +94,7 @@ describe("liteSource", { timeout: 30_000 }, () => {
     });
 
     await expect(
-      liteSource(root, await readSupabaseToml(root), "pglite"),
+      liteSource(root, await readSupabaseConfig(root), "pglite"),
     ).rejects.toThrow(/Replaying the Supabase Lite schema/);
   });
 
@@ -103,7 +103,7 @@ describe("liteSource", { timeout: 30_000 }, () => {
       "supabase/config.toml": '[db]\ndriver = "postgres"\n',
     });
 
-    const toml = await readSupabaseToml(root);
+    const toml = await readSupabaseConfig(root);
     await expect(liteSource(root, toml, "postgres")).rejects.toThrow(
       /\[db\] url/,
     );
@@ -125,7 +125,7 @@ describe("liteSource", { timeout: 30_000 }, () => {
 
     const source = await liteSource(
       root,
-      await readSupabaseToml(root),
+      await readSupabaseConfig(root),
       "postgres",
       (url) => {
         urls.push(url);

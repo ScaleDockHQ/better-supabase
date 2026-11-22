@@ -21,7 +21,7 @@ import {
   TypegenMissingError,
   validateGeneratorMetadata,
 } from "../introspect/typegen.ts";
-import { pgFunctionHooks, readSupabaseToml } from "../supabase-toml.ts";
+import { pgFunctionHooks, readSupabaseConfig } from "../supabase-config.ts";
 
 const SNAPSHOT_SCHEMA_URL =
   "https://unpkg.com/better-supabase/schemas/snapshot-v2.json";
@@ -110,7 +110,7 @@ export async function openSource(
   }
 
   if (!config.source.dbUrl && config.source.lite !== false) {
-    const toml = await readSupabaseToml(config.root);
+    const toml = await readSupabaseConfig(config.root);
 
     const driver =
       liteDriverOf(toml) ??
@@ -156,7 +156,7 @@ export async function loadSnapshot(
   }
 
   const [tomlRead, opened] = await Promise.allSettled([
-    readSupabaseToml(config.root),
+    readSupabaseConfig(config.root),
     shared ? shared() : openSource(config, env, source, open),
   ]);
 

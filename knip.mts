@@ -62,7 +62,7 @@ const config: KnipConfig = {
         // topic-policies.test.ts copies this file into a temp project by name.
         "tests/cli/fixtures/topics/broadcast-topic.mjs",
       ],
-      // Peers of @supabase/config, which src/cli/supabase-toml.ts loads lazily,
+      // Peers of @supabase/config, which src/cli/supabase-config.ts loads lazily,
       // and @next/playwright and @supabase/lite, which src/testing/instant.ts,
       // src/lite/runtime.ts and src/cli/lite.ts load by a variable specifier.
       // supports-color only pins debug's optional peer, so next resolves to

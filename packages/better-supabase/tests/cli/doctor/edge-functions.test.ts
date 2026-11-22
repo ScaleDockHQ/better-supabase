@@ -1,18 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
-import type { TomlTable } from "../../../src/cli/supabase-toml.ts";
+import type { TomlTable } from "../../../src/cli/supabase-config.ts";
 
 import { EDGE_FUNCTION_RULES } from "../../../src/cli/doctor/edge-functions.ts";
 import { RULE_CODES } from "../../../src/cli/doctor/rules.ts";
+import { makeSupabaseConfig } from "../../../src/cli/supabase-config.ts";
 
-const toml = (functions: TomlTable) => ({
-  path: "supabase/config.toml",
-  dir: "supabase",
-  text: "",
-  document: { functions },
-  parser: "smol-toml" as const,
-});
+const toml = (functions: TomlTable) =>
+  makeSupabaseConfig({
+    path: "supabase/config.toml",
+    dir: "supabase",
+    text: "",
+    document: { functions },
+    parser: "smol-toml" as const,
+    format: "toml",
+  });
 
 const run = (functions: TomlTable, files: Record<string, string>) =>
   EDGE_FUNCTION_RULES[0]!.check({
