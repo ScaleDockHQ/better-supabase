@@ -71,7 +71,7 @@ const input = (entries: SameTenantEntry[]): BetterSupabaseConfig => ({
 async function run(
   entries: SameTenantEntry[],
   text: string = SCHEMA,
-): Promise<ReturnType<typeof sameTenantMoves>> {
+): ReturnType<typeof sameTenantMoves> {
   const sql = [{ path: "/project/supabase/schemas/tasks.sql", text }];
 
   await primeSchemaFacts(sql, "/project");

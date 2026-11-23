@@ -9,7 +9,7 @@ import {
   sameTenantTrigger,
 } from "../sql/index.ts";
 import { withoutConfigPaths } from "./codemod-prune.ts";
-import { declarationsOfText } from "./sql-facts.ts";
+import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 import { layoutFor } from "./sql/providers.ts";
 
 const isRecord = (item: unknown): item is Record<string, unknown> =>
@@ -210,10 +210,10 @@ const statementKey = (table: string, column: string): string =>
  * entry the tag cannot say, or whose statement would change, stays with a line
  * that names the reason.
  */
-export function sameTenantMoves(
+export async function sameTenantMoves(
   project: CodemodProject,
   base: BlockSqlLayout,
-): SameTenantMoves {
+): Promise<SameTenantMoves> {
   const schemas = project.config.schemas;
   const names = ["memberships"];
   const review: { message: string }[] = [];
@@ -223,6 +223,12 @@ export function sameTenantMoves(
     project.sql
       .filter((file) => !/[\\/]migrations[\\/]/u.test(file.path))
       .map((file) => [file.path, file.text] as const),
+  );
+
+  await primeSchemaFacts(
+    [...original].map(([path, text]) => ({ path, text })),
+    project.config.root,
+    { lenient: true },
   );
 
   let texts = original;
@@ -321,6 +327,13 @@ export function sameTenantMoves(
     const candidate = new Map(texts).set(
       path,
       withColumnTag(text, table, column, line),
+    );
+
+    // The tag changes the creator's text, which the reader has not seen.
+    await primeSchemaFacts(
+      [{ path, text: candidate.get(path) ?? text }],
+      project.config.root,
+      { lenient: true },
     );
 
     const after = render(new Set([...removed, idOf(entry.value)]), candidate);
