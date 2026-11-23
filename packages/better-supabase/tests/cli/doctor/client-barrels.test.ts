@@ -82,4 +82,42 @@ describe("BS621", () => {
       ),
     ).toEqual([]);
   });
+
+  it("ignores a directive and an import that only appear in a comment or string", () => {
+    expect(
+      check([
+        {
+          path: "src/app/a.tsx",
+          text: [
+            '// "use client"',
+            'import { schema } from "../lib/supabase/generated-schema";',
+          ].join("\n"),
+        },
+        {
+          path: "src/app/b.tsx",
+          text: [
+            '"use client";',
+            '// import { schema } from "../lib/supabase/generated-schema";',
+            "const note = \"from '../lib/supabase/blocks.config'\";",
+            "export { note };",
+          ].join("\n"),
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("finds a dynamic import and a re-export in a client file", () => {
+    const findings = check([
+      {
+        path: "src/app/c.tsx",
+        text: [
+          "'use client'",
+          'export * from "../lib/supabase/blocks.generated";',
+          'const load = () => import("../lib/supabase/generated-schema");',
+        ].join("\n"),
+      },
+    ]);
+
+    expect(findings.map((finding) => finding.location?.line)).toEqual([2, 3]);
+  });
 });

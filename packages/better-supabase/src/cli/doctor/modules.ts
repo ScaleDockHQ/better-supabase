@@ -40,6 +40,7 @@ import { linksWithoutRelations } from "./block-links.ts";
 import { onUnknownRecordTypes } from "./block-on.ts";
 import { configuredHooks, hookClaims, signatureOf } from "./hooks.ts";
 import { literal } from "./live.ts";
+import { isAdminUse, isAuditListCall, isRequireAal2 } from "./module-calls.ts";
 import { unpartitionedTables } from "./partitioned-tables.ts";
 import { reservedRoles } from "./reserved-roles.ts";
 import {
@@ -51,6 +52,7 @@ import {
   tableObject,
   permissionCatalogKeys,
 } from "./shared.ts";
+import { findLine } from "./tree.ts";
 
 /** The non-empty string at a dotted path, as membershipsExtension() reads it. */
 function claimAt(
@@ -1113,8 +1115,8 @@ function auditUserSession(context: DoctorContext): FindingInput[] {
     return [];
   }
 
-  const calls = context.sources.some((file) =>
-    /\baudit\.(list|listAll)\s*\(/.test(file.text),
+  const calls = context.sources.some(
+    (file) => findLine(file.text, isAuditListCall) !== undefined,
   );
 
   if (!calls) {
@@ -1131,8 +1133,8 @@ function auditUserSession(context: DoctorContext): FindingInput[] {
 }
 
 function missingSecretKey(context: DoctorContext): FindingInput[] {
-  const usesAdmin = context.sources.some((file) =>
-    /\bdeleteAccount\b|\.admin\s*\(|supabaseAdmin\b/.test(file.text),
+  const usesAdmin = context.sources.some(
+    (file) => findLine(file.text, isAdminUse) !== undefined,
   );
 
   if (!usesAdmin) {
@@ -1165,8 +1167,8 @@ function aal2WithoutMfa(context: DoctorContext): FindingInput[] {
     return [];
   }
 
-  const requiresAal2 = context.sources.some((file) =>
-    /requireAal\s*\(\s*['"]aal2['"]/.test(file.text),
+  const requiresAal2 = context.sources.some(
+    (file) => findLine(file.text, isRequireAal2) !== undefined,
   );
 
   if (!requiresAal2) {

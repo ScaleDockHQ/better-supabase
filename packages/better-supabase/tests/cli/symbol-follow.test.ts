@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import type { ProjectSymbols } from "../../src/cli/typescript-symbols";
 
 import { withoutColumnEntries } from "../../src/cli/codemod-config.ts";
+import { withoutOptionKeys } from "../../src/cli/codemod-extra-columns.ts";
+import { withoutConfigPaths } from "../../src/cli/codemod-prune.ts";
 import {
   applySplices,
   followReexports,
@@ -215,5 +217,82 @@ describe("withoutColumnEntries across files", () => {
     expect(result.others[0]?.file).toBe(file);
     expect(result.others[0]?.text).not.toContain("tenant");
     expect(result.review).toEqual([]);
+  });
+});
+
+describe("the other config edits across files", () => {
+  const config =
+    'import { shared } from "./shared.ts";\nexport default defineConfig({ blocks: shared });\n';
+
+  const shared =
+    'export const shared = {\n  teams: { columns: { teams: { tenant: "org_id" } }, options: { extraColumns: { a: "text" }, keep: 1 } },\n};\n';
+
+  const stub = async (): Promise<{
+    follow: { symbols: ProjectSymbols; configFile: string };
+    file: string;
+  }> => {
+    const root = await project({ "shared.ts": shared });
+    const file = join(root, "shared.ts");
+
+    return {
+      file,
+      follow: {
+        configFile: join(root, "config.ts"),
+        symbols: {
+          root,
+          tier: {
+            version: "7.1.0",
+            references: () => [],
+            declaration: () => ({
+              file,
+              start: shared.indexOf("export"),
+              end: shared.length,
+            }),
+            typeOf: () => undefined,
+            close: () => {},
+          },
+        },
+      },
+    };
+  };
+
+  it("prunes a path from the file that declares the value", async () => {
+    const { follow, file } = await stub();
+
+    const result = withoutConfigPaths(
+      config,
+      ["blocks.teams.columns.teams.tenant"],
+      follow,
+    );
+
+    expect(result.missed).toEqual([]);
+    expect(result.text).toBe(config);
+    expect(result.others.map((other) => other.file)).toEqual([file]);
+    expect(result.others[0]?.text).not.toContain("tenant");
+    expect(result.others[0]?.text).not.toContain("columns");
+  });
+
+  it("misses the path without the tier, as before", () => {
+    const result = withoutConfigPaths(config, [
+      "blocks.teams.columns.teams.tenant",
+    ]);
+
+    expect(result.missed).toEqual(["blocks.teams.columns.teams.tenant"]);
+    expect(result.others).toEqual([]);
+  });
+
+  it("drops an option key from the file that declares the block", async () => {
+    const { follow, file } = await stub();
+
+    const result = withoutOptionKeys(
+      config,
+      new Set(["extraColumns"]),
+      follow,
+      ["teams"],
+    );
+
+    expect(result.others.map((other) => other.file)).toEqual([file]);
+    expect(result.others[0]?.text).not.toContain("extraColumns");
+    expect(result.others[0]?.text).toContain("keep: 1");
   });
 });

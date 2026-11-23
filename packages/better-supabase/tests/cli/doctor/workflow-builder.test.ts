@@ -71,6 +71,25 @@ describe("BS333", () => {
     ).toEqual([]);
   });
 
+  it("ignores admin() and executor names in comments and strings", async () => {
+    expect(
+      await check([
+        {
+          path: "src/a.ts",
+          text: [
+            "// executeGraph runs steps; admin() would bypass RLS",
+            'const note = "executeGraph admin()";',
+            "export { note };",
+          ].join("\n"),
+        },
+        {
+          path: "src/b.ts",
+          text: "export const step = (call: GraphStepCall) => 1; // admin()\n",
+        },
+      ]),
+    ).toEqual([]);
+  });
+
   it("is a registered rule", () => {
     expect(RULE_CODES).toContain("BS333");
     expect(rule).toMatchObject({ code: "BS333", severity: "warning" });

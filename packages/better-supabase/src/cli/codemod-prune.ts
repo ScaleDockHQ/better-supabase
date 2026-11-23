@@ -1,6 +1,13 @@
-import type { PathSegment } from "./config-document/index.ts";
+import type { ImportFollow, PathSegment } from "./config-document/index.ts";
 
-import { ConfigDocument, parsePath } from "./config-document/index.ts";
+import {
+  changedFiles,
+  ConfigDocument,
+  followedReview,
+  openImports,
+  ownerOf,
+  parsePath,
+} from "./config-document/index.ts";
 
 /** Whether `text` is an object literal with nothing in it. */
 const emptyObject = (text: string | undefined): boolean =>
@@ -13,6 +20,7 @@ const emptyObject = (text: string | undefined): boolean =>
 function removeWithEmptyParents(
   document: ConfigDocument,
   path: readonly PathSegment[],
+  floor = 3,
 ): "done" | "absent" | "review" {
   const first = document.remove(path);
 
@@ -20,7 +28,7 @@ function removeWithEmptyParents(
     return first.status;
   }
 
-  for (let length = path.length - 1; length >= 3; length -= 1) {
+  for (let length = path.length - 1; length >= floor; length -= 1) {
     const parent = path.slice(0, length);
 
     if (!emptyObject(document.valueText(parent))) {
@@ -36,26 +44,51 @@ function removeWithEmptyParents(
 /**
  * `text` without the config entries at `paths` (`blocks.<name>.columns.x` or
  * `sameTenant[1]`), the paths it could not find, and a review line for each
- * entry it could not edit in place.
+ * entry it could not edit in place. With `follow`, an entry under a value the
+ * config imports is removed from the file that declares it, and `others` lists
+ * the files it changed.
  */
 export function withoutConfigPaths(
   text: string,
   paths: readonly string[],
+  follow?: ImportFollow,
 ): {
   readonly text: string;
   readonly missed: readonly string[];
   readonly review: readonly string[];
+  readonly others: readonly { readonly file: string; readonly text: string }[];
 } {
   const document = ConfigDocument.parse(text);
+  const imports = openImports(follow, document);
   const missed: string[] = [];
 
   for (const path of paths) {
-    if (removeWithEmptyParents(document, parsePath(path)) !== "done") {
+    const segments = parsePath(path);
+
+    if (removeWithEmptyParents(document, segments) === "done") {
+      continue;
+    }
+
+    const found = ownerOf(imports, segments);
+
+    if (
+      found === undefined ||
+      removeWithEmptyParents(
+        found.owner.document,
+        found.inner,
+        Math.max(3 - found.owner.prefix.length, 1),
+      ) !== "done"
+    ) {
       missed.push(path);
     }
   }
 
-  return { text: document.text, missed, review: document.review };
+  return {
+    text: document.text,
+    missed,
+    review: [...document.review, ...followedReview(imports)],
+    others: changedFiles(imports),
+  };
 }
 
 /**

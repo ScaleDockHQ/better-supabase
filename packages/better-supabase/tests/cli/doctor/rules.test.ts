@@ -4595,6 +4595,33 @@ describe("Supabase Lite gaps (BS328, BS329)", () => {
     }
   });
 
+  it("reads the tree: a comment or a string is not a call", async () => {
+    const quiet = {
+      path: "src/quiet.ts",
+      text: [
+        '// await bsb.$rpc("note_count"); supabase.channel("a")',
+        "const note = \"supabase.functions.invoke('send') .rpc(\";",
+        "export { note };",
+      ].join("\n"),
+    };
+
+    expect(
+      await run(
+        "BS328",
+        context(base, {
+          configToml: lite("sqlite-postgres"),
+          sources: [quiet],
+        }),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS329",
+        context(base, { configToml: lite("pglite"), sources: [quiet] }),
+      ),
+    ).toEqual([]);
+  });
+
   it("reports Realtime and Edge Functions on any Lite driver", async () => {
     const findings = await run(
       "BS329",
@@ -4686,6 +4713,25 @@ describe("session cookie encoding (BS412)", () => {
     expect(serverOnly[0]!.message).toContain(
       "the browser side (src/lib/client.ts, src/ssr.ts)",
     );
+  });
+
+  it("ignores tokens-only and client calls that sit in comments or strings", async () => {
+    const commented = {
+      path: "src/lib/notes.ts",
+      text: '// encode: "tokens-only" and createServerClient(url, key)\nconst doc = `import { x } from "better-supabase/server"; encode: "tokens-only"`;\nimport { createClient } from "better-supabase/client";\n',
+    };
+
+    expect(
+      await run(
+        "BS412",
+        context(base, {
+          sources: [commented, server("tokens-only"), browser()],
+        }),
+      ),
+    ).toMatchObject([{ target: "src/lib/server.ts:encode" }]);
+    expect(
+      await run("BS412", context(base, { sources: [commented, browser()] })),
+    ).toEqual([]);
   });
 });
 

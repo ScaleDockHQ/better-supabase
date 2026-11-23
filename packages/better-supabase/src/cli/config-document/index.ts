@@ -12,6 +12,18 @@ export type { SourceContext } from "./source.ts";
 
 export { rewriteSource } from "./source.ts";
 
-export type { FollowedDocument, ImportedValue } from "./follow.ts";
+export type {
+  FollowedDocument,
+  FollowedImports,
+  ImportedValue,
+  ImportFollow,
+} from "./follow.ts";
 
-export { followImports, importedValues } from "./follow.ts";
+export {
+  changedFiles,
+  followedReview,
+  followImports,
+  importedValues,
+  openImports,
+  ownerOf,
+} from "./follow.ts";

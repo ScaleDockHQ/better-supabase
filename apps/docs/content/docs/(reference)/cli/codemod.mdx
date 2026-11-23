@@ -77,8 +77,11 @@ parser, so a name in a string, a template literal or a comment stays as it is.
   import (`Postgres as PG`) keeps the alias, and imports from other modules
   are left alone.
 - **Subpaths.** A `better-supabase/<subpath>` specifier in a string is renamed.
-- **Environment variables.** A renamed variable is renamed wherever a source
-  file, an `.env*` file or `turbo.json` names it, as a whole word.
+- **Environment variables.** In TypeScript, a renamed variable is renamed where
+  code names it (`process.env.NAME`, a key, a binding), and in a string only
+  when the whole string is the name. A comment stays as it is, and a string
+  that holds the name among other words is listed for review. In an `.env*`
+  file or `turbo.json` it is renamed as a whole word.
 - **SQL.** A renamed table, column or policy of an installed block gets one
   migration of `alter ... rename` statements, each behind an existence check.
 
@@ -98,8 +101,16 @@ file by file and lists the places a symbol leaves its file as review lines.
   the file that declares a value the config imports (`blocks: sharedBlocks`).
   Without TypeScript 7.1 a review line lists the imported values to edit by
   hand.
+- **Other config edits.** `codemod prune`, `declared-rows`, `adopt-names` and
+  `extra-columns` edit the file that declares an imported value too, and list it
+  for review, because the render check covers only the config file. Run
+  `better-supabase gen --check` afterwards.
 
 ## What it leaves for you
+
+A TypeScript file that does not parse is never skipped in silence: the codemod
+leaves it unchanged and lists the line and the parser's message, so you can fix
+the file and run the codemod again.
 
 Some renames depend on what a variable holds. The codemod doesn't guess: it
 lists those lines after the summary, as `path:line: message`, so you can change

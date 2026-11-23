@@ -248,6 +248,22 @@ describe("BS640", () => {
     ).toHaveLength(0);
   });
 
+  it("ignores a read that only a comment or a string mentions", () => {
+    expect(
+      run(
+        'async function a() { "use cache"; // call cookies() here later\n return "bsb.user()"; }',
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("reads a directive after a comment and a function that follows a string", () => {
+    expect(
+      run(
+        'const note = "async function x() { \\"use cache\\"; cookies(); }";\nasync function b() {\n  "use cache";\n  return cookies();\n}',
+      ),
+    ).toHaveLength(1);
+  });
+
   it("ignores a read outside the cached function", () => {
     expect(
       run(
@@ -260,5 +276,34 @@ describe("BS640", () => {
     expect(
       run('async function a() { "use cache"; return res.headers(); }'),
     ).toHaveLength(0);
+  });
+});
+
+describe("BS608 reads the tree", () => {
+  it("ignores a remote scope that only a comment or a string mentions", () => {
+    expect(
+      check({
+        sources: [
+          {
+            path: "src/a.ts",
+            text: "// bsb.remote( later\nconst s = \"scope: 'remote'\";",
+          },
+        ],
+        vercel: false,
+      }),
+    ).toHaveLength(0);
+  });
+
+  it("does not count a remote handler that only a comment mentions", () => {
+    expect(
+      check({
+        sources: [REMOTE],
+        nextConfig: {
+          path: "next.config.ts",
+          text: "// remoteCacheHandler: shared\nexport default {};",
+        },
+        vercel: false,
+      }),
+    ).toHaveLength(1);
   });
 });

@@ -36,10 +36,12 @@ The prune, blocks-list, record-types and config-key codemods use it first.
 `lib/blocks.ts` wiring through it. `code-ranges.ts` is deleted: the source
 codemods and the doctor scans take their code ranges from `codeRanges()` in
 `config-document/ranges.ts`, which reads the parse tree, so a regular
-expression, a template literal or JSX text no longer hides code. Those
-codemods now rewrite through the document or `rewriteSource`, and the doctor
-source checks read functions, calls, loops and `Promise.all` entries from the
-tree (ADR 1188 wires the symbol tier into them).
+expression, a template literal or JSX text no longer hides code. The prune,
+blocks-list, record-types and config-key codemods rewrite through the document
+or `rewriteSource`. Of the doctor source checks, only `source-scan.ts` and
+`n-plus-one.ts` read the tree when this ADR was accepted; the other source rules
+and the naming codemod's environment, hint and event renames still matched text.
+ADR 1207 moves part of them and lists the rest.
 
 ## Alternatives considered
 

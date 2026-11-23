@@ -5,6 +5,7 @@ import type { Codemod, ReviewLine } from "./codemod.ts";
 
 import { lineColumn } from "./config-document/index.ts";
 import { parseSource } from "./config-document/parse.ts";
+import { addNamedImports } from "./import-edits.ts";
 
 const HELPERS = new Set([
   "deleteAccount",
@@ -85,48 +86,7 @@ export function moveAccountCalls(text: string): {
     message: `account helpers now take the server first: import ${names.join(", ")} from ${MODULE}`,
   });
 
-  const imports = parsed.program.body.filter(
-    (statement) => statement.type === "ImportDeclaration",
-  );
-
-  const existing = imports.find(
-    (statement) =>
-      statement.source.value === MODULE && statement.importKind !== "type",
-  );
-
-  if (existing === undefined) {
-    const last = imports.at(-1);
-    const line = `import { ${names.join(", ")} } from "${MODULE}";\n`;
-
-    if (last === undefined) {
-      out.prepend(line);
-    } else {
-      out.appendLeft(last.end, `\n${line.trimEnd()}`);
-    }
-
-    return { text: out.toString(), review };
-  }
-
-  const have = new Set(
-    existing.specifiers.map((specifier) =>
-      specifier.type === "ImportSpecifier" ? specifier.local.name : "",
-    ),
-  );
-
-  const missing = names.filter((name) => !have.has(name));
-  const lastSpecifier = existing.specifiers.at(-1);
-
-  if (missing.length > 0) {
-    if (lastSpecifier === undefined) {
-      out.overwrite(
-        existing.start,
-        existing.end,
-        `import { ${missing.join(", ")} } from "${MODULE}";`,
-      );
-    } else {
-      out.appendLeft(lastSpecifier.end, `, ${missing.join(", ")}`);
-    }
-  }
+  addNamedImports(out, parsed.program, MODULE, names);
 
   return { text: out.toString(), review };
 }

@@ -428,12 +428,22 @@ SUPABASE_ACCESS_TOKEN=sbp_... better-supabase gen --check
 
 ## SQL in the config
 
-Before it reads the schema, `gen` parses the SQL expressions the config carries:
-the authorization provider's `functions` templates and the `{ sql }` payload
-columns of a block's `events.payload`. Placeholders such as `{user}` and `{row}`
-stand for a value. An expression that does not parse stops `gen` with the config
-key and the parser's message, for example `authorization.functions.canAssign is
-not valid SQL`, instead of failing later in a migration.
+Before it reads the schema, `gen` parses the SQL the config carries: the
+authorization provider's `functions` templates, the `through.where` conditions
+of `roleSources` and `platformRoles`, the `setup` statements of `personas` and
+`fixtureRoles`, the `boost`, `predicate` and `order` of `vectorSearch`, and the
+`{ sql }` values of `realtime.triggers` payloads and of a block's
+`events.payload`. Placeholders such as `{user}` and `{row}` stand for a value.
+SQL that does not parse stops `gen` with the config key and the parser's
+message, for example `authorization.functions.canAssign is not valid SQL`,
+instead of failing later in a migration.
+
+## Installed modules
+
+`gen` also renders the modules of the blocks you installed and parses each file
+with the Postgres reader. A module that renders SQL Postgres rejects stops `gen`
+with the module name, the file position and the statement. That is a bug in the
+module template, so report it. `gen --out` skips the check.
 
 ## What the metadata knows
 

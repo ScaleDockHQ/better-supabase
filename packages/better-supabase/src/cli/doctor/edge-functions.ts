@@ -1,10 +1,11 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { tomlGet } from "../supabase-config.ts";
-import { lineOf } from "./shared.ts";
+import { findLine, isStringProperty } from "./tree.ts";
 
 /** `auth: 'user'` in a function's source, the option that expects a user JWT. */
-const USER_AUTH = /\bauth\s*:\s*["'`]user["'`]/;
+const userAuthLine = (text: string): number | undefined =>
+  findLine(text, (node) => isStringProperty(node, "auth", "user"));
 
 /** The function that verifies the OAuth token itself (`templates.ts`, `mcp`). */
 const OAUTH_FUNCTION = "mcp";
@@ -46,7 +47,8 @@ export const EDGE_FUNCTION_RULES: readonly Rule[] = [
 
           const user = files.find(
             (file) =>
-              `/${file.path}`.includes(folder) && USER_AUTH.test(file.text),
+              `/${file.path}`.includes(folder) &&
+              userAuthLine(file.text) !== undefined,
           );
 
           return user === undefined
@@ -57,7 +59,7 @@ export const EDGE_FUNCTION_RULES: readonly Rule[] = [
                   target: `[functions.${name}] verify_jwt`,
                   location: {
                     file: user.path,
-                    line: lineOf(user.text, USER_AUTH) ?? 1,
+                    line: userAuthLine(user.text) ?? 1,
                   },
                 },
               ];

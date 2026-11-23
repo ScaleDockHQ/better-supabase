@@ -5,8 +5,9 @@
 
 ## Context
 
-ADR 1186 moved the config edits, the codemods and the doctor source checks onto
-the parse tree. A parse tree reads one file, so three cases stayed by hand or
+ADR 1186 moved the config edits and part of the codemods and doctor source
+checks onto the parse tree (ADR 1207 records how far). A parse tree reads one
+file, so three cases stayed by hand or
 by name: the N+1 and round-trip rules matched a receiver by its name (`db`,
 `userService`), a renamed export that an app re-exports left its importers
 broken, and a config value imported from another file could not be edited.
@@ -56,6 +57,8 @@ root, or `{ skipped: reason }`. No rule or codemod opens it on its own.
 An app on TypeScript 7.1 or later gets fewer false N+1 findings and complete
 renames. Everyone else keeps the name-based behavior and sees why a check was
 not made. The tier reports paths in the case the disk's TypeScript host uses, so
-callers match them against scanned files by their real path. Prune and the other
-config codemods still edit the config file only; following imported values there
-is the next step if a project needs it.
+callers match them against scanned files by their real path. Only BS609, BS634
+and BS635 use receiver types, `followImports` applies to `codemod config`
+`columns` entries only, and `prune` and the other config codemods edit the
+config file alone. Imports a codemod adds are still merged by hand
+(`codemod-account-calls.ts` and others). ADR 1207 lists these as open work.

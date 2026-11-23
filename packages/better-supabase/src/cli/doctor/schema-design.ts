@@ -10,14 +10,22 @@ import { sameTenantLayout } from "../../sql/index.ts";
 import { configFor } from "../gen/shared.ts";
 import { splinterTables } from "./advisor-rules.ts";
 import { enrichedAppTables } from "./app-table-scope.ts";
+import { receiverIsNotClient } from "./receiver-types.ts";
 import { escape, withoutStrings } from "./rls.ts";
 import { SCALE_RULES } from "./scale.ts";
 import { SCHEMA_COST_RULES } from "./schema-cost.ts";
 import {
+  containmentColumns,
+  isServerlessSource,
+  postgresJsLine,
+  scaleLines,
+  turnsPrepareOff,
+  usesPrisma,
+} from "./schema-design-source.ts";
+import {
   catalogOf,
   exposed,
   exposedSchemas,
-  lineOf,
   qualified,
   tableObject,
 } from "./shared.ts";
@@ -95,13 +103,6 @@ const filterText = (text: string): string =>
     )
     .replaceAll(/\bnot\s*\([^()]*\)/gi, " ");
 
-/**
- * `.contains("tags"`, `.containedBy('meta'`, `.overlaps("labels"`, supabase-js
- * filters.
- */
-const CLIENT_CONTAINS =
-  /\.(?:contains|containedBy|overlaps)\(\s*["'`]([A-Za-z_]\w*)["'`]/g;
-
 /** Column types Postgres' wiki and the Supabase skills advise against. */
 const AVOID: Readonly<Record<string, string>> = {
   timestamp: "timestamptz",
@@ -118,53 +119,8 @@ const AVOID: Readonly<Record<string, string>> = {
 const DIRECT_URL =
   /postgres(?:ql)?:\/\/[^\s"'`]*@(?:db\.[a-z0-9]+\.supabase\.co(?::5432)?|[\w.-]+\.pooler\.supabase\.com:5432)\b/i;
 
-/** Files that show the app runs on serverless or edge functions. */
-const SERVERLESS =
-  /\bexport\s+(?:const\s+runtime|async\s+function\s+(?:GET|POST|PUT|PATCH|DELETE)|default\s+\{\s*(?:async\s+)?fetch)\b|\bDeno\.serve\(/;
-
 /** A connection string through Supavisor's transaction pooler (port 6543). */
 const TRANSACTION_POOLER = /postgres(?:ql)?:\/\/[^\s"'`]*:6543\b/i;
-
-/** `import postgres from "postgres"` or `require("postgres")`: postgres.js. */
-const POSTGRES_JS =
-  /\bfrom\s+["']postgres["']|\brequire\(\s*["']postgres["']\s*\)/;
-
-const PREPARE_OFF = /\bprepare\s*:\s*false\b/;
-
-const PRISMA = /["']@prisma\/client["']|\bnew\s+PrismaClient\b/;
-
-const OFFSET_PAGINATION = /\bpagination\s*:\s*["'`]offset["'`]/;
-
-const EXACT_COUNT = /\bcount\s*:\s*["'`]exact["'`]/;
-
-/**
- * Whether a line has a repository `.count()` or `.count({ ... })` call with no
- * `mode`, which counts exactly.
- */
-function countsWithoutMode(text: string): boolean {
-  for (const match of text.matchAll(/\.count\(/g)) {
-    let depth = 1;
-    let at = match.index + match[0].length;
-    const start = at;
-
-    while (at < text.length && depth > 0) {
-      depth += text[at] === "(" ? 1 : text[at] === ")" ? -1 : 0;
-      at += 1;
-    }
-
-    if (depth > 0) {
-      continue;
-    }
-
-    const args = text.slice(start, at - 1).trim();
-
-    if (args === "" || (args.startsWith("{") && !/\bmode\b/.test(args))) {
-      return true;
-    }
-  }
-
-  return false;
-}
 
 /** `format_type` names of scalar results that a JSON number can't hold exactly. */
 const WIDE_RESULT = /^(?:bigint|numeric)(?:\[\])?$/;
@@ -379,8 +335,10 @@ const DESIGN_RULES: readonly Rule[] = [
       const filtered = new Set<string>();
 
       for (const file of context.sources) {
-        for (const match of file.text.matchAll(CLIENT_CONTAINS)) {
-          filtered.add(match[1]!);
+        for (const column of containmentColumns(file.text, (call) =>
+          receiverIsNotClient(context.symbols, file.path, call),
+        )) {
+          filtered.add(column);
         }
       }
 
@@ -460,7 +418,7 @@ const DESIGN_RULES: readonly Rule[] = [
       "Each serverless or edge invocation opens its own connection. Through the direct host or the session pooler on port 5432 they exhaust `max_connections`; the transaction pooler on port 6543 shares them. The direct host is also IPv6 only.",
     check: (context: DoctorContext) => {
       const serverless =
-        context.sources.some((file) => SERVERLESS.test(file.text)) ||
+        context.sources.some((file) => isServerlessSource(file.text)) ||
         context.envFiles.some((file) => /^\s*VERCEL\w*=/m.test(file.text));
 
       if (!serverless) {
@@ -582,21 +540,20 @@ const DESIGN_RULES: readonly Rule[] = [
       const findings: FindingInput[] = [];
 
       for (const file of context.sources) {
-        if (!POSTGRES_JS.test(file.text) || PREPARE_OFF.test(file.text)) {
+        const postgresLine = postgresJsLine(file.text);
+
+        if (postgresLine === undefined || turnsPrepareOff(file.text)) {
           continue;
         }
 
         findings.push({
           message: `${file.path} creates a postgres.js client without \`prepare: false\`, and the project connects through the transaction pooler on port 6543, so its prepared statements fail on the next transaction. Pass \`postgres(url, { prepare: false })\`.`,
           target: `${file.path}:postgres`,
-          location: {
-            file: file.path,
-            line: lineOf(file.text, POSTGRES_JS) ?? 1,
-          },
+          location: { file: file.path, line: postgresLine },
         });
       }
 
-      if (!context.sources.some((file) => PRISMA.test(file.text))) {
+      if (!context.sources.some((file) => usesPrisma(file.text))) {
         return findings;
       }
 
@@ -625,41 +582,29 @@ const DESIGN_RULES: readonly Rule[] = [
     description:
       '`pagination: "offset"` on a resource or list reads and discards every row before the page, so late pages get slower as the table grows, and rows written between requests shift the pages. `count: "exact"` and a `.count()` call without a `mode` count every matching row on each request. Use `pagination: "cursor"`, and `count: "planned"` or `"estimated"` on large tables. Doctor looks in `tooling.doctor.sources`.',
     check: (context) =>
-      context.sources.flatMap((file): FindingInput[] =>
-        lines(file).flatMap(({ line, text }): FindingInput[] => {
-          if (/^\s*(?:\/\/|\*)/.test(text)) {
-            return [];
-          }
+      context.sources.flatMap((file): FindingInput[] => {
+        const found = scaleLines(file.text, (call) =>
+          receiverIsNotClient(context.symbols, file.path, call),
+        );
 
-          const found: FindingInput[] = [];
-
-          if (OFFSET_PAGINATION.test(text)) {
-            found.push({
-              message: `${file.path}:${line} uses \`pagination: "offset"\`, so each page reads and skips every earlier row. Use \`pagination: "cursor"\` unless the UI needs page numbers, and keep \`[api] max_rows\` set so no request reads the whole table.`,
-              target: `${file.path}:${line}:pagination`,
-              location: { file: file.path, line },
-            });
-          }
-
-          if (EXACT_COUNT.test(text)) {
-            found.push({
-              message: `${file.path}:${line} uses \`count: "exact"\`, which counts every matching row on each request. Use \`count: "planned"\` or \`"estimated"\` when the table can grow large.`,
-              target: `${file.path}:${line}:count`,
-              location: { file: file.path, line },
-            });
-          }
-
-          if (countsWithoutMode(text)) {
-            found.push({
-              message: `${file.path}:${line} calls \`.count()\` without a \`mode\`, which counts every matching row. Pass \`{ mode: "planned" }\` or \`"estimated"\` when the table can grow large.`,
-              target: `${file.path}:${line}:count-mode`,
-              location: { file: file.path, line },
-            });
-          }
-
-          return found;
-        }),
-      ),
+        return [
+          ...found.offset.map((line): FindingInput => ({
+            message: `${file.path}:${line} uses \`pagination: "offset"\`, so each page reads and skips every earlier row. Use \`pagination: "cursor"\` unless the UI needs page numbers, and keep \`[api] max_rows\` set so no request reads the whole table.`,
+            target: `${file.path}:${line}:pagination`,
+            location: { file: file.path, line },
+          })),
+          ...found.exact.map((line): FindingInput => ({
+            message: `${file.path}:${line} uses \`count: "exact"\`, which counts every matching row on each request. Use \`count: "planned"\` or \`"estimated"\` when the table can grow large.`,
+            target: `${file.path}:${line}:count`,
+            location: { file: file.path, line },
+          })),
+          ...found.countMode.map((line): FindingInput => ({
+            message: `${file.path}:${line} calls \`.count()\` without a \`mode\`, which counts every matching row. Pass \`{ mode: "planned" }\` or \`"estimated"\` when the table can grow large.`,
+            target: `${file.path}:${line}:count-mode`,
+            location: { file: file.path, line },
+          })),
+        ];
+      }),
   },
   {
     code: "BS228",

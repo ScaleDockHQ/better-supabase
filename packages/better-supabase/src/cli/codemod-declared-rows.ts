@@ -4,7 +4,13 @@ import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 
 import { policyOf, policySnapshot } from "../sql/index.ts";
-import { ConfigDocument } from "./config-document/index.ts";
+import {
+  changedFiles,
+  ConfigDocument,
+  followedReview,
+  openImports,
+  ownerOf,
+} from "./config-document/index.ts";
 import { rowsDir } from "./rows/dir.ts";
 
 type Fields = Readonly<Record<string, unknown>>;
@@ -275,11 +281,34 @@ export function declaredRowsCodemod(): Codemod {
       ) {
         const document = ConfigDocument.parse(project.configText);
 
+        const imports = openImports(
+          { symbols: project.symbols, configFile: project.configFile },
+          document,
+        );
+
         for (const path of move.remove) {
-          document.remove(path);
+          if (document.remove(path).status !== "absent") {
+            continue;
+          }
+
+          const found = ownerOf(imports, path);
+
+          found?.owner.document.remove(found.inner);
         }
 
-        review.push(...document.review.map((message) => ({ message })));
+        review.push(
+          ...[...document.review, ...followedReview(imports)].map(
+            (message) => ({ message }),
+          ),
+        );
+
+        files.push(
+          ...changedFiles(imports).map(({ file, text }): PlannedFile => ({
+            path: file,
+            contents: text,
+            policy: "edit",
+          })),
+        );
 
         if (document.text !== project.configText) {
           files.push({

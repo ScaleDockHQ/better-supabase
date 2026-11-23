@@ -1,19 +1,18 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { lineOf } from "./shared.ts";
+import { findLine, isCallOf, mentionsExactly } from "./tree.ts";
 
 // Only names that execute steps: a file that builds the builder's service
 // transport or starts runs needs the service role legitimately.
-const BUILDER_EXECUTOR = /\b(?:GraphStepCall|executeGraph|nodeRunReporter)\b/;
-const ADMIN_CALL = /\badmin\s*\(/;
+const BUILDER_EXECUTOR = ["GraphStepCall", "executeGraph", "nodeRunReporter"];
 
 function adminInBuilderExecutor(context: DoctorContext): FindingInput[] {
   return context.sources.flatMap((file) => {
-    if (!BUILDER_EXECUTOR.test(file.text)) {
+    if (!BUILDER_EXECUTOR.some((name) => mentionsExactly(file.text, name))) {
       return [];
     }
 
-    const line = lineOf(file.text, ADMIN_CALL);
+    const line = findLine(file.text, (node) => isCallOf(node, "admin"));
 
     if (line === undefined) {
       return [];

@@ -57,6 +57,7 @@ import { skippedForMetadata } from "./metadata.ts";
 import { MIGRA_DROP_RULES } from "./migra-drops.ts";
 import { MIGRATION_RULES } from "./migration-rules.ts";
 import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
+import { isAggregateUse } from "./module-calls.ts";
 import { moduleFiles } from "./module-files.ts";
 import { MODULE_RULES } from "./modules.ts";
 import { N_PLUS_ONE_RULES } from "./n-plus-one.ts";
@@ -69,6 +70,7 @@ import { POLICY_RULES } from "./policies.ts";
 import { PRACTICE_RULES } from "./practices.ts";
 import { PROVIDER_DOCTOR_RULES } from "./provider-doctor.ts";
 import { REALTIME_RULES } from "./realtime.ts";
+import { receiverIsNotClient } from "./receiver-types.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
 import { ROUND_TRIP_RULES } from "./round-trips.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
@@ -88,6 +90,7 @@ import { SHIPPED_SHIM_RULES } from "./shipped-shims.ts";
 import { STACK_RULES } from "./stacks.ts";
 import { SUPABASE_CLI_RULES } from "./supabase-cli.ts";
 import { TABLE_FACT_RULES } from "./table-facts.ts";
+import { findLine } from "./tree.ts";
 import { VERCEL_ENV_RULES } from "./vercel-env.ts";
 import { WIRING_RULES } from "./wiring.ts";
 import { WORKFLOW_BUILDER_RULES } from "./workflow-builder.ts";
@@ -316,9 +319,6 @@ async function moduleVersionsBehind(
  * `db.x.aggregate(`, an `_sum:`/`_avg:`/`_min:`/`_max:` include or a list with
  * `facetCounts: true`.
  */
-const AGGREGATE_USE =
-  /\.aggregate\(|\b_(?:sum|avg|min|max)\s*:\s*\{|\bfacetCounts\s*:\s*true\b/;
-
 /**
  * A policy that reads memberships or the tenant claim: `is_member(...)`,
  * `current_tenant_id()`, `memberships`. The authorization provider's functions
@@ -666,7 +666,12 @@ const OWN_RULES: readonly Rule[] = [
       }
 
       for (const file of context.sources) {
-        const line = lineOf(file.text, AGGREGATE_USE);
+        const line = findLine(
+          file.text,
+          (node) =>
+            isAggregateUse(node) &&
+            !receiverIsNotClient(context.symbols, file.path, node),
+        );
 
         if (line === undefined) {
           continue;

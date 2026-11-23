@@ -52,6 +52,19 @@ const run = (ctx: DoctorContext, code: string) =>
     RULES.filter((rule) => rule.code === code),
   );
 
+const tier = (
+  type: string | undefined,
+): NonNullable<DoctorContext["symbols"]> => ({
+  root: "/app",
+  tier: {
+    version: "7.1.0",
+    references: () => [],
+    declaration: () => undefined,
+    typeOf: () => type,
+    close: () => {},
+  },
+});
+
 const column = (overrides: Partial<CatalogColumn>): CatalogColumn => ({
   name: "meta",
   udt: "jsonb",
@@ -677,6 +690,51 @@ create trigger notes_customer before insert or update on public.notes for each r
         message: expect.stringContaining('`count: "planned"`'),
       },
     ]);
+  });
+
+  it("ignores scale and pooler signs in comments and strings (BS221, BS226, BS227)", async () => {
+    const sources = [
+      {
+        path: "src/quiet.ts",
+        text: [
+          "/* export const runtime = 'edge'; Deno.serve(handler); */",
+          "const doc = \"pagination: 'offset', count: 'exact', db.count()\";",
+          "// import postgres from 'postgres'",
+          "// const p = new PrismaClient()",
+          "export const ok = 1;",
+        ].join("\n"),
+      },
+    ];
+
+    for (const code of ["BS221", "BS226", "BS227"]) {
+      expect(await run(context(base, { sources }), code)).toEqual([]);
+    }
+  });
+
+  it("drops containment and count calls on a receiver TypeScript types as a collection (BS219, BS227)", async () => {
+    const snap = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.columns = [...notes.columns, column({})];
+    });
+
+    const sources = [
+      {
+        path: "src/notes.ts",
+        text: 'q.contains("meta", { pinned: true });\nconst n = await seen.count();\n',
+      },
+    ];
+
+    for (const type of ["Set<string>", undefined, "Db<Database>"]) {
+      const symbols = tier(type);
+      const dropped = type === "Set<string>";
+
+      expect(
+        (await run(context(snap, { sources, symbols }), "BS219")).length > 0,
+      ).toBe(!dropped);
+      expect(
+        (await run(context(base, { sources, symbols }), "BS227")).length > 0,
+      ).toBe(!dropped);
+    }
   });
 
   it("reports count() without a mode (BS227)", async () => {

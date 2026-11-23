@@ -6,6 +6,9 @@
  * migration of `alter ... rename` statements, so no data moves.
  */
 
+import { walk } from "oxc-walker";
+
+import type { Rewritten } from "./codemod-arguments.ts";
 import type { Codemod, MigrationContext } from "./codemod.ts";
 
 import naming from "../../api/naming.json" with { type: "json" };
@@ -19,6 +22,7 @@ import {
   withColumnPins,
   withHistoryPins,
 } from "./codemod-naming-pins.ts";
+import { rewriteSource } from "./config-document/index.ts";
 import { ownLayout } from "./sql-layout.ts";
 
 export type RenameKind =
@@ -67,8 +71,21 @@ function mapOf(
   );
 }
 
-/** `text` with each environment variable name in `renames` replaced. */
-export function renameEnvNames(
+const ENV_FILE_NAME = /^(?:\.env(?:\.[\w.-]+)?|turbo\.jsonc?)$/;
+
+/** Whether `path` is an `.env*` file or `turbo.json`, which have no syntax tree. */
+function isEnvFile(path: string | undefined): boolean {
+  return (
+    path !== undefined && ENV_FILE_NAME.test(path.split(/[/\\]/).at(-1) ?? "")
+  );
+}
+
+/**
+ * `text` with each environment variable name in `renames` replaced, in a file
+ * that has no syntax tree (`.env*`, `turbo.json`): a whole name, not part of a
+ * longer one.
+ */
+export function renameEnvFileNames(
   text: string,
   renames: readonly NamingRename[],
 ): string {
@@ -87,29 +104,106 @@ export function renameEnvNames(
 }
 
 /**
- * `text` with each quoted hint code and event name in `renames` replaced. Only
- * a whole string literal matches, so `"OLD_CODE"` changes and
- * `"LEDGER_OLD_CODE"` does not.
+ * Renames environment variables, hint codes and event names in TypeScript or
+ * TSX through the syntax tree. An environment variable changes where code names
+ * it: a `process.env` or `env` member read, a key or a binding. A hint code, an
+ * event name and an environment variable changes in a string only when the
+ * whole string is the name, so `"LEDGER_OLD_CODE"` stays. Comments never
+ * change. A string that holds an environment variable name among other words is
+ * listed for review, because only the author knows whether it is a message or a
+ * lookup. A file that does not parse is listed, not skipped.
  */
-export function renameQuotedNames(
+export function renameNames(
   text: string,
   renames: readonly NamingRename[],
-): string {
-  let result = text;
+): Rewritten {
+  const env = new Map(
+    renames.filter((r) => r.kind === "env").map((r) => [r.from, r.to]),
+  );
 
-  for (const rename of renames) {
-    if (rename.kind === "hint" || rename.kind === "event") {
-      result = result.replaceAll(
-        new RegExp(
-          `(["'\`])${rename.from.replaceAll(".", String.raw`\.`)}\\1`,
-          "g",
-        ),
-        `$1${rename.to}$1`,
-      );
-    }
+  const quoted = new Map(
+    renames
+      .filter((r) => r.kind === "hint" || r.kind === "event")
+      .map((r) => [r.from, r.to]),
+  );
+
+  if (env.size === 0 && quoted.size === 0) {
+    return { text, review: [] };
   }
 
-  return result;
+  const mentions = [...env.keys()].map(
+    (name) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`),
+  );
+
+  return rewriteSource(text, ({ program, text: source, edit, report }) => {
+    const whole = (value: string): string | undefined =>
+      env.get(value) ?? quoted.get(value);
+
+    walk(program, {
+      enter(node, parent) {
+        if (node.type === "Identifier") {
+          const to = env.get(node.name);
+
+          if (to === undefined || parent === null) {
+            return;
+          }
+
+          if (
+            parent.type === "ImportSpecifier" ||
+            parent.type === "ExportSpecifier"
+          ) {
+            return;
+          }
+
+          edit.overwrite(node.start, node.end, to);
+
+          return;
+        }
+
+        if (node.type === "TemplateLiteral" && node.expressions.length === 0) {
+          const [quasi] = node.quasis;
+
+          const to =
+            quasi === undefined ? undefined : quoted.get(quasi.value.raw);
+
+          if (quasi !== undefined && to !== undefined) {
+            edit.overwrite(node.start + 1, node.end - 1, to);
+          }
+
+          return;
+        }
+
+        if (node.type !== "Literal" || typeof node.value !== "string") {
+          return;
+        }
+
+        if (
+          parent?.type === "ImportDeclaration" ||
+          parent?.type === "ExportAllDeclaration" ||
+          parent?.type === "ExportNamedDeclaration"
+        ) {
+          return;
+        }
+
+        const to = whole(node.value);
+
+        if (to !== undefined) {
+          const mark = source[node.start];
+
+          edit.overwrite(node.start, node.end, `${mark}${to}${mark}`);
+
+          return;
+        }
+
+        if (mentions.some((pattern) => pattern.test(node.value))) {
+          report(
+            node.start,
+            "This string names a renamed environment variable among other text, so the codemod left it. Update it by hand if it is a lookup.",
+          );
+        }
+      },
+    });
+  });
 }
 
 const quote = (name: string): string => `"${name.replaceAll('"', '""')}"`;
@@ -377,13 +471,14 @@ export function namingCodemod(
       "Applies the renames in api/naming.json: exports, types, subpaths, environment variables and installed SQL objects",
     imports: mapOf(renames, (kind) => IDENTIFIER_KINDS.has(kind)),
     subpaths: mapOf(renames, (kind) => kind === "subpath"),
-    source: (text) => {
-      const keys = renameConfigKeys(text, renames);
+    source: (text, path) => {
+      if (isEnvFile(path)) {
+        return { text: renameEnvFileNames(text, renames), review: [] };
+      }
 
-      const named = renameArguments(
-        renameQuotedNames(renameEnvNames(keys.text, renames), renames),
-        renames,
-      );
+      const keys = renameConfigKeys(text, renames);
+      const names = renameNames(keys.text, renames);
+      const named = renameArguments(names.text, renames);
 
       const references = renameBlockReferences(named.text, renames);
 
@@ -393,6 +488,7 @@ export function namingCodemod(
 
       const review = [
         ...keys.review,
+        ...names.review,
         ...named.review,
         ...references.review,
       ].filter((line) => {

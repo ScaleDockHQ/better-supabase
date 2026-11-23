@@ -336,17 +336,24 @@ export function adoptNamesCodemod(): Codemod {
       ) {
         const base = `blocks.${resolved.block}`;
 
-        const edited = withoutConfigPaths(project.configText, [
-          `${base}.tables.${resolved.logical}`,
-          `${base}.columns.${resolved.logical}`,
-        ]);
+        const edited = withoutConfigPaths(
+          project.configText,
+          [
+            `${base}.tables.${resolved.logical}`,
+            `${base}.columns.${resolved.logical}`,
+          ],
+          { symbols: project.symbols, configFile: project.configFile },
+        );
 
         review.push(...edited.review.map((message) => ({ message })));
-        files.push({
-          path: project.configFile,
-          contents: edited.text,
-          policy: "edit",
-        });
+        files.push(
+          { path: project.configFile, contents: edited.text, policy: "edit" },
+          ...edited.others.map(({ file, text }): PlannedFile => ({
+            path: file,
+            contents: text,
+            policy: "edit",
+          })),
+        );
       }
 
       const sql = renameMigration(plan);

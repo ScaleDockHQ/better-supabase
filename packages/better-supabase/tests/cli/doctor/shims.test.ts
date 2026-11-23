@@ -20,7 +20,7 @@ const find = (code: string) => {
 
 const HIT: Readonly<Record<string, string>> = {
   BS612:
-    'import { bsb } from "@/lib/supabase";\n// proxy\ncookies: { setAll(list) {} }',
+    'import { bsb } from "@/lib/supabase";\nexport function proxy() {}\nconst cookies = { setAll(list) {} };',
   BS613:
     'import { bsb } from "@/lib/supabase";\nawait bsb.bootstrap({});\nawait supabase.auth.getUser();',
   BS614:
@@ -50,6 +50,31 @@ describe("doctor shims", () => {
 
     expect(findings).toHaveLength(1);
     expect(findings[0]?.message).toContain(find(code).since);
+  });
+
+  it.each(Object.entries(HIT))(
+    "%s ignores the same text inside comments",
+    (code, text) => {
+      const [library = "", ...rest] = text.split("\n");
+
+      const commented = [library, ...rest.map((line) => `// ${line}`)].join(
+        "\n",
+      );
+
+      expect(shimFindings(source(commented), find(code))).toEqual([]);
+    },
+  );
+
+  it("keeps the line of the match when a comment comes first", () => {
+    const text = [
+      'import { bsb } from "@/lib/supabase";',
+      "/* withPublicPolicyRoles(old) */",
+      "withPublicPolicyRoles(q);",
+    ].join("\n");
+
+    expect(shimFindings(source(text), find("BS617"))[0]?.location?.line).toBe(
+      3,
+    );
   });
 
   it("ignores files that never name the library", () => {

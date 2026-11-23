@@ -2383,7 +2383,9 @@ calls `createServerClient`, is the server side. When a file on one side sets
 uses the default `user-and-tokens`: it writes the user object back into the
 cookie, or reads a session without one and `session.user` throws. Set the same
 `encode` in `createClient` and on the server. See
-[Encoding](/docs/auth/sessions#encoding).
+[Encoding](/docs/auth/sessions#encoding). Doctor reads imports, calls and
+properties from the syntax tree, so a comment or a string that mentions
+`tokens-only` doesn't count.
 
 ### BS413
 
@@ -2851,11 +2853,15 @@ database or snapshot, they still run; BS634 then names no include, BS635 finds
 no waterfall, and an info finding says so. `--snapshot` also reads the CLI's
 cached snapshot (`node_modules/.cache/better-supabase/snapshot-*.json`).
 
-The three rules match a receiver by its name, such as `db` or `userService`.
+The source rules BS210, BS219, BS227, BS351, BS609, BS634 and BS635 match a receiver by its name, such as `db` or `userService`.
 With `typescript` 7.1 or newer installed, doctor asks TypeScript for the type
-of the receiver and drops the read when it is a plain collection such as a
-`Map` or an array. Without it, a run that reports one of the rules adds an info
+of the receiver and drops the finding when it is a plain collection such as a
+`Map`, a `Set` or an array. Without it, a run that reports one of the rules adds an info
 finding that says receivers were matched by name only.
+
+A comment or a string that mentions a call never counts for these source rules,
+or for the other source rules that read TypeScript: they read the syntax tree,
+not the file text. Rules that read SQL or dotenv files still match text.
 
 ### BS610
 

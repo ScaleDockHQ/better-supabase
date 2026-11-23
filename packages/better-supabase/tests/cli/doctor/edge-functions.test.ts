@@ -49,6 +49,18 @@ describe("BS395 verify_jwt and auth: 'user'", () => {
     ]);
   });
 
+  it("ignores auth: 'user' in a comment or a string", async () => {
+    expect(
+      await run(
+        { reports: { verify_jwt: false } },
+        {
+          "supabase/functions/reports/index.ts":
+            "// auth: 'user' is not used\nconst note = \"auth: 'user'\";\nexport { note };",
+        },
+      ),
+    ).toEqual([]);
+  });
+
   it("leaves the mcp function, other functions and enabled checks alone", async () => {
     expect(
       await run(

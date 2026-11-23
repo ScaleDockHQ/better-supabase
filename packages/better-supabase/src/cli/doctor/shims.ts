@@ -1,6 +1,7 @@
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { lineOf } from "./shared.ts";
+import { blankComments } from "./tree.ts";
 
 /**
  * One piece of app code the library replaced. A shim matches when its pattern
@@ -115,15 +116,16 @@ export const SHIMS: readonly Shim[] = [
   },
 ];
 
-function lineOfMatch(file: TextFile, pattern: RegExp): number {
-  return lineOf(file.text, new RegExp(pattern.source)) ?? 1;
+function lineOfMatch(text: string, pattern: RegExp): number {
+  return lineOf(text, new RegExp(pattern.source)) ?? 1;
 }
 
-function matches(file: TextFile, shim: Shim): boolean {
+/** Whether the code, with comments blanked, carries the shim. */
+function matches(code: string, shim: Shim): boolean {
   return (
-    LIBRARY.test(file.text) &&
-    shim.pattern.test(file.text) &&
-    (shim.also?.test(file.text) ?? true)
+    LIBRARY.test(code) &&
+    shim.pattern.test(code) &&
+    (shim.also?.test(code) ?? true)
   );
 }
 
@@ -132,19 +134,28 @@ export function shimFindings(
   context: Pick<DoctorContext, "sources">,
   shim: Shim,
 ): FindingInput[] {
-  return context.sources
-    .filter((file) => matches(file, shim))
-    .map((file) => ({
-      message: `${file.path} has ${shim.found}. Since ${shim.since}, use ${shim.replacement}.`,
-      target: file.path,
-      location: { file: file.path, line: lineOfMatch(file, shim.pattern) },
-    }));
+  return context.sources.flatMap((file: TextFile): FindingInput[] => {
+    const code = blankComments(file.text);
+
+    return matches(code, shim)
+      ? [
+          {
+            message: `${file.path} has ${shim.found}. Since ${shim.since}, use ${shim.replacement}.`,
+            target: file.path,
+            location: {
+              file: file.path,
+              line: lineOfMatch(code, shim.pattern),
+            },
+          },
+        ]
+      : [];
+  });
 }
 
 export const SHIM_RULES: readonly Rule[] = SHIMS.map((shim) => ({
   code: shim.code,
   severity: "info",
   title: shim.title,
-  description: `The app carries ${shim.found}. Since ${shim.since} the library covers it: use ${shim.replacement}. The check reads source text matched by \`doctor.sources\`.`,
+  description: `The app carries ${shim.found}. Since ${shim.since} the library covers it: use ${shim.replacement}. The check reads the code of the files matched by \`doctor.sources\`, not their comments.`,
   check: (context: DoctorContext) => shimFindings(context, shim),
 }));

@@ -139,10 +139,11 @@ export default { blocks: { tags: { options } } };
       config: { path: "/p/better-supabase.config.ts", text },
     });
 
-    expect(result.review[0]?.message).toContain(
-      "blocks.tags.options.extraColumns",
+    const line = result.review.find((entry) =>
+      entry.message.includes("blocks.tags.options.extraColumns"),
     );
-    expect(result.review[0]?.message).toContain("remove it by hand");
+
+    expect(line?.message).toContain("remove it by hand");
     expect(result.files.some((file) => file.path.endsWith(".config.ts"))).toBe(
       false,
     );

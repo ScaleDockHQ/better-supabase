@@ -1,16 +1,22 @@
-import { readFileSync } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
 import type { Codemod, CodemodProject } from "./codemod.ts";
+import type { ImportFollow } from "./config-document/index.ts";
 import type { PlannedFile } from "./core/files.ts";
 import type { ProjectSymbols } from "./typescript-symbols/index.ts";
 
 import { restatedEntries, suggestSqlApi } from "../config/index.ts";
 import { clientNotNull, redundantNulls, SQL_MODULES } from "../sql/index.ts";
 import { settleGroups, withoutConfigPaths } from "./codemod-prune.ts";
-import { ConfigDocument, followImports } from "./config-document/index.ts";
+import {
+  changedFiles,
+  ConfigDocument,
+  followedReview,
+  openImports,
+  ownerOf,
+} from "./config-document/index.ts";
 import { loadConfig } from "./config.ts";
 import { mergeRestated, probeRestated } from "./restated-probe.ts";
 import { ownLayout } from "./sql-layout.ts";
@@ -89,12 +95,6 @@ export interface ColumnEntryEdit {
   readonly others: readonly { readonly file: string; readonly text: string }[];
 }
 
-/** What lets an edit follow a value the config imports from another file. */
-export interface ImportFollow {
-  readonly symbols: ProjectSymbols | undefined;
-  readonly configFile: string;
-}
-
 /**
  * `text` without the `<column>` entry of each `blocks.<block>.columns.<table>`
  * entry, with its comma, its line and its comments. A name in a string or a
@@ -109,10 +109,7 @@ export function withoutColumnEntries(
   const document = ConfigDocument.parse(text);
   const review: string[] = [];
 
-  const imports =
-    follow === undefined
-      ? undefined
-      : followImports(follow.symbols, follow.configFile, document);
+  const imports = openImports(follow, document);
 
   for (const entry of entries) {
     const path = ["blocks", entry.block, "columns", entry.table, entry.column];
@@ -122,15 +119,9 @@ export function withoutColumnEntries(
       continue;
     }
 
-    const owner = imports?.followed.find(
-      ({ prefix }) =>
-        prefix.length <= path.length &&
-        prefix.every((segment, index) => segment === path[index]),
-    );
+    const found = ownerOf(imports, path);
 
-    if (
-      owner?.document.remove(path.slice(owner.prefix.length)).status === "done"
-    ) {
+    if (found?.owner.document.remove(found.inner).status === "done") {
       continue;
     }
 
@@ -141,24 +132,10 @@ export function withoutColumnEntries(
     );
   }
 
-  const others = (imports?.followed ?? [])
-    .filter(
-      ({ document: followed, file }) =>
-        followed.text !== readFileSync(file, "utf-8"),
-    )
-    .map(({ file, document: followed }) => ({ file, text: followed.text }));
-
   return {
     text: document.text,
-    review: [
-      ...(imports?.review ?? []),
-      ...review,
-      ...document.review,
-      ...(imports?.followed.flatMap(
-        ({ document: followed }) => followed.review,
-      ) ?? []),
-    ],
-    others,
+    review: [...review, ...document.review, ...followedReview(imports)],
+    others: changedFiles(imports),
   };
 }
 
@@ -349,7 +326,8 @@ async function prune(
   const api = await withSqlApi(project, before);
   const baseText = api.text;
   const allPaths = entries.map((entry) => entry.path);
-  const first = withoutConfigPaths(baseText, allPaths);
+  const follow: ImportFollow = { symbols: project.symbols, configFile };
+  const first = withoutConfigPaths(baseText, allPaths, follow);
 
   const review: { message: string }[] = first.missed
     .filter(
@@ -363,7 +341,11 @@ async function prune(
     ...[...api.review, ...first.review].map((message) => ({ message })),
   );
 
-  if (first.text === baseText && baseText === configText) {
+  if (
+    first.text === baseText &&
+    baseText === configText &&
+    first.others.length === 0
+  ) {
     return { files: [], review };
   }
 
@@ -411,16 +393,26 @@ async function prune(
     });
   }
 
-  const pruned = withoutConfigPaths(baseText, kept);
+  const pruned = withoutConfigPaths(baseText, kept, follow);
 
-  if (pruned.text === configText) {
-    return { files: [], review };
+  for (const other of pruned.others) {
+    review.push({
+      message: `${other.file}: removed entries the config imports from here. The render check only covers ${configFile}, so run \`better-supabase gen --check\` to confirm this file.`,
+    });
   }
 
-  return {
-    files: [{ path: configFile, contents: pruned.text, policy: "edit" }],
-    review,
-  };
+  const files: PlannedFile[] = [
+    ...(pruned.text === configText
+      ? []
+      : [{ path: configFile, contents: pruned.text, policy: "edit" as const }]),
+    ...pruned.others.map(({ file, text }) => ({
+      path: file,
+      contents: text,
+      policy: "edit" as const,
+    })),
+  ];
+
+  return { files, review };
 }
 
 /** The `config` codemod: drop the entries the catalog already implies. */

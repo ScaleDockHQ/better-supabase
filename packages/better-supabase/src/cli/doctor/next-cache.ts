@@ -1,7 +1,11 @@
+import type { Node, Program } from "oxc-parser";
+
+import { walk } from "oxc-walker";
+
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { lineColumn, parseSource } from "../config-document/parse.ts";
 import { CLIENT_BARREL_RULES } from "./client-barrels.ts";
-import { lineOf } from "./shared.ts";
 
 /** The `next.config` file names Next.js loads, in its order. */
 export const NEXT_CONFIG_FILES = [
@@ -18,13 +22,112 @@ export const VERCEL_FILES = [
   ".vercel/project.json",
 ] as const;
 
-/** A remote cache scope that `bsb.cached()` or `bsb.bootstrap()` reads. */
-const REMOTE_SCOPE =
-  /\bbsb\.remote\s*\(|\bscope\s*:\s*["'`]remote["'`]|["'`]use cache: remote["'`]/;
+/** The name a non-computed key or an identifier holds. */
+function nameOf(node: Node): string | undefined {
+  if (node.type === "Identifier") {
+    return node.name;
+  }
 
-/** `cacheHandlers.remote`, or `createNextConfig`'s `remoteCacheHandler`. */
-const REMOTE_HANDLER =
-  /\bremoteCacheHandler\s*:|\bcacheHandlers\s*:\s*\{[^}]*\bremote\s*:/s;
+  return node.type === "Literal" && typeof node.value === "string"
+    ? node.value
+    : undefined;
+}
+
+/**
+ * Whether `node` is the string `value`, written as a literal or a bare
+ * template.
+ */
+function isString(node: Node, value: string): boolean {
+  if (node.type === "Literal") {
+    return node.value === value;
+  }
+
+  return (
+    node.type === "TemplateLiteral" &&
+    node.expressions.length === 0 &&
+    node.quasis[0]?.value.cooked === value
+  );
+}
+
+/** `object.property(` with both names plain identifiers. */
+function isMemberCall(
+  node: Node,
+  object: string,
+  ...properties: string[]
+): boolean {
+  return (
+    node.type === "CallExpression" &&
+    node.callee.type === "MemberExpression" &&
+    !node.callee.computed &&
+    node.callee.object.type === "Identifier" &&
+    node.callee.object.name === object &&
+    node.callee.property.type === "Identifier" &&
+    properties.includes(node.callee.property.name)
+  );
+}
+
+/** A call to the bare name `name(`, not `x.name(`. */
+function isBareCall(node: Node, ...names: string[]): boolean {
+  return (
+    node.type === "CallExpression" &&
+    node.callee.type === "Identifier" &&
+    names.includes(node.callee.name)
+  );
+}
+
+/** Walks `root` and returns the offset of the first node `match` accepts. */
+function firstMatch(
+  root: Node,
+  match: (node: Node) => boolean,
+): number | undefined {
+  let found: number | undefined;
+
+  walk(root, {
+    enter(node) {
+      if (found === undefined && match(node)) {
+        found = node.start;
+      }
+    },
+  });
+
+  return found;
+}
+
+/** Where `bsb.remote()`, `scope: "remote"` or `"use cache: remote"` appears. */
+function remoteScopeAt(program: Program): number | undefined {
+  return firstMatch(
+    program,
+    (node) =>
+      isMemberCall(node, "bsb", "remote") ||
+      (node.type === "Property" &&
+        !node.computed &&
+        nameOf(node.key) === "scope" &&
+        isString(node.value, "remote")) ||
+      (node.type === "Literal" && node.value === "use cache: remote") ||
+      (node.type === "TemplateLiteral" && isString(node, "use cache: remote")),
+  );
+}
+
+/** `remoteCacheHandler: ...` or `cacheHandlers: { remote: ... }`. */
+function hasRemoteHandler(program: Program): boolean {
+  return (
+    firstMatch(
+      program,
+      (node) =>
+        node.type === "Property" &&
+        !node.computed &&
+        (nameOf(node.key) === "remoteCacheHandler" ||
+          (nameOf(node.key) === "cacheHandlers" &&
+            node.value.type === "ObjectExpression" &&
+            node.value.properties.some(
+              (property) =>
+                property.type === "Property" &&
+                !property.computed &&
+                nameOf(property.key) === "remote",
+            ))),
+    ) !== undefined
+  );
+}
 
 /**
  * `'use cache: remote'` entries without a remote handler outside Vercel
@@ -38,79 +141,105 @@ function remoteWithoutHandler(context: DoctorContext): FindingInput[] {
 
   const config: TextFile | undefined = context.nextConfig;
 
-  if (config && REMOTE_HANDLER.test(config.text)) {
+  if (config && hasRemoteHandler(parseSource(config.text).program)) {
     return [];
   }
 
-  const file = context.sources.find((source) => REMOTE_SCOPE.test(source.text));
+  for (const file of context.sources) {
+    const at = remoteScopeAt(parseSource(file.text).program);
 
-  if (!file) {
-    return [];
-  }
-
-  return [
-    {
-      message: `${file.path} caches in the remote scope, but ${config?.path ?? "next.config"} sets no remote cache handler and the app doesn't deploy to Vercel. Each instance then keeps its own in-memory copy. Set \`remoteCacheHandler\` in createNextConfig (or \`cacheHandlers.remote\`) to a shared handler such as Redis.`,
-      target: `${file.path}:remote`,
-      location: { file: file.path, line: lineOf(file.text, REMOTE_SCOPE) ?? 1 },
-    },
-  ];
-}
-
-/** A function whose first statement is the `"use cache: private"` directive. */
-const PRIVATE_FUNCTION =
-  /(?:function\s+(\w+)\s*\([^)]*\)[^{=]*|(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?(?:function\s*)?\([^)]*\)[^{=]*(?:=>)?\s*)\{\s*["']use cache: private["']/g;
-
-interface PrivateFunction {
-  readonly name: string;
-  readonly file: string;
-  readonly text: string;
-  readonly body: string;
-  readonly index: number;
-}
-
-/** The text of the `{ ... }` block that opens at `open`. */
-function blockAt(text: string, open: number): string {
-  let depth = 0;
-
-  for (let index = open; index < text.length; index += 1) {
-    const char = text.charAt(index);
-
-    if (char === "{") {
-      depth += 1;
-    } else if (char === "}") {
-      depth -= 1;
-
-      if (depth === 0) {
-        return text.slice(open, index + 1);
-      }
+    if (at !== undefined) {
+      return [
+        {
+          message: `${file.path} caches in the remote scope, but ${config?.path ?? "next.config"} sets no remote cache handler and the app doesn't deploy to Vercel. Each instance then keeps its own in-memory copy. Set \`remoteCacheHandler\` in createNextConfig (or \`cacheHandlers.remote\`) to a shared handler such as Redis.`,
+          target: `${file.path}:remote`,
+          location: { file: file.path, line: lineColumn(file.text, at).line },
+        },
+      ];
     }
   }
 
-  return text.slice(open);
+  return [];
 }
 
-function privateFunctions(sources: readonly TextFile[]): PrivateFunction[] {
-  return sources.flatMap((source) =>
-    [...source.text.matchAll(PRIVATE_FUNCTION)].flatMap((match) => {
-      const name = match[1] ?? match[2];
+interface DirectiveFunction {
+  readonly name: string;
+  readonly file: string;
+  /** The function node, whose body the rules read. */
+  readonly body: Node;
+  /** The line of the declaration. */
+  readonly line: number;
+}
 
-      return name === undefined
-        ? []
-        : [
-            {
-              name,
+type CacheDirective = "use cache" | "use cache: private";
+
+/** Whether a function body opens with `directive`. */
+function opensWith(body: Node | null, directive: CacheDirective): boolean {
+  if (body?.type !== "BlockStatement") {
+    return false;
+  }
+
+  const first = body.body[0];
+
+  return first?.type === "ExpressionStatement" && first.directive === directive;
+}
+
+/**
+ * The functions of `sources` whose first statement is `directive`: a
+ * declaration, or a `const` or `let` that holds a function.
+ */
+function directiveFunctions(
+  sources: readonly TextFile[],
+  directive: CacheDirective,
+): DirectiveFunction[] {
+  const found: DirectiveFunction[] = [];
+
+  for (const source of sources) {
+    walk(parseSource(source.text).program, {
+      enter(node, parent) {
+        if (node.type === "FunctionDeclaration") {
+          if (
+            node.id !== null &&
+            node.body !== null &&
+            opensWith(node.body, directive)
+          ) {
+            found.push({
+              name: node.id.name,
               file: source.path,
-              text: source.text,
-              body: blockAt(
-                source.text,
-                match.index + match[0].lastIndexOf("{"),
-              ),
-              index: match.index,
-            },
-          ];
-    }),
-  );
+              body: node.body,
+              line: lineColumn(source.text, node.start).line,
+            });
+          }
+
+          return;
+        }
+
+        if (
+          node.type === "VariableDeclarator" &&
+          node.id.type === "Identifier" &&
+          node.init !== null &&
+          (node.init.type === "ArrowFunctionExpression" ||
+            node.init.type === "FunctionExpression") &&
+          node.init.body !== null &&
+          opensWith(node.init.body, directive)
+        ) {
+          found.push({
+            name: node.id.name,
+            file: source.path,
+            body: node.init.body,
+            line: lineColumn(
+              source.text,
+              parent?.type === "VariableDeclaration"
+                ? parent.start
+                : node.start,
+            ).line,
+          });
+        }
+      },
+    });
+  }
+
+  return found;
 }
 
 /**
@@ -120,7 +249,7 @@ function privateFunctions(sources: readonly TextFile[]): PrivateFunction[] {
  * every scope `bsb.sessionHandle()`.
  */
 function nestedPrivateScopes(context: DoctorContext): FindingInput[] {
-  const functions = privateFunctions(context.sources);
+  const functions = directiveFunctions(context.sources, "use cache: private");
   const names = new Set(functions.map((fn) => fn.name));
 
   return functions.flatMap((outer) =>
@@ -128,21 +257,16 @@ function nestedPrivateScopes(context: DoctorContext): FindingInput[] {
       .filter(
         (name) =>
           name !== outer.name &&
-          new RegExp(`(?<![.\\w$])${name}\\s*\\(`).test(outer.body),
+          firstMatch(outer.body, (node) => isBareCall(node, name)) !==
+            undefined,
       )
       .map((inner) => ({
         message: `${outer.file}: ${outer.name} runs in \`"use cache: private"\` and calls ${inner}, which has the same directive. Private cache scopes can't nest, and each one resolves the session again. Call ${inner} from the page and pass its result down, or read both in one scope.`,
         target: `${outer.file}:${outer.name}:${inner}`,
-        location: {
-          file: outer.file,
-          line: outer.text.slice(0, outer.index).split("\n").length,
-        },
+        location: { file: outer.file, line: outer.line },
       })),
   );
 }
-
-/** A service-role client built inside a function body. */
-const ADMIN_CALL = /\bbsb\.admin\s*\(|\bcreateAdminClient\s*\(/;
 
 /**
  * A `"use cache: private"` function that uses the service role (BS611): the
@@ -151,29 +275,24 @@ const ADMIN_CALL = /\bbsb\.admin\s*\(|\bcreateAdminClient\s*\(/;
  * isn't theirs. Read as the user, or move the admin read out of the scope.
  */
 function adminInPrivateScope(context: DoctorContext): FindingInput[] {
-  return privateFunctions(context.sources).flatMap((fn) =>
-    ADMIN_CALL.test(fn.body)
-      ? [
-          {
-            message: `${fn.file}: ${fn.name} runs in \`"use cache: private"\` and builds an admin client. The service role skips the user's policies, so its result doesn't belong in a per-user scope and each call costs an extra verification. Read as the user, or move the admin read out of the cached function.`,
-            target: `${fn.file}:${fn.name}`,
-            location: {
-              file: fn.file,
-              line: fn.text.slice(0, fn.index).split("\n").length,
+  return directiveFunctions(context.sources, "use cache: private").flatMap(
+    (fn) =>
+      firstMatch(
+        fn.body,
+        (node) =>
+          isMemberCall(node, "bsb", "admin") ||
+          isBareCall(node, "createAdminClient"),
+      ) === undefined
+        ? []
+        : [
+            {
+              message: `${fn.file}: ${fn.name} runs in \`"use cache: private"\` and builds an admin client. The service role skips the user's policies, so its result doesn't belong in a per-user scope and each call costs an extra verification. Read as the user, or move the admin read out of the cached function.`,
+              target: `${fn.file}:${fn.name}`,
+              location: { file: fn.file, line: fn.line },
             },
-          },
-        ]
-      : [],
+          ],
   );
 }
-
-/** A function whose first statement is the plain `"use cache"` directive. */
-const PLAIN_FUNCTION =
-  /(?:function\s+(\w+)\s*\([^)]*\)[^{=]*|(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?(?:function\s*)?\([^)]*\)[^{=]*(?:=>)?\s*)\{\s*["']use cache["']/g;
-
-/** A read of the request, or a better-supabase call that makes one. */
-const REQUEST_READ =
-  /(?<![.\w$])(?:cookies|headers)\s*\(|\bbsb\.(?:cached|context|user)\s*\(/;
 
 /**
  * A plain `"use cache"` function that reads the request (BS640): Next.js
@@ -182,30 +301,21 @@ const REQUEST_READ =
  * the user's own.
  */
 function requestInPlainCache(context: DoctorContext): FindingInput[] {
-  return context.sources.flatMap((source) =>
-    [...source.text.matchAll(PLAIN_FUNCTION)].flatMap((match) => {
-      const name = match[1] ?? match[2];
-
-      if (
-        name === undefined ||
-        !REQUEST_READ.test(
-          blockAt(source.text, match.index + match[0].lastIndexOf("{")),
-        )
-      ) {
-        return [];
-      }
-
-      return [
-        {
-          message: `${source.path}: ${name} runs in \`"use cache"\` and reads the request (\`cookies()\`, \`headers()\`, \`bsb.cached()\`, \`bsb.context()\` or \`bsb.user()\`). Next.js rejects that in a shared scope. Call \`bsb.public()\` for data every visitor may read, or use \`"use cache: private"\` for the user's own.`,
-          target: `${source.path}:${name}`,
-          location: {
-            file: source.path,
-            line: source.text.slice(0, match.index).split("\n").length,
+  return directiveFunctions(context.sources, "use cache").flatMap((fn) =>
+    firstMatch(
+      fn.body,
+      (node) =>
+        isBareCall(node, "cookies", "headers") ||
+        isMemberCall(node, "bsb", "cached", "context", "user"),
+    ) === undefined
+      ? []
+      : [
+          {
+            message: `${fn.file}: ${fn.name} runs in \`"use cache"\` and reads the request (\`cookies()\`, \`headers()\`, \`bsb.cached()\`, \`bsb.context()\` or \`bsb.user()\`). Next.js rejects that in a shared scope. Call \`bsb.public()\` for data every visitor may read, or use \`"use cache: private"\` for the user's own.`,
+            target: `${fn.file}:${fn.name}`,
+            location: { file: fn.file, line: fn.line },
           },
-        },
-      ];
-    }),
+        ],
   );
 }
 

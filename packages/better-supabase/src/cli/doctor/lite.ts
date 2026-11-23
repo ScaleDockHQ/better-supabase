@@ -1,24 +1,35 @@
+import type { Node } from "oxc-parser";
+
 import type { LiteDriver } from "../../server/index.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { liteDriverOf } from "../introspect/lite.ts";
 import { isSqliteLiteDriver } from "../lite.ts";
-import { lineOf } from "./shared.ts";
+import {
+  findLine,
+  isCallOf,
+  isMemberCall,
+  isMethodCall,
+  isModuleOf,
+} from "./tree.ts";
 
-const RPC_CALL = /(?:\.|\$)rpc\s*\(|\brpcTransport\s*\(/;
+/** `client.rpc(`, `$rpc(` or `rpcTransport(`. */
+const isRpcCall = (node: Node): boolean =>
+  isMethodCall(node, "rpc", "$rpc") || isCallOf(node, "rpcTransport", "$rpc");
 
 const MISSING_FEATURES: readonly {
   readonly feature: string;
-  readonly pattern: RegExp;
+  readonly test: (node: Node) => boolean;
 }[] = [
   {
     feature: "Realtime",
-    pattern:
-      /from\s+["']better-supabase\/realtime["']|\.channel\s*\(|\.removeChannel\s*\(/,
+    test: (node) =>
+      isModuleOf(node, "better-supabase/realtime") ||
+      isMethodCall(node, "channel", "removeChannel"),
   },
   {
     feature: "Edge Functions",
-    pattern: /\.functions\.invoke\s*\(|\bfunctions\(\)\.invoke\s*\(/,
+    test: (node) => isMemberCall(node, "functions", "invoke"),
   },
 ];
 
@@ -42,7 +53,7 @@ function rpcOnSqlite(context: DoctorContext): FindingInput[] {
   }
 
   return context.sources.flatMap((file) => {
-    const line = lineOf(file.text, RPC_CALL);
+    const line = findLine(file.text, isRpcCall);
 
     if (line === undefined) {
       return [];
@@ -64,8 +75,8 @@ function missingLiteFeature(context: DoctorContext): FindingInput[] {
   }
 
   return context.sources.flatMap((file) =>
-    MISSING_FEATURES.flatMap(({ feature, pattern }) => {
-      const line = lineOf(file.text, pattern);
+    MISSING_FEATURES.flatMap(({ feature, test }) => {
+      const line = findLine(file.text, test);
 
       if (line === undefined) {
         return [];

@@ -111,6 +111,19 @@ files. The reader now ends the list at the next tag.
 Five adopter files become deletable: `secret_fields.sql`, `packages/supabase-runtime/src/db.ts`
 field helpers, the `gen.functions` section, and the two import runner files.
 
+## Codemod and render checks
+
+The codemods read TypeScript through a syntax tree. A file that does not parse
+is listed with its line and the parser's message instead of being skipped, so a
+file that needs a change never looks like a file with nothing to change. Fix it
+and run the codemod again. `codemod naming` renames an environment variable where
+code names it and leaves comments alone, and it lists a string that holds the
+name among other words.
+
+`gen` now parses the SQL of every installed module and every SQL fragment in the
+config before it writes anything. An error names the module and the statement,
+or the config key such as `vectorSearch.public.docs.predicate`.
+
 ## Direct dependencies
 
 `better-supabase` now installs `oxc-parser`, `@supabase/pg-parser`,
@@ -482,6 +495,19 @@ Rules that were wrong now agree with the code:
 | BS365 | Table names are normalized, a policy with no `for` clause is `for all`, every app file is read, and the finding targets the table                       |
 | BS239 | Fires only when a `package.json` script runs `better-supabase db diff`; a Supabase CLI declarative project never loads pg-delta's library               |
 | BS217 | A same-tenant trigger, generated or an app trigger that BS398 accepts, satisfies it; an info finding recommends the composite key where a unique exists |
+
+Source rules that read TypeScript (BS2xx scale rules, BS3xx block rules, BS4xx
+and BS5xx wiring, cookie and cache rules, BS6xx) read the syntax tree. A comment
+or a string that mentions a call no longer counts, and findings, codes and lines
+are the same for real code. BS260 reports only imported function and type names,
+BS511 and BS621 count dynamic imports, and the shim check ignores comments.
+BS210, BS219, BS227 and BS351 join the rules that check receiver types when
+`typescript` 7.1 or newer is installed. Rules that read SQL or dotenv files still
+match text.
+
+With `typescript` 7.1 or newer, `codemod prune`, `declared-rows`, `adopt-names`
+and `extra-columns` also edit config values that the config imports from other
+files, and list those files for review.
 
 BS706 warns about a shim of a feature the library ships: a seal trigger beside
 `field-encryption`, a `decider` option where the provider has `approverFor`,

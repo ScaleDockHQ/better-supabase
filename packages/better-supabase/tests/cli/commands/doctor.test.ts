@@ -74,6 +74,11 @@ describe("doctor command", () => {
   const findings = (result: CommandResult): Report["findings"] =>
     (result.data as Report).findings;
 
+  // Without the TypeScript tier a receiver rule adds an info finding that
+  // says it matched names only; these tests are about the other findings.
+  const reported = (result: CommandResult): Report["findings"] =>
+    findings(result).filter((finding) => finding.severity !== "info");
+
   it("rejects conflicting or malformed claims before reading anything", async () => {
     const user = "8a6f1c3e-2b4d-4e5f-9a7b-1c2d3e4f5a6b";
     expect(
@@ -461,7 +466,7 @@ describe("doctor command", () => {
       config,
     );
 
-    expect(findings(unexplained)).toEqual([
+    expect(reported(unexplained)).toEqual([
       expect.objectContaining({
         code: "BS210",
         severity: "error",
@@ -496,7 +501,7 @@ describe("doctor command", () => {
       config,
     );
 
-    expect(findings(accepted)).toEqual([]);
+    expect(reported(accepted)).toEqual([]);
     expect(accepted.code).toBe(0);
 
     await rm(join(root, "src/a.ts"));
@@ -507,7 +512,7 @@ describe("doctor command", () => {
       config,
     );
 
-    expect(findings(stale)).toEqual([
+    expect(reported(stale)).toEqual([
       expect.objectContaining({
         code: "BS210",
         severity: "error",
@@ -589,7 +594,7 @@ describe("doctor command", () => {
 
     const result = await doctor(["--only", "BS210", "--json"], { snapshot });
 
-    expect(findings(result)).toEqual([
+    expect(reported(result)).toEqual([
       expect.objectContaining({
         code: "BS210",
         message: expect.stringMatching(/^src\/a\.ts uses aggregates/),

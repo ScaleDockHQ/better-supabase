@@ -229,3 +229,51 @@ describe("BS327 aal2 without MFA", () => {
     expect(findings).toMatchObject([{ code: "BS327" }]);
   });
 });
+
+describe("BS325 to BS327 read the syntax tree", () => {
+  const quiet = {
+    path: "src/quiet.ts",
+    text: [
+      "// await audit.list(); server.deleteAccount(id); requireAal('aal2')",
+      "const note = \"audit.listAll() deleteAccount requireAal('aal2')\";",
+      "export { note };",
+    ].join("\n"),
+  };
+
+  it("ignores calls that only appear in a comment or a string", async () => {
+    expect(
+      await run(
+        context({ blocks: { audit: {} } }, { sources: [quiet] }),
+        "BS325",
+      ),
+    ).toEqual([]);
+    expect(await run(context({}, { sources: [quiet] }), "BS326")).toEqual([]);
+    expect(
+      await run(
+        context(
+          {},
+          {
+            configToml: toml("[auth.mfa.totp]\nenroll_enabled = false\n"),
+            sources: [quiet],
+          },
+        ),
+        "BS327",
+      ),
+    ).toEqual([]);
+  });
+
+  it("does not take requireAal with another level for aal2", async () => {
+    expect(
+      await run(
+        context(
+          {},
+          {
+            configToml: toml("[auth.mfa.totp]\nenroll_enabled = false\n"),
+            sources: [{ path: "src/a.ts", text: "requireAal('aal1');" }],
+          },
+        ),
+        "BS327",
+      ),
+    ).toEqual([]);
+  });
+});

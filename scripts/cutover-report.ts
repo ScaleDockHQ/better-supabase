@@ -136,6 +136,14 @@ export const ALLOWLIST: AllowlistEntry[] = [
       /v_tenant|v_src|tenantId|jsonb_populate_record|^\s*end if;$|create_(task|quote|invoice)\(|not allowed to change/,
   },
   {
+    // Task coordination (#1105, ADR 1183) landed on main after the 0.82.0
+    // baseline: tasks module version 7, delegate_task with to_profile and a
+    // claim_next_task that skips reserved tasks. Intended, not a cutover change.
+    name: "main: task coordination (tasks module version 7)",
+    file: /module_091_tasks/,
+    pattern: /./,
+  },
+  {
     name: "main: leave approved then rejected",
     file: /module_110_leave/,
     pattern: /rejected_at/,

@@ -1,25 +1,28 @@
+import type { Node } from "oxc-parser";
+
+import { walk } from "oxc-walker";
+
 import type { BlockTable } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { toSnake } from "../../index.ts";
 import { blockTables } from "../../sql/index.ts";
+import { parseSource } from "../config-document/parse.ts";
 import { appTablesOf } from "./app-tables.ts";
 import { PROJECTION_RULES, projectedBlockTables } from "./projections.ts";
+import { provablyNotClient } from "./receiver-types.ts";
 
-/**
- * A supabase-js write: `.from("x").insert(`, with an optional `.schema("s")`
- * right before it. The groups are the schema, the table and the method.
- */
-const DIRECT_WRITE =
-  /(?:\.schema\(\s*["'`]([A-Za-z_][\w$]*)["'`]\s*\)\s*)?\.from\(\s*["'`]([A-Za-z_][\w$]*)["'`]\s*\)\s*\.(insert|update|upsert|delete)\s*\(/g;
+const DIRECT_METHODS: ReadonlySet<string> = new Set([
+  "insert",
+  "update",
+  "upsert",
+  "delete",
+]);
 
-/**
- * A typed client write: `db.webhookEndpoints.create(`, or `.insert(` on a
- * client of your own. The groups are the receiver, the table key and the
- * method.
- */
-const TYPED_WRITE =
-  /(?<![\w$])([A-Za-z_$][\w$]*)\s*\.\s*([A-Za-z_$][\w$]*)\s*\.\s*(create|insert|update|upsert|delete)\s*\(/g;
+const TYPED_METHODS: ReadonlySet<string> = new Set([
+  "create",
+  ...DIRECT_METHODS,
+]);
 
 interface OwnedTable {
   readonly block: string;
@@ -122,27 +125,124 @@ function writesIn(
   text: string,
   owned: OwnedTables,
   clients: ReadonlySet<string>,
+  notClient: (offset: number) => boolean,
 ): Write[] {
-  const direct = [...text.matchAll(DIRECT_WRITE)].flatMap((match): Write[] => {
-    const [, schema, name = "", method = ""] = match;
-    const entry = writtenTable(owned, schema, name);
+  const writes: Write[] = [];
 
-    return entry === undefined ? [] : [{ index: match.index, method, entry }];
+  walk(parseSource(text).program, {
+    enter(node) {
+      if (node.type !== "CallExpression") {
+        return;
+      }
+
+      const method = memberName(node.callee);
+
+      if (method === undefined || node.callee.type !== "MemberExpression") {
+        return;
+      }
+
+      // A supabase-js write: `.from("x").insert(`, with `.schema("s")` before.
+      const from = node.callee.object;
+
+      const table =
+        from.type === "CallExpression" ? fromTable(from) : undefined;
+
+      if (table !== undefined && DIRECT_METHODS.has(method)) {
+        const entry = writtenTable(owned, table.schema, table.name);
+
+        if (entry !== undefined) {
+          writes.push({ index: table.start, method, entry });
+        }
+
+        return;
+      }
+
+      // A typed client write: `db.webhookEndpoints.create(`.
+      if (!TYPED_METHODS.has(method) || from.type !== "MemberExpression") {
+        return;
+      }
+
+      const key = memberName(from);
+
+      const receiver =
+        from.object.type === "Identifier"
+          ? from.object
+          : from.object.type === "MemberExpression"
+            ? from.object.property
+            : undefined;
+
+      if (
+        key === undefined ||
+        receiver?.type !== "Identifier" ||
+        clients.has(key) ||
+        clients.has(receiver.name) ||
+        notClient(receiver.start)
+      ) {
+        return;
+      }
+
+      const entry = writtenTable(owned, undefined, toSnake(key));
+
+      if (entry !== undefined) {
+        writes.push({ index: receiver.start, method, entry });
+      }
+    },
   });
 
-  const typed = [...text.matchAll(TYPED_WRITE)].flatMap((match): Write[] => {
-    const [, receiver = "", key = "", method = ""] = match;
+  return writes.toSorted((a, b) => a.index - b.index);
+}
 
-    if (clients.has(key) || clients.has(receiver)) {
-      return [];
-    }
+/** The name after the dot of a member that isn't computed. */
+function memberName(node: Node): string | undefined {
+  return node.type === "MemberExpression" &&
+    !node.computed &&
+    node.property.type === "Identifier"
+    ? node.property.name
+    : undefined;
+}
 
-    const entry = writtenTable(owned, undefined, toSnake(key));
+const literalString = (node: Node | undefined): string | undefined =>
+  node?.type === "Literal" && typeof node.value === "string"
+    ? node.value
+    : node?.type === "TemplateLiteral" &&
+        node.expressions.length === 0 &&
+        node.quasis[0]
+      ? (node.quasis[0].value.cooked ?? undefined)
+      : undefined;
 
-    return entry === undefined ? [] : [{ index: match.index, method, entry }];
-  });
+/** `.from("x")`, with the `.schema("s")` it follows, and where the chain starts. */
+function fromTable(
+  call: Node,
+): { schema?: string; name: string; start: number } | undefined {
+  if (
+    call.type !== "CallExpression" ||
+    memberName(call.callee) !== "from" ||
+    call.callee.type !== "MemberExpression"
+  ) {
+    return undefined;
+  }
 
-  return [...direct, ...typed].toSorted((a, b) => a.index - b.index);
+  const name = literalString(call.arguments[0]);
+
+  if (name === undefined || !/^[A-Za-z_][\w$]*$/.test(name)) {
+    return undefined;
+  }
+
+  const before = call.callee.object;
+
+  const schema =
+    before.type === "CallExpression" && memberName(before.callee) === "schema"
+      ? literalString(before.arguments[0])
+      : undefined;
+
+  const start =
+    schema !== undefined &&
+    before.type === "CallExpression" &&
+    before.callee.type === "MemberExpression"
+      ? before.callee.property.start
+      : call.callee.property.start;
+
+  return schema === undefined ? { name, start } : { schema, name, start };
 }
 
 const lineAt = (text: string, index: number): number =>
@@ -166,17 +266,21 @@ function directBlockWrites(context: DoctorContext): FindingInput[] {
   const clients = blockClientKeys(context);
 
   return context.sources.flatMap((file) =>
-    writesIn(file.text, owned, clients).map(
-      ({ index, method, entry }): FindingInput => {
-        const line = lineAt(file.text, index);
+    writesIn(
+      file.text,
+      owned,
+      clients,
+      (offset) =>
+        provablyNotClient(context.symbols, file.path, offset) === true,
+    ).map(({ index, method, entry }): FindingInput => {
+      const line = lineAt(file.text, index);
 
-        return {
-          message: `${file.path}:${String(line)} calls .${method}() on ${entry.view === undefined ? "" : `${entry.view}, the app's view over `}${entry.table.table}, the ${entry.logical} table of blocks.${entry.block}. A direct write skips the block's functions, so its events, hooks and checks don't run. Write it through the ${entry.block} API that createBlocks returns.`,
-          target: `${file.path}:${String(line)}`,
-          location: { file: file.path, line },
-        };
-      },
-    ),
+      return {
+        message: `${file.path}:${String(line)} calls .${method}() on ${entry.view === undefined ? "" : `${entry.view}, the app's view over `}${entry.table.table}, the ${entry.logical} table of blocks.${entry.block}. A direct write skips the block's functions, so its events, hooks and checks don't run. Write it through the ${entry.block} API that createBlocks returns.`,
+        target: `${file.path}:${String(line)}`,
+        location: { file: file.path, line },
+      };
+    }),
   );
 }
 

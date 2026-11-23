@@ -45,6 +45,19 @@ const run = (sources: readonly TextFile[], snapshot: Snapshot = base) =>
     BLOCK_WRITE_RULES,
   );
 
+const tier = (
+  type: string | undefined,
+): NonNullable<DoctorContext["symbols"]> => ({
+  root: "/app",
+  tier: {
+    version: "7.1.0",
+    references: () => [],
+    declaration: () => undefined,
+    typeOf: () => type,
+    close: () => {},
+  },
+});
+
 const WRITES: TextFile = {
   path: "src/app/settings/actions.ts",
   text: [
@@ -121,6 +134,47 @@ describe("BS351", () => {
     expect(findings[0]?.message).toContain(
       "calls .update() on public.safe_credentials, the app's view over better_supabase.credentials",
     );
+  });
+
+  it("ignores writes in comments and strings", async () => {
+    const findings = await run([
+      {
+        path: "src/app/notes.ts",
+        text: [
+          '// await supabase.from("credentials").insert({});',
+          'const doc = `supabase.from("credentials").delete()`;',
+          "export const ok = doc;",
+        ].join("\n"),
+      },
+    ]);
+
+    expect(findings).toEqual([]);
+  });
+
+  it("drops a typed write on a receiver TypeScript types as a collection", async () => {
+    const sources = [
+      {
+        path: "src/app/keep.ts",
+        text: "export const save = (cache) => cache.webhookEndpoints.create({});",
+      },
+    ];
+
+    const findings = async (type: string | undefined) =>
+      runRules(
+        {
+          config: resolveConfig({ blocks: ["webhooks"] }, "/project"),
+          snapshot: base,
+          configToml: undefined,
+          envFiles: [],
+          gitignore: "",
+          sources,
+          symbols: tier(type),
+        } satisfies DoctorContext,
+        BLOCK_WRITE_RULES,
+      );
+
+    expect(await findings("Map<string, string>")).toEqual([]);
+    expect(await findings(undefined)).toHaveLength(1);
   });
 
   it("leaves a table of the app's with the same name alone", async () => {

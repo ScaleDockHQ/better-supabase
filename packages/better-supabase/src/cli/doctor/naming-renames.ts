@@ -2,8 +2,8 @@ import type { NamingRename } from "../codemod-naming.ts";
 import type { Rule } from "./rules.ts";
 
 import { renameArguments } from "../codemod-arguments.ts";
-import { NAMING_RENAMES } from "../codemod-naming.ts";
-import { lineOf } from "./shared.ts";
+import { NAMING_RENAMES, namingCodemod } from "../codemod-naming.ts";
+import { applyCodemod } from "../codemod.ts";
 
 const escaped = (text: string): string =>
   text.replaceAll(/[.*+?^${}()|[\]\\/]/g, String.raw`\$&`);
@@ -72,6 +72,29 @@ function renamedEntityArguments(
   return kept;
 }
 
+/** The line the naming codemod changes first for `rename`, if it changes any. */
+function firstChangedLine(
+  file: { readonly path: string; readonly text: string },
+  rename: NamingRename,
+): number | undefined {
+  const { text } = applyCodemod(
+    namingCodemod([rename]),
+    file.text,
+    undefined,
+    file.path,
+  );
+
+  if (text === file.text) {
+    return undefined;
+  }
+
+  const before = file.text.split("\n");
+  const after = text.split("\n");
+  const index = before.findIndex((line, at) => line !== after[at]);
+
+  return (index === -1 ? Math.min(before.length, after.length) : index) + 1;
+}
+
 /** BS260: a source file that still uses a name `api/naming.json` renamed. */
 export const NAMING_RENAME_RULES: readonly Rule[] = [
   {
@@ -111,7 +134,13 @@ export const NAMING_RENAME_RULES: readonly Rule[] = [
 
             line = file.text.slice(0, at).split("\n").length;
           } else if (pattern.test(file.text)) {
-            line = lineOf(file.text, new RegExp(pattern.source)) ?? 1;
+            // The finding is what the codemod would change, so a comment or a
+            // string that only mentions the name never counts.
+            line = firstChangedLine(file, rename);
+
+            if (line === undefined) {
+              return [];
+            }
           } else {
             return [];
           }

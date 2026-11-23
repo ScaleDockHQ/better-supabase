@@ -120,7 +120,9 @@ describe("BS609 receiver types", () => {
     "}",
   ].join("\n");
 
-  const tier = (type: string | undefined): DoctorContext["symbols"] => ({
+  const tier = (
+    type: string | undefined,
+  ): NonNullable<DoctorContext["symbols"]> => ({
     root: "/app",
     tier: {
       version: "7.1.0",
