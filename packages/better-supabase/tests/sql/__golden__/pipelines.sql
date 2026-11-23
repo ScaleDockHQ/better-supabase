@@ -1072,7 +1072,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:157cdf3fcff737e76c0bbc1e70bf70aa2895ab594debd1d07d68bc07287e3875
+-- @bsb-hash sha256:576e107f0c125b461a203ecfe1e9e7792173d579d1bb39ad68ce6da25f8a03a0
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1228,7 +1228,7 @@ begin
         insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank", "color", "icon")
       select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank, x.color, x.icon
       from (select d.key, d.name, d.category, case d.category when 'triage' then 'open' when 'backlog' then 'open' when 'unstarted' then 'open' when 'started' then 'open' when 'completed' then 'success' when 'canceled' then 'failure' else 'open' end as outcome, d.probability, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((d.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (d.ord % 62)::integer + 1, 1) || 'V' as rank, d.color, d.icon
-      from jsonb_to_recordset(v_declared) with ordinality as d(key text, name text, category text, probability smallint, color text, icon text, ord bigint)
+      from rows from (jsonb_to_recordset(v_declared) as (key text, name text, category text, probability smallint, color text, icon text)) with ordinality as d(key, name, category, probability, color, icon, ord)
       ) x(key, name, category, outcome, probability, rank, color, icon);
       else
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
@@ -1256,7 +1256,7 @@ begin
         insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank", "color", "icon")
       select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank, x.color, x.icon
       from (select d.key, d.name, d.category, case d.category when 'active' then 'open' when 'hired' then 'success' when 'rejected' then 'failure' when 'withdrawn' then 'failure' else 'open' end as outcome, d.probability, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((d.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (d.ord % 62)::integer + 1, 1) || 'V' as rank, d.color, d.icon
-      from jsonb_to_recordset(v_declared) with ordinality as d(key text, name text, category text, probability smallint, color text, icon text, ord bigint)
+      from rows from (jsonb_to_recordset(v_declared) as (key text, name text, category text, probability smallint, color text, icon text)) with ordinality as d(key, name, category, probability, color, icon, ord)
       ) x(key, name, category, outcome, probability, rank, color, icon);
       else
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
@@ -1284,7 +1284,7 @@ begin
         insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank", "color", "icon")
       select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank, x.color, x.icon
       from (select d.key, d.name, d.category, case d.category when 'open' then 'open' when 'closed' then 'success' when 'canceled' then 'failure' else 'open' end as outcome, d.probability, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((d.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (d.ord % 62)::integer + 1, 1) || 'V' as rank, d.color, d.icon
-      from jsonb_to_recordset(v_declared) with ordinality as d(key text, name text, category text, probability smallint, color text, icon text, ord bigint)
+      from rows from (jsonb_to_recordset(v_declared) as (key text, name text, category text, probability smallint, color text, icon text)) with ordinality as d(key, name, category, probability, color, icon, ord)
       ) x(key, name, category, outcome, probability, rank, color, icon);
       else
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
@@ -2947,7 +2947,7 @@ begin
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability", "color", "icon")
       select p_tenant, (select pl."id" from "better_supabase"."pipelines" pl where pl."tenant_id" = p_tenant and pl."subject_type" = 'deal' and pl."scope_id" is null and pl."key" = 'default' limit 1), x.key, x.name, x.category, x.outcome, x.rank, x.key, x.probability, x.color, x.icon
       from (select d.key, d.name, d.category, case d.category when 'open' then 'open' when 'won' then 'success' when 'lost' then 'failure' else 'open' end as outcome, d.probability, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((d.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (d.ord % 62)::integer + 1, 1) || 'V' as rank, d.color, d.icon
-        from jsonb_to_recordset(better_supabase.declared_defaults_of('pipeline_stage', 'deal')) with ordinality as d(key text, name text, category text, probability smallint, color text, icon text, ord bigint)
+        from rows from (jsonb_to_recordset(better_supabase.declared_defaults_of('pipeline_stage', 'deal')) as (key text, name text, category text, probability smallint, color text, icon text)) with ordinality as d(key, name, category, probability, color, icon, ord)
         ) x(key, name, category, outcome, probability, rank, color, icon)
       where not exists (select 1 from "better_supabase"."pipeline_stages" e where e."tenant_id" = p_tenant and e."pipeline_id" = (select pl."id" from "better_supabase"."pipelines" pl where pl."tenant_id" = p_tenant and pl."subject_type" = 'deal' and pl."scope_id" is null and pl."key" = 'default' limit 1) and e."system_key" is not distinct from x.key);
     end if;

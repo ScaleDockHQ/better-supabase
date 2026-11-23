@@ -1,6 +1,6 @@
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:f88d4b5983f26c49331f781692f1af4b2fccdc6f4b251707b777c8a768a1b1a2
+-- @bsb-hash sha256:11f08a36a24733593fa642630c6c9819423488f72ea760195090e7824693cf6f
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -111,7 +111,7 @@ begin
       if v_declared is not null then
         insert into "better_supabase"."option_set_items" ("tenant_id", "option_set_id", "key", "system_key", "label", "color", "icon", "rank", "level")
         select default_option_set.tenant, v_id, x.key, x.key, x.label, x.color, x.icon, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((x.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (x.ord % 62)::integer + 1, 1) || 'V', x.level
-        from jsonb_to_recordset(v_declared) with ordinality as x(key text, label text, level integer, color text, icon text, ord bigint);
+        from rows from (jsonb_to_recordset(v_declared) as (key text, label text, level integer, color text, icon text)) with ordinality as x(key, label, level, color, icon, ord);
       else
       insert into "better_supabase"."option_set_items" ("tenant_id", "option_set_id", "key", "system_key", "label", "color", "icon", "rank", "level")
       select default_option_set.tenant, v_id, x.key, x.key, x.label, x.color, x.icon, x.rank, x.level

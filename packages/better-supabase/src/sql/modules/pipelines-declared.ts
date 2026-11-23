@@ -26,6 +26,6 @@ export function declaredStageTable(
     .join(" ");
 
   return `(select d.key, d.name, d.category, case d.category ${outcome} else 'open' end as outcome, d.probability, ${declaredRank("d.ord")} as rank, d.color, d.icon
-      from jsonb_to_recordset(${source}) with ordinality as d(key text, name text, category text, probability smallint, color text, icon text, ord bigint)
+      from rows from (jsonb_to_recordset(${source}) as (key text, name text, category text, probability smallint, color text, icon text)) with ordinality as d(key, name, category, probability, color, icon, ord)
       ) x(key, name, category, outcome, probability, rank, color, icon)`;
 }

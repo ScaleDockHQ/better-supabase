@@ -52,7 +52,7 @@ function declaredInsert(names: OptionNames): string {
 
   return `insert into ${t("items")} (${i("tenant")}, ${i("set")}, ${i("key")}, ${i("systemKey")}, ${i("label")}, ${i("color")}, ${i("icon")}, ${i("rank")}, ${i("level")})
         select default_option_set.tenant, v_id, x.key, x.key, x.label, x.color, x.icon, ${declaredRank("x.ord")}, x.level
-        from jsonb_to_recordset(v_declared) with ordinality as x(key text, label text, level integer, color text, icon text, ord bigint);`;
+        from rows from (jsonb_to_recordset(v_declared) as (key text, label text, level integer, color text, icon text)) with ordinality as x(key, label, level, color, icon, ord);`;
 }
 
 /**
