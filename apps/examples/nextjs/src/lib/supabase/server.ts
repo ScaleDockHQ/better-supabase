@@ -13,6 +13,8 @@ import { betterSupabase } from "./index";
 import { sharedCounters } from "./session-counters";
 
 const options: NextOptions = {
+  // The browser client in `client.ts` sets the same `cookies.encode`.
+  auth: { cookie: { encode: "tokens-only" } },
   debug: {
     // The testing build checks each navigation's budget against `next start`.
     enabled: env.EXPOSE_TESTING_API === "1",

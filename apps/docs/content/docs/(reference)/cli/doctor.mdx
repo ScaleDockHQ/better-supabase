@@ -3114,6 +3114,20 @@ lists each one. An unreferenced function may still be called by another
 function, so doctor drops nothing. Snapshots saved before 0.85 have no
 inventory and skip the rule.
 
+### BS644
+
+**Info: the session cookie carries the user object.** Neither the browser
+client nor the server sets `tokens-only`, so `@supabase/ssr` writes the user
+object into the session cookie next to the tokens, and every request carries
+it. Doctor finds the two sides the way [BS412](#bs412) does. Set
+`cookies: { encode: 'tokens-only' }` in `createClient` and
+`auth: { cookie: { encode: 'tokens-only' } }` in the server options; `init`
+writes both for a new app. The finding lists the server files that call
+`auth.getSession()`, which read the user from the cookie: move them to
+`bsb.claims()` before you switch. With `--as <user id>` and a database, it adds
+the bytes that user's object takes in the cookie. See
+[Encoding](/docs/auth/sessions#encoding).
+
 ### BS633
 
 **Info: an app row trigger has no `importing()` guard.** An import writes many

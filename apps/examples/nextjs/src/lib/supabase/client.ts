@@ -37,6 +37,8 @@ export const bsb = createClient(clientApp, {
     url: env.NEXT_PUBLIC_SUPABASE_URL,
     publishableKey: env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   },
+  // The servers in this folder set the same `auth.cookie.encode`.
+  cookies: { encode: "tokens-only" },
   blocks: {
     announcements: announcementsConfig,
     "api-keys": apiKeysConfig,

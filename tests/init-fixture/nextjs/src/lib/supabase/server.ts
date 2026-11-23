@@ -4,4 +4,4 @@ import { createNext } from 'better-supabase/next';
 
 import { betterSupabase } from './index';
 
-export const bsb = createNext(betterSupabase);
+export const bsb = createNext(betterSupabase, { auth: { cookie: { encode: 'tokens-only' } } });

@@ -11,6 +11,8 @@ import { permissions } from "./blocks.config";
 import { sharedCounters } from "./session-counters";
 
 const options: NextOptions = {
+  // The browser client in `client.ts` sets the same `cookies.encode`.
+  auth: { cookie: { encode: "tokens-only" } },
   debug: {
     enabled: env.EXPOSE_TESTING_API === "1",
     budget: { calls: 8, waves: 2 },

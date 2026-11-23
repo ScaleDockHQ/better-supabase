@@ -118,7 +118,7 @@ describe("import paths", () => {
     ).toContain("import { betterSupabase } from './lib/supabase';");
     const next = TEMPLATES.next.files(context());
     expect(contents(next, "src/lib/supabase/server.ts")).toMatch(
-      /^import 'server-only';[\s\S]*import \{ betterSupabase \} from '\.\/index';[\s\S]*export const bsb = createNext\(betterSupabase\);/,
+      /^import 'server-only';[\s\S]*import \{ betterSupabase \} from '\.\/index';[\s\S]*export const bsb = createNext\(betterSupabase, \{ auth: \{ cookie: \{ encode: 'tokens-only' \} \} \}\);/,
     );
     expect(contents(next, "src/proxy.ts")).toContain(
       "import { bsb } from './lib/supabase/server';",
@@ -130,6 +130,26 @@ describe("import paths", () => {
     expect(contents(kept, "src/proxy.ts")).toContain(
       "from './lib/supabase/server.ts';",
     );
+  });
+
+  it("writes tokens-only session cookies on the browser and every server", () => {
+    const servers = ["next", "hono", "orpc", "edge", "expo"] as const;
+
+    expect(
+      contents(TEMPLATES.client.files(context()), "src/lib/supabase/client.ts"),
+    ).toContain("cookies: { encode: 'tokens-only' },");
+
+    for (const name of servers) {
+      const text = TEMPLATES[name]
+        .files(context())
+        .map((file) => file.contents)
+        .join("\n");
+
+      expect({
+        name,
+        hasEncode: text.includes("auth: { cookie: { encode: 'tokens-only' } }"),
+      }).toStrictEqual({ name, hasEncode: true });
+    }
   });
 
   it("names every runtime instance bsb", () => {
