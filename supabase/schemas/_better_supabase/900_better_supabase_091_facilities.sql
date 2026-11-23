@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
--- @bsb-block facilities@6 managed tasks
--- @bsb-hash sha256:9f16f6b88a095019bcafa8d9792342850bfd67409354177c14b469124f032950
+-- @bsb-block facilities@7 managed tasks
+-- @bsb-hash sha256:35e9404755ed59030a8925ea4bf7022d0bd18c7e35b73dfdda4433f995c0149b
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -337,6 +337,7 @@ begin
       new."hold_kind" := null;
       new."hold_return_stage_id" := null;
       delete from "better_supabase"."maintenance_request_claims" c where c."maintenance_request_id" = new."id";
+      new."delegate_profile" := null;
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
@@ -355,6 +356,29 @@ $$;
 revoke execute on function better_supabase.bsb_maintenance_request_guard() from public, anon, authenticated;
 create trigger bsb_maintenance_request_guard before insert or update on "better_supabase"."maintenance_requests"
 for each row execute function better_supabase.bsb_maintenance_request_guard();
+
+create or replace function better_supabase.bsb_maintenance_request_close_hook()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_maintenance_request_close"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using new."id", case new."close_reason"::text when 'completed' then 'completed' when 'failed' then 'failed' else 'canceled' end, coalesce(nullif(current_setting('bsb.close_note', true), ''), new."close_note");
+    end if;
+  end;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.bsb_maintenance_request_close_hook() from public, anon, authenticated;
+create trigger bsb_maintenance_request_close_hook after update on "better_supabase"."maintenance_requests"
+for each row when (old."closed_at" is null and new."closed_at" is not null)
+execute function better_supabase.bsb_maintenance_request_close_hook();
 
 -- The public part of a task's live claim: who holds it and until when. The
 -- token stays out.
@@ -1865,6 +1889,12 @@ begin
   if v_row."closed_at" is not null then
     raise exception 'a closed task can''t be claimed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
+  if coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and not exists (select 1 from "better_supabase"."maintenance_request_assignees" y where y."maintenance_request_id" = v_row."id" and y."user_id" = auth.uid()) then
+    raise exception 'an agent session claims only tasks assigned to its user' using errcode = '42501', hint = 'TASK_NOT_ASSIGNED';
+  end if;
+  if not (v_row."delegate_profile" is null or (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'facilities.write'), false)))) then
+    raise exception 'the task is reserved for another profile' using errcode = '42501', hint = 'TASK_RESERVED';
+  end if;
   if v_row."held_at" is not null then
     raise exception 'the task is on hold' using errcode = '55000', hint = 'TASK_HELD';
   end if;
@@ -1884,6 +1914,9 @@ begin
   if not found then
     raise exception 'another holder has a live claim on the task' using errcode = '55P03', hint = 'TASK_CLAIMED';
   end if;
+  if v_row."delegate_profile" is not null and not (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) then
+    update "better_supabase"."maintenance_requests" x set "delegate_profile" = null where x."id" = v_row."id";
+  end if;
   perform "better_supabase".emit_event('maintenance_request.claimed', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'holderId', v_claim."holder_id", 'epoch', v_claim."epoch", 'expiresAt', v_claim."expires_at", 'actorId', auth.uid(), 'actorKind', "better_supabase"."maintenance_request_actor"(claim_maintenance_request.profile) ->> 'kind', 'actorName', "better_supabase"."maintenance_request_actor"(claim_maintenance_request.profile) ->> 'name'), 'maintenance_requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
   return jsonb_build_object('task', (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."maintenance_request_assignees" ra where ra."maintenance_request_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."maintenance_request_checklist_items" rk where rk."maintenance_request_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'maintenance_request' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."maintenance_request_claim"(x."id")) from "better_supabase"."maintenance_requests" x where x."id" = v_row."id"), 'claim', jsonb_build_object('token', v_claim."token", 'epoch', v_claim."epoch", 'holderId', v_claim."holder_id", 'profile', v_claim."profile", 'claimedAt', v_claim."claimed_at", 'expiresAt', v_claim."expires_at"));
 end;
@@ -1892,7 +1925,8 @@ revoke execute on function "better_supabase"."claim_maintenance_request"(uuid, i
 grant execute on function "better_supabase"."claim_maintenance_request"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- Claims the next ready task of a tenant: assigned to you first, then the
--- oldest. filter narrows the pick: teamId, projectId, parentId, stageId,
+-- lowest number. With claims.next "assigned" (the default) and for an agent
+-- session, only tasks assigned to you qualify. filter narrows the pick: teamId, projectId, parentId, stageId,
 -- assigneeId. Concurrent callers skip each other's rows. Raises
 -- TASK_NOTHING_READY when no task qualifies.
 create or replace function "better_supabase"."claim_next_maintenance_request"(tenant uuid, filter jsonb default null, lease integer default null, profile jsonb default null)
@@ -1903,9 +1937,17 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_name text := "better_supabase"."maintenance_request_actor"(claim_next_maintenance_request.profile) ->> 'name';
+  v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_maintenance_request.tenant, 'facilities.write'), false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+
+  if (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) then
+    if claim_next_maintenance_request.filter ->> 'assigneeId' is not null and (claim_next_maintenance_request.filter ->> 'assigneeId')::uuid is distinct from auth.uid() then
+      raise exception 'this session picks only its own tasks' using errcode = '42501', hint = 'TASK_FILTER_FORBIDDEN';
+    end if;
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_maintenance_request.tenant, 'facilities.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
@@ -1913,11 +1955,14 @@ begin
   select x."id" into v_id from "better_supabase"."maintenance_requests" x
   where x."tenant_id" = claim_next_maintenance_request.tenant and x."archived_at" is null and x."closed_at" is null
     and x."held_at" is null
+    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."maintenance_request_assignees" y where y."maintenance_request_id" = x."id" and y."user_id" = auth.uid()))
+    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
     and not exists (select 1 from "better_supabase"."maintenance_request_claims" c where c."maintenance_request_id" = x."id" and c."expires_at" > now())
       and (claim_next_maintenance_request.filter ->> 'teamId' is null or x."team_id" = (claim_next_maintenance_request.filter ->> 'teamId')::uuid)
       and (claim_next_maintenance_request.filter ->> 'projectId' is null or x."project_id" = (claim_next_maintenance_request.filter ->> 'projectId')::uuid)
       and (claim_next_maintenance_request.filter ->> 'parentId' is null or x."parent_id" = (claim_next_maintenance_request.filter ->> 'parentId')::uuid)
       and (claim_next_maintenance_request.filter ->> 'stageId' is null or x."stage_id" = (claim_next_maintenance_request.filter ->> 'stageId')::uuid)
+      and (claim_next_maintenance_request.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_maintenance_request.filter ->> 'delegateProfile')
       and (claim_next_maintenance_request.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."maintenance_request_assignees" y where y."maintenance_request_id" = x."id" and y."user_id" = (claim_next_maintenance_request.filter ->> 'assigneeId')::uuid))
   order by (case when exists (select 1 from "better_supabase"."maintenance_request_assignees" y where y."maintenance_request_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
   limit 1
@@ -1990,8 +2035,13 @@ revoke execute on function "better_supabase"."release_maintenance_request_claim"
 grant execute on function "better_supabase"."release_maintenance_request_claim"(uuid, uuid, text) to authenticated, service_role;
 
 -- Hands a task to a user: assigns them, notes who delegated, and drops a claim
--- held by someone else. The user needs tasks.read in the organization.
-create or replace function "better_supabase"."delegate_maintenance_request"(task uuid, to_user uuid, profile jsonb default null)
+-- held by someone else. The user needs tasks.read in the organization. With
+-- to_profile the task is reserved for that profile of the user: only a claim
+-- under that profile name by that user, or a person with write access, takes it
+-- (TASK_RESERVED otherwise). Delegating again, unassigning the user and closing
+-- the task clear the reservation.
+
+create or replace function "better_supabase"."delegate_maintenance_request"(task uuid, to_user uuid, profile jsonb default null, to_profile text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2000,6 +2050,7 @@ as $$
 declare
   v_row "better_supabase"."maintenance_requests";
   v_actor jsonb := "better_supabase"."maintenance_request_actor"(delegate_maintenance_request.profile);
+  v_name text := nullif(btrim(delegate_maintenance_request.to_profile), '');
   v_added boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -2012,6 +2063,9 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'facilities.write'), false)) then
     raise exception 'not allowed to change this work item' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
+  if delegate_maintenance_request.to_profile is not null and (v_name is null or length(v_name) > 120) then
+    raise exception 'to_profile is a name of up to 120 characters' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
+  end if;
   if not coalesce(better_supabase.can_user(delegate_maintenance_request.to_user, 'tenant', v_row."tenant_id", 'facilities.read'), false) then
     raise exception 'the user can''t read tasks in this organization' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
   end if;
@@ -2019,16 +2073,33 @@ begin
   on conflict do nothing;
   v_added := found;
   delete from "better_supabase"."maintenance_request_claims" c where c."maintenance_request_id" = v_row."id" and c."holder_id" is distinct from delegate_maintenance_request.to_user;
-  update "better_supabase"."maintenance_requests" x set "delegate_profile" = v_actor where x."id" = v_row."id";
-  perform "better_supabase".emit_event('maintenance_request.delegated', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'delegateId', delegate_maintenance_request.to_user, 'actorId', auth.uid(), 'actorKind', "better_supabase"."maintenance_request_actor"(delegate_maintenance_request.profile) ->> 'kind', 'actorName', "better_supabase"."maintenance_request_actor"(delegate_maintenance_request.profile) ->> 'name'), 'maintenance_requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
+  update "better_supabase"."maintenance_requests" x set "delegate_profile" = case when v_name is null then null else jsonb_build_object('name', v_name, 'userId', delegate_maintenance_request.to_user) end where x."id" = v_row."id";
+  perform "better_supabase".emit_event('maintenance_request.delegated', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'delegateId', delegate_maintenance_request.to_user, 'toProfile', v_name, 'actorId', auth.uid(), 'actorKind', "better_supabase"."maintenance_request_actor"(delegate_maintenance_request.profile) ->> 'kind', 'actorName', "better_supabase"."maintenance_request_actor"(delegate_maintenance_request.profile) ->> 'name'), 'maintenance_requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
   if v_added then
     perform "better_supabase".emit_event('maintenance_request.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'maintenanceRequestId', v_row."id", 'subjectType', 'maintenance_request', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(array(select y."user_id" from "better_supabase"."maintenance_request_assignees" y where y."maintenance_request_id" = v_row."id")), 'addedIds', jsonb_build_array(delegate_maintenance_request.to_user), 'actorId', auth.uid(), 'actorKind', "better_supabase"."maintenance_request_actor"(null) ->> 'kind', 'actorName', "better_supabase"."maintenance_request_actor"(null) ->> 'name'), 'maintenance_requests/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/facilities');
   end if;
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."maintenance_request_assignees" ra where ra."maintenance_request_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."maintenance_request_checklist_items" rk where rk."maintenance_request_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'maintenance_request' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."maintenance_request_claim"(x."id")) from "better_supabase"."maintenance_requests" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."delegate_maintenance_request"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."delegate_maintenance_request"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."delegate_maintenance_request"(uuid, uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."delegate_maintenance_request"(uuid, uuid, jsonb, text) to authenticated, service_role;
+
+-- Unassigning the user a task is reserved for ends the reservation.
+create or replace function better_supabase.bsb_maintenance_request_reservation()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update "better_supabase"."maintenance_requests" x set "delegate_profile" = null
+    where x."id" = old."maintenance_request_id" and x."delegate_profile" ->> 'userId' = old."user_id"::text;
+  return old;
+end;
+$$;
+revoke execute on function better_supabase.bsb_maintenance_request_reservation() from public, anon, authenticated;
+create trigger bsb_maintenance_request_reservation after delete on "better_supabase"."maintenance_request_assignees"
+for each row execute function better_supabase.bsb_maintenance_request_reservation();
 
 -- Deletes the claims whose lease ran out, moves each task to the expired stage
 -- (the claims.expiredStage option) and records task.claim_expired.
@@ -2112,7 +2183,8 @@ revoke execute on function "better_supabase"."hold_maintenance_request"(uuid, te
 grant execute on function "better_supabase"."hold_maintenance_request"(uuid, text, text, uuid[]) to authenticated, service_role;
 
 -- Ends a hold. With the hold stage option the task returns to the stage it
--- left.
+-- left. A pending approval request of the hold is cancelled, and
+-- task.hold_released says so with approvalCancelled.
 create or replace function "better_supabase"."release_maintenance_request_hold"(task uuid)
 returns jsonb
 language plpgsql
@@ -2150,7 +2222,8 @@ grant execute on function "better_supabase"."release_maintenance_request_hold"(u
 -- or open. stage defaults to the first stage of the matching category in the
 -- task's pipeline. failed lands in the canceled category with close reason
 -- failed (not_planned where the column can't hold it). The note rides on
--- task.closed, and failed also records task.failed.
+-- task.closed, and failed also records task.failed. The before_task_close hook
+-- runs from the close trigger on the task, so every way of closing reaches it.
 create or replace function "better_supabase"."close_maintenance_request"(task uuid, outcome text, note text default null, stage uuid default null)
 returns jsonb
 language plpgsql
@@ -2161,6 +2234,7 @@ declare
   v_row "better_supabase"."maintenance_requests";
   v_stage uuid;
   v_note text := nullif(trim(close_maintenance_request.note), '');
+  v_constraint text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2181,14 +2255,6 @@ begin
   if close_maintenance_request.outcome <> 'open' and v_row."closed_at" is not null then
     raise exception 'the task is already closed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_maintenance_request_close"(uuid, text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
-        using v_row."id", close_maintenance_request.outcome, v_note;
-    end if;
-  end;
   v_stage := coalesce(close_maintenance_request.stage, case close_maintenance_request.outcome
     when 'completed' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'completed' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
     when 'open' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'unstarted' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
@@ -2209,6 +2275,10 @@ begin
       update "better_supabase"."maintenance_requests" x set "stage_id" = v_stage where x."id" = v_row."id";
     end if;
   exception when check_violation or foreign_key_violation then
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint is null then
+      raise;
+    end if;
     raise exception 'the stage can''t be used for this task' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
   end;
   perform set_config('bsb.close_note', '', true);
@@ -2809,14 +2879,14 @@ as $$ select "better_supabase"."release_maintenance_request_claim"($1, $2, $3) $
 revoke execute on function "api"."release_maintenance_request_claim"(uuid, uuid, text) from public, anon;
 grant execute on function "api"."release_maintenance_request_claim"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "api"."delegate_maintenance_request"(task uuid, to_user uuid, profile jsonb default null)
+create or replace function "api"."delegate_maintenance_request"(task uuid, to_user uuid, profile jsonb default null, to_profile text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."delegate_maintenance_request"($1, $2, $3) $$;
-revoke execute on function "api"."delegate_maintenance_request"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."delegate_maintenance_request"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."delegate_maintenance_request"($1, $2, $3, $4) $$;
+revoke execute on function "api"."delegate_maintenance_request"(uuid, uuid, jsonb, text) from public, anon;
+grant execute on function "api"."delegate_maintenance_request"(uuid, uuid, jsonb, text) to authenticated, service_role;
 
 create or replace function "api"."expire_maintenance_request_claims"()
 returns integer
