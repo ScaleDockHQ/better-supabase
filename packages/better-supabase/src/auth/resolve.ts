@@ -1059,7 +1059,8 @@ export async function resolveAuth(
           durationMs,
         };
 
-        // auth-js clears the session when the token request fails; an
+        // The coalescing fetch answers an outage with a 400 so auth-js stops
+        // retrying, and auth-js clears the session on that 400; an
         // unreachable Auth server must not sign anyone out.
         return resolution(
           kept ?? { kind: "none", reason: "refresh_failed" },

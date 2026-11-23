@@ -16,7 +16,6 @@ import type { ClientPorts } from "./ports.ts";
 import { parsePublicEnv } from "../env/public.ts";
 import { bindClient } from "./bind.ts";
 import { storageUpload } from "./ports.ts";
-import { refreshOnVisible } from "./visible-refresh.ts";
 import { webPorts } from "./web-ports.ts";
 
 export { bindClient } from "./bind.ts";
@@ -207,8 +206,6 @@ export function createClient<
   options: ClientOptions = {},
 ): BetterClient<M, F, E, C, P, B> {
   const supabase = clientFor(options);
-
-  refreshOnVisible(supabase);
 
   return bindClient(betterSupabase, supabase, {
     ...(options.staleTime === undefined
