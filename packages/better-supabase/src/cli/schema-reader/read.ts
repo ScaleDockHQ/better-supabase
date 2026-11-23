@@ -321,19 +321,22 @@ function tableOf(
 
         const type = str(constraint["contype"]);
 
-        // A column's `deferrable` is its own node after the `references` it modifies.
-        if (
-          previous === "CONSTR_FOREIGN" &&
-          (type === "CONSTR_ATTR_DEFERRABLE" || type === "CONSTR_ATTR_DEFERRED")
-        ) {
-          const key = parts.foreignKeys.pop()!;
+        // A column's `deferrable` and `initially` are their own nodes after the
+        // `references` they modify, in either order.
+        if (previous === "CONSTR_FOREIGN" && type?.startsWith("CONSTR_ATTR_")) {
+          if (
+            type === "CONSTR_ATTR_DEFERRABLE" ||
+            type === "CONSTR_ATTR_DEFERRED"
+          ) {
+            const key = parts.foreignKeys.pop()!;
 
-          parts.foreignKeys.push({
-            ...key,
-            deferrable: true,
-            initiallyDeferred:
-              key.initiallyDeferred || type === "CONSTR_ATTR_DEFERRED",
-          });
+            parts.foreignKeys.push({
+              ...key,
+              deferrable: true,
+              initiallyDeferred:
+                key.initiallyDeferred || type === "CONSTR_ATTR_DEFERRED",
+            });
+          }
 
           continue;
         }

@@ -2,11 +2,12 @@
 -- is, by the rule ensure_organization_owner checks at commit. For another
 -- member the caller needs the remove permission in one of the member's
 -- organizations and in every one the list names; otherwise it raises instead
--- of returning a partial list. The admin (…a1)
+-- of returning a partial list. Asked about one organization, the caller needs
+-- the permission only there. The admin (…a1)
 -- owns Acme (…0001) alone and is a member of Globex (…0002); the member
 -- (…a2) owns nothing (supabase/seed.sql).
 begin;
-select plan(9);
+select plan(11);
 
 select set_config(
   'request.jwt.claims',
@@ -48,6 +49,17 @@ select throws_ok(
   '42501',
   'Not allowed to read this member''s organizations',
   'a caller who can''t remove members where the member is the last owner gets an error, not a partial list'
+);
+select is(
+  better_supabase.sole_owned_organizations('00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-000000000001'),
+  '{}'::uuid[],
+  'asked about one organization, a caller who may remove members there reads that one alone'
+);
+select throws_ok(
+  $$select better_supabase.sole_owned_organizations('00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-000000000002')$$,
+  '42501',
+  'Not allowed to read this member''s organizations',
+  'asked about an organization where the caller can''t remove members, the call still raises'
 );
 
 reset role;

@@ -12,9 +12,10 @@ interface OwnerNames {
 }
 
 /**
- * `sole_owned_organizations(member)`: the organizations the deferred owner
- * check would refuse to leave without `member`. `remove` is the permission key,
- * as SQL, that lets the caller ask about another member of an organization.
+ * `sole_owned_organizations(member, organization)`: the organizations the
+ * deferred owner check would refuse to leave without `member`, or only
+ * `organization` when it is given. `remove` is the permission key, as SQL, that
+ * lets the caller ask about another member of an organization.
  */
 export function soleOwnedSql(
   ctx: BlockSqlContext,
@@ -32,8 +33,11 @@ export function soleOwnedSql(
 -- list needs the remove permission (blocks.organizations.permissions.removeMember
 -- or options.soleOwnedPermission) in every organization the list would name, and
 -- in at least one organization of the member, so an offboarding run by HR can ask
--- first. Without it the call raises instead of returning a partial list.
-create or replace function ${ctx.fn("sole_owned_organizations")}(member uuid default null)
+-- first. Without it the call raises instead of returning a partial list. With
+-- organization, the list names only that organization and the permission is
+-- needed only there, so HR of one organization can ask about it alone.
+drop function if exists ${ctx.fn("sole_owned_organizations")}(uuid);
+create or replace function ${ctx.fn("sole_owned_organizations")}(member uuid default null, organization ${id} default null)
 returns ${id}[]
 language plpgsql
 stable
@@ -49,14 +53,15 @@ begin
   if v_member is null then
     ${fail("ORGANIZATION_FORBIDDEN", "Only the member or the service role can read this")}
   end if;
-  if not v_all and not exists (${owned(`
-      and coalesce(better_supabase.member_can(auth.uid(), m.${n.tenant}, ${remove}), false)`)}) then
+  if not v_all and (case when organization is null then not exists (${owned(`
+      and coalesce(better_supabase.member_can(auth.uid(), m.${n.tenant}, ${remove}), false)`)}) else not coalesce(better_supabase.member_can(auth.uid(), organization, ${remove}), false) end) then
     ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to read this member's organizations")}
   end if;
   v_ids := coalesce((
     select array_agg(m.${n.tenant} order by m.${n.tenant})
     from ${n.m} m
     where m.${n.user} = v_member and ${isOwner("m")}
+      and (organization is null or m.${n.tenant} = organization)
       and exists (select 1 from ${n.organization} o where o.${n.id} = m.${n.tenant})
       and not exists (
         select 1 from ${n.m} y

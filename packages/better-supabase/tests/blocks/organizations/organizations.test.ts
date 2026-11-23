@@ -164,9 +164,16 @@ describe("createOrganizations", () => {
       ok: true,
       data: ["org-1", "org-2"],
     });
+    expect(
+      await organizations.soleOwnedOrganizations({
+        userId: "user-2",
+        organizationId: "org-1",
+      }),
+    ).toMatchObject({ ok: true });
     expect(calls.map((call) => [call.fn, call.args])).toEqual([
       ["sole_owned_organizations", {}],
       ["sole_owned_organizations", { member: "user-2" }],
+      ["sole_owned_organizations", { member: "user-2", organization: "org-1" }],
     ]);
   });
 

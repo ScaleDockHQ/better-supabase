@@ -396,14 +396,53 @@ describe.skipIf(!live)("outbox", () => {
     ]);
   });
 
+  it("starts a consumer registered in the emitting transaction after its own event", async () => {
+    const older = await pool.connect();
+    const own = await pool.connect();
+
+    try {
+      await older.query("begin");
+      await older.query("select pg_current_xact_id()");
+      await own.query("begin");
+      await own.query(
+        `select ${SCHEMA}.emit_event('own.event', '{}'::jsonb, 'own/1')`,
+      );
+      await own.query(
+        `select ${SCHEMA}.outbox_register('own', array['own.*'])`,
+      );
+      await own.query("commit");
+      await older.query("commit");
+    } finally {
+      own.release();
+      older.release();
+    }
+
+    expect((await outbox.emit({ type: "own.after" })).ok).toBe(true);
+
+    const sent: CloudEvent[] = [];
+
+    await outbox.relay({
+      consumer: "own",
+      sink: { send: (events) => void sent.push(...events) },
+    });
+    expect(sent.map((event) => event.type)).toEqual([
+      "dev.better-supabase.own.after",
+    ]);
+  });
+
   it("moves restored transaction ids back to the restoring transaction", async () => {
+    expect((await outbox.emit({ type: "rebased.old" })).ok).toBe(true);
+    expect(
+      (await outbox.register({ consumer: "rebased", types: ["rebased.*"] })).ok,
+    ).toBe(true);
+
     const ahead = "((pg_current_xact_id()::text::bigint + 100000)::text)::xid8";
 
     await pool.query(
-      `update ${SCHEMA}.outbox_events set xid = ${ahead} where type = 'restored.old'`,
+      `update ${SCHEMA}.outbox_events set xid = ${ahead} where type = 'rebased.old'`,
     );
     await pool.query(
-      `update ${SCHEMA}.outbox_consumers set cursor_xid = ${ahead} where name = 'restored'`,
+      `update ${SCHEMA}.outbox_consumers set cursor_xid = ${ahead}, cursor_position = (select position from ${SCHEMA}.outbox_events where type = 'rebased.old') where name = 'rebased'`,
     );
     await pool.query(
       xidSql([
@@ -418,16 +457,16 @@ describe.skipIf(!live)("outbox", () => {
     );
 
     expect(Number(rows[0]?.ahead)).toBe(0);
-    expect((await outbox.emit({ type: "restored.after" })).ok).toBe(true);
+    expect((await outbox.emit({ type: "rebased.after" })).ok).toBe(true);
 
     const sent: CloudEvent[] = [];
 
     await outbox.relay({
-      consumer: "restored",
+      consumer: "rebased",
       sink: { send: (events) => void sent.push(...events) },
     });
     expect(sent.map((event) => event.type)).toEqual([
-      "dev.better-supabase.restored.after",
+      "dev.better-supabase.rebased.after",
     ]);
   });
 

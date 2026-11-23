@@ -142,28 +142,34 @@ describe.skipIf(!source)("doctor against the local stack", () => {
     });
   });
 
-  it("flags the per-row helper and the overlapping policies", async () => {
-    const findings = await runRules(context(), only("BS205", "BS207"));
-    expect(findings).toMatchObject([
-      {
-        // Postgres never inlines a security definer function.
-        code: "BS205",
-        message: expect.stringContaining(
-          `${SCHEMA}.is_admin(org_id), a security definer function`,
-        ),
-      },
-      {
-        code: "BS205",
-        message: expect.stringContaining(`${SCHEMA}.is_member(org_id)`),
-      },
-      {
-        code: "BS207",
-        message: expect.stringContaining(
-          "select for authenticated: projects_member, projects_open",
-        ),
-      },
-    ]);
-  });
+  // The first rule run pays the lazy rule imports; on a loaded CI runner
+  // that passes the 5 second default (also on main).
+  it(
+    "flags the per-row helper and the overlapping policies",
+    { timeout: 20_000 },
+    async () => {
+      const findings = await runRules(context(), only("BS205", "BS207"));
+      expect(findings).toMatchObject([
+        {
+          // Postgres never inlines a security definer function.
+          code: "BS205",
+          message: expect.stringContaining(
+            `${SCHEMA}.is_admin(org_id), a security definer function`,
+          ),
+        },
+        {
+          code: "BS205",
+          message: expect.stringContaining(`${SCHEMA}.is_member(org_id)`),
+        },
+        {
+          code: "BS207",
+          message: expect.stringContaining(
+            "select for authenticated: projects_member, projects_open",
+          ),
+        },
+      ]);
+    },
+  );
 
   it("reads column grants and flags a role column members may update (BS213)", async () => {
     const members = snapshot.extras.tables.find(

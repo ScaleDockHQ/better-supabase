@@ -1,6 +1,7 @@
 import type { AccessBlockConfig, AnyBlocksConfig } from "../config/blocks.ts";
 import type {
   BlockSqlContext,
+  BlockSqlContextSource,
   BlockSqlIdType,
   Contributor,
 } from "./context.ts";
@@ -61,111 +62,124 @@ export function moduleContext(
   installed?: readonly string[],
   instance?: string,
 ): BlockSqlContext {
-  const modules = withProviderDefaults(layout);
-  const readable = new Map<string, ReadonlySet<string>>();
-
   return createModuleContext(
     name,
     (module) => registry().modules[module]?.names,
-    {
-      ...(modules ? { modules } : {}),
-      ...(layout.claims ? { claims: layout.claims } : {}),
-      ...(layout.subjects
-        ? {
-            subjects: installed
-              ? installedBlockSubjects(
-                  layout.subjects,
-                  installed,
-                  layout.modules ?? {},
-                )
-              : layout.subjects,
-          }
-        : {}),
-      ...(layout.appTables ? { appTables: Object.keys(layout.appTables) } : {}),
-      ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
-      ...(layout.permissionCatalog
-        ? { permissionCatalog: layout.permissionCatalog }
-        : {}),
-      ...(layout.providerActionKeys?.blocks
-        ? { providerActionKeys: layout.providerActionKeys.blocks }
-        : {}),
-      ...providerPeople(modules, layout),
-      ...(layout.foreignKeys ? { foreignKeys: layout.foreignKeys } : {}),
-      ...(layout.declaredColumns
-        ? { declaredColumns: layout.declaredColumns }
-        : {}),
-      ...(layout.idTypes ? { idTypes: layout.idTypes } : {}),
-      ...(layout.providerApprovals
-        ? { providerApprovals: layout.providerApprovals }
-        : {}),
-      ...(layout.rerunnable === true ? { rerunnable: true } : {}),
-      ...(layout.grants
-        ? {
-            exposed: layout.grants.map(({ table }) =>
-              table.includes(".") ? table : `public.${table}`,
-            ),
-          }
-        : {}),
-      ...(layout.accessProvider?.wildcards
-        ? { permissionWildcards: layout.accessProvider.wildcards }
-        : {}),
-      ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
-      ...(layout.appColumns ? { appColumns: layout.appColumns } : {}),
-      ...(layout.appFunctions ? { appFunctions: layout.appFunctions } : {}),
-      ...(layout.ownColumns && layout.keepUndeclaredColumns !== true
-        ? { ownColumns: layout.ownColumns }
-        : {}),
-      ...(installed ? { installed } : {}),
-      ...(layout.instances ? { instances: layout.instances } : {}),
-      ...(instance === undefined || instance === name ? {} : { instance }),
-      contributors: (block) => contributorsOf(block, layout, installed),
-      ...(layout.scope ? { scope: layout.scope } : {}),
-      ...(layout.blockTenantColumn
-        ? { tenantColumn: layout.blockTenantColumn }
-        : {}),
-      ...(layout.blockBrand ? { brand: layout.blockBrand } : {}),
-      ...providerIdType(layout),
-      ...providerGuests(layout),
-      ...(modules?.permissions?.model === "provider" &&
-      (layout.accessProvider?.functions.idsWithFor === undefined ||
-        layout.accessProvider.functions.isPlatformFor === undefined)
-        ? { providerCallerOnly: true }
-        : {}),
-      ...(modules?.permissions?.model === "provider" &&
-      layout.accessProvider?.functions.rowsWith !== undefined
-        ? {
-            providerRowsWith: layout.accessProvider.functions.rowsWith,
-            ...(layout.accessProvider.functions.rowsWithFor === undefined
-              ? {}
-              : {
-                  providerRowsWithFor:
-                    layout.accessProvider.functions.rowsWithFor,
-                }),
-          }
-        : {}),
-      integrations(module) {
-        const definition = registry().modules[module];
-
-        if (!definition || definition.integrates?.includes("*")) {
-          return;
-        }
-
-        let set = readable.get(module);
-
-        if (!set) {
-          set = new Set([
-            ...registry()
-              .resolve([module], layout)
-              .map((entry) => entry.name),
-            ...(definition.integrates ?? []),
-          ]);
-          readable.set(module, set);
-        }
-
-        return set;
-      },
-    },
+    moduleContextSource(name, layout, installed, instance),
   );
+}
+
+/**
+ * The context source `moduleContext` builds from `layout`, for a caller that
+ * looks names up itself (an upgrade step reads a table by its old name).
+ */
+export function moduleContextSource(
+  name: string,
+  layout: BlockSqlLayout = {},
+  installed?: readonly string[],
+  instance?: string,
+): BlockSqlContextSource {
+  const modules = withProviderDefaults(layout);
+  const readable = new Map<string, ReadonlySet<string>>();
+
+  return {
+    ...(modules ? { modules } : {}),
+    ...(layout.claims ? { claims: layout.claims } : {}),
+    ...(layout.subjects
+      ? {
+          subjects: installed
+            ? installedBlockSubjects(
+                layout.subjects,
+                installed,
+                layout.modules ?? {},
+              )
+            : layout.subjects,
+        }
+      : {}),
+    ...(layout.appTables ? { appTables: Object.keys(layout.appTables) } : {}),
+    ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
+    ...(layout.permissionCatalog
+      ? { permissionCatalog: layout.permissionCatalog }
+      : {}),
+    ...(layout.providerActionKeys?.blocks
+      ? { providerActionKeys: layout.providerActionKeys.blocks }
+      : {}),
+    ...providerPeople(modules, layout),
+    ...(layout.foreignKeys ? { foreignKeys: layout.foreignKeys } : {}),
+    ...(layout.declaredColumns
+      ? { declaredColumns: layout.declaredColumns }
+      : {}),
+    ...(layout.idTypes ? { idTypes: layout.idTypes } : {}),
+    ...(layout.providerApprovals
+      ? { providerApprovals: layout.providerApprovals }
+      : {}),
+    ...(layout.rerunnable === true ? { rerunnable: true } : {}),
+    ...(layout.grants
+      ? {
+          exposed: layout.grants.map(({ table }) =>
+            table.includes(".") ? table : `public.${table}`,
+          ),
+        }
+      : {}),
+    ...(layout.accessProvider?.wildcards
+      ? { permissionWildcards: layout.accessProvider.wildcards }
+      : {}),
+    ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
+    ...(layout.appColumns ? { appColumns: layout.appColumns } : {}),
+    ...(layout.appFunctions ? { appFunctions: layout.appFunctions } : {}),
+    ...(layout.ownColumns && layout.keepUndeclaredColumns !== true
+      ? { ownColumns: layout.ownColumns }
+      : {}),
+    ...(installed ? { installed } : {}),
+    ...(layout.instances ? { instances: layout.instances } : {}),
+    ...(instance === undefined || instance === name ? {} : { instance }),
+    contributors: (block) => contributorsOf(block, layout, installed),
+    ...(layout.scope ? { scope: layout.scope } : {}),
+    ...(layout.blockTenantColumn
+      ? { tenantColumn: layout.blockTenantColumn }
+      : {}),
+    ...(layout.blockBrand ? { brand: layout.blockBrand } : {}),
+    ...providerIdType(layout),
+    ...providerGuests(layout),
+    ...(modules?.permissions?.model === "provider" &&
+    (layout.accessProvider?.functions.idsWithFor === undefined ||
+      layout.accessProvider.functions.isPlatformFor === undefined)
+      ? { providerCallerOnly: true }
+      : {}),
+    ...(modules?.permissions?.model === "provider" &&
+    layout.accessProvider?.functions.rowsWith !== undefined
+      ? {
+          providerRowsWith: layout.accessProvider.functions.rowsWith,
+          ...(layout.accessProvider.functions.rowsWithFor === undefined
+            ? {}
+            : {
+                providerRowsWithFor:
+                  layout.accessProvider.functions.rowsWithFor,
+              }),
+        }
+      : {}),
+    integrations(module) {
+      const definition = registry().modules[module];
+
+      if (!definition || definition.integrates?.includes("*")) {
+        return;
+      }
+
+      let set = readable.get(module);
+
+      if (!set) {
+        set = new Set([
+          ...registry()
+            .resolve([module], layout)
+            .map((entry) => entry.name),
+          ...(definition.integrates ?? []),
+        ]);
+        readable.set(module, set);
+      }
+
+      return set;
+    },
+  };
 }
 
 /**
@@ -190,7 +204,7 @@ function resolveFact<T>(
  * block over the app's membership table, whose role the provider reads through
  * a roles table, gets the same `roleThrough`, unless the config sets one.
  */
-export function withProviderDefaults(
+function withProviderDefaults(
   layout: BlockSqlLayout,
 ): AnyBlocksConfig | undefined {
   return viewColumnsOf(layout).modules;
@@ -494,7 +508,7 @@ function providerPeople(
  * The tenant id type the authorization provider gives, preferring the access
  * model's scope.
  */
-export function providerIdType(layout: BlockSqlLayout): {
+function providerIdType(layout: BlockSqlLayout): {
   providerIdType?: BlockSqlIdType;
 } {
   const idType =
@@ -507,9 +521,7 @@ export function providerIdType(layout: BlockSqlLayout): {
  * Whether the authorization provider answers for guests, which only counts
  * under the `provider` model.
  */
-export function providerGuests(layout: BlockSqlLayout): {
-  providerGuests?: boolean;
-} {
+function providerGuests(layout: BlockSqlLayout): { providerGuests?: boolean } {
   return providerAnswersForGuests(layout) ? { providerGuests: true } : {};
 }
 

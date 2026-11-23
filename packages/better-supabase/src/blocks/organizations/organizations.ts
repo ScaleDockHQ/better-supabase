@@ -354,8 +354,15 @@ export interface Organizations<
     userId: string;
   }): AsyncResult<boolean>;
   leave(organizationId: string): AsyncResult<true>;
-  /** Organizations `userId` (default the caller) owns alone; see the docs. */
-  soleOwnedOrganizations(userId?: string): AsyncResult<readonly string[]>;
+  /**
+   * Organizations `userId` (default the caller) owns alone, or only
+   * `organizationId` when it is given; a string is the `userId`. See the docs.
+   */
+  soleOwnedOrganizations(
+    input?:
+      | string
+      | { readonly userId?: string; readonly organizationId?: string },
+  ): AsyncResult<readonly string[]>;
   /** `formerRole` defaults to `options.formerOwnerRole`. */
   transferOwnership(input: {
     organizationId: string;
@@ -1006,8 +1013,16 @@ function organizationsClient<
         },
       );
     },
-    soleOwnedOrganizations(userId) {
-      const args = userId === undefined ? {} : { member: userId };
+    soleOwnedOrganizations(input) {
+      const { userId, organizationId } =
+        typeof input === "string" ? { userId: input } : (input ?? {});
+
+      const args = {
+        ...(userId === undefined ? {} : { member: userId }),
+        ...(organizationId === undefined
+          ? {}
+          : { organization: organizationId }),
+      };
 
       return run("organizations", "sole_owned_organizations", args, (ids) =>
         Array.isArray(ids) ? ids.map(String) : [],

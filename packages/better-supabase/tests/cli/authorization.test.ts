@@ -242,6 +242,42 @@ describe("accessProviderMode", () => {
     ).not.toHaveProperty("access.roleSources");
   });
 
+  it("passes on tenant suspension, operations and wildcards", () => {
+    const tenant = { table: "public.orgs", id: "id", disabledAt: "closed_at" };
+    const operations = { search: { permission: "notes.read" } };
+
+    const mode = accessProviderMode(
+      config(
+        {},
+        withProvider({
+          suspension: { tenant, userKey: "auth_id" },
+          operations,
+          wildcards: "prefix",
+        }),
+      ),
+    );
+
+    expect(mode.kind === "provider" ? mode.access : undefined).toMatchObject({
+      suspension: { tenant, userKey: "auth_id" },
+      operations,
+      wildcards: "prefix",
+    });
+    expect(mode).not.toHaveProperty("access.suspension.user");
+    expect(
+      accessProviderMode(config({}, withProvider({ operations: {} }))),
+    ).not.toHaveProperty("access.operations");
+  });
+
+  it("refuses a provider whose scopes are inconsistent", () => {
+    expect(
+      accessProviderMode(
+        config({}, withProvider({ tenantScope: "workspace" })),
+      ),
+    ).toEqual(
+      invalid(/are inconsistent: tenantScope "workspace" is not a scope/),
+    );
+  });
+
   it("passes on platform roles and memberships", () => {
     const platformRoles = {
       table: "app.platform_roles",
