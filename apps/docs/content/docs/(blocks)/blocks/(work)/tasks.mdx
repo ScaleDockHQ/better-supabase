@@ -197,7 +197,7 @@ With `options.needs: { kind: "blocks" }` and the [relations](/docs/blocks/relati
 
 ### Claims
 
-`claim({ taskId, lease, profile })` takes a lease (`options.claims.lease` and `maxLease`, in seconds) and returns a token. A live claim of someone else is `TASK_CLAIMED`, a held task is `TASK_HELD`. `claimNext({ organizationId, filter })` takes the oldest ready task, assigned ones first, and concurrent callers get different tasks. `renew` and `release` need the token and raise `TASK_CLAIM_LOST` after the lease ran out or someone else took over. Every new claim bumps `epoch`. `startStage` and `expiredStage` move the task when a claim starts or expires. `delegate({ taskId, toUserId })` assigns the task and ends the claim.
+`claim({ taskId, lease, profile })` takes a lease (`options.claims.lease` and `maxLease`, in seconds) and returns a token. A live claim of someone else is `TASK_CLAIMED`, a held task is `TASK_HELD`. `claimNext({ organizationId, filter })` takes the oldest ready task by `number`, and concurrent callers get different tasks. `options.claims.next` is `"assigned"` by default, so a caller picks only tasks assigned to it; `"any"` also takes unassigned ones. An agent session always picks assigned tasks (`TASK_NOT_ASSIGNED`, and `TASK_FILTER_FORBIDDEN` for another assignee). `filter.delegateProfile` picks tasks reserved for a profile. `renew` and `release` need the token and raise `TASK_CLAIM_LOST` after the lease ran out or someone else took over. Every new claim bumps `epoch`. `startStage` and `expiredStage` move the task when a claim starts or expires, and take a stage key or `{ category }`. `delegate({ taskId, toUserId, toProfile })` assigns the task and ends the claim. With `toProfile` the task is reserved for that profile of that user: anyone else gets `TASK_RESERVED`, except a person with write access, who takes it over. The task reads back `delegateProfile: { name, userId }`, and a re-delegate, an unassign and a close clear it.
 
 ### Who acts
 
@@ -205,9 +205,9 @@ With `options.needs: { kind: "blocks" }` and the [relations](/docs/blocks/relati
 
 ### Hold
 
-`hold({ taskId, kind, note, askUserIds })` puts a task on hold to ask a person. The note goes through [messaging](/docs/blocks/messaging) and mentions `askUserIds`, who must be able to read the task. With `options.hold.stage` the task moves to that stage until `releaseHold`. A manual move into that stage is not a hold, and a manual move out of it clears one.
+`hold({ taskId, kind, note, askUserIds })` puts a task on hold to ask a person. The note goes through [messaging](/docs/blocks/messaging) and mentions `askUserIds`, who must be able to read the task. `options.hold.kinds` lists the accepted kinds (`TASK_HOLD_INVALID` otherwise). With `options.hold.stage`, a key or `{ category }`, the task moves to that stage until `releaseHold`. Releasing, moving out of the stage and closing cancel a pending approval request; doctor rule BS245 reports a stage that does not exist. A manual move into that stage is not a hold, and a manual move out of it clears one.
 
-With the [approvals](/docs/blocks/approvals) block installed, `options.hold.approval` files each hold as an approval request of the subject type `task_hold`. `true` asks one approver, a member with the manage permission; `{ policy }` takes an approvals policy without `run`. An approval releases the task, and a rejection cancels it, or with `onReject: "keep"` leaves it on hold. Nobody needs the write permission to decide: approvals checks the approver, and the task changes through an internal function that is granted to no role. A decision on a task that is no longer on hold is refused. The option needs the `held_at` column and fails at render without the approvals block. `task.held` then carries the request as `approvalId`.
+With the [approvals](/docs/blocks/approvals) block installed, `options.hold.approval` files each hold as an approval request of the subject type `task_hold`. `true` asks one approver, a member with the manage permission; `{ policy }` takes an approvals policy without `run`, and `kinds` limits which hold kinds open a request. An approval releases the task, and a rejection cancels it, or with `onReject: "keep"` leaves it on hold. Nobody needs the write permission to decide: approvals checks the approver, and the task changes through an internal function that is granted to no role. A decision on a task that is no longer on hold is refused. The option needs the `held_at` column and fails at render without the approvals block. `task.held` then carries the request as `approvalId`.
 
 ```ts
 // better-supabase.config.ts
@@ -230,7 +230,7 @@ blocks: {
 
 ### Events and errors
 
-New events: `task.unblocked`, `task.claimed`, `task.released`, `task.claim_expired`, `task.failed`, `task.delegated`, `task.held` and `task.hold_released`. New hints: `TASK_NOT_READY`, `TASK_CLAIMED`, `TASK_CLAIM_LOST`, `TASK_CLAIM_NOT_HELD`, `TASK_NOTHING_READY`, `TASK_HELD`, `TASK_NOT_HELD`, `TASK_HOLD_INVALID`, `TASK_HOLD_STAGE_MISSING`, `TASK_HOLD_MESSAGING_MISSING`, `TASK_NEEDS_INVALID`, `TASK_NEEDS_UNSUPPORTED`, `TASK_PLAN_INVALID`, `TASK_PLAN_TOO_LARGE`, `TASK_OUTCOME_INVALID`, `TASK_OUTCOME_UNAVAILABLE`, `TASK_MOVE_INVALID`, `TASK_RANK_CONFLICT`, `TASK_DELEGATE_INVALID` and `ACTOR_READ_ONLY`.
+New events: `task.unblocked`, `task.claimed`, `task.released`, `task.claim_expired`, `task.failed`, `task.delegated`, `task.held` and `task.hold_released`. New hints: `TASK_NOT_READY`, `TASK_CLAIMED`, `TASK_CLAIM_LOST`, `TASK_CLAIM_NOT_HELD`, `TASK_NOTHING_READY`, `TASK_HELD`, `TASK_NOT_HELD`, `TASK_HOLD_INVALID`, `TASK_HOLD_STAGE_MISSING`, `TASK_HOLD_MESSAGING_MISSING`, `TASK_NEEDS_INVALID`, `TASK_NEEDS_UNSUPPORTED`, `TASK_PLAN_INVALID`, `TASK_PLAN_TOO_LARGE`, `TASK_OUTCOME_INVALID`, `TASK_OUTCOME_UNAVAILABLE`, `TASK_MOVE_INVALID`, `TASK_RANK_CONFLICT`, `TASK_DELEGATE_INVALID`, `TASK_RESERVED`, `TASK_NOT_ASSIGNED`, `TASK_FILTER_FORBIDDEN` and `ACTOR_READ_ONLY`.
 
 ## Events
 
@@ -243,7 +243,7 @@ New events: `task.unblocked`, `task.claimed`, `task.released`, `task.claim_expir
 
 ## Hooks
 
-The module calls `before_task_create(tenant, attrs jsonb)`, `after_task_create(work_item uuid)`, `before_task_update(work_item uuid, field text, value jsonb)` and `after_task_update(work_item uuid, field text)`. A `before_` hook raises to refuse; in `update`, that refuses only its change.
+The module calls `before_task_create(tenant, attrs jsonb)`, `after_task_create(work_item uuid)`, `before_task_update(work_item uuid, field text, value jsonb)` and `after_task_update(work_item uuid, field text)`. A `before_` hook raises to refuse; in `update`, that refuses only its change. `before_task_close(work_item uuid, outcome text, note text)` runs once on every path that closes an item, from a trigger, and raising refuses the close. Templates are skipped.
 
 ## Wire it to ReUI
 

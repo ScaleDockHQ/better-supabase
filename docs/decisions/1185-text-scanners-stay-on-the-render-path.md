@@ -1,4 +1,4 @@
-# 1180: The text scanners stay on the synchronous render path
+# 1185: The text scanners stay on the synchronous render path
 
 - Status: accepted
 - Date: 2026-11-22

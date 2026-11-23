@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { openSymbolTier } from "../../src/cli/typescript-symbols";
 
-/** The only workspace that installs TypeScript 7.1 (ADR 1182). */
+/** The only workspace that installs TypeScript 7.1 (ADR 1187). */
 const ts71 = join(import.meta.dirname, "../../../../tests/types/ts-7.1");
 
 describe("openSymbolTier", () => {

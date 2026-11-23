@@ -3,6 +3,7 @@ import type { ApprovalContribution } from "../contributions.ts";
 import type { ApprovalPolicy } from "./approvals-policies.ts";
 import type { TaskNames } from "./tasks-functions.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { subjectUuid } from "../contributions.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { stageByCategory, taskRecord } from "./tasks-coordination-shared.ts";
@@ -18,6 +19,37 @@ export interface HoldApproval {
   readonly policy: string;
   /** What a rejection does: cancel the task, or leave it on hold. */
   readonly onReject: "cancel" | "keep";
+  /** The hold kinds that open an approval, or null for every kind. */
+  readonly kinds: readonly string[] | null;
+}
+
+/** What a hold kind looks like: a short lowercase word. */
+const HOLD_KIND: RegExp = /^[a-z][a-z_]{0,31}$/;
+
+/** Reads a list of hold kinds: `hold.kinds` or `hold.approval.kinds`. */
+export function holdKindsOf(
+  value: unknown,
+  at: string,
+): readonly string[] | null {
+  if (value === undefined) {
+    return null;
+  }
+
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    !value.every(
+      (kind): kind is string =>
+        typeof kind === "string" && HOLD_KIND.test(kind),
+    ) ||
+    new Set(value).size !== value.length
+  ) {
+    throw new TypeError(
+      `${at} must be a list of distinct short lowercase words such as review or input`,
+    );
+  }
+
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -43,6 +75,7 @@ export function holdApprovalOf(
   ctx: BlockSqlContext,
   value: unknown,
   manageKey: string,
+  holdKinds: readonly string[] | null = null,
 ): HoldApproval | null {
   if (value === undefined || value === false) {
     return null;
@@ -55,7 +88,7 @@ export function holdApprovalOf(
   }
 
   for (const key of Object.keys(rules)) {
-    if (key !== "policy" && key !== "onReject") {
+    if (key !== "policy" && key !== "onReject" && key !== "kinds") {
       throw new TypeError(`${WHERE} has no key "${key}"`);
     }
   }
@@ -89,7 +122,17 @@ export function holdApprovalOf(
     );
   }
 
-  return { policy: policySnapshot(policy), onReject };
+  const kinds = holdKindsOf(rules["kinds"], `${WHERE}.kinds`);
+
+  const stray = kinds?.find((kind) => holdKinds?.includes(kind) === false);
+
+  if (stray !== undefined) {
+    throw new TypeError(
+      `${WHERE}.kinds names "${stray}", which blocks.tasks.options.hold.kinds does not allow`,
+    );
+  }
+
+  return { policy: policySnapshot(policy), onReject, kinds };
 }
 
 /**
@@ -178,4 +221,30 @@ export function holdApprovalContribution(
         : {}),
     },
   ];
+}
+
+/**
+ * PL/pgSQL that cancels the pending approval request of a held task, for a path
+ * that ends the hold without a decision (release, the hold stage left, a
+ * close). `found` tells whether a request was cancelled. Empty when holds open
+ * no approval.
+ */
+export function cancelHoldRequestSql(
+  ctx: BlockSqlContext,
+  n: TaskNames,
+  task: string,
+): string {
+  if (n.co.holdApproval === null) {
+    return "";
+  }
+
+  const ap = ctx.of("approvals");
+  const c = (column: string): string => ap.col("requests", column);
+
+  const decided = ap.has("requests", "decidedAt")
+    ? `, ${c("decidedAt")} = now()`
+    : "";
+
+  return `update ${ap.table("requests")} r set ${c("status")} = 'cancelled'${decided}
+    where r.${c("subjectType")} = ${sqlString(HOLD_SUBJECT)} and r.${c("subjectId")} = ${task}::text and r.${c("status")} = 'pending';`;
 }

@@ -1,4 +1,4 @@
-# 1186: The prune probe tries every entry a render can answer
+# 1191: The prune probe tries every entry a render can answer
 
 - Status: accepted
 - Date: 2026-11-22

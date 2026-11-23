@@ -3,7 +3,7 @@ import { columnTagComments } from "./table-facts.ts";
 
 /**
  * The `tables` and `columns` entries that `@bsb` tags in the app's files give
- * (ADR 1185).
+ * (ADR 1190).
  */
 export interface MappingTags {
   /** Block to logical table to `schema.table`. */

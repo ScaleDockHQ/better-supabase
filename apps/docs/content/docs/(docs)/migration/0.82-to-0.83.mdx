@@ -1,6 +1,6 @@
 ---
 title: From 0.82 to 0.83
-description: What to change when upgrading from better-supabase 0.82 to 0.83. Direct dependencies, the blocks list, project-level defaults, config the render already supplies, authorization facts that move into the provider, and Supabase CLI 3.2.0.
+description: What to change when upgrading from better-supabase 0.82 to 0.83. Direct dependencies, the blocks list, project-level defaults, config the render already supplies, authorization facts that move into the provider, Supabase CLI 3.2.0, and the task coordination changes: the tasks module at version 7, claimNext picks only your own tasks by default, category stages, hold kinds, task reservations and before_task_close on every close.
 ---
 
 0.83 shrinks the config. Facts the project, the schema files or the
@@ -8,6 +8,10 @@ authorization provider already state are no longer written twice. It is a minor
 release, and below 1.0 a minor version may carry breaking changes. Each change
 is also in the
 [changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+0.83 also closes five gaps in the task coordination that shipped in 0.82. Run
+`better-supabase upgrade` to move the `tasks` module to version 7; the
+[Task coordination](#task-coordination) section lists what each change needs.
 
 0.82.0 on npm has none of this work: it has no `actionKeys`, no
 `operations[].approval`, no `doctor.command`, no grouped baseline, no BS427 and
@@ -35,6 +39,12 @@ pnpm better-supabase gen sql
 | [Block names first](#block-names-first)                                   | Optional: run `codemod adopt-names --table <block>.<table>`, or tag the table             |
 | [Declared rows](#declared-rows)                                           | Optional: run `codemod declared-rows`, then `db rows`                                     |
 | [Schemas by module reference](#schemas-by-module-reference)               | None                                                                                      |
+| [Task coordination](#task-coordination)                                   | Review the five task changes below, then run `better-supabase upgrade`                    |
+| [claimNext picks assigned tasks](#claimnext)                              | Set `claims.next: "any"` to keep the old pick                                             |
+| [Category stages](#category-stages)                                       | None; new option form                                                                     |
+| [Hold kinds](#hold-kinds)                                                 | None; new options                                                                         |
+| [Reserve a task for a profile](#reserve-a-task)                           | Read `delegateProfile` if you stored the old label                                        |
+| [before_task_close on every close](#before-task-close)                    | Check a hook that relied on running only in close                                         |
 | [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`                                                             |
 
 ## What the codemods did to CentraKit
@@ -328,7 +338,7 @@ no longer read for leave: `startPart` and `endPart` switch the parts of the day 
 
 `codemod config --prune` also drops an entry that repeats the convention's name. Other modules
 still read their entries (catalog, invoices, profiles, webhooks); they convert one at a time.
-The reasons are in [ADR 1184](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1184-optional-columns-follow-the-table.md).
+The reasons are in [ADR 1189](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1184-optional-columns-follow-the-table.md).
 
 ## Block names first
 
@@ -347,7 +357,7 @@ block, memberships included.
 `adopt-names` renames one table per run, writes the rename migration, rewrites the statements of
 your schema files that name the table and removes its `tables` and `columns` entries. It refuses a
 table outside the block's schema, and a `values` entry stays. See
-[ADR 1185](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1185-base-first-tables.md).
+[ADR 1190](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1185-base-first-tables.md).
 
 ## Declared rows
 
@@ -368,8 +378,8 @@ with neither declared nor literal items raises `OPTION_SET_DEFAULTS_MISSING`.
 `db rows` then writes one data migration for each rows file, stamped with the hash of its
 statements, and `db rows --check` exits 1 in CI when a file has none. A row you remove from a file
 stays in the database and is reported, unless the file carries `-- bsb-rows: delete-removed`. See
-[ADR 1192](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1192-declared-defaults-table.md)
-and [ADR 1193](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1193-declared-rows-migrations.md).
+[ADR 1197](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1192-declared-defaults-table.md)
+and [ADR 1198](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1193-declared-rows-migrations.md).
 
 ## Schemas by module reference
 
@@ -387,6 +397,55 @@ An inline JSON Schema and a schema value still work, and `import` or `type` stil
 set a different column type. No codemod moves these: the inline form has no name
 to point at. Doctor rule BS704 reports an inline schema that an exported schema
 in a module the `standardSchema()` generator names already produces.
+
+## Task coordination
+
+0.83 closes five gaps in the task coordination that shipped in 0.82. Run
+`better-supabase upgrade` to move the `tasks` module to version 7.
+
+### claimNext
+
+`claimNext` took the oldest ready task, assigned ones first, and fell back to
+unassigned tasks. It now takes only tasks assigned to the caller unless the
+config sets `claims.next: "any"`. A session with an `act` claim of kind `agent`
+always picks assigned tasks, whatever the option says, and the filters
+`assigneeId` of someone else are refused with `TASK_FILTER_FORBIDDEN`. Claiming
+a task that is not assigned to an agent is `TASK_NOT_ASSIGNED`. The pick is
+ordered by `number`.
+
+### Category stages
+
+`hold.stage`, `claims.startStage` and `claims.expiredStage` take a stage key or
+`{ category }`. A category resolves to the first stage of that category in the
+task's pipeline. Doctor reports BS245 when the live pipeline has no stage for a
+configured key or category.
+
+### Hold kinds
+
+`hold.kinds` lists the kinds `hold` accepts, and anything else is
+`TASK_HOLD_INVALID`. `hold.approval.kinds` limits which kinds open an approval
+request and must be a subset of `hold.kinds`. Releasing a hold, moving the task
+out of the hold stage and closing it now cancel the pending approval request.
+`releaseHold` then reports `approvalCancelled` in the `task.hold_released` event.
+
+### Reserve a task
+
+`delegate({ taskId, toUserId, toProfile })` reserves the task for a named
+profile of that user. Only that profile of that user can claim it, or a person
+with write access, who takes it over. Anyone else gets `TASK_RESERVED`.
+`claimNext` takes `filter.delegateProfile`. The task reads back
+`delegateProfile: { name, userId }`. A re-delegate, an unassign and a close clear
+the reservation, and `task.delegated` carries `toProfile`. Before 0.83 the column
+stored the delegating label, which the client never read; the upgrade step clears
+those values.
+
+### before_task_close
+
+The `before_task_close(task uuid, outcome text, note text)` hook now runs once
+on every path that closes a task, from an after-update trigger, and a hook that
+raises refuses the close with its own error. Templates are skipped. It no longer
+runs when `reopen` sets the outcome `open`, and it is not called for a task
+inserted already closed.
 
 ## Doctor
 

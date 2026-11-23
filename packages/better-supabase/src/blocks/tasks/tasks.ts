@@ -115,6 +115,12 @@ export interface Task<F extends object = Record<never, never>> {
   /** When and why the task was put on hold. */
   readonly heldAt?: Temporal.Instant;
   readonly holdKind?: string;
+  /**
+   * The profile the task is reserved for, from `delegate` with `toProfile`: its
+   * name and the user who may claim it. Cleared by a new delegate, by
+   * unassigning that user and by closing the task.
+   */
+  readonly delegateProfile?: { readonly name: string; readonly userId: string };
   /** A locked item keeps its dates, as a locked Gantt bar. */
   readonly locked: boolean;
   readonly rank: string;
@@ -663,6 +669,7 @@ function itemOf(value: unknown): Task {
     claim: liveClaimOf(row["claim"]),
     heldAt: optionalInstant(row["held_at"]),
     holdKind: optionalText(row["hold_kind"]),
+    delegateProfile: reservationOf(row["delegate_profile"]),
     locked: row["locked"] === true,
     rank: textOf(row["rank"]),
     assigneeIds: Array.isArray(row["assignees"])
@@ -678,6 +685,19 @@ function itemOf(value: unknown): Task {
     createdAt: requiredInstant(row["created_at"], "createdAt"),
     updatedAt: requiredInstant(row["updated_at"], "updatedAt"),
   });
+}
+
+function reservationOf(value: unknown): Task["delegateProfile"] {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const name = optionalText(value["name"]);
+  const userId = optionalText(value["userId"]);
+
+  return name === undefined || userId === undefined
+    ? undefined
+    : { name, userId };
 }
 
 function checklistSummaryOf(value: unknown): Task["checklist"] {

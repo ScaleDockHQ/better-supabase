@@ -1,4 +1,4 @@
-# 1191: Move record types, realtime tables and vector search entries into table tags
+# 1196: Move record types, realtime tables and vector search entries into table tags
 
 - Status: accepted
 - Date: 2026-11-22

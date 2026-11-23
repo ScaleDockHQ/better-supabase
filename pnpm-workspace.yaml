@@ -325,7 +325,7 @@ catalogs:
     better-result: ">=3.0.1 <4"
     # A floor only: the CLI's symbol tier needs 7.1 and checks the installed
     # version itself, so an app on an older TypeScript sees no peer warning
-    # (ADR 1182).
+    # (ADR 1187).
     typescript: ">=5.0.0"
     elysia: ">=1.4.32 <2"
     expo-server: ">=58.1.0 <59"

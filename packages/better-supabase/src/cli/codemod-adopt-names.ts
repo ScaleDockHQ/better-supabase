@@ -13,7 +13,7 @@ import { scanSql } from "./schema-reader/index.ts";
 import { migrationsDir } from "./sql-layout.ts";
 import { migrationFile } from "./sql/migration-names.ts";
 
-/** The names one table goes by in the app and in the block (ADR 1185). */
+/** The names one table goes by in the app and in the block (ADR 1190). */
 export interface NamePlan {
   readonly from: { readonly schema: string; readonly name: string };
   readonly to: { readonly schema: string; readonly name: string };
@@ -285,7 +285,7 @@ const sourceFile = (path: string): boolean =>
   !/(?:^|[\\/])900_better_supabase_/.test(path);
 
 /**
- * The `adopt-names` codemod (ADR 1185): one table per run gets the block's
+ * The `adopt-names` codemod (ADR 1190): one table per run gets the block's
  * names. It writes a hand migration with the renames, rewrites the app's schema
  * files, removes the `tables` and `columns` entries and lists the types that
  * change. `values` entries stay: a stored label needs a data migration.

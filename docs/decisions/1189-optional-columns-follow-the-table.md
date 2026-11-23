@@ -1,4 +1,4 @@
-# 1184: Optional columns follow the table the app declares
+# 1189: Optional columns follow the table the app declares
 
 - Status: accepted
 - Date: 2026-11-22

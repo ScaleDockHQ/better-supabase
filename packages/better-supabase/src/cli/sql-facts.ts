@@ -26,7 +26,7 @@ import { readSupabaseConfig, tomlGet } from "./supabase-config.ts";
  * The CLI's schema scans, read from the parsed facts of each file. They take
  * the same `{ text }` lists as the text scanners of `better-supabase/sql`, so a
  * caller awaits `primeSchemaFacts` for those texts first. The text scanners
- * stay in `src/sql` for the synchronous render path (ADR 1180).
+ * stay in `src/sql` for the synchronous render path (ADR 1185).
  */
 type Texts = readonly { readonly text: string }[];
 

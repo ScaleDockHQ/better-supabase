@@ -37,6 +37,7 @@ export const LIVE_CODES: ReadonlySet<string> = new Set([
   "BS238",
   "BS241",
   "BS242",
+  "BS245",
   "BS363",
   "BS399",
 ]);

@@ -1,11 +1,11 @@
-# 1182: An optional TypeScript 7.1 symbol tier
+# 1187: An optional TypeScript 7.1 symbol tier
 
 - Status: accepted
 - Date: 2026-11-22
 
 ## Context
 
-`oxc-parser` (ADR 1181) reads one file. Some edits depend on what a name
+`oxc-parser` (ADR 1186) reads one file. Some edits depend on what a name
 refers to in another file: renaming an export and every import of it, finding
 the receiver type of a call that doctor flags as a round trip, or following a
 config value that is imported from another file. TypeScript 7.1 ships
@@ -40,5 +40,5 @@ tier is tested against the 7.1 install in `tests/types/ts-7.1` and sits in
 ## Consequences
 
 The tier is the base for cross-file renames and receiver-type rules, which ADR
-1183 wires in. Starting the TypeScript process costs
+1188 wires in. Starting the TypeScript process costs
 startup time, so the CLI opens it only for an edit that asks.

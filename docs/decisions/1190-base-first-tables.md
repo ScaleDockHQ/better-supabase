@@ -1,4 +1,4 @@
-# 1185: Blocks create their tables first, and the app extends or maps them
+# 1190: Blocks create their tables first, and the app extends or maps them
 
 - Status: accepted
 - Date: 2026-11-22

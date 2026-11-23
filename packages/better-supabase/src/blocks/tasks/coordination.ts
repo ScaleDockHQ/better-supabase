@@ -122,8 +122,12 @@ export interface TasksCoordination<F extends object = Record<never, never>> {
     profile?: TaskActorProfile | undefined;
   }): AsyncResult<ClaimedTask<F>>;
   /**
-   * Claims the oldest ready task that matches `filter`, or resolves with
-   * `undefined` when nothing is ready. Concurrent callers get different tasks.
+   * Claims the lowest-numbered ready task that matches `filter`, or resolves
+   * with `undefined` when nothing is ready. By default (`claims.next:
+   * "assigned"`) only tasks assigned to the caller qualify, and an agent
+   * session is always limited that way. `filter.delegateProfile` keeps the
+   * tasks reserved for that profile name. A task reserved for another profile
+   * is skipped. Concurrent callers get different tasks.
    */
   claimNext(input: {
     organizationId: string;
@@ -134,6 +138,7 @@ export interface TasksCoordination<F extends object = Record<never, never>> {
           parentId?: string;
           stageId?: string;
           assigneeId?: string;
+          delegateProfile?: string;
         }
       | undefined;
     lease?: number | undefined;
@@ -153,11 +158,16 @@ export interface TasksCoordination<F extends object = Record<never, never>> {
   }): AsyncResult<true>;
   /**
    * Hands the task to another user: it is assigned and the claim ends, so the
-   * new owner claims it with their own token.
+   * new owner claims it with their own token. With `toProfile` the task is
+   * reserved for that profile name of the user: a claim under another profile
+   * is `TASK_RESERVED`, unless a person with write access takes it over. The
+   * reservation clears on the next delegate, on unassigning the user and on
+   * close. ADR 1183.
    */
   delegate(input: {
     taskId: string;
     toUserId: string;
+    toProfile?: string | undefined;
     profile?: TaskActorProfile | undefined;
   }): AsyncResult<Task<F>>;
   /**
@@ -391,10 +401,15 @@ export function coordinationClient<F extends object>(
         { task: taskId, token, note: note ?? null },
         () => true as const,
       ),
-    delegate: ({ taskId, toUserId, profile }) =>
+    delegate: ({ taskId, toUserId, toProfile, profile }) =>
       call(
         "delegate_task",
-        { task: taskId, to_user: toUserId, profile: profileArg(profile) },
+        {
+          task: taskId,
+          to_user: toUserId,
+          profile: profileArg(profile),
+          to_profile: toProfile ?? null,
+        },
         (value) => itemOf(value),
       ).andThen(fields.row),
     hold: ({ taskId, kind, note, askUserIds }) =>

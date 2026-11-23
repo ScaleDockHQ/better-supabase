@@ -16,7 +16,7 @@ afterEach(async () => {
 const TIMEOUT = 90_000;
 
 // The blocks create their tables under their own names in `public`; the app
-// only extends them with `alter table` (ADR 1185). No `tables` or `columns`
+// only extends them with `alter table` (ADR 1190). No `tables` or `columns`
 // entry names a default.
 const CONFIG = `import { defineConfig } from "better-supabase/config";
 

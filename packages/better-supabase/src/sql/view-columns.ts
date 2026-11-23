@@ -220,7 +220,7 @@ export function assertViewColumns(missing: readonly MissingViewColumn[]): void {
 /**
  * The `null` entries for an optional column that a table of the app's lacks
  * anyway. A table that doesn't declare an optional column leaves it out, so the
- * entry restates what the render does (ADR 1184). Tables whose columns aren't
+ * entry restates what the render does (ADR 1189). Tables whose columns aren't
  * known are left alone.
  */
 export function redundantTableNulls(

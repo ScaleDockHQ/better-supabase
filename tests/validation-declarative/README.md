@@ -26,4 +26,4 @@ applied (`supabase start`, then `supabase migration up`, with
 `PLAN_PARITY_DB_URL` when the database is not on port 54322). It plans the
 schema files with the pg-delta the Supabase CLI bundles (the `pg-delta-previous`
 alias, alpha.60) and with the pinned alpha.61, and expects the same statements
-in the same order (ADR 1199). Move the alias with the CLI's bundled release.
+in the same order (ADR 1204). Move the alias with the CLI's bundled release.

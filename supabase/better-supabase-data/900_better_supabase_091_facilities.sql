@@ -1,12 +1,12 @@
 -- better-supabase module: facilities
 -- @bsb-block-data facilities
--- @bsb-hash sha256:394afdbd549fcd0892790b4a11109433ab67d3781c188603e3c643d7e2211924
+-- @bsb-hash sha256:3596ef91e2901826aada7ff44f071918f7511a44183b796a1bd04970bc8d0a4a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, block, version, mode)
-values ('facilities', 'tasks', 6, 'managed')
+values ('facilities', 'tasks', 7, 'managed')
 on conflict (name) do update
   set block = excluded.block, version = excluded.version, mode = excluded.mode, updated_at = now();

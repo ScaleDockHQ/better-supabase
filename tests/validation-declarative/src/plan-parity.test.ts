@@ -8,7 +8,7 @@ import { ROOT } from "./fixture.ts";
 // Plans the project's schema files twice against the same local stack with the
 // same driver: with the pg-delta the Supabase CLI 3.2.0 bundles (alpha.60, the
 // `pg-delta-previous` alias) and with the one better-supabase pins (alpha.61),
-// and expects the same statements in the same order (ADR 1199). It needs a
+// and expects the same statements in the same order (ADR 1204). It needs a
 // running stack with the project's migrations applied (`supabase start` and
 // `supabase migration up` in this folder), so it runs only with PLAN_PARITY=1.
 // PLAN_PARITY_DB_URL names the stack's database.

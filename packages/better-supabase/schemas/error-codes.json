@@ -5588,11 +5588,15 @@
   },
   {
     "code": "TASK_DELEGATE_INVALID",
-    "message": "the user can"
+    "message": "to_profile is a name of up to 120 characters"
   },
   {
     "code": "TASK_FIELD_UNKNOWN",
     "message": "that field can"
+  },
+  {
+    "code": "TASK_FILTER_FORBIDDEN",
+    "message": "this session picks only its own tasks"
   },
   {
     "code": "TASK_FORBIDDEN",
@@ -5637,6 +5641,10 @@
   {
     "code": "TASK_NEEDS_UNSUPPORTED",
     "message": "needs takes the relations block"
+  },
+  {
+    "code": "TASK_NOT_ASSIGNED",
+    "message": "an agent session claims only tasks assigned to its user"
   },
   {
     "code": "TASK_NOT_FOUND",
@@ -5693,6 +5701,10 @@
   {
     "code": "TASK_RECURRENCE_INVALID",
     "message": "rrule must be an RRULE such as FREQ=WEEKLY;BYDAY=MO"
+  },
+  {
+    "code": "TASK_RESERVED",
+    "message": "the task is reserved for another profile"
   },
   {
     "code": "TASK_STAGE_REQUIRED",

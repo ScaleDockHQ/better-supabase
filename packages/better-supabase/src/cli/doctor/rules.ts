@@ -155,7 +155,7 @@ export interface DoctorContext {
   /** App source files matched by `doctor.sources`. */
   readonly sources: readonly TextFile[];
   /**
-   * The optional TypeScript 7.1 symbol tier (ADR 1182), or why it is off. The
+   * The optional TypeScript 7.1 symbol tier (ADR 1187), or why it is off. The
    * source rules use it to rule out a receiver that only looks like a client.
    */
   readonly symbols?: ProjectSymbols;

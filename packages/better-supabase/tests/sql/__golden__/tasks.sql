@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@6 managed
--- @bsb-hash sha256:e6c207275840e614157966b3d60494f1040a04854ff0ea1fde430cfc77e4c4f5
+-- @bsb-block tasks@7 managed
+-- @bsb-hash sha256:5e9f56b2618b6089c0423cf8e7a8dac8aac3e879e70d14a0c7d463c05dbc9888
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -382,6 +382,7 @@ begin
       new."hold_kind" := null;
       new."hold_return_stage_id" := null;
       delete from "better_supabase"."task_claims" c where c."task_id" = new."id";
+      new."delegate_profile" := null;
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
@@ -400,6 +401,29 @@ $$;
 revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
 create trigger bsb_task_guard before insert or update on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_task_guard();
+
+create or replace function better_supabase.bsb_task_close_hook()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using new."id", case new."close_reason"::text when 'completed' then 'completed' when 'failed' then 'failed' else 'canceled' end, coalesce(nullif(current_setting('bsb.close_note', true), ''), new."close_note");
+    end if;
+  end;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_close_hook() from public, anon, authenticated;
+create trigger bsb_task_close_hook after update on "better_supabase"."tasks"
+for each row when (old."closed_at" is null and new."closed_at" is not null)
+execute function better_supabase.bsb_task_close_hook();
 
 -- The public part of a task's live claim: who holds it and until when. The
 -- token stays out.
@@ -2026,6 +2050,12 @@ begin
   if v_row."closed_at" is not null then
     raise exception 'a closed task can''t be claimed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
+  if coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and not exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = v_row."id" and y."user_id" = auth.uid()) then
+    raise exception 'an agent session claims only tasks assigned to its user' using errcode = '42501', hint = 'TASK_NOT_ASSIGNED';
+  end if;
+  if not (v_row."delegate_profile" is null or (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.write'), false)))) then
+    raise exception 'the task is reserved for another profile' using errcode = '42501', hint = 'TASK_RESERVED';
+  end if;
   if v_row."held_at" is not null then
     raise exception 'the task is on hold' using errcode = '55000', hint = 'TASK_HELD';
   end if;
@@ -2045,6 +2075,9 @@ begin
   if not found then
     raise exception 'another holder has a live claim on the task' using errcode = '55P03', hint = 'TASK_CLAIMED';
   end if;
+  if v_row."delegate_profile" is not null and not (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) then
+    update "better_supabase"."tasks" x set "delegate_profile" = null where x."id" = v_row."id";
+  end if;
   null;
   return jsonb_build_object('task', (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) || jsonb_build_object('claim', "better_supabase"."task_claim"(x."id")) from "better_supabase"."tasks" x where x."id" = v_row."id"), 'claim', jsonb_build_object('token', v_claim."token", 'epoch', v_claim."epoch", 'holderId', v_claim."holder_id", 'profile', v_claim."profile", 'claimedAt', v_claim."claimed_at", 'expiresAt', v_claim."expires_at"));
 end;
@@ -2053,7 +2086,8 @@ revoke execute on function "better_supabase"."claim_task"(uuid, integer, jsonb) 
 grant execute on function "better_supabase"."claim_task"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- Claims the next ready task of a tenant: assigned to you first, then the
--- oldest. filter narrows the pick: teamId, projectId, parentId, stageId,
+-- lowest number. With claims.next "assigned" (the default) and for an agent
+-- session, only tasks assigned to you qualify. filter narrows the pick: teamId, projectId, parentId, stageId,
 -- assigneeId. Concurrent callers skip each other's rows. Raises
 -- TASK_NOTHING_READY when no task qualifies.
 create or replace function "better_supabase"."claim_next_task"(tenant uuid, filter jsonb default null, lease integer default null, profile jsonb default null)
@@ -2064,9 +2098,17 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_name text := "better_supabase"."task_actor"(claim_next_task.profile) ->> 'name';
+  v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+
+  if (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) then
+    if claim_next_task.filter ->> 'assigneeId' is not null and (claim_next_task.filter ->> 'assigneeId')::uuid is distinct from auth.uid() then
+      raise exception 'this session picks only its own tasks' using errcode = '42501', hint = 'TASK_FILTER_FORBIDDEN';
+    end if;
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
@@ -2074,11 +2116,14 @@ begin
   select x."id" into v_id from "better_supabase"."tasks" x
   where x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
     and x."held_at" is null
+    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
     and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
+      and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
   order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
   limit 1
@@ -2151,8 +2196,13 @@ revoke execute on function "better_supabase"."release_task_claim"(uuid, uuid, te
 grant execute on function "better_supabase"."release_task_claim"(uuid, uuid, text) to authenticated, service_role;
 
 -- Hands a task to a user: assigns them, notes who delegated, and drops a claim
--- held by someone else. The user needs tasks.read in the organization.
-create or replace function "better_supabase"."delegate_task"(task uuid, to_user uuid, profile jsonb default null)
+-- held by someone else. The user needs tasks.read in the organization. With
+-- to_profile the task is reserved for that profile of the user: only a claim
+-- under that profile name by that user, or a person with write access, takes it
+-- (TASK_RESERVED otherwise). Delegating again, unassigning the user and closing
+-- the task clear the reservation.
+
+create or replace function "better_supabase"."delegate_task"(task uuid, to_user uuid, profile jsonb default null, to_profile text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2161,6 +2211,7 @@ as $$
 declare
   v_row "better_supabase"."tasks";
   v_actor jsonb := "better_supabase"."task_actor"(delegate_task.profile);
+  v_name text := nullif(btrim(delegate_task.to_profile), '');
   v_added boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -2173,6 +2224,9 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.write'), false)) then
     raise exception 'not allowed to change this work item' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
+  if delegate_task.to_profile is not null and (v_name is null or length(v_name) > 120) then
+    raise exception 'to_profile is a name of up to 120 characters' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
+  end if;
   if not coalesce(better_supabase.can_user(delegate_task.to_user, 'tenant', v_row."tenant_id", 'tasks.read'), false) then
     raise exception 'the user can''t read tasks in this organization' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
   end if;
@@ -2180,7 +2234,7 @@ begin
   on conflict do nothing;
   v_added := found;
   delete from "better_supabase"."task_claims" c where c."task_id" = v_row."id" and c."holder_id" is distinct from delegate_task.to_user;
-  update "better_supabase"."tasks" x set "delegate_profile" = v_actor where x."id" = v_row."id";
+  update "better_supabase"."tasks" x set "delegate_profile" = case when v_name is null then null else jsonb_build_object('name', v_name, 'userId', delegate_task.to_user) end where x."id" = v_row."id";
   null;
   if v_added then
     null;
@@ -2188,8 +2242,25 @@ begin
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) || jsonb_build_object('claim', "better_supabase"."task_claim"(x."id")) from "better_supabase"."tasks" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb, text) to authenticated, service_role;
+
+-- Unassigning the user a task is reserved for ends the reservation.
+create or replace function better_supabase.bsb_task_reservation()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update "better_supabase"."tasks" x set "delegate_profile" = null
+    where x."id" = old."task_id" and x."delegate_profile" ->> 'userId' = old."user_id"::text;
+  return old;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_reservation() from public, anon, authenticated;
+create trigger bsb_task_reservation after delete on "better_supabase"."task_assignees"
+for each row execute function better_supabase.bsb_task_reservation();
 
 -- Deletes the claims whose lease ran out, moves each task to the expired stage
 -- (the claims.expiredStage option) and records task.claim_expired.
@@ -2270,7 +2341,8 @@ revoke execute on function "better_supabase"."hold_task"(uuid, text, text, uuid[
 grant execute on function "better_supabase"."hold_task"(uuid, text, text, uuid[]) to authenticated, service_role;
 
 -- Ends a hold. With the hold stage option the task returns to the stage it
--- left.
+-- left. A pending approval request of the hold is cancelled, and
+-- task.hold_released says so with approvalCancelled.
 create or replace function "better_supabase"."release_task_hold"(task uuid)
 returns jsonb
 language plpgsql
@@ -2308,7 +2380,8 @@ grant execute on function "better_supabase"."release_task_hold"(uuid) to authent
 -- or open. stage defaults to the first stage of the matching category in the
 -- task's pipeline. failed lands in the canceled category with close reason
 -- failed (not_planned where the column can't hold it). The note rides on
--- task.closed, and failed also records task.failed.
+-- task.closed, and failed also records task.failed. The before_task_close hook
+-- runs from the close trigger on the task, so every way of closing reaches it.
 create or replace function "better_supabase"."close_task"(task uuid, outcome text, note text default null, stage uuid default null)
 returns jsonb
 language plpgsql
@@ -2319,6 +2392,7 @@ declare
   v_row "better_supabase"."tasks";
   v_stage uuid;
   v_note text := nullif(trim(close_task.note), '');
+  v_constraint text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2339,14 +2413,6 @@ begin
   if close_task.outcome <> 'open' and v_row."closed_at" is not null then
     raise exception 'the task is already closed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
-        using v_row."id", close_task.outcome, v_note;
-    end if;
-  end;
   v_stage := coalesce(close_task.stage, case close_task.outcome
     when 'completed' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'completed' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
     when 'open' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'unstarted' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
@@ -2367,6 +2433,10 @@ begin
       update "better_supabase"."tasks" x set "stage_id" = v_stage where x."id" = v_row."id";
     end if;
   exception when check_violation or foreign_key_violation then
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint is null then
+      raise;
+    end if;
     raise exception 'the stage can''t be used for this task' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
   end;
   perform set_config('bsb.close_note', '', true);
@@ -2589,21 +2659,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restr
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:5bfd8ab3b5fb7fc88eb2af57043cb537ed039cb41e9940847a9f3dc3cecea483
+-- @bsb-hash sha256:df74b624944442edf8ce2a80c8dd228743663b2cfda6d46901d7a6076cb7c6e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 6, 'managed')
+values ('tasks', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@6 managed
--- @bsb-hash sha256:277f61aff7eac9a4b3c60ab5c57ba537d3d0843338e427943ae9d7e9db501496
+-- @bsb-block tasks@7 managed
+-- @bsb-hash sha256:8b6daad808ad571fef17a363f24074e0e26a6ee5dc749fef110b5a9051ee975e
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2984,6 +3054,7 @@ begin
       new."hold_kind" := null;
       new."hold_return_stage_id" := null;
       delete from "better_supabase"."task_claims" c where c."task_id" = new."id";
+      new."delegate_profile" := null;
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
@@ -3002,6 +3073,29 @@ $$;
 revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
 create trigger bsb_task_guard before insert or update on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_task_guard();
+
+create or replace function better_supabase.bsb_task_close_hook()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using new."id", case new."close_reason"::text when 'completed' then 'completed' when 'failed' then 'failed' else 'canceled' end, coalesce(nullif(current_setting('bsb.close_note', true), ''), new."close_note");
+    end if;
+  end;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_close_hook() from public, anon, authenticated;
+create trigger bsb_task_close_hook after update on "better_supabase"."tasks"
+for each row when (old."closed_at" is null and new."closed_at" is not null)
+execute function better_supabase.bsb_task_close_hook();
 
 -- The public part of a task's live claim: who holds it and until when. The
 -- token stays out.
@@ -4929,6 +5023,12 @@ begin
   if v_row."closed_at" is not null then
     raise exception 'a closed task can''t be claimed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
+  if coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and not exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = v_row."id" and y."user_id" = auth.uid()) then
+    raise exception 'an agent session claims only tasks assigned to its user' using errcode = '42501', hint = 'TASK_NOT_ASSIGNED';
+  end if;
+  if not (v_row."delegate_profile" is null or (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.write'), false)))) then
+    raise exception 'the task is reserved for another profile' using errcode = '42501', hint = 'TASK_RESERVED';
+  end if;
   if v_row."held_at" is not null then
     raise exception 'the task is on hold' using errcode = '55000', hint = 'TASK_HELD';
   end if;
@@ -4948,6 +5048,9 @@ begin
   if not found then
     raise exception 'another holder has a live claim on the task' using errcode = '55P03', hint = 'TASK_CLAIMED';
   end if;
+  if v_row."delegate_profile" is not null and not (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) then
+    update "better_supabase"."tasks" x set "delegate_profile" = null where x."id" = v_row."id";
+  end if;
   perform "better_supabase".emit_event('task.claimed', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'holderId', v_claim."holder_id", 'epoch', v_claim."epoch", 'expiresAt', v_claim."expires_at", 'actorId', auth.uid(), 'actorKind', "better_supabase"."task_actor"(claim_task.profile) ->> 'kind', 'actorName', "better_supabase"."task_actor"(claim_task.profile) ->> 'name'), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   return jsonb_build_object('task', (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."task_claim"(x."id")) from "better_supabase"."tasks" x where x."id" = v_row."id"), 'claim', jsonb_build_object('token', v_claim."token", 'epoch', v_claim."epoch", 'holderId', v_claim."holder_id", 'profile', v_claim."profile", 'claimedAt', v_claim."claimed_at", 'expiresAt', v_claim."expires_at"));
 end;
@@ -4956,7 +5059,8 @@ revoke execute on function "better_supabase"."claim_task"(uuid, integer, jsonb) 
 grant execute on function "better_supabase"."claim_task"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- Claims the next ready task of a tenant: assigned to you first, then the
--- oldest. filter narrows the pick: teamId, projectId, parentId, stageId,
+-- lowest number. With claims.next "assigned" (the default) and for an agent
+-- session, only tasks assigned to you qualify. filter narrows the pick: teamId, projectId, parentId, stageId,
 -- assigneeId. Concurrent callers skip each other's rows. Raises
 -- TASK_NOTHING_READY when no task qualifies.
 create or replace function "better_supabase"."claim_next_task"(tenant uuid, filter jsonb default null, lease integer default null, profile jsonb default null)
@@ -4967,9 +5071,17 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_name text := "better_supabase"."task_actor"(claim_next_task.profile) ->> 'name';
+  v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+
+  if (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) then
+    if claim_next_task.filter ->> 'assigneeId' is not null and (claim_next_task.filter ->> 'assigneeId')::uuid is distinct from auth.uid() then
+      raise exception 'this session picks only its own tasks' using errcode = '42501', hint = 'TASK_FILTER_FORBIDDEN';
+    end if;
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
@@ -4977,11 +5089,14 @@ begin
   select x."id" into v_id from "better_supabase"."tasks" x
   where x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
     and x."held_at" is null
+    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
     and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
+      and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
   order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
   limit 1
@@ -5054,8 +5169,13 @@ revoke execute on function "better_supabase"."release_task_claim"(uuid, uuid, te
 grant execute on function "better_supabase"."release_task_claim"(uuid, uuid, text) to authenticated, service_role;
 
 -- Hands a task to a user: assigns them, notes who delegated, and drops a claim
--- held by someone else. The user needs tasks.read in the organization.
-create or replace function "better_supabase"."delegate_task"(task uuid, to_user uuid, profile jsonb default null)
+-- held by someone else. The user needs tasks.read in the organization. With
+-- to_profile the task is reserved for that profile of the user: only a claim
+-- under that profile name by that user, or a person with write access, takes it
+-- (TASK_RESERVED otherwise). Delegating again, unassigning the user and closing
+-- the task clear the reservation.
+
+create or replace function "better_supabase"."delegate_task"(task uuid, to_user uuid, profile jsonb default null, to_profile text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5064,6 +5184,7 @@ as $$
 declare
   v_row "better_supabase"."tasks";
   v_actor jsonb := "better_supabase"."task_actor"(delegate_task.profile);
+  v_name text := nullif(btrim(delegate_task.to_profile), '');
   v_added boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -5076,6 +5197,9 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.write'), false)) then
     raise exception 'not allowed to change this work item' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
+  if delegate_task.to_profile is not null and (v_name is null or length(v_name) > 120) then
+    raise exception 'to_profile is a name of up to 120 characters' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
+  end if;
   if not coalesce(better_supabase.can_user(delegate_task.to_user, 'tenant', v_row."tenant_id", 'tasks.read'), false) then
     raise exception 'the user can''t read tasks in this organization' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
   end if;
@@ -5083,16 +5207,33 @@ begin
   on conflict do nothing;
   v_added := found;
   delete from "better_supabase"."task_claims" c where c."task_id" = v_row."id" and c."holder_id" is distinct from delegate_task.to_user;
-  update "better_supabase"."tasks" x set "delegate_profile" = v_actor where x."id" = v_row."id";
-  perform "better_supabase".emit_event('task.delegated', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'delegateId', delegate_task.to_user, 'actorId', auth.uid(), 'actorKind', "better_supabase"."task_actor"(delegate_task.profile) ->> 'kind', 'actorName', "better_supabase"."task_actor"(delegate_task.profile) ->> 'name'), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  update "better_supabase"."tasks" x set "delegate_profile" = case when v_name is null then null else jsonb_build_object('name', v_name, 'userId', delegate_task.to_user) end where x."id" = v_row."id";
+  perform "better_supabase".emit_event('task.delegated', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'delegateId', delegate_task.to_user, 'toProfile', v_name, 'actorId', auth.uid(), 'actorKind', "better_supabase"."task_actor"(delegate_task.profile) ->> 'kind', 'actorName', "better_supabase"."task_actor"(delegate_task.profile) ->> 'name'), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   if v_added then
     perform "better_supabase".emit_event('task.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(array(select y."user_id" from "better_supabase"."task_assignees" y where y."task_id" = v_row."id")), 'addedIds', jsonb_build_array(delegate_task.to_user), 'actorId', auth.uid(), 'actorKind', "better_supabase"."task_actor"(null) ->> 'kind', 'actorName', "better_supabase"."task_actor"(null) ->> 'name'), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   end if;
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."task_claim"(x."id")) from "better_supabase"."tasks" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb, text) to authenticated, service_role;
+
+-- Unassigning the user a task is reserved for ends the reservation.
+create or replace function better_supabase.bsb_task_reservation()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update "better_supabase"."tasks" x set "delegate_profile" = null
+    where x."id" = old."task_id" and x."delegate_profile" ->> 'userId' = old."user_id"::text;
+  return old;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_reservation() from public, anon, authenticated;
+create trigger bsb_task_reservation after delete on "better_supabase"."task_assignees"
+for each row execute function better_supabase.bsb_task_reservation();
 
 -- Deletes the claims whose lease ran out, moves each task to the expired stage
 -- (the claims.expiredStage option) and records task.claim_expired.
@@ -5176,7 +5317,8 @@ revoke execute on function "better_supabase"."hold_task"(uuid, text, text, uuid[
 grant execute on function "better_supabase"."hold_task"(uuid, text, text, uuid[]) to authenticated, service_role;
 
 -- Ends a hold. With the hold stage option the task returns to the stage it
--- left.
+-- left. A pending approval request of the hold is cancelled, and
+-- task.hold_released says so with approvalCancelled.
 create or replace function "better_supabase"."release_task_hold"(task uuid)
 returns jsonb
 language plpgsql
@@ -5214,7 +5356,8 @@ grant execute on function "better_supabase"."release_task_hold"(uuid) to authent
 -- or open. stage defaults to the first stage of the matching category in the
 -- task's pipeline. failed lands in the canceled category with close reason
 -- failed (not_planned where the column can't hold it). The note rides on
--- task.closed, and failed also records task.failed.
+-- task.closed, and failed also records task.failed. The before_task_close hook
+-- runs from the close trigger on the task, so every way of closing reaches it.
 create or replace function "better_supabase"."close_task"(task uuid, outcome text, note text default null, stage uuid default null)
 returns jsonb
 language plpgsql
@@ -5225,6 +5368,7 @@ declare
   v_row "better_supabase"."tasks";
   v_stage uuid;
   v_note text := nullif(trim(close_task.note), '');
+  v_constraint text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5245,14 +5389,6 @@ begin
   if close_task.outcome <> 'open' and v_row."closed_at" is not null then
     raise exception 'the task is already closed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
-        using v_row."id", close_task.outcome, v_note;
-    end if;
-  end;
   v_stage := coalesce(close_task.stage, case close_task.outcome
     when 'completed' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'completed' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
     when 'open' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'unstarted' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
@@ -5273,6 +5409,10 @@ begin
       update "better_supabase"."tasks" x set "stage_id" = v_stage where x."id" = v_row."id";
     end if;
   exception when check_violation or foreign_key_violation then
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint is null then
+      raise;
+    end if;
     raise exception 'the stage can''t be used for this task' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
   end;
   perform set_config('bsb.close_note', '', true);
@@ -5617,7 +5757,7 @@ create trigger bsb_realtime_delete after delete on "better_supabase"."tasks" ref
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:d391619962c81ca2c3ffa2fe9d1c97ff5eacc400fef66c68c9d90f297ab48d1a
+-- @bsb-hash sha256:cb1bbc966037418edd9b8e00314269fb803fcb2f0e763cad5d968337ff982c23
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5629,14 +5769,14 @@ from "better_supabase"."projects" x
 where exists (select 1 from "better_supabase"."accounting_settings" s where s."tenant_id" = x."tenant_id");
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 6, 'managed')
+values ('tasks', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@6 managed
--- @bsb-hash sha256:ba2399103cb1acaca3373cb51c79a219c5b50fe42386e3c584ecaf6cc717be41
+-- @bsb-block tasks@7 managed
+-- @bsb-hash sha256:881b9c3ac2b80532db508f8905a9a8a25167cd8a6f2371bcaf0321c15c6ba536
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6022,6 +6162,7 @@ begin
       new."hold_kind" := null;
       new."hold_return_stage_id" := null;
       delete from "app_private"."task_claims" c where c."task_id" = new."id";
+      new."delegate_profile" := null;
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
@@ -6040,6 +6181,29 @@ $$;
 revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
 create trigger bsb_task_guard before insert or update on "app_private"."tasks"
 for each row execute function better_supabase.bsb_task_guard();
+
+create or replace function better_supabase.bsb_task_close_hook()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using new."id", case new."close_reason"::text when 'completed' then 'completed' when 'failed' then 'failed' else 'canceled' end, coalesce(nullif(current_setting('bsb.close_note', true), ''), new."close_note");
+    end if;
+  end;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_close_hook() from public, anon, authenticated;
+create trigger bsb_task_close_hook after update on "app_private"."tasks"
+for each row when (old."closed_at" is null and new."closed_at" is not null)
+execute function better_supabase.bsb_task_close_hook();
 
 -- The public part of a task's live claim: who holds it and until when. The
 -- token stays out.
@@ -7666,6 +7830,12 @@ begin
   if v_row."closed_at" is not null then
     raise exception 'a closed task can''t be claimed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
+  if coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and not exists (select 1 from "app_private"."task_assignees" y where y."task_id" = v_row."id" and y."user_id" = auth.uid()) then
+    raise exception 'an agent session claims only tasks assigned to its user' using errcode = '42501', hint = 'TASK_NOT_ASSIGNED';
+  end if;
+  if not (v_row."delegate_profile" is null or (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.write'), false)))) then
+    raise exception 'the task is reserved for another profile' using errcode = '42501', hint = 'TASK_RESERVED';
+  end if;
   if v_row."held_at" is not null then
     raise exception 'the task is on hold' using errcode = '55000', hint = 'TASK_HELD';
   end if;
@@ -7685,6 +7855,9 @@ begin
   if not found then
     raise exception 'another holder has a live claim on the task' using errcode = '55P03', hint = 'TASK_CLAIMED';
   end if;
+  if v_row."delegate_profile" is not null and not (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) then
+    update "app_private"."tasks" x set "delegate_profile" = null where x."id" = v_row."id";
+  end if;
   null;
   return jsonb_build_object('task', (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "app_private"."task_checklist_items" rk where rk."task_id" = x."id")) || jsonb_build_object('claim', "app_private"."task_claim"(x."id")) from "app_private"."tasks" x where x."id" = v_row."id"), 'claim', jsonb_build_object('token', v_claim."token", 'epoch', v_claim."epoch", 'holderId', v_claim."holder_id", 'profile', v_claim."profile", 'claimedAt', v_claim."claimed_at", 'expiresAt', v_claim."expires_at"));
 end;
@@ -7693,7 +7866,8 @@ revoke execute on function "app_private"."claim_task"(uuid, integer, jsonb) from
 grant execute on function "app_private"."claim_task"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- Claims the next ready task of a tenant: assigned to you first, then the
--- oldest. filter narrows the pick: teamId, projectId, parentId, stageId,
+-- lowest number. With claims.next "assigned" (the default) and for an agent
+-- session, only tasks assigned to you qualify. filter narrows the pick: teamId, projectId, parentId, stageId,
 -- assigneeId. Concurrent callers skip each other's rows. Raises
 -- TASK_NOTHING_READY when no task qualifies.
 create or replace function "app_private"."claim_next_task"(tenant uuid, filter jsonb default null, lease integer default null, profile jsonb default null)
@@ -7704,9 +7878,17 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_name text := "app_private"."task_actor"(claim_next_task.profile) ->> 'name';
+  v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+
+  if (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) then
+    if claim_next_task.filter ->> 'assigneeId' is not null and (claim_next_task.filter ->> 'assigneeId')::uuid is distinct from auth.uid() then
+      raise exception 'this session picks only its own tasks' using errcode = '42501', hint = 'TASK_FILTER_FORBIDDEN';
+    end if;
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
@@ -7714,11 +7896,14 @@ begin
   select x."id" into v_id from "app_private"."tasks" x
   where x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
     and x."held_at" is null
+    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
     and not exists (select 1 from "app_private"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
+      and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
   order by (case when exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
   limit 1
@@ -7791,8 +7976,13 @@ revoke execute on function "app_private"."release_task_claim"(uuid, uuid, text) 
 grant execute on function "app_private"."release_task_claim"(uuid, uuid, text) to authenticated, service_role;
 
 -- Hands a task to a user: assigns them, notes who delegated, and drops a claim
--- held by someone else. The user needs tasks.read in the organization.
-create or replace function "app_private"."delegate_task"(task uuid, to_user uuid, profile jsonb default null)
+-- held by someone else. The user needs tasks.read in the organization. With
+-- to_profile the task is reserved for that profile of the user: only a claim
+-- under that profile name by that user, or a person with write access, takes it
+-- (TASK_RESERVED otherwise). Delegating again, unassigning the user and closing
+-- the task clear the reservation.
+
+create or replace function "app_private"."delegate_task"(task uuid, to_user uuid, profile jsonb default null, to_profile text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7801,6 +7991,7 @@ as $$
 declare
   v_row "app_private"."tasks";
   v_actor jsonb := "app_private"."task_actor"(delegate_task.profile);
+  v_name text := nullif(btrim(delegate_task.to_profile), '');
   v_added boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -7813,6 +8004,9 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.write'), false)) then
     raise exception 'not allowed to change this work item' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
+  if delegate_task.to_profile is not null and (v_name is null or length(v_name) > 120) then
+    raise exception 'to_profile is a name of up to 120 characters' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
+  end if;
   if not coalesce(better_supabase.can_user(delegate_task.to_user, 'tenant', v_row."tenant_id", 'tasks.read'), false) then
     raise exception 'the user can''t read tasks in this organization' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
   end if;
@@ -7820,7 +8014,7 @@ begin
   on conflict do nothing;
   v_added := found;
   delete from "app_private"."task_claims" c where c."task_id" = v_row."id" and c."holder_id" is distinct from delegate_task.to_user;
-  update "app_private"."tasks" x set "delegate_profile" = v_actor where x."id" = v_row."id";
+  update "app_private"."tasks" x set "delegate_profile" = case when v_name is null then null else jsonb_build_object('name', v_name, 'userId', delegate_task.to_user) end where x."id" = v_row."id";
   null;
   if v_added then
     null;
@@ -7828,8 +8022,25 @@ begin
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "app_private"."task_checklist_items" rk where rk."task_id" = x."id")) || jsonb_build_object('claim', "app_private"."task_claim"(x."id")) from "app_private"."tasks" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "app_private"."delegate_task"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "app_private"."delegate_task"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."delegate_task"(uuid, uuid, jsonb, text) from public, anon;
+grant execute on function "app_private"."delegate_task"(uuid, uuid, jsonb, text) to authenticated, service_role;
+
+-- Unassigning the user a task is reserved for ends the reservation.
+create or replace function better_supabase.bsb_task_reservation()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update "app_private"."tasks" x set "delegate_profile" = null
+    where x."id" = old."task_id" and x."delegate_profile" ->> 'userId' = old."user_id"::text;
+  return old;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_reservation() from public, anon, authenticated;
+create trigger bsb_task_reservation after delete on "app_private"."task_assignees"
+for each row execute function better_supabase.bsb_task_reservation();
 
 -- Deletes the claims whose lease ran out, moves each task to the expired stage
 -- (the claims.expiredStage option) and records task.claim_expired.
@@ -7910,7 +8121,8 @@ revoke execute on function "app_private"."hold_task"(uuid, text, text, uuid[]) f
 grant execute on function "app_private"."hold_task"(uuid, text, text, uuid[]) to authenticated, service_role;
 
 -- Ends a hold. With the hold stage option the task returns to the stage it
--- left.
+-- left. A pending approval request of the hold is cancelled, and
+-- task.hold_released says so with approvalCancelled.
 create or replace function "app_private"."release_task_hold"(task uuid)
 returns jsonb
 language plpgsql
@@ -7948,7 +8160,8 @@ grant execute on function "app_private"."release_task_hold"(uuid) to authenticat
 -- or open. stage defaults to the first stage of the matching category in the
 -- task's pipeline. failed lands in the canceled category with close reason
 -- failed (not_planned where the column can't hold it). The note rides on
--- task.closed, and failed also records task.failed.
+-- task.closed, and failed also records task.failed. The before_task_close hook
+-- runs from the close trigger on the task, so every way of closing reaches it.
 create or replace function "app_private"."close_task"(task uuid, outcome text, note text default null, stage uuid default null)
 returns jsonb
 language plpgsql
@@ -7959,6 +8172,7 @@ declare
   v_row "app_private"."tasks";
   v_stage uuid;
   v_note text := nullif(trim(close_task.note), '');
+  v_constraint text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -7979,14 +8193,6 @@ begin
   if close_task.outcome <> 'open' and v_row."closed_at" is not null then
     raise exception 'the task is already closed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
-        using v_row."id", close_task.outcome, v_note;
-    end if;
-  end;
   v_stage := coalesce(close_task.stage, case close_task.outcome
     when 'completed' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'completed' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
     when 'open' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'unstarted' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
@@ -8007,6 +8213,10 @@ begin
       update "app_private"."tasks" x set "stage_id" = v_stage where x."id" = v_row."id";
     end if;
   exception when check_violation or foreign_key_violation then
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint is null then
+      raise;
+    end if;
     raise exception 'the stage can''t be used for this task' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
   end;
   perform set_config('bsb.close_note', '', true);
@@ -8229,21 +8439,21 @@ create policy bsb_tenant_scope_delete on "app_private"."iterations" as restricti
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:5bfd8ab3b5fb7fc88eb2af57043cb537ed039cb41e9940847a9f3dc3cecea483
+-- @bsb-hash sha256:df74b624944442edf8ce2a80c8dd228743663b2cfda6d46901d7a6076cb7c6e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 6, 'managed')
+values ('tasks', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@6 managed
--- @bsb-hash sha256:85dfeeea0243a0c3641f48658eb0a175c516b7dbcdfc70112139c5ae5bfbc511
+-- @bsb-block tasks@7 managed
+-- @bsb-hash sha256:38ac98bb7dbc2eddb459a11ff898ffe1dbb749f1ca893d6ece3291f8ec13ff72
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8624,6 +8834,7 @@ begin
       new."hold_kind" := null;
       new."hold_return_stage_id" := null;
       delete from "better_supabase"."task_claims" c where c."task_id" = new."id";
+      new."delegate_profile" := null;
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
@@ -8642,6 +8853,29 @@ $$;
 revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
 create trigger bsb_task_guard before insert or update on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_task_guard();
+
+create or replace function better_supabase.bsb_task_close_hook()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using new."id", case new."close_reason"::text when 'completed' then 'completed' when 'failed' then 'failed' else 'canceled' end, coalesce(nullif(current_setting('bsb.close_note', true), ''), new."close_note");
+    end if;
+  end;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_close_hook() from public, anon, authenticated;
+create trigger bsb_task_close_hook after update on "better_supabase"."tasks"
+for each row when (old."closed_at" is null and new."closed_at" is not null)
+execute function better_supabase.bsb_task_close_hook();
 
 -- The public part of a task's live claim: who holds it and until when. The
 -- token stays out.
@@ -10268,6 +10502,12 @@ begin
   if v_row."closed_at" is not null then
     raise exception 'a closed task can''t be claimed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
+  if coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and not exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = v_row."id" and y."user_id" = auth.uid()) then
+    raise exception 'an agent session claims only tasks assigned to its user' using errcode = '42501', hint = 'TASK_NOT_ASSIGNED';
+  end if;
+  if not (v_row."delegate_profile" is null or (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.write'), false)))) then
+    raise exception 'the task is reserved for another profile' using errcode = '42501', hint = 'TASK_RESERVED';
+  end if;
   if v_row."held_at" is not null then
     raise exception 'the task is on hold' using errcode = '55000', hint = 'TASK_HELD';
   end if;
@@ -10287,6 +10527,9 @@ begin
   if not found then
     raise exception 'another holder has a live claim on the task' using errcode = '55P03', hint = 'TASK_CLAIMED';
   end if;
+  if v_row."delegate_profile" is not null and not (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) then
+    update "better_supabase"."tasks" x set "delegate_profile" = null where x."id" = v_row."id";
+  end if;
   null;
   return jsonb_build_object('task', (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) || jsonb_build_object('claim', "better_supabase"."task_claim"(x."id")) from "better_supabase"."tasks" x where x."id" = v_row."id"), 'claim', jsonb_build_object('token', v_claim."token", 'epoch', v_claim."epoch", 'holderId', v_claim."holder_id", 'profile', v_claim."profile", 'claimedAt', v_claim."claimed_at", 'expiresAt', v_claim."expires_at"));
 end;
@@ -10295,7 +10538,8 @@ revoke execute on function "better_supabase"."claim_task"(uuid, integer, jsonb) 
 grant execute on function "better_supabase"."claim_task"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- Claims the next ready task of a tenant: assigned to you first, then the
--- oldest. filter narrows the pick: teamId, projectId, parentId, stageId,
+-- lowest number. With claims.next "assigned" (the default) and for an agent
+-- session, only tasks assigned to you qualify. filter narrows the pick: teamId, projectId, parentId, stageId,
 -- assigneeId. Concurrent callers skip each other's rows. Raises
 -- TASK_NOTHING_READY when no task qualifies.
 create or replace function "better_supabase"."claim_next_task"(tenant uuid, filter jsonb default null, lease integer default null, profile jsonb default null)
@@ -10306,9 +10550,17 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_name text := "better_supabase"."task_actor"(claim_next_task.profile) ->> 'name';
+  v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+
+  if (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) then
+    if claim_next_task.filter ->> 'assigneeId' is not null and (claim_next_task.filter ->> 'assigneeId')::uuid is distinct from auth.uid() then
+      raise exception 'this session picks only its own tasks' using errcode = '42501', hint = 'TASK_FILTER_FORBIDDEN';
+    end if;
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
@@ -10316,11 +10568,14 @@ begin
   select x."id" into v_id from "better_supabase"."tasks" x
   where x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
     and x."held_at" is null
+    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
     and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
+      and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
   order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
   limit 1
@@ -10393,8 +10648,13 @@ revoke execute on function "better_supabase"."release_task_claim"(uuid, uuid, te
 grant execute on function "better_supabase"."release_task_claim"(uuid, uuid, text) to authenticated, service_role;
 
 -- Hands a task to a user: assigns them, notes who delegated, and drops a claim
--- held by someone else. The user needs tasks.read in the organization.
-create or replace function "better_supabase"."delegate_task"(task uuid, to_user uuid, profile jsonb default null)
+-- held by someone else. The user needs tasks.read in the organization. With
+-- to_profile the task is reserved for that profile of the user: only a claim
+-- under that profile name by that user, or a person with write access, takes it
+-- (TASK_RESERVED otherwise). Delegating again, unassigning the user and closing
+-- the task clear the reservation.
+
+create or replace function "better_supabase"."delegate_task"(task uuid, to_user uuid, profile jsonb default null, to_profile text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -10403,6 +10663,7 @@ as $$
 declare
   v_row "better_supabase"."tasks";
   v_actor jsonb := "better_supabase"."task_actor"(delegate_task.profile);
+  v_name text := nullif(btrim(delegate_task.to_profile), '');
   v_added boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -10415,6 +10676,9 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.write'), false)) then
     raise exception 'not allowed to change this work item' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
+  if delegate_task.to_profile is not null and (v_name is null or length(v_name) > 120) then
+    raise exception 'to_profile is a name of up to 120 characters' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
+  end if;
   if not coalesce(better_supabase.can_user(delegate_task.to_user, 'tenant', v_row."tenant_id", 'tasks.read'), false) then
     raise exception 'the user can''t read tasks in this organization' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
   end if;
@@ -10422,7 +10686,7 @@ begin
   on conflict do nothing;
   v_added := found;
   delete from "better_supabase"."task_claims" c where c."task_id" = v_row."id" and c."holder_id" is distinct from delegate_task.to_user;
-  update "better_supabase"."tasks" x set "delegate_profile" = v_actor where x."id" = v_row."id";
+  update "better_supabase"."tasks" x set "delegate_profile" = case when v_name is null then null else jsonb_build_object('name', v_name, 'userId', delegate_task.to_user) end where x."id" = v_row."id";
   null;
   if v_added then
     null;
@@ -10430,8 +10694,25 @@ begin
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) || jsonb_build_object('claim', "better_supabase"."task_claim"(x."id")) from "better_supabase"."tasks" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb, text) to authenticated, service_role;
+
+-- Unassigning the user a task is reserved for ends the reservation.
+create or replace function better_supabase.bsb_task_reservation()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update "better_supabase"."tasks" x set "delegate_profile" = null
+    where x."id" = old."task_id" and x."delegate_profile" ->> 'userId' = old."user_id"::text;
+  return old;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_reservation() from public, anon, authenticated;
+create trigger bsb_task_reservation after delete on "better_supabase"."task_assignees"
+for each row execute function better_supabase.bsb_task_reservation();
 
 -- Deletes the claims whose lease ran out, moves each task to the expired stage
 -- (the claims.expiredStage option) and records task.claim_expired.
@@ -10512,7 +10793,8 @@ revoke execute on function "better_supabase"."hold_task"(uuid, text, text, uuid[
 grant execute on function "better_supabase"."hold_task"(uuid, text, text, uuid[]) to authenticated, service_role;
 
 -- Ends a hold. With the hold stage option the task returns to the stage it
--- left.
+-- left. A pending approval request of the hold is cancelled, and
+-- task.hold_released says so with approvalCancelled.
 create or replace function "better_supabase"."release_task_hold"(task uuid)
 returns jsonb
 language plpgsql
@@ -10550,7 +10832,8 @@ grant execute on function "better_supabase"."release_task_hold"(uuid) to authent
 -- or open. stage defaults to the first stage of the matching category in the
 -- task's pipeline. failed lands in the canceled category with close reason
 -- failed (not_planned where the column can't hold it). The note rides on
--- task.closed, and failed also records task.failed.
+-- task.closed, and failed also records task.failed. The before_task_close hook
+-- runs from the close trigger on the task, so every way of closing reaches it.
 create or replace function "better_supabase"."close_task"(task uuid, outcome text, note text default null, stage uuid default null)
 returns jsonb
 language plpgsql
@@ -10561,6 +10844,7 @@ declare
   v_row "better_supabase"."tasks";
   v_stage uuid;
   v_note text := nullif(trim(close_task.note), '');
+  v_constraint text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -10581,14 +10865,6 @@ begin
   if close_task.outcome <> 'open' and v_row."closed_at" is not null then
     raise exception 'the task is already closed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
-        using v_row."id", close_task.outcome, v_note;
-    end if;
-  end;
   v_stage := coalesce(close_task.stage, case close_task.outcome
     when 'completed' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'completed' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
     when 'open' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'unstarted' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
@@ -10609,6 +10885,10 @@ begin
       update "better_supabase"."tasks" x set "stage_id" = v_stage where x."id" = v_row."id";
     end if;
   exception when check_violation or foreign_key_violation then
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint is null then
+      raise;
+    end if;
     raise exception 'the stage can''t be used for this task' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
   end;
   perform set_config('bsb.close_note', '', true);
@@ -11113,14 +11393,14 @@ as $$ select "better_supabase"."release_task_claim"($1, $2, $3) $$;
 revoke execute on function "api"."release_task_claim"(uuid, uuid, text) from public, anon;
 grant execute on function "api"."release_task_claim"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "api"."delegate_task"(task uuid, to_user uuid, profile jsonb default null)
+create or replace function "api"."delegate_task"(task uuid, to_user uuid, profile jsonb default null, to_profile text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."delegate_task"($1, $2, $3) $$;
-revoke execute on function "api"."delegate_task"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."delegate_task"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."delegate_task"($1, $2, $3, $4) $$;
+revoke execute on function "api"."delegate_task"(uuid, uuid, jsonb, text) from public, anon;
+grant execute on function "api"."delegate_task"(uuid, uuid, jsonb, text) to authenticated, service_role;
 
 create or replace function "api"."expire_task_claims"()
 returns integer
@@ -11171,21 +11451,21 @@ grant execute on function "api"."task_stage_times"(uuid) to authenticated, servi
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:5bfd8ab3b5fb7fc88eb2af57043cb537ed039cb41e9940847a9f3dc3cecea483
+-- @bsb-hash sha256:df74b624944442edf8ce2a80c8dd228743663b2cfda6d46901d7a6076cb7c6e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 6, 'managed')
+values ('tasks', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@6 managed
--- @bsb-hash sha256:c63e4bf00dc7bd1bea0d0dbd54472822aaf1964ac9876009c8545b5754341cf7
+-- @bsb-block tasks@7 managed
+-- @bsb-hash sha256:ee31f93b2d68adc72fe0b8591812074c4c0e516edc4dfde1150568e08417a9b2
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11547,6 +11827,7 @@ begin
       new."hold_kind" := null;
       new."hold_return_stage_id" := null;
       delete from "better_supabase"."task_claims" c where c."task_id" = new."id";
+      new."delegate_profile" := null;
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
@@ -11565,6 +11846,29 @@ $$;
 revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
 create trigger bsb_task_guard before insert or update on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_task_guard();
+
+create or replace function better_supabase.bsb_task_close_hook()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using new."id", case new."close_reason"::text when 'completed' then 'completed' when 'failed' then 'failed' else 'canceled' end, coalesce(nullif(current_setting('bsb.close_note', true), ''), new."close_note");
+    end if;
+  end;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_close_hook() from public, anon, authenticated;
+create trigger bsb_task_close_hook after update on "better_supabase"."tasks"
+for each row when (old."closed_at" is null and new."closed_at" is not null)
+execute function better_supabase.bsb_task_close_hook();
 
 -- The public part of a task's live claim: who holds it and until when. The
 -- token stays out.
@@ -13191,6 +13495,12 @@ begin
   if v_row."closed_at" is not null then
     raise exception 'a closed task can''t be claimed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
+  if coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and not exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = v_row."id" and y."user_id" = auth.uid()) then
+    raise exception 'an agent session claims only tasks assigned to its user' using errcode = '42501', hint = 'TASK_NOT_ASSIGNED';
+  end if;
+  if not (v_row."delegate_profile" is null or (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.write'), false)))) then
+    raise exception 'the task is reserved for another profile' using errcode = '42501', hint = 'TASK_RESERVED';
+  end if;
   if v_row."held_at" is not null then
     raise exception 'the task is on hold' using errcode = '55000', hint = 'TASK_HELD';
   end if;
@@ -13210,6 +13520,9 @@ begin
   if not found then
     raise exception 'another holder has a live claim on the task' using errcode = '55P03', hint = 'TASK_CLAIMED';
   end if;
+  if v_row."delegate_profile" is not null and not (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) then
+    update "better_supabase"."tasks" x set "delegate_profile" = null where x."id" = v_row."id";
+  end if;
   null;
   return jsonb_build_object('task', (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) || jsonb_build_object('claim', "better_supabase"."task_claim"(x."id")) from "better_supabase"."tasks" x where x."id" = v_row."id"), 'claim', jsonb_build_object('token', v_claim."token", 'epoch', v_claim."epoch", 'holderId', v_claim."holder_id", 'profile', v_claim."profile", 'claimedAt', v_claim."claimed_at", 'expiresAt', v_claim."expires_at"));
 end;
@@ -13218,7 +13531,8 @@ revoke execute on function "better_supabase"."claim_task"(uuid, integer, jsonb) 
 grant execute on function "better_supabase"."claim_task"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- Claims the next ready task of a tenant: assigned to you first, then the
--- oldest. filter narrows the pick: teamId, projectId, parentId, stageId,
+-- lowest number. With claims.next "assigned" (the default) and for an agent
+-- session, only tasks assigned to you qualify. filter narrows the pick: teamId, projectId, parentId, stageId,
 -- assigneeId. Concurrent callers skip each other's rows. Raises
 -- TASK_NOTHING_READY when no task qualifies.
 create or replace function "better_supabase"."claim_next_task"(tenant uuid, filter jsonb default null, lease integer default null, profile jsonb default null)
@@ -13229,9 +13543,17 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_name text := "better_supabase"."task_actor"(claim_next_task.profile) ->> 'name';
+  v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+
+  if (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) then
+    if claim_next_task.filter ->> 'assigneeId' is not null and (claim_next_task.filter ->> 'assigneeId')::uuid is distinct from auth.uid() then
+      raise exception 'this session picks only its own tasks' using errcode = '42501', hint = 'TASK_FILTER_FORBIDDEN';
+    end if;
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
@@ -13239,11 +13561,14 @@ begin
   select x."id" into v_id from "better_supabase"."tasks" x
   where x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
     and x."held_at" is null
+    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
     and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
+      and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
   order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
   limit 1
@@ -13316,8 +13641,13 @@ revoke execute on function "better_supabase"."release_task_claim"(uuid, uuid, te
 grant execute on function "better_supabase"."release_task_claim"(uuid, uuid, text) to authenticated, service_role;
 
 -- Hands a task to a user: assigns them, notes who delegated, and drops a claim
--- held by someone else. The user needs tasks.read in the organization.
-create or replace function "better_supabase"."delegate_task"(task uuid, to_user uuid, profile jsonb default null)
+-- held by someone else. The user needs tasks.read in the organization. With
+-- to_profile the task is reserved for that profile of the user: only a claim
+-- under that profile name by that user, or a person with write access, takes it
+-- (TASK_RESERVED otherwise). Delegating again, unassigning the user and closing
+-- the task clear the reservation.
+
+create or replace function "better_supabase"."delegate_task"(task uuid, to_user uuid, profile jsonb default null, to_profile text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -13326,6 +13656,7 @@ as $$
 declare
   v_row "better_supabase"."tasks";
   v_actor jsonb := "better_supabase"."task_actor"(delegate_task.profile);
+  v_name text := nullif(btrim(delegate_task.to_profile), '');
   v_added boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -13338,6 +13669,9 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.write'), false)) then
     raise exception 'not allowed to change this work item' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
+  if delegate_task.to_profile is not null and (v_name is null or length(v_name) > 120) then
+    raise exception 'to_profile is a name of up to 120 characters' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
+  end if;
   if not coalesce(better_supabase.can_user(delegate_task.to_user, 'tenant', v_row."tenant_id", 'tasks.read'), false) then
     raise exception 'the user can''t read tasks in this organization' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
   end if;
@@ -13345,7 +13679,7 @@ begin
   on conflict do nothing;
   v_added := found;
   delete from "better_supabase"."task_claims" c where c."task_id" = v_row."id" and c."holder_id" is distinct from delegate_task.to_user;
-  update "better_supabase"."tasks" x set "delegate_profile" = v_actor where x."id" = v_row."id";
+  update "better_supabase"."tasks" x set "delegate_profile" = case when v_name is null then null else jsonb_build_object('name', v_name, 'userId', delegate_task.to_user) end where x."id" = v_row."id";
   null;
   if v_added then
     null;
@@ -13353,8 +13687,25 @@ begin
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) || jsonb_build_object('claim', "better_supabase"."task_claim"(x."id")) from "better_supabase"."tasks" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb, text) to authenticated, service_role;
+
+-- Unassigning the user a task is reserved for ends the reservation.
+create or replace function better_supabase.bsb_task_reservation()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update "better_supabase"."tasks" x set "delegate_profile" = null
+    where x."id" = old."task_id" and x."delegate_profile" ->> 'userId' = old."user_id"::text;
+  return old;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_reservation() from public, anon, authenticated;
+create trigger bsb_task_reservation after delete on "better_supabase"."task_assignees"
+for each row execute function better_supabase.bsb_task_reservation();
 
 -- Deletes the claims whose lease ran out, moves each task to the expired stage
 -- (the claims.expiredStage option) and records task.claim_expired.
@@ -13435,7 +13786,8 @@ revoke execute on function "better_supabase"."hold_task"(uuid, text, text, uuid[
 grant execute on function "better_supabase"."hold_task"(uuid, text, text, uuid[]) to authenticated, service_role;
 
 -- Ends a hold. With the hold stage option the task returns to the stage it
--- left.
+-- left. A pending approval request of the hold is cancelled, and
+-- task.hold_released says so with approvalCancelled.
 create or replace function "better_supabase"."release_task_hold"(task uuid)
 returns jsonb
 language plpgsql
@@ -13473,7 +13825,8 @@ grant execute on function "better_supabase"."release_task_hold"(uuid) to authent
 -- or open. stage defaults to the first stage of the matching category in the
 -- task's pipeline. failed lands in the canceled category with close reason
 -- failed (not_planned where the column can't hold it). The note rides on
--- task.closed, and failed also records task.failed.
+-- task.closed, and failed also records task.failed. The before_task_close hook
+-- runs from the close trigger on the task, so every way of closing reaches it.
 create or replace function "better_supabase"."close_task"(task uuid, outcome text, note text default null, stage uuid default null)
 returns jsonb
 language plpgsql
@@ -13484,6 +13837,7 @@ declare
   v_row "better_supabase"."tasks";
   v_stage uuid;
   v_note text := nullif(trim(close_task.note), '');
+  v_constraint text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -13504,14 +13858,6 @@ begin
   if close_task.outcome <> 'open' and v_row."closed_at" is not null then
     raise exception 'the task is already closed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
-        using v_row."id", close_task.outcome, v_note;
-    end if;
-  end;
   v_stage := coalesce(close_task.stage, case close_task.outcome
     when 'completed' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'completed' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
     when 'open' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'unstarted' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
@@ -13532,6 +13878,10 @@ begin
       update "better_supabase"."tasks" x set "stage_id" = v_stage where x."id" = v_row."id";
     end if;
   exception when check_violation or foreign_key_violation then
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint is null then
+      raise;
+    end if;
     raise exception 'the stage can''t be used for this task' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
   end;
   perform set_config('bsb.close_note', '', true);
@@ -13754,21 +14104,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restr
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:5bfd8ab3b5fb7fc88eb2af57043cb537ed039cb41e9940847a9f3dc3cecea483
+-- @bsb-hash sha256:df74b624944442edf8ce2a80c8dd228743663b2cfda6d46901d7a6076cb7c6e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 6, 'managed')
+values ('tasks', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@6 managed
--- @bsb-hash sha256:95d0c58bbaff82dce081929ee1420319b26fc686dbe0557e6aba9e8d1af62711
+-- @bsb-block tasks@7 managed
+-- @bsb-hash sha256:02fd28c72a7ea2fcf3e58978d053a2eaccae813fef9fa2b435a6edab833b4cfd
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14149,6 +14499,7 @@ begin
       new."hold_kind" := null;
       new."hold_return_stage_id" := null;
       delete from "better_supabase"."task_claims" c where c."task_id" = new."id";
+      new."delegate_profile" := null;
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
@@ -14167,6 +14518,29 @@ $$;
 revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
 create trigger bsb_task_guard before insert or update on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_task_guard();
+
+create or replace function better_supabase.bsb_task_close_hook()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
+        using new."id", case new."close_reason"::text when 'completed' then 'completed' when 'failed' then 'failed' else 'canceled' end, coalesce(nullif(current_setting('bsb.close_note', true), ''), new."close_note");
+    end if;
+  end;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_close_hook() from public, anon, authenticated;
+create trigger bsb_task_close_hook after update on "better_supabase"."tasks"
+for each row when (old."closed_at" is null and new."closed_at" is not null)
+execute function better_supabase.bsb_task_close_hook();
 
 -- The public part of a task's live claim: who holds it and until when. The
 -- token stays out.
@@ -15793,6 +16167,12 @@ begin
   if v_row."closed_at" is not null then
     raise exception 'a closed task can''t be claimed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
+  if coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and not exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = v_row."id" and y."user_id" = auth.uid()) then
+    raise exception 'an agent session claims only tasks assigned to its user' using errcode = '42501', hint = 'TASK_NOT_ASSIGNED';
+  end if;
+  if not (v_row."delegate_profile" is null or (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", 'tasks.write'), false)))) then
+    raise exception 'the task is reserved for another profile' using errcode = '42501', hint = 'TASK_RESERVED';
+  end if;
   if v_row."held_at" is not null then
     raise exception 'the task is on hold' using errcode = '55000', hint = 'TASK_HELD';
   end if;
@@ -15812,6 +16192,9 @@ begin
   if not found then
     raise exception 'another holder has a live claim on the task' using errcode = '55P03', hint = 'TASK_CLAIMED';
   end if;
+  if v_row."delegate_profile" is not null and not (v_row."delegate_profile" ->> 'name' is not distinct from v_actor ->> 'name' and (v_row."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) then
+    update "better_supabase"."tasks" x set "delegate_profile" = null where x."id" = v_row."id";
+  end if;
   null;
   return jsonb_build_object('task', (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) || jsonb_build_object('claim', "better_supabase"."task_claim"(x."id")) from "better_supabase"."tasks" x where x."id" = v_row."id"), 'claim', jsonb_build_object('token', v_claim."token", 'epoch', v_claim."epoch", 'holderId', v_claim."holder_id", 'profile', v_claim."profile", 'claimedAt', v_claim."claimed_at", 'expiresAt', v_claim."expires_at"));
 end;
@@ -15820,7 +16203,8 @@ revoke execute on function "better_supabase"."claim_task"(uuid, integer, jsonb) 
 grant execute on function "better_supabase"."claim_task"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- Claims the next ready task of a tenant: assigned to you first, then the
--- oldest. filter narrows the pick: teamId, projectId, parentId, stageId,
+-- lowest number. With claims.next "assigned" (the default) and for an agent
+-- session, only tasks assigned to you qualify. filter narrows the pick: teamId, projectId, parentId, stageId,
 -- assigneeId. Concurrent callers skip each other's rows. Raises
 -- TASK_NOTHING_READY when no task qualifies.
 create or replace function "better_supabase"."claim_next_task"(tenant uuid, filter jsonb default null, lease integer default null, profile jsonb default null)
@@ -15831,9 +16215,17 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_name text := "better_supabase"."task_actor"(claim_next_task.profile) ->> 'name';
+  v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+
+  if (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) then
+    if claim_next_task.filter ->> 'assigneeId' is not null and (claim_next_task.filter ->> 'assigneeId')::uuid is distinct from auth.uid() then
+      raise exception 'this session picks only its own tasks' using errcode = '42501', hint = 'TASK_FILTER_FORBIDDEN';
+    end if;
   end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
@@ -15841,11 +16233,14 @@ begin
   select x."id" into v_id from "better_supabase"."tasks" x
   where x."org_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
     and x."held_at" is null
+    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
     and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
+      and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
   order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
   limit 1
@@ -15918,8 +16313,13 @@ revoke execute on function "better_supabase"."release_task_claim"(uuid, uuid, te
 grant execute on function "better_supabase"."release_task_claim"(uuid, uuid, text) to authenticated, service_role;
 
 -- Hands a task to a user: assigns them, notes who delegated, and drops a claim
--- held by someone else. The user needs tasks.read in the organization.
-create or replace function "better_supabase"."delegate_task"(task uuid, to_user uuid, profile jsonb default null)
+-- held by someone else. The user needs tasks.read in the organization. With
+-- to_profile the task is reserved for that profile of the user: only a claim
+-- under that profile name by that user, or a person with write access, takes it
+-- (TASK_RESERVED otherwise). Delegating again, unassigning the user and closing
+-- the task clear the reservation.
+
+create or replace function "better_supabase"."delegate_task"(task uuid, to_user uuid, profile jsonb default null, to_profile text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -15928,6 +16328,7 @@ as $$
 declare
   v_row "better_supabase"."tasks";
   v_actor jsonb := "better_supabase"."task_actor"(delegate_task.profile);
+  v_name text := nullif(btrim(delegate_task.to_profile), '');
   v_added boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -15940,6 +16341,9 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", 'tasks.write'), false)) then
     raise exception 'not allowed to change this work item' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
+  if delegate_task.to_profile is not null and (v_name is null or length(v_name) > 120) then
+    raise exception 'to_profile is a name of up to 120 characters' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
+  end if;
   if not coalesce(better_supabase.can_user(delegate_task.to_user, 'tenant', v_row."org_id", 'tasks.read'), false) then
     raise exception 'the user can''t read tasks in this organization' using errcode = '22023', hint = 'TASK_DELEGATE_INVALID';
   end if;
@@ -15947,7 +16351,7 @@ begin
   on conflict do nothing;
   v_added := found;
   delete from "better_supabase"."task_claims" c where c."task_id" = v_row."id" and c."holder_id" is distinct from delegate_task.to_user;
-  update "better_supabase"."tasks" x set "delegate_profile" = v_actor where x."id" = v_row."id";
+  update "better_supabase"."tasks" x set "delegate_profile" = case when v_name is null then null else jsonb_build_object('name', v_name, 'userId', delegate_task.to_user) end where x."id" = v_row."id";
   null;
   if v_added then
     null;
@@ -15955,8 +16359,25 @@ begin
   return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) || jsonb_build_object('claim', "better_supabase"."task_claim"(x."id")) from "better_supabase"."tasks" x where x."id" = v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."delegate_task"(uuid, uuid, jsonb, text) to authenticated, service_role;
+
+-- Unassigning the user a task is reserved for ends the reservation.
+create or replace function better_supabase.bsb_task_reservation()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update "better_supabase"."tasks" x set "delegate_profile" = null
+    where x."id" = old."task_id" and x."delegate_profile" ->> 'userId' = old."user_id"::text;
+  return old;
+end;
+$$;
+revoke execute on function better_supabase.bsb_task_reservation() from public, anon, authenticated;
+create trigger bsb_task_reservation after delete on "better_supabase"."task_assignees"
+for each row execute function better_supabase.bsb_task_reservation();
 
 -- Deletes the claims whose lease ran out, moves each task to the expired stage
 -- (the claims.expiredStage option) and records task.claim_expired.
@@ -16037,7 +16458,8 @@ revoke execute on function "better_supabase"."hold_task"(uuid, text, text, uuid[
 grant execute on function "better_supabase"."hold_task"(uuid, text, text, uuid[]) to authenticated, service_role;
 
 -- Ends a hold. With the hold stage option the task returns to the stage it
--- left.
+-- left. A pending approval request of the hold is cancelled, and
+-- task.hold_released says so with approvalCancelled.
 create or replace function "better_supabase"."release_task_hold"(task uuid)
 returns jsonb
 language plpgsql
@@ -16075,7 +16497,8 @@ grant execute on function "better_supabase"."release_task_hold"(uuid) to authent
 -- or open. stage defaults to the first stage of the matching category in the
 -- task's pipeline. failed lands in the canceled category with close reason
 -- failed (not_planned where the column can't hold it). The note rides on
--- task.closed, and failed also records task.failed.
+-- task.closed, and failed also records task.failed. The before_task_close hook
+-- runs from the close trigger on the task, so every way of closing reaches it.
 create or replace function "better_supabase"."close_task"(task uuid, outcome text, note text default null, stage uuid default null)
 returns jsonb
 language plpgsql
@@ -16086,6 +16509,7 @@ declare
   v_row "better_supabase"."tasks";
   v_stage uuid;
   v_note text := nullif(trim(close_task.note), '');
+  v_constraint text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -16106,14 +16530,6 @@ begin
   if close_task.outcome <> 'open' and v_row."closed_at" is not null then
     raise exception 'the task is already closed' using errcode = '55000', hint = 'TASK_CLOSED';
   end if;
-  declare
-    v_hook regprocedure := to_regprocedure('"public"."before_task_close"(uuid, text, text)');
-  begin
-    if v_hook is not null then
-      execute format('select %s($1::uuid, $2::text, $3::text)', v_hook::oid::regproc)
-        using v_row."id", close_task.outcome, v_note;
-    end if;
-  end;
   v_stage := coalesce(close_task.stage, case close_task.outcome
     when 'completed' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'completed' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
     when 'open' then (select s."id" from "better_supabase"."pipeline_stages" s where s."pipeline_id" = v_row."pipeline_id" and s."category"::text = 'unstarted' and s."archived_at" is null order by s."rank" collate "C", s."id" limit 1)
@@ -16134,6 +16550,10 @@ begin
       update "better_supabase"."tasks" x set "stage_id" = v_stage where x."id" = v_row."id";
     end if;
   exception when check_violation or foreign_key_violation then
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint is null then
+      raise;
+    end if;
     raise exception 'the stage can''t be used for this task' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
   end;
   perform set_config('bsb.close_note', '', true);
@@ -16356,13 +16776,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restr
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:5bfd8ab3b5fb7fc88eb2af57043cb537ed039cb41e9940847a9f3dc3cecea483
+-- @bsb-hash sha256:df74b624944442edf8ce2a80c8dd228743663b2cfda6d46901d7a6076cb7c6e8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 6, 'managed')
+values ('tasks', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

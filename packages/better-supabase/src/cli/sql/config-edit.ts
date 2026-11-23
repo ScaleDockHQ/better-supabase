@@ -1,7 +1,7 @@
 /**
  * Adds, sets and removes block entries in `better-supabase.config.ts`,
  * `better-supabase.config.json` and `lib/blocks.ts`. The TypeScript edits go
- * through a `ConfigDocument` (ADR 1181): it reads the object literal passed to
+ * through a `ConfigDocument` (ADR 1186): it reads the object literal passed to
  * `defineConfig(...)` (or the default export) from a syntax tree, so strings
  * and comments never count as code, and writes the names in the form the config
  * already uses: `name: {}` in an object, `"name"` in a list. Anything that

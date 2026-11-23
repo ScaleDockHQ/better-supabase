@@ -1,4 +1,5 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { StageRef } from "./tasks-coordination-shared.ts";
 import type { TaskNames } from "./tasks-functions.ts";
 import type { HoldApproval } from "./tasks-hold-approvals.ts";
 
@@ -14,6 +15,7 @@ import { liveSql, orderSql } from "./tasks-coordination-order.ts";
 import { actorPayload, load, taskRecord } from "./tasks-coordination-shared.ts";
 import {
   holdApprovalOf,
+  holdKindsOf,
   holdApprovalOn,
   settleHoldSql,
 } from "./tasks-hold-approvals.ts";
@@ -21,6 +23,7 @@ import {
 export { actorPayload, taskRecord };
 
 const STAGE_KEY = /^[a-z][a-z0-9_-]{0,62}$/;
+const CATEGORY_KEY = /^[a-z][a-z0-9_]{0,62}$/;
 const DEFAULT_LEASE = 900;
 const MAX_PLAN = 100;
 
@@ -30,12 +33,19 @@ export interface Coordination {
   readonly needs: { readonly refuse: "claims" | "started" | "none" } | null;
   readonly lease: number;
   readonly maxLease: number;
-  readonly startStage: string | null;
-  readonly expiredStage: string | null;
+  /**
+   * What `claim_next_task` picks from: the caller's own tasks, or any ready
+   * one.
+   */
+  readonly next: "assigned" | "any";
+  readonly startStage: StageRef | null;
+  readonly expiredStage: StageRef | null;
   /** The stage key a hold moves a task to, or null for a flag-only hold. */
-  readonly holdStage: string | null;
+  readonly holdStage: StageRef | null;
   /** Whether a hold opens an approval, and what a rejection does. */
   readonly holdApproval: HoldApproval | null;
+  /** The hold kinds a hold accepts, or null for any short lowercase word. */
+  readonly holdKinds: readonly string[] | null;
   /** The permission key a claim checks, as a SQL literal. */
   readonly claim: string;
 }
@@ -64,16 +74,32 @@ function only(
   }
 }
 
-function stageKey(value: unknown, at: string): string | null {
+function stageKey(value: unknown, at: string): StageRef | null {
   if (value === undefined) {
     return null;
   }
 
-  if (typeof value !== "string" || !STAGE_KEY.test(value)) {
-    throw new TypeError(`${at} must be a stage key`);
+  if (typeof value === "string" && STAGE_KEY.test(value)) {
+    return value;
   }
 
-  return value;
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const keys = Object.keys(value);
+
+    const category: unknown = Object.entries(value).find(
+      ([key]) => key === "category",
+    )?.[1];
+
+    if (
+      keys.length === 1 &&
+      typeof category === "string" &&
+      CATEGORY_KEY.test(category)
+    ) {
+      return { category };
+    }
+  }
+
+  throw new TypeError(`${at} must be a stage key or { category }`);
 }
 
 /** Reads and checks the coordination options. */
@@ -90,10 +116,11 @@ export function coordinationOf(
   only(claims, `${at}.claims`, [
     "lease",
     "maxLease",
+    "next",
     "startStage",
     "expiredStage",
   ]);
-  only(hold, `${at}.hold`, ["stage", "approval"]);
+  only(hold, `${at}.hold`, ["stage", "kinds", "approval"]);
 
   const lease = claims["lease"] ?? DEFAULT_LEASE;
   const maxLease = claims["maxLease"] ?? Math.max(DEFAULT_LEASE, Number(lease));
@@ -110,6 +137,14 @@ export function coordinationOf(
       `${at}.claims.lease and maxLease must be whole seconds, with lease at least 1 and at most maxLease`,
     );
   }
+
+  const next = claims["next"] ?? "assigned";
+
+  if (next !== "assigned" && next !== "any") {
+    throw new TypeError(`${at}.claims.next must be "assigned" or "any"`);
+  }
+
+  const holdKinds = holdKindsOf(hold["kinds"], `${at}.hold.kinds`);
 
   let resolved: Coordination["needs"] = null;
 
@@ -146,10 +181,12 @@ export function coordinationOf(
     needs: resolved,
     lease,
     maxLease,
+    next,
     startStage: stageKey(claims["startStage"], `${at}.claims.startStage`),
     expiredStage: stageKey(claims["expiredStage"], `${at}.claims.expiredStage`),
     holdStage: stageKey(hold["stage"], `${at}.hold.stage`),
-    holdApproval: holdApprovalOf(ctx, hold["approval"], manageKey),
+    holdApproval: holdApprovalOf(ctx, hold["approval"], manageKey, holdKinds),
+    holdKinds,
     claim,
   };
 }
@@ -591,7 +628,7 @@ export function coordinationContract(
           },
           {
             name: "delegate_task",
-            args: ["uuid", "uuid", "jsonb"],
+            args: ["uuid", "uuid", "jsonb", "text"],
             returns: "jsonb",
           },
           { name: "expire_task_claims", args: [], returns: "integer" },

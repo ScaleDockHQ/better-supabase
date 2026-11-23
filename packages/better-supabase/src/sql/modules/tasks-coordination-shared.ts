@@ -55,7 +55,7 @@ export function load(
   end if;`;
 }
 
-export function stageByKey(
+function stageByKey(
   ctx: BlockSqlContext,
   pipeline: string,
   key: string,
@@ -75,4 +75,23 @@ export function stageByCategory(
   const sc = (column: string): string => s.col("stages", column);
 
   return `(select s.${sc("id")} from ${s.table("stages")} s where s.${sc("pipeline")} = ${pipeline} and s.${sc("category")}::text = ${sqlString(category)} and s.${sc("archivedAt")} is null order by s.${sc("rank")} collate "C", s.${sc("id")} limit 1)`;
+}
+
+/** A stage named by key, or by category (the first live stage of it by rank). */
+export type StageRef = string | { readonly category: string };
+
+/** The stage of a pipeline a `StageRef` names, as a scalar subquery. */
+export function stageRef(
+  ctx: BlockSqlContext,
+  pipeline: string,
+  ref: StageRef,
+): string {
+  return typeof ref === "string"
+    ? stageByKey(ctx, pipeline, ref)
+    : stageByCategory(ctx, pipeline, ref.category);
+}
+
+/** How a message names a stage reference. */
+export function stageRefLabel(ref: StageRef): string {
+  return typeof ref === "string" ? `${ref} stage` : `${ref.category} category`;
 }

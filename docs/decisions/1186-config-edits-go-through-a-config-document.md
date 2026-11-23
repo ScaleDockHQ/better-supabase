@@ -1,4 +1,4 @@
-# 1181: Config edits go through a document on oxc-parser
+# 1186: Config edits go through a document on oxc-parser
 
 - Status: accepted
 - Date: 2026-11-22
@@ -39,7 +39,7 @@ codemods and the doctor scans take their code ranges from `codeRanges()` in
 expression, a template literal or JSX text no longer hides code. Those
 codemods now rewrite through the document or `rewriteSource`, and the doctor
 source checks read functions, calls, loops and `Promise.all` entries from the
-tree (ADR 1183 wires the symbol tier into them).
+tree (ADR 1188 wires the symbol tier into them).
 
 ## Alternatives considered
 

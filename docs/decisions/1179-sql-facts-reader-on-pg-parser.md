@@ -43,5 +43,5 @@ change.
 The reader covers the families listed above plus views, policy grants, the
 extension schema, updated-at triggers, indexes, foreign keys and the
 declaration model, each proven equal on about 515 files with the differences
-named in `equivalence-queries.test.ts`. ADR 1180 records where the text
+named in `equivalence-queries.test.ts`. ADR 1185 records where the text
 scanners stay.
