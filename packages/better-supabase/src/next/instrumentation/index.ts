@@ -1,8 +1,18 @@
 import type { Events } from "../../core/event-map.ts";
 import type { EventHub } from "../../core/events.ts";
+import type { WarmOptions, WarmReport } from "../../server/warm.ts";
 
 import { emitBlockEvent } from "../../core/block-events.ts";
 import { defineEvents, event } from "../../core/event-map.ts";
+
+export type {
+  WarmFlags,
+  WarmOptions,
+  WarmPool,
+  WarmReport,
+  WarmStep,
+  WarmStepName,
+} from "../../server/warm.ts";
 
 /**
  * The `request` argument of Next.js's `onRequestError`, typed structurally so
@@ -183,4 +193,47 @@ export function createOnRequestError(
 
     clearTimeout(timer);
   };
+}
+
+/**
+ * Warms a server or a Next instance from `register()`, so the first request
+ * finds the JWKS loaded and the PostgREST, pool and flags connections open.
+ * Never throws; a failed step is logged at `warn` and reported.
+ *
+ * ```ts
+ * import { warm } from "better-supabase/next/instrumentation";
+ *
+ * export async function register() {
+ *   if (process.env.NEXT_RUNTIME === "nodejs") {
+ *     const { bsb } = await import("./lib/supabase/server");
+ *     await warm(bsb);
+ *   }
+ * }
+ * ```
+ */
+export async function warm(
+  target: {
+    readonly warm: (options?: WarmOptions) => Promise<WarmReport>;
+    readonly events?: EventHub;
+  },
+  options?: WarmOptions,
+): Promise<WarmReport> {
+  try {
+    const report = await target.warm(options);
+
+    for (const step of report.steps) {
+      if (!step.ok) {
+        target.events?.logger.warn(`bsb.warm ${step.name} failed`, {
+          error: step.error,
+          ms: step.ms,
+        });
+      }
+    }
+
+    return report;
+  } catch (cause) {
+    target.events?.logger.warn("bsb.warm failed", { cause });
+
+    return { ms: 0, steps: [] };
+  }
 }

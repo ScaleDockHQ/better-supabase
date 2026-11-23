@@ -64,6 +64,42 @@ JWKS right away, so the first request verifies its token without waiting for
 it. Pass `prefetchJwks: false` to turn that off; it is off under
 `NODE_ENV=test`.
 
+### Warm up in `register()`
+
+`server.warm()` (and `bsb.warm()` on a Next instance) opens what the first
+request would otherwise wait for, in parallel: the JWKS (from the
+`jwksStore` first), one request to `<url>/rest/v1/` and to the read replica
+through the server's `fetch`, `select 1` on a pool you pass, and
+`initialize()` on a flags client you pass. It never throws. Each step reports
+its time and whether it worked, and gives up after `timeoutMs` (5000 by
+default). From Next.js, await it in `register()` with `warm` from
+`better-supabase/next/instrumentation`, which also logs a failed step at
+`warn`:
+
+```ts title="src/instrumentation.ts"
+import { warm } from "better-supabase/next/instrumentation";
+
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { bsb } = await import("./lib/supabase/server");
+    const { pool } = await import("./lib/db");
+    const { flags } = await import("./lib/flags");
+
+    await warm(bsb, { postgres: pool, flags });
+  }
+}
+```
+
+`postgres` takes a `pg` `Pool` (`query`) or a `postgres` sql tag
+(`unsafe`), and `flags` anything with `initialize()`. Both are typed
+structurally, so the instrumentation entry imports neither.
+
+Once `register()` awaits `warm()`, the prefetch at creation is redundant, and
+with `SUPABASE_JWKS` inline it does nothing either. `prefetchJwks: false` is
+still needed in two cases: tests that count fetches, and a module that
+creates the server while `next build` evaluates it with no Auth server in
+reach.
+
 ### Key cache
 
 The key set is fetched once per process and used for 300 seconds

@@ -31,6 +31,7 @@ import type { AccountTransport } from "./suspend-account.ts";
 import { authContext } from "../auth/context.ts";
 import { contextClaims, narrowCap } from "../auth/delegation.ts";
 import { actClaim, userContext } from "../auth/impersonation.ts";
+import { loadJwks } from "../auth/resolve.ts";
 import { sessionCookieName } from "../auth/session.ts";
 import { bindAuthorizer, requestMemo } from "../core/authorizer.ts";
 import { hooksApiProblem } from "../core/contracts/authorization-hooks.ts";
@@ -66,6 +67,7 @@ import { serverSessions } from "./sessions.ts";
 import { supportOff } from "./support-off.ts";
 import { supportStorage } from "./support-storage.ts";
 import { serverTransaction } from "./transaction.ts";
+import { warmUp } from "./warm.ts";
 
 provideConnectionRuntime();
 
@@ -778,6 +780,20 @@ export function createServer<
     evictSession,
     resolve,
     contextClient,
+    warm: (warmOptions) =>
+      warmUp(
+        {
+          url: () => env().url,
+          readUrl,
+          publishableKey: () => env().publishableKey,
+          fetch: options.fetch ?? globalThis.fetch,
+          jwks: () =>
+            lite || options.auth?.jwks !== undefined
+              ? undefined
+              : loadJwks({ ...options.auth, env: env() }),
+        },
+        warmOptions,
+      ),
     dbFor: (auth, context, dbOptions) =>
       dbOptions?.support
         ? supportContextFor(

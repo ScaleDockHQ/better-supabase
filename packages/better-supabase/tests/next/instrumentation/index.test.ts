@@ -8,7 +8,42 @@ import { forwardBlockEvents } from "../../../src/events/index.ts";
 import {
   createOnRequestError,
   requestEvents,
+  warm,
 } from "../../../src/next/instrumentation/index.ts";
+
+describe("warm", () => {
+  it("logs failed steps and never throws", async () => {
+    const warn = vi.fn();
+
+    const events = new EventHub({
+      debug: () => undefined,
+      info: () => undefined,
+      warn,
+      error: () => undefined,
+    });
+
+    const report = await warm({
+      events,
+      warm: async () => ({
+        ms: 3,
+        steps: [
+          { name: "postgrest", ms: 1, ok: true },
+          { name: "pool", ms: 2, ok: false, error: "refused" },
+        ],
+      }),
+    });
+
+    expect(report.ms).toBe(3);
+    expect(warn).toHaveBeenCalledWith("bsb.warm pool failed", {
+      error: "refused",
+      ms: 2,
+    });
+
+    await expect(
+      warm({ events, warm: () => Promise.reject(new Error("boom")) }),
+    ).resolves.toEqual({ ms: 0, steps: [] });
+  });
+});
 
 const request = {
   path: "/customers/42?token=secret#top",

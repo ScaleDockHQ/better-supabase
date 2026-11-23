@@ -2107,7 +2107,8 @@
   "./next/instrumentation": {
     "values": [
       "createOnRequestError",
-      "requestEvents"
+      "requestEvents",
+      "warm"
     ],
     "types": [
       "OnRequestError",
@@ -2115,7 +2116,13 @@
       "RequestErrorContext",
       "RequestErrorRequest",
       "RequestEvents",
-      "RequestFailedEventData"
+      "RequestFailedEventData",
+      "WarmFlags",
+      "WarmOptions",
+      "WarmPool",
+      "WarmReport",
+      "WarmStep",
+      "WarmStepName"
     ]
   },
   "./hono": {

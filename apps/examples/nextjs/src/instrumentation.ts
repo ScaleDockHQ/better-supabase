@@ -4,7 +4,8 @@ import type { Instrumentation } from "next";
  * Meters AI SDK calls on the usage block, syncs the workflow builder's step
  * library and the rule fields, writes finished workflow runs to the outbox
  * through the Workflow SDK's lifecycle hooks, bridges Next.js's
- * `onRequestError` to the event sinks, then, in `next dev`, seeds each new
+ * `onRequestError` to the event sinks, warms the JWKS and the PostgREST
+ * connection before the first request, then, in `next dev`, seeds each new
  * organization with demo rows and starts the Supabase World's poller, which
  * delivers queued workflow steps to this server. Deployments use pg_net
  * delivery (`WORKFLOW_DELIVERY=pg_net`) or their own worker instead.
@@ -22,14 +23,18 @@ export async function register(): Promise<void> {
     { startEventTriggers, syncStepLibrary },
     { syncRuleFields },
     { registerAiTelemetry },
+    { warm },
+    { bsb },
   ] = await Promise.all([
     import("./features/workflows/builder/sync-steps"),
     import("./features/rules/sync-rule-fields"),
     import("./features/assistant/ai-telemetry"),
+    import("better-supabase/next/instrumentation"),
+    import("./lib/supabase/server"),
   ]);
 
   registerAiTelemetry();
-  await Promise.all([syncStepLibrary(), syncRuleFields()]);
+  await Promise.all([warm(bsb), syncStepLibrary(), syncRuleFields()]);
   startEventTriggers();
 
   const { registerWorkflowReports } =

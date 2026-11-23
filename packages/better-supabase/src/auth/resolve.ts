@@ -611,13 +611,23 @@ async function checkUser(
  * fetch it.
  */
 export async function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
+  await loadJwks(options)?.catch(() => undefined);
+}
+
+/**
+ * Loads the remote JWKS like `prefetchJwks`, but rejects on a failure.
+ * `undefined` when the keys are inline, so there is nothing to load.
+ */
+export function loadJwks(
+  options: ResolveAuthOptions,
+): Promise<void> | undefined {
   const source = jwksOf(options);
 
   if (!(source instanceof URL)) {
-    return;
+    return undefined;
   }
 
-  await sharedJwks(source, false, sharedOptionsOf(options)).catch(
+  return sharedJwks(source, false, sharedOptionsOf(options)).then(
     () => undefined,
   );
 }

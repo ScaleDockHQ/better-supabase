@@ -49,6 +49,7 @@ import type { LiteDriver } from "./lite.ts";
 import type { ReplicaState } from "./replicas.ts";
 import type { RequestIdOptions } from "./request-ids.ts";
 import type { ActiveSupport, SupportApi, SupportSessions } from "./support.ts";
+import type { WarmOptions, WarmReport } from "./warm.ts";
 
 /**
  * PostgREST request settings for the caller's repositories and the shared
@@ -424,6 +425,12 @@ export interface BetterServer<
   V extends AuthzVersionCache = AuthzVersionCache,
 > {
   readonly env: BetterSupabaseEnv;
+  /**
+   * Opens the JWKS, PostgREST (and read replica), pool and flags connections
+   * the first request would wait for, in parallel. Never throws: each step
+   * reports its time and whether it worked. Await it in `register()`.
+   */
+  warm(options?: WarmOptions): Promise<WarmReport>;
   /** The definition's events; adapters pass `events.settled()` to `waitUntil`. */
   readonly events: EventHub;
   resolve(
