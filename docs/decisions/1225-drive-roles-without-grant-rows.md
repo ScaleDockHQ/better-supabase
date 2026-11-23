@@ -1,4 +1,4 @@
-# 1220: Drive roles can live without grant rows
+# 1225: Drive roles can live without grant rows
 
 - Status: accepted
 - Date: 2026-11-23
