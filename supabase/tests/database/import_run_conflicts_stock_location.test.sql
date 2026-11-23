@@ -61,6 +61,7 @@ reset role;
 update better_supabase.inventory_locations set active = true
 where tenant_id = '00000000-0000-4000-8000-000000000001';
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'WH1209B', 'Second warehouse', null, null);
 set local role service_role;
 select is(
   (better_supabase.import_upsert_batch(current_setting('t.run')::uuid, 'stock_count',
