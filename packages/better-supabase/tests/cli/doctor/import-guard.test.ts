@@ -7,6 +7,7 @@ import {
   appRowTriggers,
   unguardedRowTriggers,
 } from "../../../src/cli/doctor/import-guard.ts";
+import { primeFiles } from "../../helpers/prime-statements.ts";
 
 const file = (text: string, path = "supabase/schemas/public/orders.sql") => ({
   path,
@@ -37,15 +38,36 @@ create trigger notify_order after insert on public.orders
   for each row execute function public.notify_order();
 `);
 
-describe("appRowTriggers", () => {
-  it("skips statement triggers and bsb_ triggers", () => {
-    const found = appRowTriggers([
-      file(`
+const MIXED = file(`
 create trigger a after insert on public.t for each statement execute function public.f();
 create trigger bsb_audit after insert on public.t for each row execute function public.f();
 create trigger b after update on public.t for each row execute function public.f();
-`),
-    ]);
+`);
+
+const EXTERNAL = file(
+  "create trigger t after insert on public.t for each row execute function ext.f();",
+);
+
+// The words of a comment or a string never count as the guard or as a trigger.
+const COMMENTED = file(`
+create function public.notify_order() returns trigger language plpgsql as $$
+begin
+  -- better_supabase.importing() would skip this
+  /* if better_supabase.importing() then return new; end if; */
+  perform pg_notify('orders', 'better_supabase.importing()');
+  return new;
+end;
+$$;
+-- create trigger ghost after insert on public.orders for each row execute function public.notify_order();
+create trigger notify_order after insert on public.orders
+  for each row execute function public.notify_order();
+`);
+
+await primeFiles([UNGUARDED, GUARDED, MIXED, EXTERNAL, COMMENTED]);
+
+describe("appRowTriggers", () => {
+  it("skips statement triggers and bsb_ triggers", () => {
+    const found = appRowTriggers([MIXED]);
 
     expect(found.map((trigger) => trigger.name)).toEqual(["b"]);
   });
@@ -63,13 +85,13 @@ describe("unguardedRowTriggers", () => {
   });
 
   it("does not judge a function outside the schema files", () => {
-    expect(
-      unguardedRowTriggers([
-        file(
-          "create trigger t after insert on public.t for each row execute function ext.f();",
-        ),
-      ]),
-    ).toEqual([]);
+    expect(unguardedRowTriggers([EXTERNAL])).toEqual([]);
+  });
+
+  it("ignores importing() in a comment or a string, and a trigger in a comment", () => {
+    expect(unguardedRowTriggers([COMMENTED]).map((t) => t.name)).toEqual([
+      "notify_order",
+    ]);
   });
 });
 
@@ -85,6 +107,8 @@ describe("BS633", () => {
       ],
       // SAFETY: the rule reads only config and sqlFiles.
     } as unknown as DoctorContext;
+
+    await primeFiles(context.sqlFiles ?? []);
 
     const findings = await rule?.check(context);
 
@@ -118,6 +142,8 @@ create trigger authz_role_name_guard before insert on public.roles
       sqlFiles: [UNGUARDED, provider],
       // SAFETY: the rule reads only config and sqlFiles.
     } as unknown as DoctorContext;
+
+    await primeFiles(context.sqlFiles ?? []);
 
     const findings = await rule?.check(context);
 

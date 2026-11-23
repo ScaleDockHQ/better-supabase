@@ -16,6 +16,7 @@ import type {
 import { providerLabel } from "../authorization.ts";
 import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
+import { codeStatementsOf, nameAt, wordsAt } from "../schema-reader/index.ts";
 import { httpHooks, pgFunctionHooks } from "../supabase-config.ts";
 import { ident, literal } from "./live.ts";
 import { workflowOf } from "./shared.ts";
@@ -112,13 +113,70 @@ function ownedClaims(hook: AuthorizationTokenHook): readonly string[] {
 const quotedName = (schema: string, name: string): string =>
   `(?:"?${escapeRegExp(schema)}"?\\s*\\.\\s*)?"?${escapeRegExp(name)}"?`;
 
-const createsFunction = (
-  fn: Pick<ExtrasHookFunction, "schema" | "name">,
-): RegExp =>
-  new RegExp(
-    `create\\s+(?:or\\s+replace\\s+)?function\\s+${quotedName(fn.schema, fn.name)}\\s*\\(`,
-    "i",
-  );
+type FunctionRef = Pick<ExtrasHookFunction, "schema" | "name">;
+
+/** Whether the name parts are `fn`, with or without its schema. */
+const namesFunction = (parts: readonly string[], fn: FunctionRef): boolean => {
+  const [first, second] = parts;
+
+  return parts.length === 1
+    ? first?.toLowerCase() === fn.name.toLowerCase()
+    : parts.length === 2 &&
+        first?.toLowerCase() === fn.schema.toLowerCase() &&
+        second?.toLowerCase() === fn.name.toLowerCase();
+};
+
+/** Whether the text has a `create [or replace] function` for `fn`. */
+function createsFunction(text: string, fn: FunctionRef): boolean {
+  return codeStatementsOf(text).some(({ tokens }) => {
+    const head = wordsAt(tokens, 0, "create", "or", "replace") ? 3 : 1;
+
+    const created = wordsAt(tokens, head, "function")
+      ? nameAt(tokens, head + 1)
+      : undefined;
+
+    return (
+      created !== undefined &&
+      tokens[created.next]?.text === "(" &&
+      namesFunction(created.parts, fn)
+    );
+  });
+}
+
+/** Whether the text grants execute on `fn` to `supabase_auth_admin`. */
+function grantsAuthAdmin(text: string, fn: FunctionRef): boolean {
+  return codeStatementsOf(text).some(({ tokens }) => {
+    if (!wordsAt(tokens, 0, "grant", "execute", "on", "function")) {
+      return false;
+    }
+
+    const granted = nameAt(tokens, 4);
+
+    if (
+      granted === undefined ||
+      !namesFunction(granted.parts, fn) ||
+      tokens[granted.next]?.text !== "("
+    ) {
+      return false;
+    }
+
+    const close = tokens.findIndex(
+      (token, at) => at > granted.next && token.text === ")",
+    );
+
+    return (
+      close !== -1 &&
+      wordsAt(tokens, close + 1, "to") &&
+      tokens
+        .slice(close + 2)
+        .some(
+          (token) =>
+            (token.kind === "word" || token.kind === "quoted") &&
+            token.value.toLowerCase() === "supabase_auth_admin",
+        )
+    );
+  });
+}
 
 /** The SQL file that has the provider's hook marker and creates `fn`. */
 function markerFileFor(
@@ -131,10 +189,8 @@ function markerFileFor(
     return undefined;
   }
 
-  const creates = createsFunction(fn);
-
   return (context.sqlFiles ?? []).find(
-    (file) => file.text.includes(marker) && creates.test(file.text),
+    (file) => file.text.includes(marker) && createsFunction(file.text, fn),
   );
 }
 
@@ -298,24 +354,18 @@ function grantsSourceFor(
   fn: ExtrasHookFunction,
   workflow: SqlWorkflow,
 ): string | undefined {
-  const grants = new RegExp(
-    `grant\\s+execute\\s+on\\s+function\\s+${quotedName(fn.schema, fn.name)}\\s*\\([^)]*\\)\\s*to\\s+[^;]*\\bsupabase_auth_admin\\b`,
-    "i",
-  );
-
-  const creates = createsFunction(fn);
   const marker = providerHook(context)?.markers?.grants;
 
   return (context.sqlFiles ?? []).find(
     (file) =>
-      grants.test(file.text) &&
+      grantsAuthAdmin(file.text, fn) &&
       ((marker !== undefined && file.text.includes(marker)) ||
         (workflow === "pg-delta" &&
           !MIGRATIONS.test(file.path) &&
-          creates.test(file.text)) ||
+          createsFunction(file.text, fn)) ||
         (workflow === "migrations" &&
           MIGRATIONS.test(file.path) &&
-          creates.test(file.text))),
+          createsFunction(file.text, fn))),
   )?.path;
 }
 

@@ -564,8 +564,14 @@ the workflow retention job, the maintenance and stream purge schedules and
 statement would make the extension mandatory. BS725 accepts a body with that
 check. It still reports `blocks.notifications.options.realtime: "changes"`,
 which adds the table to `supabase_realtime` through `execute format`; accept
-that finding in `tooling.doctor.baseline` with the reason until a plain form
-exists.
+that finding in `tooling.doctor.baseline` with the reason. The entry stays
+because the module adds the table only when the publication exists and does not
+list it yet, and a plain `alter publication ... add table` fails on a second
+load.
+
+Doctor reads the SQL and dotenv rules as tokens in 0.83. A comment or a quoted
+string that names a function, a trigger or a pooler URL no longer produces a
+finding, and the codes, messages and lines stay the same for real code.
 
 ## Generators
 

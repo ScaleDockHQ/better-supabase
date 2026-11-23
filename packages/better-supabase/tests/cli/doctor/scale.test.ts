@@ -533,6 +533,43 @@ describe("BS389 audit purge", () => {
     ).toEqual([]);
   });
 
+  it("ignores a purge named only in a comment", async () => {
+    expect(
+      await run(
+        {
+          ...context(withLog),
+          sqlFiles: [
+            {
+              path: "supabase/schemas/cron.sql",
+              text: "-- select better_supabase.purge_audit_log();\n/* purge_audit_log */",
+            },
+          ],
+          sources: [
+            {
+              path: "src/jobs.ts",
+              text: "// audit.purgeAuditLog()\n/* purge_audit_log */",
+            },
+          ],
+        },
+        "BS389",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("counts a purge named in a source string", async () => {
+    expect(
+      await run(
+        {
+          ...context(withLog),
+          sources: [
+            { path: "src/jobs.ts", text: 'await db.rpc("purge_audit_log")' },
+          ],
+        },
+        "BS389",
+      ),
+    ).toEqual([]);
+  });
+
   it("does not count the module's own declaration", async () => {
     expect(
       await run(

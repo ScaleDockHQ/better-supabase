@@ -81,6 +81,53 @@ describe("codemod table-modules", () => {
     expect(result.text.startsWith('"use client";')).toBe(true);
   });
 
+  it("puts the import after the directive when the file has none", () => {
+    const source = [
+      '"use client";',
+      "",
+      "export const rows = () => bsb.db.customers.list();",
+      "",
+    ].join("\n");
+
+    const result = rewriteForTableModules(
+      "/app/src/app/rows.tsx",
+      source,
+      OUTPUT,
+      tables,
+    );
+
+    expect(
+      result.text.startsWith('"use client";\nimport { customersTable }'),
+    ).toBe(true);
+  });
+
+  it("joins an existing import of the table module", () => {
+    const source = [
+      '"use client";',
+      'import { customersTable as t } from "../lib/supabase/tables/customers.ts";',
+      "export const rows = () => bsb.db.customers.list();",
+      "",
+    ].join("\n");
+
+    const result = rewriteForTableModules(
+      "/app/src/app/rows.tsx",
+      source,
+      OUTPUT,
+      tables,
+    );
+
+    expect(result.text.match(/tables\/customers\.ts/g)).toHaveLength(1);
+  });
+
+  it("ignores a table read named only in a comment", () => {
+    const source = '"use client";\n// bsb.db.customers.list()\n';
+
+    expect(
+      rewriteForTableModules("/app/src/app/rows.tsx", source, OUTPUT, tables)
+        .text,
+    ).toBe(source);
+  });
+
   it("leaves server files and lists a queries read", () => {
     const server = "export const rows = () => bsb.db.customers.list();\n";
 

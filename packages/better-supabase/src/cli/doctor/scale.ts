@@ -3,13 +3,20 @@ import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { errorText } from "../core/errors.ts";
 import { ownerOf } from "../declaration-model.ts";
-import { statementsOf } from "../schema-reader/index.ts";
+import { partsOf, statementsOf } from "../schema-reader/index.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
 import { EDGE_FUNCTION_RULES } from "./edge-functions.ts";
 import { statementsView } from "./live.ts";
 import { OVERRIDE_RULES } from "./overrides.ts";
 import { catalogOf, policyObject, qualified, tableObject } from "./shared.ts";
 import { TENANT_TRIGGER_RULES } from "./tenant-triggers.ts";
+import { mentionsName } from "./tree.ts";
+
+/** The purge function as SQL names it (a call, a cron command string). */
+const PURGE_AUDIT_LOG = /purge_?audit_?log/i;
+
+/** The purge function as app code names it. */
+const PURGE_NAMES = ["purge_audit_log", "purgeAuditLog"] as const;
 
 /** Row-level `bsb_*` triggers on one table before BS387 reports it. */
 const TRIGGER_PILE_UP = 6;
@@ -448,10 +455,24 @@ const SCALE_CHECKS: readonly Rule[] = [
         ...context.sources,
       ];
 
+      const sql = new Set<TextFile>([
+        ...(context.sqlFiles ?? []),
+        ...(context.seedFiles ?? []),
+        ...(context.dataFiles ?? []),
+      ]);
+
+      const namesPurge = (file: TextFile): boolean =>
+        sql.has(file)
+          ? partsOf(file.text).some(
+              (part) =>
+                part.kind !== "comment" && PURGE_AUDIT_LOG.test(part.text),
+            )
+          : PURGE_NAMES.some((name) => mentionsName(file.text, name));
+
       if (
         texts.some(
           (file) =>
-            /purge_?audit_?log/i.test(file.text) &&
+            namesPurge(file) &&
             // A block module declares the function; only a call counts.
             ownerOf(file.path, file.text).kind === "app",
         )

@@ -20,14 +20,17 @@ const importedName = (specifier: {
  * module (a default import gets a `{ ... }` clause, a namespace import gets a
  * statement of its own), and a file without one gets `import { a, b } from
  * "module";` after its last import, or at the top. A name the file already
- * imports is left alone. Every codemod that adds an import goes through here,
- * so the output is the same for all of them.
+ * imports is left alone. A file with no import gets the statement after its
+ * leading directive (`"use client"`) so the file keeps its header. Every
+ * codemod that adds an import goes through here, so the output is the same for
+ * all of them.
  */
 export function addNamedImports(
   out: MagicString,
   program: Program,
   module: string,
   names: readonly string[],
+  eol = "\n",
 ): void {
   const imports = program.body.filter(
     (statement) => statement.type === "ImportDeclaration",
@@ -45,12 +48,17 @@ export function addNamedImports(
   const statement = `import { ${names.join(", ")} } from "${module}";`;
 
   if (existing === undefined) {
-    const last = imports.at(-1);
+    const last =
+      imports.at(-1) ??
+      program.body.findLast(
+        (each) =>
+          each.type === "ExpressionStatement" && each.directive !== null,
+      );
 
     if (last === undefined) {
-      out.prepend(`${statement}\n`);
+      out.prepend(`${statement}${eol}`);
     } else {
-      out.appendLeft(last.end, `\n${statement}`);
+      out.appendLeft(last.end, `${eol}${statement}`);
     }
 
     return;

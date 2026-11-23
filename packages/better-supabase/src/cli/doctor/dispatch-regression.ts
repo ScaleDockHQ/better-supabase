@@ -1,30 +1,33 @@
+import type { CodeToken } from "../schema-reader/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { statementsOf } from "../schema-reader/index.ts";
+import { codeStatementsOf, nameAt, wordsAt } from "../schema-reader/index.ts";
 
-const ARM = /when\s+'([a-z0-9_]+)'\s+then/giu;
-
-const FUNCTION_NAME =
-  /^create\s+(?:or\s+replace\s+)?function\s+((?:"[^"]+"|[\w$]+)(?:\s*\.\s*(?:"[^"]+"|[\w$]+))?)/iu;
+const ARM_NAME = /^[a-z0-9_]+$/iu;
 
 /** The `when '<entity>' then` arms of one statement, in source order. */
-function dispatchArms(sql: string): readonly string[] {
-  return [...sql.matchAll(ARM)].flatMap((match) =>
-    match[1] === undefined ? [] : [match[1]],
+function dispatchArms(tokens: readonly CodeToken[]): readonly string[] {
+  return tokens.flatMap((_token, at): string[] =>
+    wordsAt(tokens, at, "when") &&
+    tokens[at + 1]?.kind === "string" &&
+    wordsAt(tokens, at + 2, "then") &&
+    ARM_NAME.test(tokens[at + 1]!.value)
+      ? [tokens[at + 1]!.value]
+      : [],
   );
 }
 
-/** The unqualified function name a `create function` statement declares. */
-function createdFunction(sql: string): string | undefined {
-  const declared = FUNCTION_NAME.exec(sql.replaceAll(/\s+/g, " ").trim())?.[1];
+/** The unqualified, lowercased function name a `create function` declares. */
+function createdFunction(tokens: readonly CodeToken[]): string | undefined {
+  const at = wordsAt(tokens, 0, "create", "or", "replace", "function")
+    ? 4
+    : wordsAt(tokens, 0, "create", "function")
+      ? 2
+      : -1;
 
-  if (declared === undefined) {
-    return undefined;
-  }
-
-  const bare = declared.split(".").at(-1) ?? declared;
-
-  return bare.replaceAll('"', "").toLowerCase();
+  return at === -1
+    ? undefined
+    : nameAt(tokens, at)?.parts.at(-1)?.toLowerCase();
 }
 
 /** Dispatch arms per function, last statement of a name winning. */
@@ -34,9 +37,9 @@ function armsByFunction(
   const found = new Map<string, readonly string[]>();
 
   for (const file of files) {
-    for (const statement of statementsOf(file.text)) {
-      const name = createdFunction(statement.text);
-      const arms = name === undefined ? [] : dispatchArms(statement.text);
+    for (const statement of codeStatementsOf(file.text)) {
+      const name = createdFunction(statement.tokens);
+      const arms = name === undefined ? [] : dispatchArms(statement.tokens);
 
       if (name !== undefined && arms.length > 0) {
         found.set(name, arms);

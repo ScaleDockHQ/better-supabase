@@ -145,6 +145,38 @@ export function callsAny(
   return found;
 }
 
+/** One string or template piece of code, with the line it starts on. */
+export interface StringSite {
+  readonly value: string;
+  readonly line: number;
+}
+
+/**
+ * The string literals and template pieces of code, in source order. A comment
+ * never yields one.
+ */
+export function stringSites(text: string): StringSite[] {
+  const sites: StringSite[] = [];
+
+  walk(parseSource(text).program, {
+    enter(node) {
+      if (node.type === "Literal" && typeof node.value === "string") {
+        sites.push({
+          value: node.value,
+          line: lineColumn(text, node.start).line,
+        });
+      } else if (node.type === "TemplateElement") {
+        sites.push({
+          value: node.value.cooked ?? node.value.raw,
+          line: lineColumn(text, node.start).line,
+        });
+      }
+    },
+  });
+
+  return sites;
+}
+
 /**
  * Whether code names `name`: an identifier, a property, or a string or template
  * that holds it. A comment never does.

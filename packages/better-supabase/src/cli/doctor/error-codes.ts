@@ -1,57 +1,47 @@
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { codeStatementsOf, wordsAt } from "../schema-reader/index.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
 
-const RAISE = /raise\s+exception\b/iu;
-
 /**
- * The raise statement from `start` to its closing `;`, skipping `;` inside a
- * string, so a `using` list spread over many lines is read whole.
+ * A raise in schema SQL that does not name a stable hint code. The tokens of
+ * the function bodies are read in place, so a comment or a string that says
+ * `raise exception` is not a raise.
  */
-function statementFrom(text: string, start: number): string {
-  let quoted = false;
-
-  for (let at = start; at < text.length; at += 1) {
-    if (text[at] === "'") {
-      quoted = !quoted;
-    } else if (text[at] === ";" && !quoted) {
-      return text.slice(start, at);
-    }
-  }
-
-  return text.slice(start);
-}
-
-/** A raise in schema SQL that does not name a stable hint code. */
 export function raisesWithoutCode(file: TextFile): readonly FindingInput[] {
-  const lines = file.text.split("\n");
-  let offset = 0;
+  return codeStatementsOf(file.text).flatMap((statement) => {
+    const { tokens } = statement;
 
-  return lines.flatMap((line, index): FindingInput[] => {
-    const start = offset;
+    return tokens.flatMap((token, at): FindingInput[] => {
+      if (!wordsAt(tokens, at, "raise", "exception")) {
+        return [];
+      }
 
-    offset += line.length + 1;
+      let end = at;
 
-    const trimmed = line.trim();
-    const raise = RAISE.exec(line);
+      while (
+        end < tokens.length &&
+        !(tokens[end]!.text === ";" && tokens[end]!.depth === token.depth)
+      ) {
+        end += 1;
+      }
 
-    const window =
-      raise === null ? "" : statementFrom(file.text, start + raise.index);
+      const hinted = tokens
+        .slice(at, end)
+        .some(
+          (_word, index, window) =>
+            wordsAt(window, index, "hint") && window[index + 1]?.text === "=",
+        );
 
-    if (
-      trimmed.startsWith("--") ||
-      raise === null ||
-      /hint\s*=/iu.test(window)
-    ) {
-      return [];
-    }
-
-    return [
-      {
-        message: `${file.path}:${String(index + 1)} raises without a hint code. Pass the stable code as hint, as fail(code, message) does, so an app can translate it.`,
-        target: file.path,
-      },
-    ];
+      return hinted
+        ? []
+        : [
+            {
+              message: `${file.path}:${String(token.line)} raises without a hint code. Pass the stable code as hint, as fail(code, message) does, so an app can translate it.`,
+              target: file.path,
+            },
+          ];
+    });
   });
 }
 

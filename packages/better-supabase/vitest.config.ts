@@ -25,7 +25,10 @@ export default defineConfig({
           exclude: ["tests/**/*.integration.test.ts"],
           // The first test in a CLI file pays the lazy command imports; with coverage on and
           // every workspace testing in parallel, that passes the 5 second default.
+          // A beforeEach that runs a CLI command pays the same imports, and a hook has its own
+          // 10 second default (remove.test.ts timed out there on a loaded runner).
           testTimeout: 20_000,
+          hookTimeout: 20_000,
           typecheck: {
             enabled: true,
             include: ["tests/**/*.test-d.ts"],
@@ -41,6 +44,9 @@ export default defineConfig({
           globalSetup: ["./tests/integration/global-setup.ts"],
           // The suites share one database; counts must not race with writes.
           fileParallelism: false,
+          // The doctor suite runs the whole rule set against the stack and took 5.2 s on a CI
+          // runner (main, #1130 merge), just past the 5 second default.
+          testTimeout: 20_000,
         },
       },
     ],

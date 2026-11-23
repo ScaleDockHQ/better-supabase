@@ -6,10 +6,12 @@ import {
   unwrapScanResult,
 } from "@supabase/pg-parser";
 
+import type { CodeStatement } from "./code-tokens.ts";
 import type { FileFacts, SchemaReadError } from "./facts.ts";
 import type { RawStatement } from "./read.ts";
 import type { SqlPart, SqlStatement } from "./statements.ts";
 
+import { codeStatementsFrom } from "./code-tokens.ts";
 import { factsFrom } from "./read.ts";
 import { Source } from "./source.ts";
 import {
@@ -22,6 +24,10 @@ import {
 export type * from "./facts.ts";
 
 export type { SqlPart, SqlStatement } from "./statements.ts";
+
+export type { CodeStatement, CodeToken } from "./code-tokens.ts";
+
+export { indexOfWords, nameAt, wordsAt } from "./code-tokens.ts";
 
 /** The Postgres grammar used when `db.major_version` is missing or unknown. */
 const DEFAULT_VERSION: SupportedVersion = 17;
@@ -303,6 +309,57 @@ export function partsOf(text: string): readonly SqlPart[] {
   if (known === undefined) {
     throw new Error(
       "The SQL reader has not scanned this text yet; await primeStatements first.",
+    );
+  }
+
+  return known;
+}
+
+const coded = new Map<string, readonly CodeStatement[]>();
+
+/**
+ * Reads every text into code tokens, bodies included, so `codeStatementsOf` can
+ * answer synchronously. A text the scanner rejects keeps no statements.
+ *
+ * @param texts - The SQL texts to read.
+ * @param options - The Postgres major version.
+ */
+export async function primeCodeStatements(
+  texts: readonly string[],
+  options: { majorVersion?: number } = {},
+): Promise<void> {
+  await Promise.all(
+    texts.map(async (text) => {
+      if (coded.has(text)) {
+        return;
+      }
+
+      try {
+        coded.set(
+          text,
+          await codeStatementsFrom(text, (body) => scanSql(body, options)),
+        );
+      } catch {
+        coded.set(text, []);
+      }
+    }),
+  );
+}
+
+/**
+ * The statements of a text that `primeCodeStatements` read before, as code
+ * tokens: no comments, string literals as one token and dollar-quoted bodies
+ * read in place one depth deeper.
+ *
+ * @param text - A SQL text.
+ * @returns Its statements.
+ */
+export function codeStatementsOf(text: string): readonly CodeStatement[] {
+  const known = coded.get(text);
+
+  if (known === undefined) {
+    throw new Error(
+      "The SQL reader has not tokenized this text yet; await primeCodeStatements first.",
     );
   }
 
