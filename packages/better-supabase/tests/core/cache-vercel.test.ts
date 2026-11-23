@@ -114,6 +114,22 @@ describe("vercelRuntimeCacheAdapter", () => {
     expect(cache.set).toHaveBeenNthCalledWith(2, "plain", 1, {});
   });
 
+  it("deletes an entry by key, and does nothing on a cache without delete", async () => {
+    const remove = vi.fn<(key: string) => Promise<void>>(() =>
+      Promise.resolve(),
+    );
+
+    const withDelete = vercelRuntimeCacheAdapter(() => ({
+      ...fakeCache(),
+      delete: remove,
+    }));
+
+    await withDelete.delete("orders:list");
+    await vercelRuntimeCacheAdapter(() => fakeCache()).delete("orders:list");
+
+    expect(remove).toHaveBeenCalledExactlyOnceWith("orders:list");
+  });
+
   it("passes the conformance kit", async () => {
     const report = await testCacheAdapter(
       vercelRuntimeCacheAdapter(() => fakeCache()),

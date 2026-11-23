@@ -29,6 +29,7 @@ const {
   CONNECT_GMAIL_CONNECTOR,
   CONNECT_OUTLOOK_CONNECTOR,
   BSB_REMOTE_CACHE_DIR,
+  BSB_REMOTE_CACHE_STORE,
   STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET,
   STRIPE_PRICE_PRO,
@@ -80,6 +81,12 @@ export const env = createEnv({
     // The directory cache-handlers/shared-remote.ts keeps remote entries in;
     // next.config.ts reads it directly, since the handler is set at build.
     BSB_REMOTE_CACHE_DIR: v.optional(v.string()),
+    // `postgres`: the e2e test's two instances share cache-handlers/postgres-remote.ts
+    // instead of the directory.
+    BSB_REMOTE_CACHE_STORE: v.optional(
+      v.picklist(["file", "postgres"]),
+      "file",
+    ),
     // The billing block's Stripe calls and webhook; the billing screens read
     // without them, Checkout, the portal and seat sync need them.
     STRIPE_SECRET_KEY: v.optional(v.string()),
@@ -115,6 +122,7 @@ export const env = createEnv({
     CONNECT_GMAIL_CONNECTOR,
     CONNECT_OUTLOOK_CONNECTOR,
     BSB_REMOTE_CACHE_DIR,
+    BSB_REMOTE_CACHE_STORE,
     STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET,
     STRIPE_PRICE_PRO,

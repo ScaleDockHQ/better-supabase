@@ -5418,12 +5418,16 @@
       "AstroCacheProviderLike",
       "AstroPostgresCacheConfig",
       "AstroPostgresCacheOptions",
+      "CacheLookup",
       "NextCacheEntry",
       "NextCacheHandler",
       "PostgresCacheHandlerOptions",
+      "PostgresCacheSource",
+      "PostgresCacheSqlClient",
       "PostgresCacheSqlOptions",
       "PostgresCacheStore",
       "PostgresCacheStoreOptions",
+      "PostgresCacheTables",
       "StoredCacheEntry",
       "TagState"
     ]

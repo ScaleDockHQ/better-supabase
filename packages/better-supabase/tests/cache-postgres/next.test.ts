@@ -87,7 +87,7 @@ describe("postgresCacheHandler", () => {
     const onError = vi.fn();
 
     const handler = postgresCacheHandler({
-      client: { ...store, get: () => Promise.resolve(err(failure)) },
+      client: { ...store, lookup: () => Promise.resolve(err(failure)) },
       onError,
     });
 

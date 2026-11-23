@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   decodeBase64,
@@ -69,7 +69,15 @@ interface Call {
   readonly ops: [string, ...unknown[]][];
 }
 
-type Reply = { data?: unknown; error?: { message: string } | null };
+type Reply = {
+  data?: unknown;
+  error?: { message: string; code?: string } | null;
+};
+
+/** The reply PostgREST gives for a function it does not know. */
+const UNKNOWN_FUNCTION: Reply = {
+  error: { code: "PGRST202", message: "Could not find the function" },
+};
 
 function scripted(reply: (call: Call) => Reply) {
   const calls: Call[] = [];
@@ -107,6 +115,12 @@ function scripted(reply: (call: Call) => Reply) {
   const client = {
     schema: (schema: string) => ({
       from: (table: string) => query(`${schema}.${table}`),
+      rpc: (name: string, args: unknown) => {
+        const builder = query(`${schema}.${name}()`);
+        calls.at(-1)?.ops.push(["rpc", args]);
+
+        return builder;
+      },
     }),
   };
 
@@ -193,6 +207,24 @@ describe("postgresCacheStore against the tables", () => {
     ]);
   });
 
+  it("rounds the fractional timestamps Next.js passes down to whole milliseconds", async () => {
+    const { calls, client } = scripted(() => ({}));
+    const store = postgresCacheStore({ client });
+
+    await store.set({
+      key: "k",
+      value: new Uint8Array(),
+      tags: [],
+      storedAt: 1_795_443_609_045.412,
+      expiresAt: 1_795_443_610_045.9,
+      meta: {},
+    });
+
+    expect(op(calls[0], "upsert")).toMatchObject([
+      { stored_at: 1_795_443_609_045, expires_at: 1_795_443_610_045 },
+    ]);
+  });
+
   it("turns each failed write, delete and prune into a typed error", async () => {
     const store = postgresCacheStore(
       scripted(() => ({ error: { message: "nope" } })),
@@ -221,7 +253,13 @@ describe("postgresCacheStore against the tables", () => {
       "Postgres cache: tag read failed: nope",
     );
     expect((await store.markTags(["a"])).error?.message).toBe(
-      "Postgres cache: tag read failed: nope",
+      "Postgres cache: tag write failed: nope",
+    );
+    expect((await store.lookup("k")).error?.message).toBe(
+      "Postgres cache: read failed: nope",
+    );
+    expect((await store.delete("k")).error?.message).toBe(
+      "Postgres cache: delete failed: nope",
     );
   });
 
@@ -245,6 +283,7 @@ describe("postgresCacheStore against the tables", () => {
       store.prune(),
       store.tagStates(["a"]),
       store.markTags(["a"]),
+      store.lookup("k"),
     ]).then((results) => results.map((result) => result.error?.message));
 
     expect(messages).toEqual([
@@ -252,7 +291,8 @@ describe("postgresCacheStore against the tables", () => {
       "Postgres cache: delete failed: down",
       "Postgres cache: prune failed: down",
       "Postgres cache: tag read failed: down",
-      "Postgres cache: tag read failed: down",
+      "Postgres cache: tag write failed: down",
+      "Postgres cache: read failed: down",
     ]);
   });
 
@@ -266,11 +306,144 @@ describe("postgresCacheStore against the tables", () => {
     expect(op(calls[1], "lt")).toEqual(["expires_at", 123]);
   });
 
-  it("marks tags expired now, stale with a later expiry, or stale only", async () => {
+  it("marks tags in one function call per chunk of 128", async () => {
+    const { calls, client } = scripted(() => ({}));
+    const store = postgresCacheStore({ client, functionPrefix: "app_cache" });
+    const many = Array.from({ length: 130 }, (_, index) => `t${String(index)}`);
+
+    await store.markTags(["a", "a"], { now: 1000 });
+    await store.markTags(["a"], { now: 1000, expireSeconds: 10 });
+    await store.markTags(["a"], { now: 1000, staleOnly: true });
+    await store.markTags(many, { now: 1000 });
+
+    expect(calls.map((call) => call.target)).toEqual(
+      Array.from({ length: 5 }, () => "public.app_cache_mark_tags()"),
+    );
+    expect(calls.slice(0, 3).map((call) => op(call, "rpc")?.[0])).toEqual([
+      { p_tags: ["a"], p_mode: "expire", p_expire_seconds: 0, p_now: 1000 },
+      { p_tags: ["a"], p_mode: "delay", p_expire_seconds: 10, p_now: 1000 },
+      { p_tags: ["a"], p_mode: "stale", p_expire_seconds: 0, p_now: 1000 },
+    ]);
+  });
+
+  it("reads an entry and its tag states in one function call", async () => {
+    const { calls, client } = scripted(() => ({
+      data: {
+        key: "k",
+        value: encodeBase64(new Uint8Array([7])),
+        tags: ["a"],
+        stored_at: "10",
+        expires_at: "20",
+        path: "/p",
+        meta: {},
+        stale: true,
+      },
+    }));
+
+    const store = postgresCacheStore({ client });
+    const found = await store.lookup("k", ["soft"], 15);
+
+    expect(found.ok && found.data).toEqual({
+      entry: {
+        key: "k",
+        value: new Uint8Array([7]),
+        tags: ["a"],
+        storedAt: 10,
+        expiresAt: 20,
+        path: "/p",
+        meta: {},
+      },
+      stale: true,
+    });
+    expect(calls).toHaveLength(1);
+    expect(op(calls[0], "rpc")).toEqual([
+      { p_key: "k", p_soft_tags: ["soft"], p_now: 15 },
+    ]);
+  });
+
+  it("falls back to the tables once when the functions are missing", async () => {
+    const errors: string[] = [];
+
+    const { calls, client } = scripted((call) => {
+      if (call.target.endsWith("()")) {
+        return UNKNOWN_FUNCTION;
+      }
+
+      return op(call, "in")
+        ? { data: [{ tag: "a", stale_at: 5, expired_at: 0 }] }
+        : {
+            data: {
+              key: "k",
+              value: "",
+              tags: ["a"],
+              stored_at: 1,
+              expires_at: 99,
+              path: null,
+              meta: {},
+            },
+          };
+    });
+
+    const store = postgresCacheStore({
+      client,
+      onError: (error) => errors.push(error.message),
+    });
+
+    const first = await store.lookup("k", [], 10);
+    const second = await store.lookup("k", [], 10);
+
+    expect(first.ok && first.data?.stale).toBe(true);
+    expect(second.ok && second.data?.stale).toBe(true);
+    expect(calls.filter((call) => call.target.endsWith("()"))).toHaveLength(1);
+    expect(errors).toEqual([
+      expect.stringContaining(
+        "bsb_cache_get or bsb_cache_mark_tags is missing",
+      ),
+    ]);
+  });
+
+  it("tries the functions again a minute after they were missing", async () => {
+    vi.useFakeTimers({ now: 0 });
+
+    try {
+      let installed = false;
+
+      const { calls, client } = scripted((call) =>
+        call.target.endsWith("()") && !installed ? UNKNOWN_FUNCTION : {},
+      );
+
+      const store = postgresCacheStore({ client });
+
+      await store.markTags(["a"]);
+      installed = true;
+      await store.markTags(["a"]);
+      vi.setSystemTime(61_000);
+      await store.markTags(["a"]);
+
+      expect(
+        calls.map((call) => (call.target.endsWith("()") ? "rpc" : "table")),
+      ).toEqual(["rpc", "table", "table", "table", "table", "rpc"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("deletes one entry by key", async () => {
+    const { calls, client } = scripted(() => ({}));
+    const store = postgresCacheStore({ client });
+
+    expect((await store.delete("k")).ok).toBe(true);
+    expect(op(calls[0], "delete")).toEqual([]);
+    expect(op(calls[0], "eq")).toEqual(["key", "k"]);
+  });
+
+  it("marks tags expired now, stale with a later expiry, or stale only without the function", async () => {
     const { calls, client } = scripted((call) =>
-      op(call, "select")
-        ? { data: [{ tag: "old", stale_at: 1, expired_at: 50_000 }] }
-        : {},
+      call.target.endsWith("()")
+        ? UNKNOWN_FUNCTION
+        : op(call, "select")
+          ? { data: [{ tag: "old", stale_at: 1, expired_at: 50_000 }] }
+          : {},
     );
 
     const store = postgresCacheStore({ client, tagsTable: "tags" });
@@ -297,13 +470,17 @@ describe("postgresCacheStore against the tables", () => {
         { tag: "new", stale_at: 1000, expired_at: 0 },
       ],
     ]);
-    expect(calls[0]?.target).toBe("public.tags");
+    expect(calls[1]?.target).toBe("public.tags");
   });
 
   it("reports a failed tag write", async () => {
     const store = postgresCacheStore(
       scripted((call) =>
-        op(call, "upsert") ? { error: { message: "full" } } : { data: [] },
+        call.target.endsWith("()")
+          ? UNKNOWN_FUNCTION
+          : op(call, "upsert")
+            ? { error: { message: "full" } }
+            : { data: [] },
       ),
     );
 

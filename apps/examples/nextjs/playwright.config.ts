@@ -25,6 +25,7 @@ const remoteCacheDir = path.join(tmpdir(), "bsb-example-remote-cache");
 export default defineConfig({
   testDir: "tests",
   testMatch: "**/*.spec.ts",
+  globalSetup: "./tests/support/postgres-cache-setup.ts",
   // The @scale specs need pnpm db:seed:scale; run them with --grep @scale.
   grepInvert: process.argv.includes("@scale") ? /(?!)/ : /@scale/,
   fullyParallel: false,
@@ -34,7 +35,11 @@ export default defineConfig({
   webServer: {
     command: "next build && { next start -p 3101 & next start -p 3100; }",
     url: `${baseURL}/login`,
-    env: { EXPOSE_TESTING_API: "1", BSB_REMOTE_CACHE_DIR: remoteCacheDir },
+    env: {
+      EXPOSE_TESTING_API: "1",
+      BSB_REMOTE_CACHE_DIR: remoteCacheDir,
+      BSB_REMOTE_CACHE_STORE: process.env["BSB_REMOTE_CACHE_STORE"] ?? "file",
+    },
     reuseExistingServer: process.env["CI"] === undefined,
     timeout: 600_000,
   },

@@ -62,6 +62,8 @@ export interface VercelRuntimeCacheTags {
     options?: { name?: string; tags?: string[]; ttl?: number },
   ): Promise<void>;
   expireTag(tag: string | string[]): Promise<void>;
+  /** Removes one entry; `@vercel/functions` has it, a hand-written stub may not. */
+  delete?(key: string): Promise<void>;
 }
 
 export interface VercelRuntimeCacheAdapterOptions {
@@ -88,6 +90,8 @@ export interface VercelRuntimeCacheAdapter extends CacheAdapter {
     value: unknown,
     options?: RuntimeCacheEntryOptions,
   ): Promise<void>;
+  /** Removes the entry under `key`; a cache without `delete` keeps it. */
+  delete(key: string): Promise<void>;
 }
 
 /**
@@ -123,6 +127,9 @@ export function vercelRuntimeCacheAdapter(
         ...(entry.name === undefined ? {} : { name: entry.name }),
         ...(tags.length === 0 ? {} : { tags }),
       });
+    },
+    delete: async (key) => {
+      await open().delete?.(key);
     },
     invalidate: async (target) => {
       const tags = encodedTags(cacheTagsOf(target));

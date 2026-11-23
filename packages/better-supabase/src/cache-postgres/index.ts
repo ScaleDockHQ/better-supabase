@@ -21,8 +21,12 @@ export type { PostgresCacheSqlOptions } from "./sql.ts";
 export { postgresCacheStore } from "./store.ts";
 
 export type {
+  CacheLookup,
+  PostgresCacheSource,
+  PostgresCacheSqlClient,
   PostgresCacheStore,
   PostgresCacheStoreOptions,
+  PostgresCacheTables,
   StoredCacheEntry,
   TagState,
 } from "./store.ts";
