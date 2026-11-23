@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.83.0 (2026-11-23)
+
+- Shrink the config in 0.82. Breaking changes, with the old and new forms in the [0.81 to 0.82 guide](https://bettersupabase.com/docs/migration/0.81-to-0.82):
+
+  - `blocks` is a list of names and `{ block, name?, ... }` entries. Run `better-supabase codemod blocks-list`.
+  - The numbering tenant column defaults to `database.sql.tenantColumn` instead of `organization_id`. Run `gen sql` and read the diff.
+  - Record types are declared once, and `blocks.<name>.on` names a registered type. Run `codemod record-types`.
+  - Audit exemptions, data lifecycle, Data API privileges and same-tenant checks can sit in a `comment on table` as `@bsb` tags. Run `codemod table-tags`.
+  - An authorization provider can state `actionKeys`, `approverFor`, `managedUsers` and approval floors. The config entry still wins.
+  - `codemod config --prune` removes entries the render already supplies and bisects by block group.
+  - Doctor accepts a grouped baseline, reports BS427, BS706, BS707 and BS708, and fixes BS112, BS116, BS217, BS239, BS352 and BS365.
+  - Block fixes: tax codes are unique per tenant (run `validate constraint` once), `cancel_approval` reaches expenses and time entries, notifications can email non-members, and the import runner, template clones, audit statement trigger and fake client filters are corrected.
+- `better-supabase/cache-postgres` keeps Next.js `cacheHandlers` entries and Astro route cache responses in Supabase Postgres, so every instance shares them and a tag you expire takes effect on all. It exports `postgresCacheHandler`, `astroPostgresCache` (and `better-supabase/cache-postgres/astro` as the Astro provider entrypoint), `postgresCacheStore` and `postgresCacheSql`, which returns the SQL for two tables that only the service role can read.
+- Fix five gaps an adopter found on 0.82:
+
+  - `baseline apply` moves every `xid8` or `xid` value of the restored rows that is ahead of the new database's transaction counter back to the restoring transaction, and `outbox_register` never starts a consumer past the current snapshot, so a consumer registered on a fresh stack no longer skips new events.
+  - `submit_expense` lets the line manager or the update key resubmit a rejected expense whose owner has no account; an owner with an account still resubmits their own.
+  - The relay's receive check reads its probe message back by its typed primary key, so it no longer scans `realtime.messages`.
+  - `baseline apply` removes its temporary folder when unpacking the storage tarball fails.
+  - `cancel_leave_request` refuses a rejected request only while it is not approved, matching the status it reports.
+
 ## 0.82.0 (2026-11-22)
 
 - AI SDK surfaces for media, MCP, harness agents and tools. There are no breaking changes.
