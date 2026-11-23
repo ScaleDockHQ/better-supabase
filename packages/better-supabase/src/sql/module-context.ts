@@ -204,7 +204,7 @@ function resolveFact<T>(
  * block over the app's membership table, whose role the provider reads through
  * a roles table, gets the same `roleThrough`, unless the config sets one.
  */
-export function withProviderDefaults(
+function withProviderDefaults(
   layout: BlockSqlLayout,
 ): AnyBlocksConfig | undefined {
   return viewColumnsOf(layout).modules;
@@ -508,7 +508,7 @@ function providerPeople(
  * The tenant id type the authorization provider gives, preferring the access
  * model's scope.
  */
-export function providerIdType(layout: BlockSqlLayout): {
+function providerIdType(layout: BlockSqlLayout): {
   providerIdType?: BlockSqlIdType;
 } {
   const idType =
@@ -521,9 +521,7 @@ export function providerIdType(layout: BlockSqlLayout): {
  * Whether the authorization provider answers for guests, which only counts
  * under the `provider` model.
  */
-export function providerGuests(layout: BlockSqlLayout): {
-  providerGuests?: boolean;
-} {
+function providerGuests(layout: BlockSqlLayout): { providerGuests?: boolean } {
   return providerAnswersForGuests(layout) ? { providerGuests: true } : {};
 }
 
