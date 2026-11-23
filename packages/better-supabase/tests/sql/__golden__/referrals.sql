@@ -1403,16 +1403,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:8b1dccb72479a19444c6b303624b5257e60db7b910f71062b3c3fecc1ad6024d
+-- @bsb-hash sha256:d8a34eef65961a4f5a14f5f7ee56f44a6581cc5d055aa7e853f0f8bdd4ec8db1
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Referral codes and the referrals they bring. A code belongs to the member who
 -- shares it, optionally to one invitation. Rewards are bigint minor units of a
 -- ledger unit, posted once per referral.

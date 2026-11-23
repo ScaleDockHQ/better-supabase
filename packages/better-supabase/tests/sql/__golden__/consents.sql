@@ -2902,16 +2902,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:ab26404b8bc5ebc5d6a73047119ca7abef42cfe532b1b9d19c01cefcb821f9ff
+-- @bsb-hash sha256:a5e181e9a8c8b14ee200e428dce934716dabda7b3484b59865152beca69c49dd
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Consent per record and purpose: what an organization asks consent for, each
 -- decision with who made it and its evidence, withdrawals and expiry.
 create table "app_private"."consent_purposes" (

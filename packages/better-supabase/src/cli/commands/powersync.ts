@@ -329,10 +329,10 @@ export async function runPowerSync(
 
   const layout = await layoutFor(config, {}, config.blockNames);
   const app = await appSchemaTexts(config);
-  let output: ReturnType<typeof powersyncOutput>;
+  let output: Awaited<ReturnType<typeof powersyncOutput>>;
 
   try {
-    output = powersyncOutput({
+    output = await powersyncOutput({
       // The app's own files carry the columns it adds to block tables.
       files: [
         ...(await renderBlocksCached(config, config.blockNames, layout)),

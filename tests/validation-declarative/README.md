@@ -20,3 +20,10 @@ stands in for a database in doctor. To refresh both after a module changes,
 remove `supabase/migrations/*_declarative_base.sql` (keep the role-timeouts migration), run `better-supabase upgrade`, then
 `supabase db schema declarative sync --no-apply --strict-coverage -f declarative_base`,
 reset a local stack from it and write the snapshot with `introspect`.
+
+The plan parity test (`PLAN_PARITY=1`) needs a running stack with the migrations
+applied (`supabase start`, then `supabase migration up`, with
+`PLAN_PARITY_DB_URL` when the database is not on port 54322). It plans the
+schema files with the pg-delta the Supabase CLI bundles (the `pg-delta-previous`
+alias, alpha.60) and with the pinned alpha.61, and expects the same statements
+in the same order (ADR 1204). Move the alias with the CLI's bundled release.

@@ -10323,16 +10323,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:d28f372372cfc60eeb477461c4cb6dba278871182aae30f688b624b798e33dd0
+-- @bsb-hash sha256:b5998c22599164ff840966f7b9336d8fe69161db8c2f6e4d90440363000f8d87
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Invoices an organization sends its own customers and the bills its
 -- suppliers send it: drafts with lines, a number on issue, payments, credit
 -- notes, void and write-off, aging and the three-way match of a bill.

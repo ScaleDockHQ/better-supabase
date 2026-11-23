@@ -3713,16 +3713,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:40ee0d94c6daeb6fecab8293ae239dd372b2449ba4bfb4e44257689a9aa6ce38
+-- @bsb-hash sha256:ef236ce574ff0fa73a041ae2a8ce69eb48d3d65ea92a93e5a17bcce94597df7d
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Compliance controls: frameworks of controls, evidence linked to them,
 -- recurring evidence tasks, and versioned policies members acknowledge
 -- through the acknowledgements block.

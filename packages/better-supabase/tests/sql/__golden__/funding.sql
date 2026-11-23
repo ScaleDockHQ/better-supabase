@@ -2751,16 +2751,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:35e737b9848294c24169958d1d43bdde1454d6e7f35adcb353131d461fa53f48
+-- @bsb-hash sha256:f44006a9dff345182f719d3c407c17691cd991827afecbcd626158c50cc3ec00
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Funding: the products a funder pays for, awards of units per period to a
 -- record, the care delivered against them, and claims to the funder with its
 -- response per line.

@@ -11,11 +11,14 @@
   },
   "devDependencies": {
     "@better-supabase/typescript-config": "workspace:*",
+    "@supabase/pg-delta": "catalog:deps",
+    "@supabase/pg-topo": "catalog:deps",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "better-supabase": "workspace:*",
     "oxlint": "catalog:",
     "pg": "catalog:",
+    "pg-delta-previous": "npm:@supabase/pg-delta@1.0.0-alpha.60",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

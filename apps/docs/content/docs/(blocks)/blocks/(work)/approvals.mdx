@@ -99,6 +99,15 @@ A `required: "all"` step completes once each listed user has approved, either th
 
 Policies are fixed per subject type and action. To pick one by the record's values, such as the finance chain for an expense over 500, give each chain its own action and let a tenant-edited [rule](/docs/blocks/automations#actions) choose it: `approvalsAction` from `better-supabase/blocks/automations` files the request for the action in the matching rule's `config.action`.
 
+## Declare floors as rows
+
+A floor can be an `approval_floor` row in `supabase/rows/approvals.sql`. The subject and the key are
+`<subjectType>:<action>`, with `*` for either part, and the value is the policy the request
+snapshots (`steps`, `selfApproval`, `expiresIn`, `run`, `mode`, `effects`). The most specific
+declared row wins (the exact pair, then `<subjectType>:*`, then `*:<action>`, then `*:*`), and a
+declared row beats the same floor in `options.policies`. `better-supabase db rows` writes the data
+migration, and `better-supabase codemod declared-rows` moves the floors you already have.
+
 ## Confirm or authorize
 
 A policy's `mode` says what an approval proves. `authorize`, the default, means someone other than the requester decided every step (unless `selfApproval` is on). `confirm` means the requester looked again: they may approve their own request, and their approval finishes it at once, whatever steps remain. Other approvers still decide the steps as usual. Use `confirm` for a deliberate second click before a risky action, and `authorize` when another person has to agree.

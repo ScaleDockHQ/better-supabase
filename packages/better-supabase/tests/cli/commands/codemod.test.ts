@@ -64,7 +64,7 @@ describe("runCodemod", () => {
 
   it("never rewrites a block file, even when a path names it", async () => {
     const block = join(root, "supabase/schemas/900_better_supabase_x.sql");
-    const text = `-- @bsb-block x 1\nimport { buildJsonSchema } from "better-supabase/config";\n`;
+    const text = `import { buildJsonSchema } from "better-supabase/config";\n`;
 
     await mkdir(join(root, "supabase/schemas"), { recursive: true });
     await writeFile(block, text);

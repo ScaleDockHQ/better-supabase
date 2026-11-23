@@ -75,4 +75,27 @@ describe("mergeRestated", () => {
       ),
     ).toEqual([entry("a", "structural"), entry("b", "probed")]);
   });
+
+  it("writes hook paths under callbacks, the key the config file uses", async () => {
+    const entries = await probeRestated(
+      resolveConfig(
+        {
+          blocks: {
+            organizations: {
+              callbacks: {
+                functions: {
+                  after_organization_create: "after_organization_create",
+                },
+              },
+            },
+          },
+        },
+        "/project",
+      ),
+    );
+
+    expect(entries.map((entry) => entry.path)).toContain(
+      "blocks.organizations.callbacks.functions.after_organization_create",
+    );
+  });
 });

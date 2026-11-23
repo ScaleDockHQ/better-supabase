@@ -1,62 +1,53 @@
+import type { Node } from "oxc-parser";
+
+import { walk } from "oxc-walker";
+
 import type { NamingRename } from "./codemod-naming.ts";
+import type { ReviewLine } from "./codemod.ts";
 
-import { codeRanges } from "./code-ranges.ts";
+import { rewriteSource } from "./config-document/index.ts";
 
-/** The innermost unclosed bracket before `at`, counting only code. */
-function openBracket(
-  text: string,
-  at: number,
-  ranges: readonly [number, number][],
-): "{" | "[" | "(" | undefined {
-  const stack: ("{" | "[" | "(")[] = [];
+/** A rewrite's new text and the places it could not follow. */
+export interface Rewritten {
+  readonly text: string;
+  readonly review: readonly ReviewLine[];
+}
 
-  const push = (char: string): void => {
-    if (char === "{" || char === "[" || char === "(") {
-      stack.push(char);
-    }
-  };
+const camel = (name: string): string =>
+  name.replaceAll(/-([a-z])/g, (_all, letter: string) => letter.toUpperCase());
 
-  for (const [start, end] of ranges) {
-    const stop = Math.min(end, at);
-
-    if (stop <= start) {
-      continue;
-    }
-
-    for (let index = start; index < stop; index += 1) {
-      const char = text[index];
-
-      if (char === "{" || char === "[" || char === "(") {
-        push(char);
-      } else if (
-        (char === "}" || char === "]" || char === ")") &&
-        stack.length > 0
-      ) {
-        stack.pop();
-      }
-    }
-
-    if (end >= at) {
-      break;
-    }
+/** The string a non-computed key or a string literal holds. */
+function keyText(node: Node): string | undefined {
+  if (node.type === "Identifier") {
+    return node.name;
   }
 
-  return stack.at(-1);
+  return node.type === "Literal" && typeof node.value === "string"
+    ? node.value
+    : undefined;
+}
+
+/** `to` written the way `at` was: quotes stay around a quoted key. */
+function asWritten(text: string, node: Node, to: string): string {
+  return node.type === "Literal"
+    ? `${text[node.start]}${to}${text[node.start]}`
+    : to;
 }
 
 /**
  * `text` with each property or argument name of the `argument` rows renamed: `{
- * workItemId: id }`, `result.workItemId` and the shorthand `{ workItemId }`,
- * which keeps its local name (`{ taskId: workItemId }`). A shorthand whose new
- * name is the same token stays shorthand (`{ taskId }`, not `{ taskId: taskId
- * }`), and so does a key whose value is the new name (`{ workItemId: taskId }`
- * is `{ taskId }`). Only names inside `{` are renamed, plus a member access.
- * The names in an import or export list stay.
+ * workItemId: id }`, `result.workItemId`, `result["workItemId"]` and the
+ * shorthand `{ workItemId }`, which keeps its local name (`{ taskId: workItemId
+ * }`). A key whose value is the new name collapses to a shorthand (`{
+ * workItemId: taskId }` is `{ taskId }`). Keys of object literals, patterns,
+ * type literals and interfaces count, plus a member access. Import and export
+ * lists, comments and strings stay as they are. A file that does not parse is
+ * listed, not skipped.
  */
 export function renameArguments(
   text: string,
   renames: readonly NamingRename[],
-): string {
+): Rewritten {
   const names = new Map(
     renames
       .filter((rename) => rename.kind === "argument")
@@ -64,129 +55,232 @@ export function renameArguments(
   );
 
   if (names.size === 0) {
-    return text;
+    return { text, review: [] };
   }
 
-  const ranges = codeRanges(text);
-  let out = "";
-  let from = 0;
+  return rewriteSource(text, ({ program, text: source, edit }) => {
+    const renamed = (node: Node): string | undefined => {
+      const name = keyText(node);
 
-  for (const [start, end] of ranges) {
-    for (const match of text.slice(start, end).matchAll(/[A-Za-z_$][\w$]*/g)) {
-      const to = names.get(match[0]);
+      return name === undefined ? undefined : names.get(name);
+    };
 
-      if (to === undefined) {
-        continue;
-      }
+    walk(program, {
+      enter(node) {
+        if (node.type === "MemberExpression") {
+          const to = renamed(node.property);
 
-      const at = start + match.index;
-      const before = text.slice(0, at).trimEnd();
-      const after = text.slice(at + match[0].length).trimStart();
-      const previous = before.at(-1);
-      const key = after.startsWith(":") && !after.startsWith("::");
+          if (
+            to !== undefined &&
+            (node.computed
+              ? node.property.type === "Literal"
+              : node.property.type === "Identifier")
+          ) {
+            edit.overwrite(
+              node.property.start,
+              node.property.end,
+              asWritten(source, node.property, to),
+            );
+          }
 
-      const shorthand =
-        (previous === "{" || previous === ",") &&
-        (after.startsWith(",") || after.startsWith("}"));
-
-      const inObject = openBracket(text, at, ranges) === "{";
-      const memberOf = previous === "." && before.at(-2) !== ".";
-      const listed = /\b(?:import|export)(?:\s+type)?\s*\{[^}]*$/.test(before);
-
-      let replacement: string | undefined;
-      let length = match[0].length;
-
-      if (memberOf) {
-        replacement = to;
-      } else if (inObject && key && !listed) {
-        const same = /^\s*:\s*([A-Za-z_$][\w$]*)(?=\s*[,}])/.exec(
-          text.slice(at + length),
-        );
-
-        replacement = to;
-
-        if (same?.[1] === to) {
-          length += same[0].length;
+          return;
         }
-      } else if (inObject && shorthand && !listed) {
-        replacement = to === match[0] ? to : `${to}: ${match[0]}`;
-      }
 
-      if (replacement !== undefined) {
-        out += text.slice(from, at) + replacement;
-        from = at + length;
-      }
-    }
-  }
+        if (
+          (node.type === "TSPropertySignature" ||
+            node.type === "TSMethodSignature") &&
+          !node.computed
+        ) {
+          const to = renamed(node.key);
 
-  return out + text.slice(from);
+          if (to !== undefined) {
+            edit.overwrite(
+              node.key.start,
+              node.key.end,
+              asWritten(source, node.key, to),
+            );
+          }
+
+          return;
+        }
+
+        if (node.type !== "Property" || node.computed) {
+          return;
+        }
+
+        const to = renamed(node.key);
+
+        if (to === undefined) {
+          return;
+        }
+
+        const from = keyText(node.key)!;
+
+        if (node.shorthand) {
+          if (to !== from) {
+            edit.overwrite(node.key.start, node.key.end, `${to}: ${from}`);
+          }
+        } else if (
+          !node.method &&
+          node.kind === "init" &&
+          node.value.type === "Identifier" &&
+          node.value.name === to
+        ) {
+          edit.overwrite(node.start, node.end, to);
+        } else {
+          edit.overwrite(
+            node.key.start,
+            node.key.end,
+            asWritten(source, node.key, to),
+          );
+        }
+      },
+    });
+  });
 }
 
-const inCode = (text: string, index: number): boolean =>
-  codeRanges(text).some(([first, last]) => index >= first && index < last);
+/** `blocks`, `blockConfig` or a member with that name (`config.blocks`). */
+function isBlocksObject(node: Node): boolean {
+  const name =
+    node.type === "Identifier"
+      ? node.name
+      : node.type === "MemberExpression" &&
+          !node.computed &&
+          node.property.type === "Identifier"
+        ? node.property.name
+        : undefined;
 
-const camel = (name: string): string =>
-  name.replaceAll(/-([a-z])/g, (_all, letter: string) => letter.toUpperCase());
+  return name === "blocks" || name === "blockConfig";
+}
 
-const escapeRegExp = (value: string): string =>
-  value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+/** The literal key of `blocks["name"]` or `blockConfig["name"]`, when it is one. */
+function blockKey(node: Node): { name: string; at: Node } | undefined {
+  if (
+    node.type !== "MemberExpression" ||
+    !node.computed ||
+    !isBlocksObject(node.object) ||
+    node.property.type !== "Literal" ||
+    typeof node.property.value !== "string"
+  ) {
+    return undefined;
+  }
+
+  return { name: node.property.value, at: node.property };
+}
+
+/** The `blocks["name"]` a call or member chain starts from, when it does. */
+function rootBlockKey(node: Node): { name: string; at: Node } | undefined {
+  let at: Node = node;
+
+  for (;;) {
+    const found = blockKey(at);
+
+    if (found !== undefined) {
+      return found;
+    }
+
+    if (at.type === "CallExpression") {
+      at = at.callee;
+    } else if (at.type === "MemberExpression") {
+      at = at.object;
+    } else {
+      return undefined;
+    }
+  }
+}
 
 /**
  * `text` with the block keys of the `blocks.<name>` rows renamed where code
  * reads them: `blocks["time-tracking"]`, `blockConfig["time-tracking"]`,
  * `db.$blocks.timeTracking` and the key of a `defineBlocks` entry that reads
  * the block (`"time-tracking": blocks["time-tracking"]`). The config key itself
- * is renamed by the config scanner.
+ * is renamed by the config document. Strings and comments that only mention a
+ * name stay.
  */
 export function renameBlockReferences(
   text: string,
   renames: readonly NamingRename[],
-): string {
-  let result = text;
-
-  for (const rename of renames) {
+): Rewritten {
+  const pairs = renames.flatMap((rename) => {
     const from = /^blocks\.([^.]+)$/.exec(rename.from)?.[1];
     const to = /^blocks\.([^.]+)$/.exec(rename.to)?.[1];
 
-    if (rename.kind !== "configKey" || from === undefined || to === undefined) {
-      continue;
-    }
+    return rename.kind === "configKey" && from !== undefined && to !== undefined
+      ? [{ from, to }]
+      : [];
+  });
 
-    result = result.replaceAll(
-      new RegExp(
-        String.raw`\b(?:blocks|blockConfig)\s*\[\s*(["'])${escapeRegExp(from)}\1\s*\]`,
-        "g",
-      ),
-      (whole, quote: string, offset: number, source: string) =>
-        inCode(source, offset)
-          ? `${whole.startsWith("blockConfig") ? "blockConfig" : "blocks"}[${quote}${to}${quote}]`
-          : whole,
-    );
-
-    result = result.replaceAll(
-      new RegExp(
-        String.raw`(["'])${escapeRegExp(from)}\1(\s*:\s*blocks\s*\[\s*(["'])${escapeRegExp(to)}\3\s*\])`,
-        "g",
-      ),
-      (
-        whole,
-        quote: string,
-        value: string,
-        _inner: string,
-        offset: number,
-        source: string,
-      ) =>
-        inCode(source, offset + whole.length - 1)
-          ? `${quote}${to}${quote}${value}`
-          : whole,
-    );
-
-    result = result.replaceAll(
-      new RegExp(String.raw`(\$blocks\.)${camel(from)}\b`, "g"),
-      (whole, head: string, offset: number, source: string) =>
-        inCode(source, offset) ? `${head}${camel(to)}` : whole,
-    );
+  if (pairs.length === 0) {
+    return { text, review: [] };
   }
 
-  return result;
+  return rewriteSource(text, ({ program, text: source, edit }) => {
+    walk(program, {
+      enter(node) {
+        const read = blockKey(node);
+
+        if (read !== undefined) {
+          const pair = pairs.find((each) => each.from === read.name);
+
+          if (pair !== undefined) {
+            edit.overwrite(
+              read.at.start,
+              read.at.end,
+              `${source[read.at.start]}${pair.to}${source[read.at.start]}`,
+            );
+          }
+
+          return;
+        }
+
+        if (
+          node.type === "MemberExpression" &&
+          !node.computed &&
+          node.property.type === "Identifier" &&
+          node.object.type === "MemberExpression" &&
+          !node.object.computed &&
+          node.object.property.type === "Identifier" &&
+          node.object.property.name === "$blocks"
+        ) {
+          const pair = pairs.find(
+            (each) => camel(each.from) === node.property.name,
+          );
+
+          if (pair !== undefined) {
+            edit.overwrite(
+              node.property.start,
+              node.property.end,
+              camel(pair.to),
+            );
+          }
+
+          return;
+        }
+
+        if (
+          node.type === "Property" &&
+          !node.computed &&
+          node.key.type === "Literal" &&
+          typeof node.key.value === "string"
+        ) {
+          const key = rootBlockKey(node.value);
+          const name = node.key.value;
+
+          const pair = pairs.find(
+            (each) =>
+              each.from === name &&
+              (key?.name === each.from || key?.name === each.to),
+          );
+
+          if (pair !== undefined) {
+            edit.overwrite(
+              node.key.start,
+              node.key.end,
+              `${source[node.key.start]}${pair.to}${source[node.key.start]}`,
+            );
+          }
+        }
+      },
+    });
+  });
 }

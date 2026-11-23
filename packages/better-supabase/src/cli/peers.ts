@@ -308,6 +308,34 @@ export async function declaredPeers(): Promise<Record<string, string>> {
 }
 
 /**
+ * The package names the project's own `package.json`, or one of its workspace
+ * packages, lists in any dependency field; `undefined` when the project has no
+ * `package.json`.
+ */
+export async function listedDependencies(
+  root: string,
+): Promise<ReadonlySet<string> | undefined> {
+  const project = await readManifest(join(root, "package.json"));
+
+  if (project === undefined) {
+    return undefined;
+  }
+
+  const workspace = await detectWorkspace(root);
+
+  return new Set([
+    ...DEPENDENCY_FIELDS.flatMap((field) => {
+      const deps = project[field];
+
+      return typeof deps === "object" && deps !== null ? Object.keys(deps) : [];
+    }),
+    ...(workspace?.packages ?? []).flatMap((pkg) =>
+      Object.keys(pkg.project.dependencies),
+    ),
+  ]);
+}
+
+/**
  * Every declared peer with the version `root` resolves, or else the version the
  * better-supabase package resolves: lazy imports load from there, so a peer
  * installed only next to the package (a pnpm workspace) still loads. `direct`
@@ -316,21 +344,7 @@ export async function declaredPeers(): Promise<Record<string, string>> {
  */
 export async function peerVersions(root: string): Promise<PeerVersion[]> {
   const peers = await declaredPeers();
-  const project = await readManifest(join(root, "package.json"));
-
-  const workspace =
-    project === undefined ? undefined : await detectWorkspace(root);
-
-  const listed = new Set([
-    ...DEPENDENCY_FIELDS.flatMap((field) => {
-      const deps = project?.[field];
-
-      return typeof deps === "object" && deps !== null ? Object.keys(deps) : [];
-    }),
-    ...(workspace?.packages ?? []).flatMap((pkg) =>
-      Object.keys(pkg.project.dependencies),
-    ),
-  ]);
+  const listed = await listedDependencies(root);
 
   const packageDir = dirname(
     fileURLToPath(import.meta.resolve("better-supabase/package.json")),
@@ -343,7 +357,7 @@ export async function peerVersions(root: string): Promise<PeerVersion[]> {
       installed:
         (await installedVersion(name, root)) ??
         (await installedVersion(name, packageDir)),
-      ...(project === undefined ? {} : { direct: listed.has(name) }),
+      ...(listed === undefined ? {} : { direct: listed.has(name) }),
     })),
   );
 }

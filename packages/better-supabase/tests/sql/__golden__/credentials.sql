@@ -247,16 +247,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:f978a112be832695bb4171bc2a635bbd4f8335030e54612eea6aa94a00a9aa03
+-- @bsb-hash sha256:fbbbd30685168df327cd01aced46805e8780838fe32cc3b737d3371f8c63a23a
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Third-party credentials live in Vault as bs:cred:<provider>:<name>; tables
 -- keep a credential_ref that names them, never the secret. Only the service
 -- role reads or writes them.

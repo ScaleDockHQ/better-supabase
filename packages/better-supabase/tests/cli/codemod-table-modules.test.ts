@@ -99,6 +99,71 @@ describe("codemod table-modules", () => {
     expect(result.review[0]?.message).toContain("defineListQuery");
   });
 
+  it("keeps CRLF, a type-only head and comments, and lists what it cannot split", () => {
+    const crlf = rewriteForTableModules(
+      "/app/src/lib/supabase/index.ts",
+      'import type { schema, Models } from "./generated.ts"; // keep\r\n',
+      OUTPUT,
+      tables,
+    );
+
+    expect(crlf.text).toBe(
+      'import type { Models } from "./generated.ts";\r\nimport type { schema } from "./generated-schema.ts"; // keep\r\n',
+    );
+
+    const source =
+      'import defaults, { schema } from "./generated.ts";\n// import { schema } from "./generated.ts";\n';
+
+    const split = rewriteForTableModules(
+      "/app/src/lib/supabase/index.ts",
+      source,
+      OUTPUT,
+      tables,
+    );
+
+    expect(split.text).toBe(source);
+    expect(split.review[0]?.message).toContain("move schema by hand");
+  });
+
+  it("lists a file that does not parse", () => {
+    const result = rewriteForTableModules(
+      "/app/src/a.tsx",
+      '"use client";\nconst a = bsb.db.customers.list(;\n',
+      OUTPUT,
+      tables,
+    );
+
+    expect(result.text).toContain("bsb.db.customers");
+    expect(result.review[0]?.message).toContain("does not parse");
+  });
+
+  it("rewrites reads in a client file with CRLF, a shorthand holder and comments", () => {
+    const source = [
+      '"use client";',
+      'import { bsb } from "../lib/supabase/client";',
+      "// bsb.db.customers stays in a comment",
+      "const { db } = bsb;",
+      "export const rows = () => bsb.db.customers.list();",
+      "export const call = () => bsb.db.customers();",
+      "",
+    ].join("\r\n");
+
+    const result = rewriteForTableModules(
+      "/app/src/app/rows.tsx",
+      source,
+      OUTPUT,
+      tables,
+    );
+
+    expect(result.text).not.toMatch(/[^\r]\n/);
+    expect(result.text).toContain("bsb.table(customersTable).list()");
+    expect(result.text).toContain("// bsb.db.customers stays in a comment");
+    expect(result.text).toContain("bsb.db.customers();");
+    expect(result.text).toContain(
+      'import { customersTable } from "../lib/supabase/tables/customers.ts";',
+    );
+  });
+
   it("reads the table modules next to the generated module", async () => {
     const root = await mkdtemp(join(tmpdir(), "bsb-codemod-"));
 

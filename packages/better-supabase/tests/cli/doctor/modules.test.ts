@@ -6,7 +6,7 @@ import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
-import { parseToml } from "../../../src/cli/supabase-toml.ts";
+import { supabaseConfigFromText } from "../../../src/cli/supabase-config.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
@@ -138,13 +138,8 @@ create function "better_supabase"."tenant_ids_with"(p text) returns setof uuid l
   });
 });
 
-const toml = (text: string): DoctorContext["configToml"] => ({
-  path: "supabase/config.toml",
-  dir: "supabase",
-  text,
-  document: parseToml(text),
-  parser: "smol-toml",
-});
+const toml = (text: string): DoctorContext["configToml"] =>
+  supabaseConfigFromText(text);
 
 describe("BS325 audit user-session reads", () => {
   it("warns when the app lists the log and the module stays service_role only", async () => {

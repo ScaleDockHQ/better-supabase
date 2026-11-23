@@ -198,6 +198,28 @@ describe("adopt", () => {
     });
   });
 
+  it("says so when it cannot set migrationSafety.since", async () => {
+    const file = join(dir, "better-supabase.config.ts");
+
+    await writeFile(
+      file,
+      "const tooling = load();\nexport default defineConfig({ tooling });\n",
+    );
+    await mkdir(join(dir, "supabase/migrations"), { recursive: true });
+    await writeFile(join(dir, "supabase/migrations/20260301000000_b.sql"), "");
+
+    const written = await runAdopt(
+      resolveConfig({}, dir),
+      { block: "teams" },
+      { configFile: file, tables },
+    );
+
+    expect(written.output).toContain(
+      "doctor.migrationSafety.since was not set",
+    );
+    expect(written.output).toContain('"20260301000000"');
+  });
+
   it("writes nothing and exits 1 when something can't map", async () => {
     await writeFile(configPath(), json({}));
 

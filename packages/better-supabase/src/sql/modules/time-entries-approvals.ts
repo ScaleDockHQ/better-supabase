@@ -13,13 +13,18 @@ import {
   userGrant,
   conflict,
 } from "../shared.ts";
-import { deciderCall, writerCall } from "./direct-approver.ts";
+import {
+  deciderCall,
+  hasDecider,
+  subjectRow,
+  writerCall,
+} from "./direct-approver.ts";
 import {
   atOnceSql,
   TIMESHEET_SUBJECT,
   timesheetAtOnce,
 } from "./time-entries-options.ts";
-import { byEmployee, entryLive } from "./time-entries-owner.ts";
+import { byEmployee, entryLive, timeOwner } from "./time-entries-owner.ts";
 
 /** What the approvals-mode timesheet functions read from the module. */
 export interface ApprovalTimesheetNames {
@@ -267,7 +272,7 @@ begin
   if not found then
     ${timesheetNotFound}
   end if;
-  if not (${SERVICE_CALLER} or coalesce(v_sheet.${t("user")} = auth.uid(), false) or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}${deciderCall(ctx, "blocks.time-entries.options", `v_sheet.${t("id")}`)}${writerCall(ctx, "blocks.time-entries.options", `v_sheet.${t("tenant")}`, `v_sheet.${t("user")}`)}) then
+  if not (${SERVICE_CALLER} or coalesce(v_sheet.${t("user")} = auth.uid(), false) or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}${deciderCall(ctx, "blocks.time-entries.options", `v_sheet.${t("id")}`, { requester: `v_sheet.${t("user")}`, tenant: `v_sheet.${t("tenant")}` })}${writerCall(ctx, "blocks.time-entries.options", `v_sheet.${t("tenant")}`, `v_sheet.${t("user")}`)}) then
     ${forbidden("not allowed to withdraw this timesheet")}
   end if;
   update ${ar} x set ${a("status")} = 'cancelled'
@@ -328,12 +333,30 @@ function timesheetDecider(
 ): Pick<ApprovalContribution, "decides"> {
   const where = "blocks.time-entries.options";
 
-  return deciderCall(own, where, "null") === ""
-    ? {}
-    : {
+  return hasDecider(own)
+    ? {
         decides: ({ subjectId }) =>
-          deciderCall(own, where, `${subjectId}::uuid`).replace(/^ or /u, ""),
-      };
+          deciderCall(
+            own,
+            where,
+            `${subjectId}::uuid`,
+            subjectRow(
+              own.table("timesheets"),
+              {
+                id: own.col("timesheets", "id"),
+                tenant: own.col("timesheets", "tenant"),
+                requester: (alias) =>
+                  timeOwner(own, true).status.sheetUser || !byEmployee(own)
+                    ? `${alias}.${own.col("timesheets", "user")}`
+                    : timeOwner(own, true).status.userOf(
+                        `${alias}.${own.col("timesheets", "employee")}`,
+                      ),
+              },
+              subjectId,
+            ),
+          ).replace(/^ or /u, ""),
+      }
+    : {};
 }
 
 /** Approvals decides weeks; per employee, the status column follows. */

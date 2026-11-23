@@ -240,6 +240,8 @@ export { DEFAULT_ACTIVE_TENANT, tenantNameOf } from "./blocks.ts";
 
 export { restatedEntries } from "./restated.ts";
 
+export { suggestSqlApi } from "./api-default.ts";
+
 export type { RestatedEntry, RestatedInput, RestatedKind } from "./restated.ts";
 
 export type * from "./snapshot.ts";

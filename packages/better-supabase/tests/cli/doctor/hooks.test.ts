@@ -13,7 +13,11 @@ import {
   hookGrantProblems,
 } from "../../../src/cli/doctor/hooks.ts";
 import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
-import { parseToml } from "../../../src/cli/supabase-toml.ts";
+import {
+  parseToml,
+  makeSupabaseConfig,
+  supabaseConfigFromText,
+} from "../../../src/cli/supabase-config.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
   stubProvider,
@@ -72,13 +76,7 @@ function context(
   return {
     config: resolveConfig({}, "/project"),
     snapshot,
-    configToml: {
-      path: "supabase/config.toml",
-      dir: "supabase",
-      text: HOOK_TOML,
-      document: parseToml(HOOK_TOML),
-      parser: "smol-toml",
-    },
+    configToml: supabaseConfigFromText(HOOK_TOML),
     envFiles: [],
     gitignore: "",
     sources: [],
@@ -345,15 +343,7 @@ describe("BS405 --as", () => {
     const toml = `[auth.hook.send_email]\nenabled = true\nuri = "pg-functions://postgres/rbac/custom_access_token_hook"\n`;
     expect(
       await runRules(
-        context(snap, {
-          configToml: {
-            path: "supabase/config.toml",
-            dir: "supabase",
-            text: toml,
-            document: parseToml(toml),
-            parser: "smol-toml",
-          },
-        }),
+        context(snap, { configToml: supabaseConfigFromText(toml) }),
         only("BS405"),
       ),
     ).toEqual([]);
@@ -577,13 +567,14 @@ describe("BS421", () => {
 describe("BS410 HTTP auth hooks", () => {
   const httpContext = (toml: string, document = parseToml(toml)) =>
     context(base, {
-      configToml: {
+      configToml: makeSupabaseConfig({
         path: "supabase/config.toml",
         dir: "supabase",
         text: toml,
         document,
         parser: "smol-toml",
-      },
+        format: "toml",
+      }),
     });
 
   const secret = `v1,whsec_${btoa("k".repeat(32))}`;

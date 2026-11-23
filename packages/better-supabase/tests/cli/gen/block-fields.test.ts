@@ -13,6 +13,7 @@ const TABLES = {
   "time-entries": "time_entries",
   teams: "teams",
   flags: "flags",
+  memberships: "memberships",
 } as const;
 
 const files = Object.values(TABLES).map((table) => ({

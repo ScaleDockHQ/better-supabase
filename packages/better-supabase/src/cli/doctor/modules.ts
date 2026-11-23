@@ -21,7 +21,7 @@ import {
 } from "../../sql/index.ts";
 import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
-import { tomlGet } from "../supabase-toml.ts";
+import { tomlGet } from "../supabase-config.ts";
 import {
   keepsAppsName,
   keptUpdatedAtTriggers,
@@ -1198,7 +1198,7 @@ function aal2WithoutMfa(context: DoctorContext): FindingInput[] {
       target: toml.path,
       location: {
         file: toml.path,
-        line: lineOf(toml.text, /^\[auth\.mfa\.totp\]/) ?? 1,
+        line: toml.locate(["auth", "mfa", "totp"])?.line ?? 1,
       },
     },
   ];

@@ -3207,16 +3207,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:a5e9f2d871a5d319396216dcc528c303bdc43e1a9d868d1f66622d24bf601d90
+-- @bsb-hash sha256:680d45f545c710da4f36e857861de91e57da86562d69f445bef184b4dd60b893
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;-- Commission plans (flat rate or marginal tiers), their assignments to sellers,
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;-- Commission plans (flat rate or marginal tiers), their assignments to sellers,
 -- the commissions accrued from paid records and the statements that collect
 -- a seller's commissions per period. Amounts are bigint minor units.
 create table "app_private"."commission_plans" (

@@ -110,8 +110,8 @@ function optionDiagnostics(
 
 /**
  * The files whose change makes tsc open the project again: the config, the
- * saved snapshot, `supabase/config.toml` and the stamp `gen` rewrites when the
- * schema types change.
+ * saved snapshot, the Supabase project config (`config.toml`, `config.json` or
+ * `config.jsonc`) and the stamp `gen` rewrites when the schema types change.
  */
 function watched(config: ResolvedConfig, configFile: string): string[] {
   return [
@@ -119,7 +119,9 @@ function watched(config: ResolvedConfig, configFile: string): string[] {
     ...(config.source.snapshot === undefined
       ? []
       : [resolve(config.root, config.source.snapshot)]),
-    join(config.root, "supabase/config.toml"),
+    ...["config.json", "config.jsonc", "config.toml"].map((name) =>
+      join(config.root, "supabase", name),
+    ),
     schemaStampPath(config.root, config.output),
   ].map((path) => realPath(path));
 }

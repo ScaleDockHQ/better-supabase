@@ -1335,16 +1335,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@3 managed
--- @bsb-hash sha256:46e922df894cf4a3604116d569946c43b2b753e9bf254796941b9ca57e7b7b6e
+-- @bsb-hash sha256:05b0122335808279aeb3d23ff14214f785ece3cb604531a7e971fee98c4956e1
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Vercel Marketplace: the teams that installed the integration, the resources
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an

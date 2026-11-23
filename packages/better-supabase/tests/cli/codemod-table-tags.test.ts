@@ -11,6 +11,7 @@ import {
   withoutExemptEntry,
 } from "../../src/cli/codemod-table-tags.ts";
 import { CODEMODS } from "../../src/cli/codemod.ts";
+import { primeSchemaFacts } from "../../src/cli/sql-facts.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { grantTag, lifecycleTag } from "../../src/sql/index.ts";
 
@@ -75,13 +76,21 @@ const project = (sql: CodemodProject["sql"]): CodemodProject => ({
   configText: CONFIG,
 });
 
+const run = async (
+  target: CodemodProject,
+): Promise<ReturnType<typeof tableTagFiles>> => {
+  await primeSchemaFacts(target.sql, "/project");
+
+  return tableTagFiles(target);
+};
+
 const schema = (name: string): CodemodProject["sql"][number] => ({
   path: `/project/supabase/schemas/${name}.sql`,
   text: `create table public.${name} (id uuid primary key);\n`,
 });
 
 describe("tableFactMoves", () => {
-  it("writes a tag line for each fact a comment can hold", () => {
+  it("writes a tag line for each fact a comment can hold", async () => {
     const { moves, review } = tableFactMoves(resolveConfig(input, "/project"));
 
     expect(review).toEqual([]);
@@ -99,8 +108,39 @@ describe("tableFactMoves", () => {
   });
 });
 
+describe("the render check", () => {
+  const config = resolveConfig(input, "/project");
+
+  const reaches = (name: "data-lifecycle" | "grant") => {
+    const move = tableFactMoves(config).moves.find(
+      (each) => each.tag === name,
+    )!;
+
+    return move.reaches as (check: typeof config) => boolean;
+  };
+
+  it("passes when the tag gives the entry's value back", async () => {
+    expect(reaches("data-lifecycle")(config)).toBe(true);
+    expect(reaches("grant")(config)).toBe(true);
+  });
+
+  it("fails when the block that reads the tag is not installed", async () => {
+    const without = { ...config, blockNames: [] };
+
+    expect(reaches("data-lifecycle")(without)).toBe(false);
+  });
+
+  it("marks an audit exemption as read by doctor only", async () => {
+    const move = tableFactMoves(config).moves.find(
+      (each) => each.tag === "audit-exempt",
+    )!;
+
+    expect(move.reaches).toBe("doctor");
+  });
+});
+
 describe("withTableTag", () => {
-  it("adds a tag to the block a comment has and starts one otherwise", () => {
+  it("adds a tag to the block a comment has and starts one otherwise", async () => {
     const created = withTableTag(
       "create table a.b (id int);",
       "a.b",
@@ -118,7 +158,7 @@ describe("withTableTag", () => {
 });
 
 describe("withoutExemptEntry", () => {
-  it("cuts the element for the table and leaves the others", () => {
+  it("cuts the element for the table and leaves the others", async () => {
     const next = withoutExemptEntry(CONFIG, "public.scratch")!;
 
     expect(next).not.toContain("public.scratch");
@@ -128,14 +168,14 @@ describe("withoutExemptEntry", () => {
 });
 
 describe("table-tags codemod", () => {
-  it("is registered after record-types", () => {
+  it("is registered after record-types", async () => {
     expect(Object.keys(CODEMODS).indexOf("table-tags")).toBe(
       Object.keys(CODEMODS).indexOf("record-types") + 1,
     );
   });
 
-  it("moves the facts into comments and drops the config entries", () => {
-    const { files, review } = tableTagFiles(
+  it("moves the facts into comments and drops the config entries", async () => {
+    const { files, review } = await run(
       project([schema("invoices"), schema("scratch")]),
     );
 
@@ -175,8 +215,28 @@ describe("table-tags codemod", () => {
     expect(review).toEqual([]);
   });
 
-  it("keeps a fact whose table no schema file creates", () => {
-    const { files, review } = tableTagFiles(project([schema("invoices")]));
+  it("explains the moves and writes nothing with --explain", async () => {
+    const target = {
+      ...project([schema("invoices"), schema("scratch")]),
+      explain: true,
+    };
+
+    await primeSchemaFacts(target.sql, "/project");
+
+    const result = await tableTagsCodemod().project!(target);
+
+    expect(result.files).toEqual([]);
+    expect(result.review.map((line) => line.message)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("explain: public.scratch"),
+        expect.stringContaining("Only doctor reads this tag"),
+        expect.stringContaining("render stays the same"),
+      ]),
+    );
+  });
+
+  it("keeps a fact whose table no schema file creates", async () => {
+    const { files, review } = await run(project([schema("invoices")]));
     const config = files.find((file) => file.path.endsWith(".ts"))!;
 
     expect(config.contents).toContain("public.scratch");
@@ -187,8 +247,8 @@ describe("table-tags codemod", () => {
     ]);
   });
 
-  it("leaves a fact a comment already holds", () => {
-    const { review } = tableTagFiles(
+  it("leaves a fact a comment already holds", async () => {
+    const { review } = await run(
       project([
         {
           path: "/project/supabase/schemas/invoices.sql",

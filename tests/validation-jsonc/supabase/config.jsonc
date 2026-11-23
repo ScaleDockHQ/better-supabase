@@ -1,0 +1,8 @@
+{
+  // Supabase CLI 3.2.0 reads config.jsonc when there is no config.json.
+  "project_id": "validation-jsonc",
+  "api": { "enabled": true, "auto_expose_new_tables": false },
+  "experimental": {
+    "pgdelta": { "enabled": true, "declarative_schema_path": "./schemas" },
+  },
+}

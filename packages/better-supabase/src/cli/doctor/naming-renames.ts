@@ -86,7 +86,7 @@ export const NAMING_RENAME_RULES: readonly Rule[] = [
       // An argument name counts only where the codemod renames it, as a key or
       // member, so a local variable of the same name is left alone.
       const argumentAt = (text: string, rename: NamingRename): number => {
-        const renamed = renameArguments(text, [rename]);
+        const renamed = renameArguments(text, [rename]).text;
         let at = 0;
 
         while (at < text.length && text[at] === renamed[at]) {

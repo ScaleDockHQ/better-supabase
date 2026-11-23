@@ -1055,16 +1055,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_045_chat_sdk_state.sql
 -- better-supabase module: chat-sdk-state
 -- @bsb-block chat-sdk-state@2 managed
--- @bsb-hash sha256:f0aa3fa1d8db65be0d087696d4b39721062c8c565f252161033f7094322a726f
+-- @bsb-hash sha256:5a3a1a443be6275833df29066c42804d8ff4182623f57b2c6c8121c4d9db8f60
 -- The Chat SDK StateAdapter in Postgres for better-supabase/chat-sdk: thread subscriptions, token locks, a TTL cache, capped lists and per-thread queues under a key prefix, plus the bot installations per workspace with a credential_ref instead of the token. Service role only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- The Chat SDK StateAdapter in Postgres: thread subscriptions, locks with a
 -- token, a key-value cache, capped lists and per-thread message queues, each
 -- under a key prefix so several bots share the tables. Only the service role

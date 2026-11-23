@@ -4,7 +4,7 @@ Thanks for contributing to better-supabase. This repository is a pnpm and Turbor
 
 ## Requirements
 
-- Node.js 24 or later (CI runs 24 LTS)
+- Node.js 24 or later (CI and `devEngines` use 26 LTS)
 - pnpm 12.8.1, the version pinned in `packageManager`
 - The [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), installed by `pnpm install`, for the integration suites. Its stack engine runs natively, without Docker.
 - The Vercel CLI, to pull the hosted environment variables (maintainers only; everything runs without them)

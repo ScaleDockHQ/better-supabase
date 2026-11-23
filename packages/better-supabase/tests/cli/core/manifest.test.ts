@@ -37,8 +37,8 @@ const PAGE_FILES = new Map<string, string>(
 
 const { loaders } = builtinCommands();
 
-/** A group that also runs (`dev`) has a loader of its own. */
-const RUNNABLE_GROUPS = ["dev"];
+/** A group that also runs (`dev`, `config`) has a loader of its own. */
+const RUNNABLE_GROUPS = ["dev", "config"];
 
 const leaves = [
   ...specPaths()

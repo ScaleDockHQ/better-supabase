@@ -5,6 +5,10 @@ import {
   classifyDiffs,
   configSections,
   diffSnapshots,
+  keptByReason,
+  keptEntries,
+  CONFIG_LINE_TARGET,
+  subKeyLines,
   parseArgs,
   totalLines,
 } from "./cutover-report.ts";
@@ -75,6 +79,24 @@ describe("diffSnapshots and classifyDiffs", () => {
     expect(explained["tax_codes"]).toBe(1);
     expect(unexplained.map((item) => item.file)).toEqual(["a.sql", "c.sql"]);
   });
+
+  it("scopes a main-side entry to its module file", () => {
+    const diff = (file: string) => ({
+      file,
+      kind: "changed" as const,
+      added: ["  v_known int;"],
+      removed: [],
+    });
+
+    const { unexplained } = classifyDiffs([
+      diff("supabase/schemas/better_supabase/module_064_imports.sql"),
+      diff("supabase/schemas/better_supabase/module_010_other.sql"),
+    ]);
+
+    expect(unexplained.map((item) => item.file)).toEqual([
+      "supabase/schemas/better_supabase/module_010_other.sql",
+    ]);
+  });
 });
 
 describe("parseArgs", () => {
@@ -119,6 +141,78 @@ describe("blockEntrySizes with a list", () => {
         ["seeds", 1],
         ["leave", 8],
       ]),
+    );
+  });
+});
+
+const subKeyConfig = [
+  "export default defineConfig({",
+  "  blocks: [",
+  '    "seeds",',
+  "    {",
+  '      block: "leave",',
+  "      columns: {",
+  "        leave: {",
+  '          startedAt: "start_date",',
+  "          note: null,",
+  "        },",
+  "      },",
+  "      audit: false,",
+  "    },",
+  "  ],",
+  "  instances: {",
+  '    second: { block: "leave", config: { api: "x" } },',
+  "  },",
+  "});",
+].join("\n");
+
+describe("the target", () => {
+  it("is 2,500 lines", () => {
+    expect(CONFIG_LINE_TARGET).toBe(2500);
+  });
+});
+
+describe("subKeyLines", () => {
+  it("counts the lines each sub-key owns, over blocks and instances", () => {
+    expect(subKeyLines(subKeyConfig)).toEqual(
+      new Map([
+        ["columns", 6],
+        ["audit", 1],
+        ["api", 1],
+        ["(entry)", 4],
+      ]),
+    );
+  });
+
+  it("reads an object keyed by block name too", () => {
+    const legacy =
+      "export default defineConfig({ blocks: { a: { api: false } } });";
+
+    expect(subKeyLines(legacy).get("api")).toBe(1);
+  });
+});
+
+describe("keptEntries", () => {
+  it("lists each column and setting with a reason", () => {
+    const kept = keptEntries(subKeyConfig);
+
+    expect(kept.map((entry) => entry.path)).toEqual([
+      "leave.columns.leave.startedAt",
+      "leave.columns.leave.note",
+      "leave.audit",
+      "leave.api",
+    ]);
+    expect(kept.every((entry) => entry.reason !== "")).toBe(true);
+    expect(
+      keptByReason(kept).get("drops a generated column the database lacks"),
+    ).toBe(1);
+  });
+});
+
+describe("a config that is not a defineConfig call", () => {
+  it("counts the whole file", () => {
+    expect(configSections("const x = 1;\n")).toEqual(
+      new Map([["(whole file)", 1]]),
     );
   });
 });

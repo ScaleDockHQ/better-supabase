@@ -1167,16 +1167,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:14dbd1703d24dd83c3fa32d71951b4cf02ccdb79bde21d5f528508667bc923bc
+-- @bsb-hash sha256:8eb9532b111b78f7356ffb614fb433ccaac6c9dcceb7b31d8e1200624d5bb920
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Prompt templates the application versions by name, per tenant or for the
 -- whole system (tenant is null). A version never changes once saved; a label
 -- such as production points at one version. Templates can hold instructions

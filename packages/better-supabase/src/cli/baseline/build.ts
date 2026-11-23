@@ -17,7 +17,7 @@ import type { BaselineContext, ScratchStack } from "./stack.ts";
 
 import { connect } from "../db.ts";
 import { loadPgDelta, migrationFiles, openPgPool } from "../in-stack-diff.ts";
-import { readSupabaseToml, supabaseDir } from "../supabase-toml.ts";
+import { readSupabaseConfig, supabaseDir } from "../supabase-config.ts";
 import { VERSION } from "../version.ts";
 import { artifactFiles, baselineRoot, readManifest } from "./artifact.ts";
 import {
@@ -209,7 +209,7 @@ export async function buildBaseline(
 ): Promise<BuildResult> {
   const { root } = ctx;
   const timer = stepTimer();
-  const toml = await readSupabaseToml(root);
+  const toml = await readSupabaseConfig(root);
   const dir = supabaseDir(root);
   const base = baselineRoot(root, options.out);
   const migrations = await hashFiles(root, await migrationFiles(root, dir));

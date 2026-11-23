@@ -22,7 +22,7 @@ export type {
  */
 export interface Snapshot {
   readonly $schema?: string;
-  readonly version: 2;
+  readonly version: 3;
   /** Every schema that was read, including helper schemas for doctor. */
   readonly schemas: readonly string[];
   readonly generator: GeneratorMetadata;
@@ -59,10 +59,19 @@ export interface SnapshotExtras {
    */
   readonly functionSources?: Readonly<Record<string, string>>;
   /**
-   * Comments of the functions in the read schemas that carry a gen tag
-   * (`@notNull`), keyed by `schema.name(signature)`. Absent when none do.
+   * Comments of the functions in the read schemas, keyed by
+   * `schema.name(signature)`. Version 2 snapshots hold only the comments with a
+   * gen tag (`@notNull`). Absent when no function has a comment.
    */
   readonly functionComments?: Readonly<Record<string, string>>;
+  /**
+   * Comments of the columns of views and materialized views in the read
+   * schemas, by `schema.view` and then column. Absent in version 2 snapshots
+   * and when no view column has a comment.
+   */
+  readonly viewColumnComments?: Readonly<
+    Record<string, Readonly<Record<string, string>>>
+  >;
   /**
    * Domains that the read schemas' functions take or return, with their base
    * type. Typegen leaves them `unknown`; `gen` types them by the base type, and
@@ -144,6 +153,12 @@ export interface ExtrasTable {
     readonly name: string;
     readonly onDelete: ForeignKeyAction;
     readonly onUpdate: ForeignKeyAction;
+    /** `deferrable`. Absent in version 2 snapshots and when not deferrable. */
+    readonly deferrable?: true;
+    /** `initially deferred`. Absent unless the key is. */
+    readonly initiallyDeferred?: true;
+    /** `match full` or `match partial`. Absent for `match simple`. */
+    readonly match?: "full" | "partial";
   }[];
   readonly checks: readonly CatalogCheck[];
   readonly indexes: readonly CatalogIndex[];
@@ -176,6 +191,12 @@ export interface CatalogUnique {
 export interface CatalogCheck {
   readonly name: string;
   readonly definition: string;
+  /**
+   * The columns the constraint covers (`pg_constraint.conkey`), so a check
+   * links to its column. Absent in version 2 snapshots and for a check on the
+   * whole row.
+   */
+  readonly columns?: readonly string[];
 }
 
 export interface CatalogIndex {
@@ -344,6 +365,9 @@ export interface CatalogForeignKey {
   readonly oneToOne: boolean;
   readonly onDelete: ForeignKeyAction;
   readonly onUpdate: ForeignKeyAction;
+  readonly deferrable?: true;
+  readonly initiallyDeferred?: true;
+  readonly match?: "full" | "partial";
 }
 
 export interface CatalogEnum {
@@ -381,7 +405,7 @@ export interface CatalogFunction {
   readonly language: string;
   /** `search_path` from `SET search_path`, or `null` when unset. */
   readonly searchPath: string | null;
-  /** The function's comment, when it carries a gen tag such as `@notNull`. */
+  /** The function's comment. */
   readonly comment?: string;
   /**
    * The function body, when the catalog captured it. Gen infers a not-null

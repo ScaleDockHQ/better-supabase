@@ -1039,16 +1039,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:8cc2ed4f4ffc9486ad1a6af1136db98d359b19fb011694073288d79bb67f7d91
+-- @bsb-hash sha256:c633a824bf94609af024ac3b4cbb79381fcdcaab29923cc0a6b52621c9cb73c7
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
 -- receiver stream, pushed through a webhooks endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;

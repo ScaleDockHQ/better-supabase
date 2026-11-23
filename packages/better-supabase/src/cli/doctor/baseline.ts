@@ -28,6 +28,14 @@ const keyOf = (code: string, target: string): string =>
   `${code}\u0000${target}`;
 
 /**
+ * What a finding's reason may be copied from: its code, except for BS705, where
+ * the provider's own code leads the target and each provider code is its own
+ * group, so a new provider finding does not take another one's reason.
+ */
+const reasonGroup = (code: string, target: string): string =>
+  code === "BS705" ? `${code} ${target.split(" ")[0] ?? ""}` : code;
+
+/**
  * The `file:line` target BS634 and BS635 wrote before their targets named the
  * function and the callee; an entry with it still matches the finding.
  */
@@ -247,8 +255,9 @@ export function applyBaseline(
 
 /**
  * The baseline that accepts every error and warning of this run. An entry keeps
- * its reason, a new entry takes the reason of another entry with its code, and
- * entries for checks this run couldn't judge stay.
+ * its reason, a new entry takes the reason of another entry with its code (a
+ * BS705 entry, of one with the same provider code), and entries for checks this
+ * run couldn't judge stay.
  */
 export function updatedBaseline(
   findings: readonly Finding[],
@@ -263,8 +272,10 @@ export function updatedBaseline(
   const byCode = new Map<string, string>();
 
   for (const entry of entries) {
-    if (entry.reason !== "" && !byCode.has(entry.code)) {
-      byCode.set(entry.code, entry.reason);
+    const group = reasonGroup(entry.code, entry.target);
+
+    if (entry.reason !== "" && !byCode.has(group)) {
+      byCode.set(group, entry.reason);
     }
   }
 
@@ -285,7 +296,7 @@ export function updatedBaseline(
       target,
       reason:
         (listed === undefined ? undefined : reasons.get(listed)) ??
-        byCode.get(finding.code) ??
+        byCode.get(reasonGroup(finding.code, target)) ??
         "",
     });
   }

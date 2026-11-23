@@ -21,7 +21,7 @@ import { applyPlan, PLAN_ARGS, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { plain } from "../style.ts";
-import { supabaseDir } from "../supabase-toml.ts";
+import { supabaseDir } from "../supabase-config.ts";
 
 const TABLE_ARGS = {
   table: {

@@ -51,9 +51,11 @@ import {
   FLAG_FORMATS,
   reportFormat,
 } from "../doctor/options.ts";
+import { RECEIVER_RULES } from "../doctor/receiver-types.ts";
 import { DOCS_URL, RULE_CODES, RULES, runRules } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
 import { loadLocalStackCheck } from "../doctor/stacks.ts";
+import { loadSupabaseCliCheck } from "../doctor/supabase-cli.ts";
 import {
   VERCEL_CODES,
   VERCEL_ENVIRONMENTS,
@@ -67,13 +69,14 @@ import {
 } from "../gen/metadata.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
 import { betterSupabaseInstall } from "../lockfile.ts";
-import { peerVersions } from "../peers.ts";
+import { listedDependencies, peerVersions } from "../peers.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import {
   findRepoRoot,
-  readSupabaseToml,
+  readSupabaseConfig,
   sqlWorkflow,
-} from "../supabase-toml.ts";
+} from "../supabase-config.ts";
+import { openSymbolTier } from "../typescript-symbols/index.ts";
 import { VERSION } from "../version.ts";
 import { loadSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceFlags } from "./source-args.ts";
@@ -167,30 +170,6 @@ const ARGS = {
 
 export type DoctorValues = CliValues<typeof ARGS & typeof SOURCE_ARGS>;
 
-const LIBRARY_DIFF = /\b(?:better-supabase|bsb)\s+db\s+diff\b/;
-
-/** Whether a `package.json` script runs `better-supabase db diff` (BS239). */
-async function runsLibraryDiff(root: string): Promise<boolean> {
-  const file = await readText(root, "package.json");
-
-  if (file === undefined) {
-    return false;
-  }
-
-  try {
-    // SAFETY: a package.json is a JSON object; `scripts` values are checked as strings.
-    const { scripts } = JSON.parse(file.text) as {
-      scripts?: Record<string, unknown>;
-    };
-
-    return Object.values(scripts ?? {}).some(
-      (script) => typeof script === "string" && LIBRARY_DIFF.test(script),
-    );
-  } catch {
-    return false;
-  }
-}
-
 export interface DoctorOptions {
   /** Pre-loaded snapshot (tests). */
   readonly snapshot?: Snapshot;
@@ -217,6 +196,11 @@ export interface DoctorOptions {
    * BS701).
    */
   readonly localStacks?: DoctorContext["localStacks"];
+  /**
+   * The installed Supabase CLI and its config validation (tests); otherwise
+   * read by running the CLI (BS710, BS711).
+   */
+  readonly supabaseCli?: DoctorContext["supabaseCli"];
   /** Opens `pg` connections (tests); defaults to `connect`. */
   readonly connect?: typeof connect;
   /** Colors the text report. */
@@ -471,11 +455,13 @@ export async function runDoctor(
     contentMapper,
     stackEnv,
     localStacks,
+    supabaseCli,
     nextConfig,
     install,
     ignoredEnvFiles,
     vercelConfig,
     vercelPulled,
+    listed,
   ] = await Promise.all([
     options.snapshot ??
       loadSnapshot(config, env, source, pg, opened.open).catch(
@@ -492,7 +478,7 @@ export async function runDoctor(
     Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
       (files) => files.filter((file): file is TextFile => file !== undefined),
     ),
-    readSupabaseToml(config.root).then(
+    readSupabaseConfig(config.root).then(
       async (toml) =>
         [
           toml,
@@ -518,6 +504,10 @@ export async function runDoctor(
       (rules.some((rule) => rule.code === "BS700" || rule.code === "BS701")
         ? loadLocalStackCheck(config.root, env)
         : undefined),
+    options.supabaseCli ??
+      (rules.some((rule) => rule.code === "BS710" || rule.code === "BS711")
+        ? loadSupabaseCliCheck(config.root, env)
+        : undefined),
     Promise.all(
       NEXT_CONFIG_FILES.map((path) => readText(config.root, path)),
     ).then((files) => files.find((file) => file !== undefined)),
@@ -541,6 +531,7 @@ export async function runDoctor(
           }),
         ).then((found) => found.flat())
       : undefined,
+    listedDependencies(config.root).catch(() => undefined),
   ]).catch(async (cause: unknown) => {
     await opened.close();
     throw cause;
@@ -555,8 +546,26 @@ export async function runDoctor(
       }
     : opened;
 
+  const symbolTier = rules.some((rule) => RECEIVER_RULES.has(rule.code))
+    ? await openSymbolTier(config.root)
+    : undefined;
+
+  const symbols =
+    symbolTier === undefined
+      ? undefined
+      : symbolTier.ok
+        ? { tier: symbolTier.tier, root: config.root }
+        : { skipped: symbolTier.reason };
+
+  const closeSymbols = (): void => {
+    if (symbolTier?.ok) {
+      symbolTier.tier.close();
+    }
+  };
+
   const context: DoctorContext = {
     config,
+    ...(symbols ? { symbols } : {}),
     snapshot,
     sqlFiles: sql,
     seedFiles: await seedFiles(config.root, configToml),
@@ -574,9 +583,10 @@ export async function runDoctor(
     ...(stackEnv ? { stackEnv } : {}),
     shellEnv: env[PROCESS_ENV] ?? {},
     ...(localStacks ? { localStacks } : {}),
+    ...(supabaseCli ? { supabaseCli } : {}),
     ...(nextConfig ? { nextConfig } : {}),
     vercel,
-    libraryDiff: await runsLibraryDiff(config.root),
+    ...(listed ? { listedDependencies: [...listed] } : {}),
     ...(vercelConfig ? { vercelConfig } : {}),
     ...(vercelPulled ? { vercelEnv: vercelPulled } : {}),
     ...(live.advisors ? { advisors: live.advisors } : {}),
@@ -596,6 +606,7 @@ export async function runDoctor(
   };
 
   if (fixGrants) {
+    closeSymbols();
     await opened.close();
 
     return {
@@ -623,6 +634,18 @@ export async function runDoctor(
       });
     }
 
+    const byName = ran.find((finding) => RECEIVER_RULES.has(finding.code));
+
+    if (symbols !== undefined && "skipped" in symbols && byName !== undefined) {
+      ran.push({
+        code: byName.code,
+        severity: "info",
+        title: byName.title,
+        help: `${DOCS_URL}#${byName.code.toLowerCase()}`,
+        message: `Matched reads by receiver name only, so a receiver named like a client but typed as something else is still reported (${symbols.skipped}). Install typescript 7.1 or later to check receiver types.`,
+      });
+    }
+
     if (args.yes === true) {
       const count = ran.filter((finding) => finding.fix !== undefined).length;
 
@@ -643,6 +666,7 @@ export async function runDoctor(
       ));
     }
   } finally {
+    closeSymbols();
     await opened.close();
   }
 

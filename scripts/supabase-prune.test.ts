@@ -79,7 +79,7 @@ describe("destroyableStacks", () => {
     owner: "reachable",
   });
 
-  it("takes merged branches and missing checkouts, never main", () => {
+  it("takes merged branches, never main or a missing checkout", () => {
     const stacks = [
       stack("a", "/r", "refs/heads/done"),
       stack("b", "/r/wt", "refs/heads/open"),
@@ -93,9 +93,8 @@ describe("destroyableStacks", () => {
         stacks,
         ["/r", "/r/wt", "/r/gone"],
         new Set(["done", "main"]),
-        (path) => path !== "/r/gone",
       ).map((entry) => entry.id),
-    ).toEqual(["a", "c"]);
+    ).toEqual(["a"]);
   });
 });
 

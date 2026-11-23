@@ -29,8 +29,9 @@ function organizationExtraColumns(
 
 /**
  * The attribute columns, unquoted: `options.attributes` and the columns your
- * schema files add. `create_organization` and `update_organization` copy them
- * from `attrs`, and `list_my_organizations` returns them.
+ * schema files add, less `options.attributesExclude`. `create_organization` and
+ * `update_organization` copy them from `attrs`, and `list_my_organizations`
+ * returns them.
  */
 export function organizationAttributes(
   ctx: BlockSqlContext,
@@ -45,10 +46,22 @@ export function organizationAttributes(
     return column;
   });
 
+  const excluded = new Set(ctx.list("attributesExclude", []));
+
+  for (const column of listed) {
+    if (excluded.has(column)) {
+      throw new TypeError(
+        `blocks.organizations.options: "${column}" is in both attributes and attributesExclude`,
+      );
+    }
+  }
+
   return [
     ...new Set([
       ...listed,
-      ...organizationExtraColumns(ctx).map((extra) => extra.name),
+      ...organizationExtraColumns(ctx)
+        .map((extra) => extra.name)
+        .filter((column) => !excluded.has(column)),
     ]),
   ];
 }

@@ -8,8 +8,9 @@ import type { CliEnv } from "./env.ts";
 
 import { CliError, errorText } from "./core/errors.ts";
 import { EXEC_CHANNEL } from "./core/trace.ts";
+import { versionAtLeast } from "./doctor/cli-advisors.ts";
 import { PROCESS_ENV } from "./env.ts";
-import { findUp } from "./supabase-toml.ts";
+import { findUp } from "./supabase-config.ts";
 
 export interface ExecResult {
   readonly code: number;
@@ -186,3 +187,60 @@ export async function supabaseCli(
 
   return result;
 }
+
+/**
+ * The Supabase CLI release this version of better-supabase is built and tested
+ * on.
+ */
+export const SUPABASE_CLI_FLOOR = "3.2.0";
+
+const SEMVER = /\d+\.\d+\.\d+/u;
+
+/**
+ * The version `supabase --version` prints, or `undefined` when it prints none.
+ * Throws `supabase_cli_missing` when no CLI runs.
+ */
+export async function supabaseCliVersion(
+  cwd: string,
+  env: CliEnv,
+): Promise<string | undefined> {
+  const result = await supabaseCli(["--version"], cwd, env);
+
+  return result.code === 0 ? SEMVER.exec(result.stdout)?.[0] : undefined;
+}
+
+/**
+ * Fails with `supabase_cli_too_old` when `version` is below `minimum`. A
+ * version that could not be read passes, because the command's own error is
+ * clearer.
+ */
+export function assertCliVersion(
+  version: string | undefined,
+  feature: string,
+  minimum: string = SUPABASE_CLI_FLOOR,
+): void {
+  if (version !== undefined && !versionAtLeast(version, minimum)) {
+    throw new CliError(
+      "supabase_cli_too_old",
+      `${feature} needs Supabase CLI ${minimum} or newer, and this project runs ${version}. Update it with \`pnpm add -D supabase@${minimum}\`.`,
+      { suggestion: `pnpm add -D supabase@${minimum}` },
+    );
+  }
+}
+
+/**
+ * Fails with `supabase_cli_too_old` unless the installed CLI is at least
+ * `minimum`.
+ */
+export async function requireCli(
+  feature: string,
+  cwd: string,
+  env: CliEnv,
+  minimum: string = SUPABASE_CLI_FLOOR,
+): Promise<void> {
+  assertCliVersion(await supabaseCliVersion(cwd, env), feature, minimum);
+}
+
+/** The version in `supabase --version` output, if there is one. */
+export const parseCliVersion = (output: string): string | undefined =>
+  SEMVER.exec(output)?.[0];

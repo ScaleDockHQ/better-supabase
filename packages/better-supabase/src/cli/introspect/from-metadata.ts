@@ -96,7 +96,7 @@ export function fromMetadata(document: GeneratorMetadata): Snapshot {
   });
 
   return {
-    version: 2,
+    version: 3,
     schemas: [
       ...new Set(metadata.schemas.map((schema) => schema.name)),
     ].toSorted(byCodePoint),

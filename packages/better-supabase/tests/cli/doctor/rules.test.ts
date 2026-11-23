@@ -21,7 +21,7 @@ import { renderFiles } from "../../../src/cli/gen/render.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
-import { parseToml } from "../../../src/cli/supabase-toml.ts";
+import { supabaseConfigFromText } from "../../../src/cli/supabase-config.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
   renderBlocks,
@@ -51,13 +51,8 @@ const table = (tables: Mutable<CatalogTable>[], name: string) =>
   tables.find((entry) => entry.schema === "public" && entry.name === name) ??
   tables.find((entry) => entry.name === name)!;
 
-const toml = (text: string): DoctorContext["configToml"] => ({
-  path: "supabase/config.toml",
-  dir: "supabase",
-  text,
-  document: parseToml(text),
-  parser: "smol-toml",
-});
+const toml = (text: string): DoctorContext["configToml"] =>
+  supabaseConfigFromText(text);
 
 function context(
   snap: Snapshot = base,
@@ -474,7 +469,7 @@ describe("BS302 bucket drift in config.toml", () => {
     ).toBe(true);
   });
 
-  it("finds a declared bucket whose header it can't locate", async () => {
+  it("locates a bucket header that quotes the bucket name", async () => {
     const findings = await run(
       "BS302",
       context(
@@ -497,7 +492,10 @@ describe("BS302 bucket drift in config.toml", () => {
         message: "supabase/config.toml [storage.buckets.docs]: public is true",
       }),
     ]);
-    expect(inToml[0]).not.toHaveProperty("location");
+    expect(inToml[0]?.location).toEqual({
+      file: "supabase/config.toml",
+      line: 1,
+    });
   });
 
   it("compares versioning and lifecycle when Storage reports them", async () => {
@@ -722,6 +720,34 @@ describe("generated and module files (BS303, BS304)", () => {
       expect.objectContaining({
         target: audit!.path,
         message: expect.stringContaining("(audit) is out of date"),
+      }),
+    ]);
+  });
+
+  it("reports a module file whose hash marker is gone (BS714)", async () => {
+    const ctx = {
+      ...rooted({ blocks: ["audit"] }),
+      configToml: toml("[db]\n"),
+    };
+
+    const files = renderBlocks(["audit"], moduleLayout(ctx.config));
+
+    for (const file of files) {
+      await write(file.path, file.contents);
+    }
+
+    expect(await run("BS714", ctx)).toEqual([]);
+
+    const audit = files.find(
+      (file) => file.module === "audit" && file.kind === "schema",
+    )!;
+
+    await write(audit.path, audit.contents.replace(/^-- @bsb-hash .*\n/m, ""));
+
+    expect(await run("BS714", ctx)).toEqual([
+      expect.objectContaining({
+        target: audit.path,
+        message: expect.stringContaining("better-supabase gen sql"),
       }),
     ]);
   });
@@ -3502,6 +3528,71 @@ describe("migration-only module options (BS314)", () => {
   });
 });
 
+describe("what a migra diff drops (BS713)", () => {
+  const migra = { database: { sql: { workflow: "migra" as const } } };
+
+  const file = (text: string) => ({ path: "supabase/schemas/tasks.sql", text });
+
+  it("errors on a comment that holds @bsb tags", async () => {
+    const findings = await run(
+      "BS713",
+      context(
+        base,
+        {
+          configToml: toml("[db]\n"),
+          sqlFiles: [
+            file(
+              "create table tasks (id int);\ncomment on table tasks is 'x @bsb owner=org';",
+            ),
+          ],
+        },
+        migra,
+      ),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      severity: "error",
+      location: { file: "supabase/schemas/tasks.sql", line: 2 },
+    });
+  });
+
+  it("warns on grants and security-invoker views", async () => {
+    const findings = await run(
+      "BS713",
+      context(
+        base,
+        {
+          configToml: toml("[db]\n"),
+          sqlFiles: [
+            file(
+              "grant select on tasks to anon;\ncreate view v with (security_invoker = true) as select 1;",
+            ),
+          ],
+        },
+        migra,
+      ),
+    );
+
+    expect(findings.map((finding) => finding.severity)).toEqual([
+      "warning",
+      "warning",
+    ]);
+  });
+
+  it("stays quiet under pg-delta", async () => {
+    expect(
+      await run(
+        "BS713",
+        context(base, {
+          configToml: toml("[experimental.pgdelta]\nenabled = true\n"),
+          sqlFiles: [file("grant select on tasks to anon;")],
+        }),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("legacy migra engine (BS316)", () => {
   const schema = {
     path: "supabase/schemas/tasks.sql",
@@ -4753,26 +4844,12 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
   });
 });
 
-describe("pg-delta packages (BS239)", () => {
-  const pgdelta = toml("[experimental.pgdelta]\nenabled = true\n");
-
-  const peers = (installed: Record<string, string | undefined>) =>
-    Object.entries(installed).map(([name, version]) => ({
-      name,
-      range: "*",
-      installed: version,
-    }));
-
-  it("names the missing packages and the install command", async () => {
+describe("own copy of a pg-delta package (BS709)", () => {
+  it("names the packages the project lists itself", async () => {
     const findings = await run(
-      "BS239",
+      "BS709",
       context(base, {
-        configToml: pgdelta,
-        libraryDiff: true,
-        peers: peers({
-          "@supabase/pg-delta": "1.0.0-alpha.60",
-          "@supabase/pg-topo": undefined,
-        }),
+        listedDependencies: ["better-supabase", "@supabase/pg-topo"],
       }),
     );
 
@@ -4781,52 +4858,25 @@ describe("pg-delta packages (BS239)", () => {
       severity: "warning",
       target: "@supabase/pg-topo",
     });
-    expect(findings[0]!.message).toContain(
-      "@supabase/pg-topo is not installed",
-    );
-    expect(findings[0]!.message).toContain(
-      "pnpm add -D @supabase/pg-delta @supabase/pg-topo",
-    );
+    expect(findings[0]!.message).toContain("pnpm remove @supabase/pg-topo");
   });
 
-  it("stays quiet for a Supabase CLI declarative project, where no script runs db diff through the library", async () => {
-    expect(
-      await run(
-        "BS239",
-        context(base, {
-          configToml: pgdelta,
-          libraryDiff: false,
-          peers: peers({}),
-        }),
-      ),
-    ).toEqual([]);
+  it("names both packages together", async () => {
+    const findings = await run(
+      "BS709",
+      context(base, {
+        listedDependencies: ["@supabase/pg-delta", "@supabase/pg-topo"],
+      }),
+    );
+
+    expect(findings[0]!.target).toBe("@supabase/pg-delta, @supabase/pg-topo");
   });
 
-  it("stays quiet with both installed, on migra, without a peer list or a Supabase project", async () => {
-    const both = peers({
-      "@supabase/pg-delta": "1.0.0-alpha.60",
-      "@supabase/pg-topo": "1.0.0-alpha.8",
-    });
-
+  it("stays quiet when the project lists neither or has no package.json", async () => {
     expect(
-      await run(
-        "BS239",
-        context(base, { configToml: pgdelta, libraryDiff: true, peers: both }),
-      ),
+      await run("BS709", context(base, { listedDependencies: ["pg"] })),
     ).toEqual([]);
-    expect(
-      await run(
-        "BS239",
-        context(base, {
-          configToml: toml("[experimental.pgdelta]\nenabled = false\n"),
-          peers: peers({}),
-        }),
-      ),
-    ).toEqual([]);
-    expect(await run("BS239", context(base, { configToml: pgdelta }))).toEqual(
-      [],
-    );
-    expect(await run("BS239", context(base, { peers: peers({}) }))).toEqual([]);
+    expect(await run("BS709", context(base))).toEqual([]);
   });
 });
 
@@ -5048,7 +5098,7 @@ create table public.reminder_deliveries (id uuid primary key, organization_id uu
     sqlFiles: files,
   });
 
-  it("warns for a column the app's files don't declare, and not once they do", async () => {
+  it("warns for a required column the app's files don't declare, and not for an optional one", async () => {
     const found = await run(
       "BS622",
       rooted([{ path: "supabase/schemas/app.sql", text: APP }]),
@@ -5057,24 +5107,13 @@ create table public.reminder_deliveries (id uuid primary key, organization_id uu
     expect(found).toContainEqual(
       expect.objectContaining({
         severity: "warning",
-        target: "public.reminders.remind_at",
+        target: "public.reminders.subject_type",
         message: expect.stringContaining("codemod owned-columns"),
       }),
     );
 
-    const declared = await run(
-      "BS622",
-      rooted([
-        {
-          path: "supabase/schemas/app.sql",
-          text: `${APP}\nalter table public.reminders add column remind_at timestamptz;`,
-        },
-      ]),
-    );
-
-    expect(declared.map((finding) => finding.target)).not.toContain(
+    expect(found.map((finding) => finding.target)).not.toContain(
       "public.reminders.remind_at",
     );
-    expect(declared).toHaveLength(found.length - 1);
   });
 });

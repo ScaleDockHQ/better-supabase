@@ -1,14 +1,20 @@
+import type { Node } from "oxc-parser";
+
 import type { Snapshot } from "../../config/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
+import type {
+  CallSite,
+  Declaration,
+  NamedFunction,
+  SourceModel,
+} from "./source-scan.ts";
 
+import { provablyNotClient } from "./receiver-types.ts";
 import {
-  CLOSE,
-  closeOf,
-  codeOnly,
-  functionsIn,
-  OPEN,
-  statementEnd,
+  bindingNames,
+  sourceModel,
   targetKeys,
+  unwrap,
 } from "./source-scan.ts";
 
 /**
@@ -59,81 +65,89 @@ interface Origin {
   readonly to: number;
 }
 
+/** The arguments of a read: their text and each `key: value` inside. */
+interface Args {
+  readonly text: string;
+  readonly props: readonly { readonly key: string; readonly value: string }[];
+}
+
 /**
  * A receiver that names the better-supabase client: `db`, `ctx.db`, `tx`,
  * `bsb.db()`.
  */
 const DB = String.raw`(?<![\w$])(?:db|[a-z][\w$]*Db|tx|trx)(?:\(\))?`;
 
+/**
+ * The callee patterns match the callee path of a call (`db.customers.get`,
+ * `supabase.from(...).select`), so only a call can match and a string or a
+ * comment never does.
+ */
 const REPOSITORY_READ = new RegExp(
-  String.raw`${DB}\s*\.\s*([A-Za-z_][\w$]*)\s*\.\s*(get|list|page|count|counted|aggregate|first|find[A-Z]?[\w$]*)\s*\(`,
-  "g",
+  String.raw`${DB}\.([A-Za-z_][\w$]*)\.(get|list|page|count|counted|aggregate|first|find[A-Z]?[\w$]*)$`,
 );
 
 const BLOCK_CALL = new RegExp(
-  String.raw`(?:${DB}\s*\.\s*\$blocks|(?<![\w$])blocks)\s*\.\s*[\w$]+\s*\.\s*([\w$]+)\s*\(`,
-  "g",
+  String.raw`(?:${DB}\.\$blocks|(?<![\w$])blocks)\.[\w$]+\.([\w$]+)$`,
 );
 
-const RPC_CALL =
-  /\.\s*\$(?:rpc|search|run|many)\s*\(|(?<![\w$])[\w$]*supabase[\w$]*\s*\.\s*rpc\s*\(/gi;
+const RPC_CALL = /\.\$(?:rpc|search|run|many)$/i;
 
-const FROM_SELECT = /\.\s*from\s*\(([\w$.\s]*)\)\s*\.\s*select\s*\(/g;
+const SUPABASE_RPC = /(?<![\w$])[\w$]*supabase[\w$]*\.rpc$/i;
 
-const SERVICE_READ =
-  /(?<![\w$])([\w$]+)\s*\.\s*((?:get|list|load|find|fetch|count|read|search)[A-Z][\w$]*)\s*\(/g;
+const FROM_CHAIN =
+  /\.from\((?:\.\.\.)?\)\.(select|insert|update|upsert|delete)$/;
 
-const SERVICE_WRITE = /(?<![\w$])([\w$]+)\s*\.\s*([a-z][\w$]*)\s*\(/g;
+const SERVICE_READ_NAME =
+  /^(?:get|list|load|find|fetch|count|read|search)[A-Z][\w$]*$/;
 
 const SERVICE_NAME =
   /(?:services?|repositor(?:y|ies)|repos?|queries|readers?)$/i;
 
-const SERVICE_FACTORY =
-  /(?:const|let)\s+(\{[^}]*\}|[\w$]+)\s*=\s*(?:await\s+)?create[\w$]*(?:Services?|Repositor(?:y|ies)|Repos?)\s*\(/g;
+const SERVICE_FACTORY = /^create[\w$]*(?:Services?|Repositor(?:y|ies)|Repos?)$/;
 
 /** A block method or a local function whose name says it writes. */
 const WRITE_NAME =
   /^(?:create|insert|update|upsert|delete|remove|set|add|save|send|enqueue|record|mark|approve|reject|cancel|archive|restore|move|assign|unassign|post|submit|publish|attach|detach|link|unlink|invite|revoke|grant|start|stop|complete|close|open|lock|unlock|apply|import|sync|refresh|recompute|merge|reorder|rename|toggle|track|emit|notify|write|put|patch|claim|release|issue|void|pay|charge|refund|transfer|book|confirm|accept|decline|resolve|reopen|pin|unpin|join|leave|subscribe|unsubscribe|upload|clear|reset|seed|ensure|process|run|execute|handle|dispatch|schedule|retry|replace|increment|decrement|bump|touch|finalize|commit|enable|disable|activate|deactivate|generate|log|accrue|decide|escalate|expire|deliver|broadcast|transition|advance|convert|clone|duplicate|copy|share|sign|invalidate|revalidate)(?:[A-Z_\d]|$)/;
 
 const REPOSITORY_WRITE = new RegExp(
-  String.raw`${DB}\s*\.\s*[A-Za-z_][\w$]*\s*\.\s*(?:create|update|upsert|delete)\s*\(|\.\s*from\s*\([\w$.\s]*\)\s*\.\s*(?:insert|update|upsert|delete)\s*\(`,
+  String.raw`${DB}\.[A-Za-z_][\w$]*\.(?:create|update|upsert|delete)$`,
 );
 
 /**
  * A call whose name says it has a side effect, such as `notifyAgendaUpdated(`
  * or `events.publish(`: a loop that makes one per item is not a read pattern.
  */
-const SIDE_EFFECT_CALL =
-  /(?<![\w$])(?:notify|publish|send|emit|enqueue|dispatch|broadcast|deliver|revalidate)(?:[A-Z_][\w$]*)?\s*\(/g;
-
-/** A parameter or field typed as a service: `customers: CustomersService`. */
-const SERVICE_TYPED =
-  /(?<![\w$.])([\w$]+)\s*\??\s*:\s*(?:Readonly<\s*)?[\w$.]*(?:Services?|Repositor(?:y|ies)|Repos?|Queries)\b(?!\s*[<[.])/g;
+const SIDE_EFFECT_NAME =
+  /^(?:notify|publish|send|emit|enqueue|dispatch|broadcast|deliver|revalidate)(?:[A-Z_][\w$]*)?$/;
 
 /**
  * A helper that runs a callback per item: `mapInChunks(ids, 20, async (id) =>
  * ...)`, `pMap(ids, (id) => ...)`.
  */
-const HELPER_CALL =
-  /(?<![\w$.])(?<!new\s+)([A-Za-z_$][\w$]*)\s*(?:<[^>()]*>)?\s*\(/g;
-
 const HELPER_NAME = /map|each|chunk|batch|concurren|parallel|limit/i;
 
 /** Filters an `in` list can't batch: text search and JSON containment. */
-const SEARCH_FILTER =
-  /(?<![\w$])(contains|containedBy|ilike|iLike|like|startsWith|endsWith|search|q|query|textSearch|match|fts)\s*([:(])/g;
+const SEARCH_FILTERS: ReadonlySet<string> = new Set([
+  "contains",
+  "containedBy",
+  "ilike",
+  "iLike",
+  "like",
+  "startsWith",
+  "endsWith",
+  "search",
+  "q",
+  "query",
+  "textSearch",
+  "match",
+  "fts",
+]);
 
-const LOCAL_FUNCTION =
-  /(?:function\s*\*?\s*([\w$]+)\s*(?:<[^>]*>)?\s*\(|(?:const|let)\s+([\w$]+)\s*(?::[^=]+)?=\s*(?:async\s+)?(?:function\b[^(]*\(|\(|[\w$]+\s*=>))/g;
-
-const WAVE = /\bPromise\.all\s*\(\s*\[/g;
-
-const LOOP = /(?<![\w$.])for\s*(?:await\s*)?\(/g;
-
-const CALLBACK = /\.\s*(?:map|flatMap|forEach)\s*\(/g;
-
-const DECLARATION =
-  /(?<![\w$.])(?:const|let|var)\s+([\w$]+|\{[^=;]*?\}|\[[^=;]*?\])\s*(?::[^=;]+)?=(?!=|>)/g;
+const CALLBACK_METHODS: ReadonlySet<string> = new Set([
+  "map",
+  "flatMap",
+  "forEach",
+]);
 
 /**
  * Loop variables that are already batches, or retries of one read: `for (const
@@ -144,59 +158,6 @@ const BATCHES = /chunk|batch|attempt|retr/i;
 
 /** Iterables of batches or retries, whatever the loop variable is called. */
 const BATCH_ITEMS = /(?:chunks|batches)\b|chunked|attempt|retr/i;
-
-/** The names a binding pattern declares: `x`, `{ a, b: c }`, `[d, ...e]`. */
-function boundNames(pattern: string): string[] {
-  const trimmed = pattern.trim();
-
-  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
-    return /^[\w$]+$/.test(trimmed) ? [trimmed] : [];
-  }
-
-  return [...trimmed.matchAll(/[A-Za-z_$][\w$]*(?!\s*:)/g)]
-    .filter((match) => trimmed.charAt(match.index - 1) !== ".")
-    .map((match) => match[0]);
-}
-
-/** The bound names of a parameter list, without types and defaults. */
-function parameterNames(list: string): string[] {
-  const names: string[] = [];
-  let depth = 0;
-  let start = 0;
-
-  const take = (part: string): void => {
-    let inner = 0;
-    let end = part.length;
-
-    for (let index = 0; index < part.length; index += 1) {
-      const char = part.charAt(index);
-
-      inner += OPEN.has(char) ? 1 : CLOSE.has(char) ? -1 : 0;
-
-      if (inner === 0 && (char === ":" || char === "=")) {
-        end = index;
-        break;
-      }
-    }
-
-    names.push(...boundNames(part.slice(0, end).replace(/^\s*\.\.\./, "")));
-  };
-
-  for (let index = 0; index < list.length; index += 1) {
-    const char = list.charAt(index);
-
-    depth += OPEN.has(char) ? 1 : CLOSE.has(char) ? -1 : 0;
-
-    if (char === "," && depth === 0) {
-      take(list.slice(start, index));
-      start = index + 1;
-    }
-  }
-
-  take(list.slice(start));
-
-  return names;
-}
 
 /** Whether `text` uses `name` as a value, not as a key or a property. */
 function mentions(text: string, name: string): boolean {
@@ -227,127 +188,289 @@ const rpcName = (text: string, open: number): string | undefined =>
     ?.split(".")
     .at(-1);
 
+/** The last name of `node`: `rows` of `rows`, `items` of `page.items`. */
+function lastName(
+  node: Node,
+): { readonly name: string; readonly start: number } | undefined {
+  const inner = unwrap(node);
+
+  if (inner.type === "Identifier") {
+    return { name: inner.name, start: inner.start };
+  }
+
+  return inner.type === "MemberExpression" &&
+    !inner.computed &&
+    inner.property.type === "Identifier"
+    ? { name: inner.property.name, start: inner.property.start }
+    : undefined;
+}
+
+/** The method call `receiver.method(...)` of `call`, with what it names. */
+function methodCall(
+  call: CallSite,
+):
+  | {
+      readonly method: { readonly name: string; readonly start: number };
+      readonly receiver?: { readonly name: string; readonly start: number };
+      readonly owner?: string;
+    }
+  | undefined {
+  const callee = unwrap(call.node.callee);
+
+  if (
+    callee.type !== "MemberExpression" ||
+    callee.computed ||
+    callee.property.type !== "Identifier"
+  ) {
+    return undefined;
+  }
+
+  const object = unwrap(callee.object);
+  const receiver = lastName(object);
+
+  const owner =
+    object.type === "MemberExpression"
+      ? lastName(object.object)?.name
+      : undefined;
+
+  return {
+    method: { name: callee.property.name, start: callee.property.start },
+    ...(receiver === undefined ? {} : { receiver }),
+    ...(owner === undefined ? {} : { owner }),
+  };
+}
+
+/** The offset of the `.` before the name at path index `index`. */
+function dotBefore(model: SourceModel, call: CallSite, index: number): number {
+  return model.text.lastIndexOf(".", call.names.get(index) ?? call.start);
+}
+
+/** The table `supabase.from("customers")` names, when it names one. */
+function fromTable(call: CallSite): string | undefined {
+  const select = unwrap(call.node.callee);
+
+  if (select.type !== "MemberExpression") {
+    return undefined;
+  }
+
+  const from = unwrap(select.object);
+  const [argument] = from.type === "CallExpression" ? from.arguments : [];
+
+  const name =
+    argument?.type === "Literal" && typeof argument.value === "string"
+      ? argument.value
+      : argument?.type === "TemplateLiteral" &&
+          argument.expressions.length === 0
+        ? argument.quasis[0]?.value.cooked
+        : undefined;
+
+  return typeof name === "string" && /^[\w.]+$/.test(name)
+    ? name.split(".").at(-1)
+    : undefined;
+}
+
+const isService = (receiver: string, services: ReadonlySet<string>): boolean =>
+  services.has(receiver) || SERVICE_NAME.test(receiver);
+
+/** Names bound to the result of a `create...Service(...)` factory. */
+function serviceNames(model: SourceModel): Set<string> {
+  const services = new Set<string>(model.typedServices);
+
+  for (const declaration of model.declarations) {
+    const init = unwrap(declaration.init);
+
+    if (
+      init.type === "CallExpression" &&
+      init.callee.type === "Identifier" &&
+      SERVICE_FACTORY.test(init.callee.name)
+    ) {
+      for (const name of declaration.names) {
+        services.add(name);
+      }
+    }
+  }
+
+  return services;
+}
+
+/** The offsets of calls that write, and those that write through a repository. */
+interface Writes {
+  readonly all: readonly number[];
+  readonly repository: readonly number[];
+}
+
 /**
  * Offsets of calls that write: repository and supabase-js writes, RPCs, block
  * methods and service methods named for a write (`services.agenda.assignTask`
  * too), and calls named for a side effect such as `notify...` or `publish...`.
  */
-function writesIn(
-  text: string,
-  code: string,
-  services: ReadonlySet<string>,
-): number[] {
-  const writes = [...code.matchAll(new RegExp(REPOSITORY_WRITE, "g"))].map(
-    (match) => match.index,
-  );
+function writesIn(model: SourceModel, services: ReadonlySet<string>): Writes {
+  const all: number[] = [];
+  const repository: number[] = [];
 
-  for (const match of code.matchAll(RPC_CALL)) {
-    const name = rpcName(text, match.index + match[0].length - 1);
+  for (const call of model.calls) {
+    const { path } = call;
+    const method = methodCall(call);
 
-    if (name !== undefined && WRITE_NAME.test(camel(name))) {
-      writes.push(match.index);
+    if (path !== undefined) {
+      const write = REPOSITORY_WRITE.exec(path);
+      const from = FROM_CHAIN.exec(path);
+      const rpc = RPC_CALL.exec(path);
+      const supabase = SUPABASE_RPC.exec(path);
+      const block = BLOCK_CALL.exec(path);
+
+      if (write) {
+        const start = call.names.get(write.index) ?? call.start;
+
+        repository.push(start);
+        all.push(start);
+      }
+
+      if (from && from[1] !== "select") {
+        const start = dotBefore(model, call, from.index + 1);
+
+        repository.push(start);
+        all.push(start);
+      }
+
+      if (rpc || supabase) {
+        const name = rpcName(model.text, call.open);
+
+        if (name !== undefined && WRITE_NAME.test(camel(name))) {
+          all.push(
+            rpc
+              ? dotBefore(model, call, rpc.index + 1)
+              : (call.names.get(supabase!.index) ?? call.start),
+          );
+        }
+      }
+
+      if (block && WRITE_NAME.test(block[1]!)) {
+        all.push(call.names.get(block.index) ?? call.start);
+      }
     }
-  }
-
-  for (const match of code.matchAll(BLOCK_CALL)) {
-    if (WRITE_NAME.test(match[1]!)) {
-      writes.push(match.index);
-    }
-  }
-
-  for (const match of code.matchAll(SERVICE_WRITE)) {
-    const owner = /([\w$]+)\s*\.\s*$/.exec(
-      code.slice(Math.max(0, match.index - 200), match.index),
-    )?.[1];
 
     if (
-      (isService(match[1]!, services) ||
-        (owner !== undefined && isService(owner, services))) &&
-      WRITE_NAME.test(match[2]!)
+      method?.receiver &&
+      /^[a-z]/.test(method.method.name) &&
+      WRITE_NAME.test(method.method.name) &&
+      (isService(method.receiver.name, services) ||
+        (method.owner !== undefined && isService(method.owner, services)))
     ) {
-      writes.push(match.index);
+      all.push(method.receiver.start);
+    }
+
+    const callee = unwrap(call.node.callee);
+
+    const effect =
+      callee.type === "Identifier"
+        ? { name: callee.name, start: callee.start }
+        : method?.method;
+
+    if (effect && SIDE_EFFECT_NAME.test(effect.name)) {
+      all.push(effect.start);
     }
   }
 
-  for (const match of code.matchAll(SIDE_EFFECT_CALL)) {
-    writes.push(match.index);
-  }
-
-  return writes;
+  return { all, repository };
 }
 
 /** Reads by the database client itself, before following local functions. */
-function directReads(text: string, code: string): Read[] {
+function directReads(model: SourceModel): Read[] {
+  const { text } = model;
   const reads: Read[] = [];
 
   const add = (
-    match: RegExpMatchArray,
+    call: CallSite,
+    start: number,
     kind: Read["kind"],
     table?: string,
     method?: string,
   ): void => {
-    const open = match.index! + match[0].length - 1;
-    let call = compact(text.slice(match.index, open));
+    let name = compact(text.slice(start, call.open));
 
     if (kind === "rpc") {
-      const name = rpcName(text, open);
+      const rpc = rpcName(text, call.open);
 
-      if (name !== undefined && WRITE_NAME.test(camel(name))) {
+      if (rpc !== undefined && WRITE_NAME.test(camel(rpc))) {
         return;
       }
 
-      call = name === undefined ? call : `${call}("${name}")`;
-    }
-
-    let close = closeOf(code, open);
-
-    if (kind === "table" && method === undefined) {
-      for (
-        let next = /^\s*\.\s*[\w$]+\s*\(/.exec(code.slice(close + 1));
-        next;
-        next = /^\s*\.\s*[\w$]+\s*\(/.exec(code.slice(close + 1))
-      ) {
-        close = closeOf(code, close + next[0].length);
-      }
+      name = rpc === undefined ? name : `${name}("${rpc}")`;
     }
 
     reads.push({
-      start: match.index!,
-      open,
-      close,
-      call,
-      callee: call,
+      start,
+      open: call.open,
+      close:
+        kind === "table" && method === undefined ? call.chainClose : call.close,
+      call: name,
+      callee: name,
       kind,
       ...(table === undefined ? {} : { table }),
       ...(method === undefined ? {} : { method }),
     });
   };
 
-  for (const match of code.matchAll(REPOSITORY_READ)) {
-    add(match, "table", match[1], match[2]);
-  }
+  const paths = model.calls.filter(
+    (call): call is CallSite & { path: string } => call.path !== undefined,
+  );
 
-  for (const match of code.matchAll(BLOCK_CALL)) {
-    if (!WRITE_NAME.test(match[1]!)) {
-      add(match, "other");
+  for (const call of paths) {
+    const match = REPOSITORY_READ.exec(call.path);
+
+    if (match) {
+      add(
+        call,
+        call.names.get(match.index) ?? call.start,
+        "table",
+        match[1],
+        match[2],
+      );
     }
   }
 
-  for (const match of code.matchAll(RPC_CALL)) {
-    add(match, "rpc");
+  for (const call of paths) {
+    const match = BLOCK_CALL.exec(call.path);
+
+    if (match && !WRITE_NAME.test(match[1]!)) {
+      add(call, call.names.get(match.index) ?? call.start, "other");
+    }
   }
 
-  for (const match of code.matchAll(FROM_SELECT)) {
-    const from = match.index + match[0].indexOf("(");
+  for (const call of paths) {
+    const rpc = RPC_CALL.exec(call.path);
+    const supabase = SUPABASE_RPC.exec(call.path);
 
-    const table = /["'`]([\w.]+)["'`]/.exec(
-      text.slice(from, from + match[1]!.length + 2),
-    )?.[1];
+    if (rpc) {
+      add(call, dotBefore(model, call, rpc.index + 1), "rpc");
+    } else if (supabase) {
+      add(call, call.names.get(supabase.index) ?? call.start, "rpc");
+    }
+  }
 
-    add(match, "table", table?.split(".").at(-1));
+  for (const call of paths) {
+    const match = FROM_CHAIN.exec(call.path);
+
+    if (match?.[1] === "select") {
+      add(
+        call,
+        dotBefore(model, call, match.index + 1),
+        "table",
+        fromTable(call),
+      );
+    }
   }
 
   return reads;
+}
+
+/** The calls in `model` to the local function `name`. */
+function callsTo(model: SourceModel, name: string): CallSite[] {
+  return model.calls.filter(
+    (call) =>
+      call.node.callee.type === "Identifier" && call.node.callee.name === name,
+  );
 }
 
 /**
@@ -355,47 +478,30 @@ function directReads(text: string, code: string): Read[] {
  * the file, mapped to the read they make.
  */
 function readerFunctions(
-  code: string,
+  model: SourceModel,
   direct: readonly Read[],
+  writes: Writes,
 ): Map<string, Read> {
-  const bodies = new Map<string, { start: number; end: number }>();
+  const bodies = new Map<string, NamedFunction>();
 
-  for (const match of code.matchAll(LOCAL_FUNCTION)) {
-    const name = match[1] ?? match[2]!;
-    const params = match.index + match[0].length - 1;
-
-    const afterParams =
-      code.charAt(params) === "(" ? closeOf(code, params) + 1 : params;
-
-    const arrow = code.indexOf("=>", afterParams);
-    const brace = code.indexOf("{", afterParams);
-
-    const start =
-      arrow !== -1 && (brace === -1 || arrow < brace) ? arrow + 2 : brace;
-
-    if (start === -1 || WRITE_NAME.test(name)) {
-      continue;
+  for (const fn of model.functions) {
+    if (fn.local === true && !WRITE_NAME.test(fn.name)) {
+      bodies.set(fn.name, fn);
     }
-
-    const open = /^\s*\{/.test(code.slice(start))
-      ? code.indexOf("{", start)
-      : -1;
-
-    const end = open === -1 ? statementEnd(code, start) : closeOf(code, open);
-
-    bodies.set(name, { start, end });
   }
+
+  const inside = (at: number, body: NamedFunction): boolean =>
+    at >= body.start && at < body.end;
+
+  const writesIn = (body: NamedFunction): boolean =>
+    writes.repository.some((at) => inside(at, body));
 
   const readers = new Map<string, Read>();
 
   for (const [name, body] of bodies) {
-    const slice = code.slice(body.start, body.end);
+    const read = direct.find((candidate) => inside(candidate.start, body));
 
-    const read = direct.find(
-      (candidate) => candidate.start > body.start && candidate.start < body.end,
-    );
-
-    if (read !== undefined && !REPOSITORY_WRITE.test(slice)) {
+    if (read !== undefined && !writesIn(body)) {
       readers.set(name, read);
     }
   }
@@ -406,18 +512,15 @@ function readerFunctions(
     grew = false;
 
     for (const [name, body] of bodies) {
-      if (readers.has(name)) {
-        continue;
-      }
-
-      const slice = code.slice(body.start, body.end);
-
-      if (REPOSITORY_WRITE.test(slice)) {
+      if (readers.has(name) || writesIn(body)) {
         continue;
       }
 
       for (const [reader, read] of readers) {
-        if (reader !== name && callsOf(slice, reader).length > 0) {
+        if (
+          reader !== name &&
+          callsTo(model, reader).some((call) => inside(call.start, body))
+        ) {
           readers.set(name, read);
           grew = true;
           break;
@@ -429,57 +532,21 @@ function readerFunctions(
   return readers;
 }
 
-/** Offsets of `name(` calls that aren't a property, a definition or a method. */
-function callsOf(code: string, name: string): number[] {
-  const escaped = name.replaceAll("$", String.raw`\$`);
-
-  return [
-    ...code.matchAll(new RegExp(String.raw`(?<![\w$.])${escaped}\s*\(`, "g")),
-  ]
-    .filter(
-      (match) =>
-        !/(?:function\s*\*?\s*|async\s+)$/.test(code.slice(0, match.index)),
-    )
-    .map((match) => match.index);
-}
-
-/** Names bound to the result of a `create...Service(...)` factory. */
-function serviceNames(code: string): Set<string> {
-  const services = new Set<string>();
-
-  for (const match of code.matchAll(SERVICE_FACTORY)) {
-    for (const name of boundNames(match[1]!)) {
-      services.add(name);
-    }
-  }
-
-  for (const match of code.matchAll(SERVICE_TYPED)) {
-    services.add(match[1]!);
-  }
-
-  return services;
-}
-
-const isService = (receiver: string, services: ReadonlySet<string>): boolean =>
-  services.has(receiver) || SERVICE_NAME.test(receiver);
-
 /** Every read in the file, including calls to readers and service reads. */
 function readsIn(
-  text: string,
-  code: string,
+  model: SourceModel,
   services: ReadonlySet<string>,
+  writes: Writes,
 ): Read[] {
-  const direct = directReads(text, code);
+  const direct = directReads(model);
   const reads = [...direct];
 
-  for (const [name, read] of readerFunctions(code, direct)) {
-    for (const start of callsOf(code, name)) {
-      const open = code.indexOf("(", start);
-
+  for (const [name, read] of readerFunctions(model, direct, writes)) {
+    for (const call of callsTo(model, name)) {
       reads.push({
-        start,
-        open,
-        close: closeOf(code, open),
+        start: call.start,
+        open: call.open,
+        close: call.close,
         call: `${name} (which calls ${read.call})`,
         callee: name,
         kind: "other",
@@ -487,289 +554,185 @@ function readsIn(
     }
   }
 
-  for (const match of code.matchAll(SERVICE_READ)) {
-    const receiver = match[1]!;
+  for (const call of model.calls) {
+    const method = methodCall(call);
 
-    if (!isService(receiver, services)) {
-      continue;
+    if (
+      method?.receiver &&
+      SERVICE_READ_NAME.test(method.method.name) &&
+      isService(method.receiver.name, services)
+    ) {
+      const name = `${method.receiver.name}.${method.method.name}`;
+
+      reads.push({
+        start: method.receiver.start,
+        open: call.open,
+        close: call.close,
+        call: name,
+        callee: name,
+        kind: "other",
+      });
     }
-
-    const open = match.index + match[0].length - 1;
-
-    reads.push({
-      start: match.index,
-      open,
-      close: closeOf(code, open),
-      call: `${receiver}.${match[2]!}`,
-      callee: `${receiver}.${match[2]!}`,
-      kind: "other",
-    });
   }
 
   return reads.toSorted((a, b) => a.start - b.start);
 }
 
-/** The expression before `.map(` that starts at `end`, such as `page.ids`. */
-function receiverBefore(code: string, end: number): string {
-  let start = end;
+const isFunction = (
+  node: Node | undefined,
+): node is Node & { type: "ArrowFunctionExpression" | "FunctionExpression" } =>
+  node?.type === "ArrowFunctionExpression" ||
+  node?.type === "FunctionExpression";
 
-  while (start > 0) {
-    const char = code.charAt(start - 1);
-
-    if (char === ")" || char === "]") {
-      let depth = 0;
-
-      for (start -= 1; start >= 0; start -= 1) {
-        const inner = code.charAt(start);
-
-        depth += CLOSE.has(inner) ? 1 : OPEN.has(inner) ? -1 : 0;
-
-        if (depth === 0) {
-          break;
-        }
-      }
-    } else if (
-      /[\w$.?!]/.test(char) ||
-      (/\s/.test(char) && /^\??\./.test(code.slice(start).trimStart()))
-    ) {
-      start -= 1;
-    } else {
-      break;
-    }
-  }
-
-  return code
-    .slice(start, end)
-    .trim()
-    .replace(/^\.\.\./, "");
-}
-
-/** `for (... of ...)` bodies and `.map/.flatMap/.forEach` callbacks. */
-function scopesIn(code: string): Scope[] {
+/** `for (... of ...)` bodies, `.map/.flatMap/.forEach` callbacks and helpers. */
+function scopesIn(model: SourceModel): Scope[] {
+  const { text } = model;
   const scopes: Scope[] = [];
+  const source = (node: Node): string => text.slice(node.start, node.end);
 
-  for (const match of code.matchAll(LOOP)) {
-    const open = match.index + match[0].length - 1;
-    const close = closeOf(code, open);
+  for (const loop of model.loops) {
+    const [declaration] =
+      loop.left.type === "VariableDeclaration" ? loop.left.declarations : [];
 
-    const header = /^\s*(?:const|let|var)\s+([\s\S]+?)\s+of\s+([\s\S]+)$/.exec(
-      code.slice(open + 1, close),
-    );
-
-    if (!header) {
-      continue;
-    }
-
-    const bodyStart = close + 1;
-    const brace = /^\s*\{/.test(code.slice(bodyStart));
-
-    const end = brace
-      ? closeOf(code, code.indexOf("{", bodyStart))
-      : statementEnd(code, bodyStart);
-
-    scopes.push({
-      start: bodyStart,
-      end,
-      items: compact(header[2]!),
-      names: boundNames(header[1]!),
-    });
-  }
-
-  for (const match of code.matchAll(CALLBACK)) {
-    const open = match.index + match[0].length - 1;
-    const close = closeOf(code, open);
-    const callback = callbackAt(code, open + 1, close);
-
-    if (callback) {
+    if (declaration) {
       scopes.push({
-        ...callback,
-        items: compact(receiverBefore(code, match.index)),
+        start: loop.body.start,
+        end: loop.body.end,
+        items: compact(source(loop.right)),
+        names: bindingNames(declaration.id),
       });
     }
   }
 
-  for (const match of code.matchAll(HELPER_CALL)) {
-    const name = match[1]!;
+  for (const call of model.calls) {
+    const [first] = call.node.arguments;
+    const method = methodCall(call);
+    const callee = unwrap(call.node.callee);
 
     if (
-      !HELPER_NAME.test(name) ||
-      /^(?:Map|WeakMap|function)$/.test(name) ||
-      /(?:function\s*\*?\s*|async\s+)$/.test(
-        code.slice(Math.max(0, match.index - 40), match.index),
-      )
+      method &&
+      CALLBACK_METHODS.has(method.method.name) &&
+      callee.type === "MemberExpression" &&
+      isFunction(first) &&
+      first.body
     ) {
-      continue;
+      scopes.push({
+        start: first.body.start,
+        end: call.close,
+        items: compact(source(callee.object)).replace(/^\.\.\./, ""),
+        names: first.params.flatMap((param) => bindingNames(param)),
+      });
     }
 
-    const open = match.index + match[0].length - 1;
-    const close = closeOf(code, open);
-    const args = splitTop(code.slice(open + 1, close));
-    let from = open + 1 + args[0]!.length + 1;
+    if (
+      callee.type === "Identifier" &&
+      HELPER_NAME.test(callee.name) &&
+      first !== undefined
+    ) {
+      const callback = call.node.arguments
+        .slice(1)
+        .find((item) => isFunction(item));
 
-    for (const arg of args.slice(1)) {
-      const callback = callbackAt(code, from, from + arg.length);
-
-      if (callback) {
-        scopes.push({ ...callback, items: compact(args[0]!) });
-        break;
+      if (isFunction(callback) && callback.body) {
+        scopes.push({
+          start: callback.body.start,
+          end: callback.end,
+          items: compact(source(first)),
+          names: callback.params.flatMap((param) => bindingNames(param)),
+        });
       }
-
-      from += arg.length + 1;
     }
   }
 
   return scopes.toSorted((a, b) => a.end - a.start - (b.end - b.start));
 }
 
-/**
- * The parameters and body of a function written at `from` (`async (a, b) =>
- * ...`, `x => ...`, `function (x) {...}`), ending at `end`.
- */
-function callbackAt(
-  code: string,
-  from: number,
-  end: number,
-): Pick<Scope, "start" | "end" | "names"> | undefined {
-  const callback =
-    /^\s*(?:async\s+)?(?:function\s*[\w$]*\s*\(|\(|([\w$]+)\s*=>)/.exec(
-      code.slice(from, end),
-    );
-
-  if (!callback) {
-    return undefined;
-  }
-
-  if (callback[1] !== undefined) {
-    return { start: from + callback[0].length, end, names: [callback[1]] };
-  }
-
-  const params = from + callback[0].length - 1;
-  const paramsEnd = closeOf(code, params);
-
-  if (
-    !callback[0].includes("function") &&
-    !/^\s*(?::[^=;{]+)?=>/.test(code.slice(paramsEnd + 1, end))
-  ) {
-    return undefined;
-  }
-
-  return {
-    start: paramsEnd + 1,
-    end,
-    names: parameterNames(code.slice(params + 1, paramsEnd)),
-  };
-}
-
 /** Names in `scope` that hold the loop variable, or something derived from it. */
-function scopeNames(code: string, scope: Scope): string[] {
+function scopeNames(model: SourceModel, scope: Scope): string[] {
   const names = [...scope.names];
-  const body = code.slice(scope.start, scope.end);
 
-  for (const match of body.matchAll(DECLARATION)) {
-    const from = match.index + match[0].length;
-    const init = body.slice(from, statementEnd(body, from));
+  for (const declaration of model.declarations) {
+    if (declaration.start < scope.start || declaration.start >= scope.end) {
+      continue;
+    }
+
+    const init = model.code.slice(declaration.init.start, declaration.init.end);
 
     if (names.some((name) => mentions(init, name))) {
-      names.push(...boundNames(match[1]!));
+      names.push(...declaration.names);
     }
   }
 
   return names;
 }
 
-/** The innermost `{` before `at` that is still open there, and its close. */
-function enclosingEnd(code: string, at: number): number {
-  let depth = 0;
-
-  for (let index = at; index < code.length; index += 1) {
-    const char = code.charAt(index);
-
-    if (OPEN.has(char)) {
-      depth += 1;
-    } else if (CLOSE.has(char)) {
-      depth -= 1;
-
-      if (depth < 0) {
-        return index;
-      }
-    }
-  }
-
-  return code.length;
-}
-
 /** Variables that hold rows of an earlier awaited table read, and their scope. */
 function originsIn(
-  text: string,
-  code: string,
+  model: SourceModel,
   reads: readonly Read[],
+  lineAt: (index: number) => number,
 ): Origin[] {
   const origins: Origin[] = [];
-  const lineAt = lines(text);
 
-  for (const match of code.matchAll(DECLARATION)) {
-    const from = match.index + match[0].length;
-    const end = statementEnd(code, from);
-    const init = code.slice(from, end);
-    const names = boundNames(match[1]!);
-    const scope = { from: end, to: enclosingEnd(code, match.index) };
+  const push = (
+    declaration: Declaration,
+    name: string,
+    read: Read & { readonly table: string },
+  ): void => {
+    origins.push({
+      name,
+      table: read.table,
+      call: read.call,
+      line: lineAt(read.start),
+      from: declaration.init.end,
+      to: declaration.scopeEnd,
+    });
+  };
+
+  for (const declaration of model.declarations) {
+    const { init, pattern } = declaration;
+    const initCode = model.code.slice(init.start, init.end);
 
     const inside = reads.filter(
-      (read) => read.start >= from && read.start < end,
+      (read) => read.start >= init.start && read.start < init.end,
     );
 
-    if (/^\s*await\b/.test(init) && inside.length > 0) {
-      const all = /^\s*await\s+Promise\.all\s*\(\s*\[/.exec(init);
-      const pattern = match[1]!.trim();
+    if (init.type === "AwaitExpression" && inside.length > 0) {
+      const call = init.argument;
 
-      if (all && pattern.startsWith("[")) {
-        const entries = splitTop(
-          code.slice(
-            from + all[0].length,
-            closeOf(code, from + all[0].length - 1),
-          ),
-        );
+      const [list] = call.type === "CallExpression" ? call.arguments : [];
 
-        let offset = from + all[0].length;
+      if (
+        call.type === "CallExpression" &&
+        list?.type === "ArrayExpression" &&
+        pattern.type === "ArrayPattern" &&
+        model.text
+          .slice(call.callee.start, call.callee.end)
+          .replaceAll(/\s/g, "") === "Promise.all"
+      ) {
+        for (const [index, entry] of list.elements.entries()) {
+          const read = entry
+            ? inside.find(
+                (candidate) =>
+                  candidate.start >= entry.start && candidate.start < entry.end,
+              )
+            : undefined;
 
-        for (const [index, entry] of entries.entries()) {
-          const [low, high] = [offset, offset + entry.length];
-
-          const read = inside.find(
-            (candidate) => candidate.start >= low && candidate.start < high,
-          );
-
-          const name = boundNames(
-            `[${splitTop(pattern.slice(1, -1))[index] ?? ""}]`,
-          )[0];
-
-          offset += entry.length + 1;
+          const name = bindingNames(pattern.elements[index])[0];
 
           if (read?.table !== undefined && name !== undefined) {
-            origins.push({
-              name,
-              table: read.table,
-              call: read.call,
-              line: lineAt(read.start),
-              ...scope,
-            });
+            push(declaration, name, { ...read, table: read.table });
           }
         }
 
         continue;
       }
 
-      const read = inside[0]!;
+      const [read] = inside;
 
-      if (read.table !== undefined) {
-        for (const name of names) {
-          origins.push({
-            name,
-            table: read.table,
-            call: read.call,
-            line: lineAt(read.start),
-            ...scope,
-          });
+      if (read?.table !== undefined) {
+        for (const name of declaration.names) {
+          push(declaration, name, { ...read, table: read.table });
         }
       }
 
@@ -778,41 +741,24 @@ function originsIn(
 
     const source = origins.findLast(
       (origin) =>
-        match.index >= origin.from &&
-        match.index < origin.to &&
-        mentions(init, origin.name),
+        declaration.start >= origin.from &&
+        declaration.start < origin.to &&
+        mentions(initCode, origin.name),
     );
 
     if (source) {
-      for (const name of names) {
-        origins.push({ ...source, name, ...scope });
+      for (const name of declaration.names) {
+        origins.push({
+          ...source,
+          name,
+          from: init.end,
+          to: declaration.scopeEnd,
+        });
       }
     }
   }
 
   return origins;
-}
-
-/** Parts of `list` split at top-level commas. */
-function splitTop(list: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let start = 0;
-
-  for (let index = 0; index < list.length; index += 1) {
-    const char = list.charAt(index);
-
-    depth += OPEN.has(char) ? 1 : CLOSE.has(char) ? -1 : 0;
-
-    if (char === "," && depth === 0) {
-      parts.push(list.slice(start, index));
-      start = index + 1;
-    }
-  }
-
-  parts.push(list.slice(start));
-
-  return parts;
 }
 
 function lines(text: string): (index: number) => number {
@@ -874,7 +820,7 @@ function relationTo(
   snapshot: Snapshot,
   outer: string,
   inner: Read,
-  args: string,
+  args: Args,
   via?: string,
 ): Relation | undefined {
   const table = inner.table;
@@ -890,14 +836,14 @@ function relationTo(
     column !== undefined &&
     new RegExp(
       String.raw`(?<![\w$])(?:${column}|${camel(column)})\s*:|["'\`]${column}["'\`]\s*,`,
-    ).test(args);
+    ).test(args.text);
 
   const candidates: Relation[] = [];
 
   const named = (column: string): boolean =>
     new RegExp(
       String.raw`(?<![\w$])(?:${column}|${camel(column)})(?![\w$])`,
-    ).test(args);
+    ).test(args.text);
 
   for (const relation of tableRelationships(snapshot)) {
     const from = tableKey(relation.relation);
@@ -944,7 +890,7 @@ function throughRelation(
   snapshot: Snapshot,
   outer: string,
   inner: string,
-  args: string,
+  args: Args,
   via: string,
   name: (raw: string) => string,
 ): Relation | undefined {
@@ -997,21 +943,12 @@ function throughRelation(
 }
 
 /** Whether the filter on `column` (`taskId: { in: taskIds }`) uses `name`. */
-function filterMentions(args: string, column: string, name: string): boolean {
-  const key = new RegExp(
-    String.raw`(?<![\w$])(?:${column}|${camel(column)})\s*:`,
-    "g",
+function filterMentions(args: Args, column: string, name: string): boolean {
+  return args.props.some(
+    (prop) =>
+      (prop.key === column || prop.key === camel(column)) &&
+      mentions(prop.value, name),
   );
-
-  for (const match of args.matchAll(key)) {
-    const from = match.index + match[0].length;
-
-    if (mentions(args.slice(from, statementEnd(args, from)), name)) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 /** `include: { quote: true }`, or `_count` for a count of related rows. */
@@ -1032,21 +969,61 @@ function includeOf(relation: Relation, read: Read): string {
  * { nodes: [{ id }] }`).
  */
 function searchMatch(
-  args: string,
+  model: SourceModel,
+  read: Read,
   names: readonly string[],
 ): { readonly kind: "search" | "json"; readonly name: string } | undefined {
-  for (const match of args.matchAll(SEARCH_FILTER)) {
-    const from = match.index + match[0].length;
+  const candidates: { start: number; key: string; value: string }[] = [];
 
-    const value =
-      match[2] === "("
-        ? args.slice(from, closeOf(args, from - 1))
-        : args.slice(from, statementEnd(args, from));
+  for (const prop of model.properties) {
+    if (
+      prop.start > read.open &&
+      prop.valueEnd <= read.close &&
+      SEARCH_FILTERS.has(prop.key)
+    ) {
+      candidates.push({
+        start: prop.start,
+        key: prop.key,
+        value: model.code.slice(prop.valueStart, prop.valueEnd),
+      });
+    }
+  }
 
+  for (const call of model.calls) {
+    const callee = unwrap(call.node.callee);
+
+    const named =
+      callee.type === "Identifier"
+        ? callee
+        : callee.type === "MemberExpression" &&
+            callee.property.type === "Identifier"
+          ? callee.property
+          : undefined;
+
+    const key = named?.name;
+
+    if (
+      key !== undefined &&
+      SEARCH_FILTERS.has(key) &&
+      named !== undefined &&
+      named.start > read.open &&
+      named.start < read.close
+    ) {
+      candidates.push({
+        start: named.start,
+        key,
+        value: model.code.slice(call.open + 1, call.close),
+      });
+    }
+  }
+
+  for (const { key, value } of candidates.toSorted(
+    (a, b) => a.start - b.start,
+  )) {
     const name = names.find((candidate) => mentions(value, candidate));
 
     if (name !== undefined) {
-      const json = match[1]!.startsWith("contain") && /^\s*[[{]/.test(value);
+      const json = key.startsWith("contain") && /^\s*[[{]/.test(value);
 
       return { kind: json ? "json" : "search", name };
     }
@@ -1111,7 +1088,11 @@ function skipScope(scope: Scope, writes: readonly number[]): boolean {
 }
 
 /** Both checks share one pass over each file. */
-function analyze(file: TextFile, snapshot: Snapshot): FileAnalysis {
+function analyze(
+  file: TextFile,
+  snapshot: Snapshot,
+  symbols: DoctorContext["symbols"],
+): FileAnalysis {
   const perItem: FindingInput[] = [];
   const waterfalls: FindingInput[] = [];
 
@@ -1119,36 +1100,46 @@ function analyze(file: TextFile, snapshot: Snapshot): FileAnalysis {
     return { perItem, waterfalls };
   }
 
-  const code = codeOnly(file.text);
-  const services = serviceNames(code);
-  const reads = readsIn(file.text, code, services);
+  const model = sourceModel(file.text);
+  const { code } = model;
+  const services = serviceNames(model);
+  const writes = writesIn(model, services);
+
+  const reads = readsIn(model, services, writes).filter(
+    (read) => provablyNotClient(symbols, file.path, read.start) !== true,
+  );
 
   if (reads.length === 0) {
     return { perItem, waterfalls };
   }
 
-  const writes = writesIn(file.text, code, services);
-
-  const rawArgs = (read: Read): string =>
-    file.text.slice(read.open + 1, read.close);
+  const argsOf = (read: Read): Args => ({
+    text: file.text.slice(read.open + 1, read.close),
+    props: model.properties
+      .filter((prop) => prop.start > read.open && prop.valueEnd <= read.close)
+      .map((prop) => ({
+        key: prop.key,
+        value: code.slice(prop.valueStart, prop.valueEnd),
+      })),
+  });
 
   const lineAt = lines(file.text);
-  const origins = originsIn(file.text, code, reads);
+  const origins = originsIn(model, reads, lineAt);
   const reported = new Set<number>();
   let keys: Map<number, string> | undefined;
 
   const targetOf = (read: Read): string => {
-    keys ??= targetKeys(file.path, functionsIn(code), reads);
+    keys ??= targetKeys(file.path, model.functions, reads);
 
     return keys.get(read.start)!;
   };
 
-  for (const scope of scopesIn(code)) {
-    if (skipScope(scope, writes)) {
+  for (const scope of scopesIn(model)) {
+    if (skipScope(scope, writes.all)) {
       continue;
     }
 
-    const names = scopeNames(code, scope);
+    const names = scopeNames(model, scope);
 
     for (const read of reads) {
       const args = code.slice(read.open + 1, read.close);
@@ -1177,10 +1168,10 @@ function analyze(file: TextFile, snapshot: Snapshot): FileAnalysis {
       );
 
       const relation = outer
-        ? relationTo(snapshot, outer.table, read, rawArgs(read))
+        ? relationTo(snapshot, outer.table, read, argsOf(read))
         : undefined;
 
-      const search = searchMatch(args, names);
+      const search = searchMatch(model, read, names);
 
       const hint =
         outer && relation
@@ -1197,10 +1188,12 @@ function analyze(file: TextFile, snapshot: Snapshot): FileAnalysis {
     }
   }
 
-  const waves = [...code.matchAll(WAVE)].map((match): [number, number] => {
-    const open = match.index + match[0].length - 1;
+  const waves = model.calls.flatMap((call): [number, number][] => {
+    const [list] = call.node.arguments;
 
-    return [open, closeOf(code, open)];
+    return call.path === "Promise.all" && list?.type === "ArrayExpression"
+      ? [[list.start, list.end - 1]]
+      : [];
   });
 
   for (const read of reads) {
@@ -1218,7 +1211,7 @@ function analyze(file: TextFile, snapshot: Snapshot): FileAnalysis {
     );
 
     const relation = origin
-      ? relationTo(snapshot, origin.table, read, rawArgs(read), origin.name)
+      ? relationTo(snapshot, origin.table, read, argsOf(read), origin.name)
       : undefined;
 
     if (!origin || !relation) {
@@ -1265,7 +1258,9 @@ function analyzeAll(context: DoctorContext): FileAnalysis[] {
   let result = analyses.get(context.sources);
 
   if (!result) {
-    result = context.sources.map((file) => analyze(file, context.snapshot));
+    result = context.sources.map((file) =>
+      analyze(file, context.snapshot, context.symbols),
+    );
     analyses.set(context.sources, result);
   }
 
@@ -1287,7 +1282,7 @@ export const SOURCE_ONLY_CODES: ReadonlySet<string> = new Set([
 
 /** The snapshot of a run that could not read one: no tables, no foreign keys. */
 export const NO_SNAPSHOT: Snapshot = {
-  version: 2,
+  version: 3,
   schemas: [],
   generator: {
     version: 1,

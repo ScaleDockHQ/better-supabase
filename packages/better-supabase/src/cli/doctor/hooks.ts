@@ -3,7 +3,7 @@ import type {
   SqlWorkflow,
 } from "../../config/index.ts";
 import type { ExtrasHook, ExtrasHookFunction } from "../introspect/types.ts";
-import type { PgFunctionHook } from "../supabase-toml.ts";
+import type { PgFunctionHook, SupabaseConfig } from "../supabase-config.ts";
 import type { LiveDatabase } from "./live.ts";
 import type {
   DoctorContext,
@@ -16,9 +16,9 @@ import type {
 import { providerLabel } from "../authorization.ts";
 import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
-import { httpHooks, pgFunctionHooks } from "../supabase-toml.ts";
+import { httpHooks, pgFunctionHooks } from "../supabase-config.ts";
 import { ident, literal } from "./live.ts";
-import { lineOf, workflowOf } from "./shared.ts";
+import { workflowOf } from "./shared.ts";
 
 /** Claims past this size make every request carry a large cookie and header. */
 const HOOK_CLAIMS_LIMIT = 2048;
@@ -221,12 +221,9 @@ function hookLocation(
     return undefined;
   }
 
-  const line = lineOf(
-    context.configToml.text,
-    new RegExp(`^\\s*\\[auth\\.hook\\.${hook}\\]`),
-  );
+  const at = context.configToml.locate(["auth", "hook", hook]);
 
-  return line ? { file: context.configToml.path, line } : undefined;
+  return at ? { file: context.configToml.path, line: at.line } : undefined;
 }
 
 export const signatureOf = (fn: ExtrasHookFunction): string =>
@@ -617,20 +614,10 @@ const LOCAL_HOSTS = new Set([
 ]);
 
 /** The `secrets = ...` line of `[auth.hook.<hook>]` reads an `env()` value. */
-function secretsFromEnv(text: string, hook: string): boolean {
-  const start = text.search(
-    new RegExp(`^\\s*\\[auth\\.hook\\.${hook}\\]`, "m"),
-  );
+function secretsFromEnv(config: SupabaseConfig, hook: string): boolean {
+  const raw = config.raw(["auth", "hook", hook, "secrets"]);
 
-  if (start < 0) {
-    return false;
-  }
-
-  const rest = text.slice(start).split("\n").slice(1);
-  const end = rest.findIndex((line) => /^\s*\[/.test(line));
-  const section = (end === -1 ? rest : rest.slice(0, end)).join("\n");
-
-  return /^\s*secrets\s*=\s*["']env\(/m.test(section);
+  return typeof raw === "string" && /^\s*env\(/.test(raw);
 }
 
 /**
@@ -982,7 +969,7 @@ export const HOOK_RULES: readonly Rule[] = [
           });
         }
 
-        const fromEnv = secretsFromEnv(toml.text, hook);
+        const fromEnv = secretsFromEnv(toml, hook);
 
         if (secrets === undefined || secrets.trim() === "") {
           findings.push({

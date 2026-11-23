@@ -459,8 +459,11 @@ export interface TemplateContribution {
 /** A child table packed and unpacked with a rows template. */
 export interface TemplateChildTable {
   readonly table: string;
-  /** The column that references the root row. */
-  readonly parent: string;
+  /**
+   * The column that references the root row. Left out, the one foreign key the
+   * schema files declare from the child to the root table names it.
+   */
+  readonly parent?: string;
 }
 
 /** Dates and `{{variables}}` applied when a template becomes a live record. */

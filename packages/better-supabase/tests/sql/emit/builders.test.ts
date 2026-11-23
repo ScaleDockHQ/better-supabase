@@ -119,3 +119,22 @@ describe("statement builders", () => {
     );
   });
 });
+
+describe("function bodies", () => {
+  const fn = (body: string) =>
+    createFunction({
+      name: "a.f",
+      args: "",
+      returns: "text",
+      language: "sql",
+      body,
+    });
+
+  it("picks a dollar tag the body does not contain", () => {
+    expect(fn("select 1")).toContain("as $$\nselect 1\n$$;");
+    expect(fn("select '$$'")).toContain("as $body$\nselect '$$'\n$body$;");
+    expect(fn("select '$$', '$body$'")).toContain(
+      "as $body1$\nselect '$$', '$body$'\n$body1$;",
+    );
+  });
+});

@@ -923,6 +923,39 @@ describe("BS427 notNull", () => {
   });
 });
 
+describe("BS715", () => {
+  const provider = withProvider({
+    actionKeys: { blocks: { audit: { export: "audit.export" } } },
+  });
+
+  const config = (blocks: object) => ({
+    auth: { authorization: provider },
+    blocks: { permissions: { model: "provider" as const }, ...blocks },
+  });
+
+  it("counts the keys the config writes next to the keys the provider supplies", async () => {
+    const result = await findings(
+      "BS715",
+      config({ audit: { permissions: { read: "mine.read" } } }),
+    );
+
+    expect(result).toEqual([
+      {
+        severity: "info",
+        target: "authorization.actionKeys",
+        message: expect.stringMatching(
+          /writes 1 of \d+ action keys \(1 block\).*already supplies \d+\./u,
+        ),
+      },
+    ]);
+  });
+
+  it("is silent when the config writes no key, or the app has no provider", async () => {
+    expect(await findings("BS715", config({ audit: {} }))).toEqual([]);
+    expect(await findings("BS715", { blocks: { audit: {} } })).toEqual([]);
+  });
+});
+
 describe("BS414", () => {
   const withContractPolicy = (): Snapshot => {
     const copy = structuredClone(toCatalog(base)) as {

@@ -1,8 +1,6 @@
 import { loadConfig as loadC12Config } from "c12";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { parse as parseToml } from "smol-toml";
 
 import type {
   AppTablesInput,
@@ -14,6 +12,10 @@ import type { CliIo } from "./core/io.ts";
 import type { CliEnv } from "./env.ts";
 
 import { resolveConfig } from "../config/index.ts";
+import {
+  configImportsHash,
+  rememberConfigImports,
+} from "./cache/config-imports.ts";
 import { configIssues } from "./config-schema.ts";
 import { databaseUrlCredential } from "./core/credentials.ts";
 import { CliError } from "./core/errors.ts";
@@ -23,7 +25,12 @@ import { withModuleSchemas } from "./module-schemas.ts";
 import { withSchemaTags } from "./schema-tags.ts";
 import { withSettingsSchemas } from "./settings-schemas.ts";
 import { readStackStatus } from "./stack-status.ts";
-import { findUp, readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
+import {
+  findUp,
+  readConfigInDir,
+  readSupabaseConfig,
+  tomlNumber,
+} from "./supabase-config.ts";
 
 const CONFIG_FILES = [
   "better-supabase.config.ts",
@@ -255,6 +262,11 @@ export async function loadConfig(
     giget: false,
   });
 
+  rememberConfigImports(
+    explicit ? cwd : dirname(path),
+    await configImportsHash(path),
+  );
+
   const legacy = options.legacyTables === true ? takeLegacyTables(config) : {};
   const current = legacy.config ?? config;
 
@@ -291,7 +303,7 @@ export async function readSupabasePort(
   root: string,
   section: "db" | "api",
 ): Promise<number | undefined> {
-  const toml = await readSupabaseToml(root);
+  const toml = await readSupabaseConfig(root);
 
   return toml ? tomlNumber(toml.document, [section, "port"]) : undefined;
 }
@@ -351,8 +363,8 @@ export async function databaseUrl(
 }
 
 /**
- * The database of `supabase/stacks/<name>/config.toml`, a stack kept for one
- * purpose such as tests or a demo.
+ * The database of `supabase/stacks/<name>/config.toml` (or `.json`, `.jsonc`),
+ * a stack kept for one purpose such as tests or a demo.
  */
 async function namedStackUrl(
   root: string,
@@ -367,16 +379,15 @@ async function namedStackUrl(
     );
   }
 
-  const toml = await readSupabaseToml(root);
+  const toml = await readSupabaseConfig(root);
 
-  const file = toml
-    ? join(dirname(resolve(root, toml.path)), "stacks", name, "config.toml")
+  const stack = toml
+    ? await readConfigInDir(
+        join(dirname(resolve(root, toml.path)), "stacks", name),
+      )
     : undefined;
 
-  const db: unknown =
-    file !== undefined && existsSync(file)
-      ? parseToml(await readFile(file, "utf-8"))["db"]
-      : undefined;
+  const db: unknown = stack?.document["db"];
 
   const port =
     typeof db === "object" &&
@@ -394,7 +405,7 @@ async function namedStackUrl(
     root,
     env,
     name,
-    `supabase/stacks/${name}/config.toml sets no [db] port`,
+    `supabase/stacks/${name}/config.* sets no [db] port`,
   );
 }
 
@@ -415,7 +426,7 @@ async function localDatabaseUrl(root: string, env: CliEnv): Promise<string> {
     root,
     env,
     undefined,
-    (await readSupabaseToml(root))
+    (await readSupabaseConfig(root))
       ? "supabase/config.toml sets no [db] port"
       : "there is no supabase/config.toml",
   );

@@ -27,13 +27,20 @@ export interface HttpOptions {
   readonly signal?: AbortSignal;
   readonly timeoutMs?: number;
   readonly fetch?: typeof fetch;
+  /**
+   * What a token needs to make this request, in words (`read the database`). A
+   * 403 then says the token lacks it, because a scoped Supabase access token is
+   * valid for some requests and refused for others.
+   */
+  readonly needs?: string;
 }
 
 /**
  * The response body of a request, with the CLI's user agent, the run's signal
  * and a timeout. A request that gets no response is `network_error`, 401 and
- * 403 are `auth_required`, and any other failed status is `request_failed`.
- * Each request is published on `HTTP_CHANNEL` for `--debug`.
+ * 403 are `auth_required` (a 403 on a request that names what it `needs` says
+ * the token's scope is missing), and any other failed status is
+ * `request_failed`. Each request is published on `HTTP_CHANNEL` for `--debug`.
  */
 export async function request(
   url: string,
@@ -92,6 +99,13 @@ export async function request(
 
   publish(response.status);
   const text = await response.text();
+
+  if (response.status === 403 && options.needs !== undefined) {
+    throw new CliError(
+      "auth_required",
+      `${options.what} was refused (403): the access token is valid but a scoped token does not allow it to ${options.needs}. Create a token with that permission at https://supabase.com/dashboard/account/tokens and set SUPABASE_ACCESS_TOKEN.`,
+    );
+  }
 
   if (!response.ok) {
     throw new CliError(

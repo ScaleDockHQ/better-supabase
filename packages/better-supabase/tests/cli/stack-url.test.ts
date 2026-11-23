@@ -53,7 +53,7 @@ describe("databaseUrl with a named stack", () => {
     status.mockResolvedValue({ ok: false, code: 1 });
 
     await expect(databaseUrl(config, {}, undefined, "demo")).rejects.toThrow(
-      "supabase/stacks/demo/config.toml sets no [db] port",
+      "supabase/stacks/demo/config.* sets no [db] port",
     );
 
     await expect(databaseUrl(config, {}, undefined, "../x")).rejects.toThrow(
@@ -108,7 +108,7 @@ describe("databaseUrl with a named stack", () => {
     ).rejects.toMatchObject({
       code: "not_found",
       message: expect.stringMatching(
-        /stacks\/tests\/config\.toml sets no \[db\] port, and `supabase status --stack tests` failed \(exit 1\)/,
+        /stacks\/tests\/config\.\* sets no \[db\] port, and `supabase status --stack tests` failed \(exit 1\)/,
       ),
     });
   });

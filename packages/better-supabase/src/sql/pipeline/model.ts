@@ -567,12 +567,12 @@ export interface SchemaModel {
 
 /** The column names a table comment's `@bsb fields a, b` line lists. */
 function fieldsTagged(tags: string): readonly string[] {
-  // The list ends at the end of its line or at the next `@bsb`.
+  // The list ends at the end of its line, at the next `@bsb` or at the `;` that starts the next tag.
   const line = /(?:^|\s)@bsb[ \t]+fields[ \t]+([^\n]+)/m.exec(tags)?.[1];
 
   return line === undefined
     ? []
-    : (line.split(/\s@bsb\b/)[0] ?? "")
+    : (line.split(/\s@bsb\b/)[0]?.split(";")[0] ?? "")
         .split(/[\s,]+/)
         .filter((name) => name !== "");
 }

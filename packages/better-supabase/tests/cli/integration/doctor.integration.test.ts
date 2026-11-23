@@ -9,7 +9,10 @@ import type { AuthorizationProvider } from "../../../src/config/index.ts";
 import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { introspect } from "../../../src/cli/introspect/index.ts";
 import { pgSource } from "../../../src/cli/introspect/source.ts";
-import { parseToml } from "../../../src/cli/supabase-toml.ts";
+import {
+  parseToml,
+  makeSupabaseConfig,
+} from "../../../src/cli/supabase-config.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
   stubProvider,
@@ -281,13 +284,14 @@ enabled = true
 uri = "pg-functions://postgres/${HOOKS}/${fn}"
 `;
 
-      return {
+      return makeSupabaseConfig({
         path: "supabase/config.toml",
         dir: "supabase",
         text,
         document: parseToml(text),
         parser: "smol-toml" as const,
-      };
+        format: "toml",
+      });
     };
 
     const run = async (

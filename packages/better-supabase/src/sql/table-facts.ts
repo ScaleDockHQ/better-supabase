@@ -75,6 +75,7 @@ export interface LifecycleFact {
 function flag(
   value: string | true | undefined,
   name: string,
+  tag = "data-lifecycle",
 ): boolean | undefined {
   if (value === undefined) {
     return undefined;
@@ -88,7 +89,7 @@ function flag(
     return false;
   }
 
-  throw new TypeError(`@bsb data-lifecycle: ${name} must be true or false`);
+  throw new TypeError(`@bsb ${tag}: ${name} must be true or false`);
 }
 
 /** `@bsb data-lifecycle user= tenant= export=false purge=false omit=a,b`. */
@@ -163,6 +164,15 @@ export type SameTenantFact =
       readonly where?: string;
       readonly match?: Readonly<Record<string, string>>;
       readonly through?: Readonly<Record<string, string>>;
+      /** The row's tenant column, when it is not the memberships one. */
+      readonly tenant?: string;
+      /** The referenced table's tenant column, when it differs. */
+      readonly parentTenant?: string;
+      /**
+       * A referenced row with no tenant passes. Unset follows the column's
+       * nullability.
+       */
+      readonly shared?: boolean;
     };
 
 function pairs(
@@ -189,8 +199,8 @@ function pairs(
 }
 
 /**
- * `@bsb same-tenant where=... match=a=b through=via=schema.table`, or
- * `same-tenant=false`.
+ * `@bsb same-tenant where=... match=a=b through=via=schema.table tenant=col
+ * parent-tenant=col shared=false`, or `same-tenant=false`.
  */
 export function sameTenantTag(
   comment: string | null,
@@ -208,11 +218,17 @@ export function sameTenantTag(
   const where = text(tag.args["where"]);
   const match = pairs(tag.args["match"], "match");
   const through = pairs(tag.args["through"], "through");
+  const tenant = text(tag.args["tenant"]);
+  const parentTenant = text(tag.args["parent-tenant"]);
+  const shared = flag(tag.args["shared"], "shared", "same-tenant");
 
   return {
     ...(where === undefined ? {} : { where }),
     ...(match === undefined ? {} : { match }),
     ...(through === undefined ? {} : { through }),
+    ...(tenant === undefined ? {} : { tenant }),
+    ...(parentTenant === undefined ? {} : { parentTenant }),
+    ...(shared === undefined ? {} : { shared }),
   };
 }
 
@@ -252,8 +268,9 @@ export interface SameTenantTags {
 
 /**
  * Reads the `same-tenant` tags of the column comments in `texts`. A tagged
- * column without a single-column foreign key is left out, and BS703 reports
- * it.
+ * column with no foreign key is left out, and BS703 reports it. An entry
+ * carries `shared` only when the tag sets it; the block otherwise follows the
+ * nullability of the referenced tenant column.
  */
 export function sameTenantTagsOf(
   texts: readonly string[],
@@ -284,31 +301,54 @@ export function sameTenantTagsOf(
         continue;
       }
 
-      const key = foreignKeys.find(
-        (candidate) =>
-          candidate.table === table &&
-          candidate.columns.length === 1 &&
-          candidate.columns[0] === found.column,
-      );
+      // A single-column key on the column wins; otherwise a composite key that
+      // holds it, whose other columns become `match` pairs.
+      const key =
+        foreignKeys.find(
+          (candidate) =>
+            candidate.table === table &&
+            candidate.columns.length === 1 &&
+            candidate.columns[0] === found.column,
+        ) ??
+        foreignKeys.find(
+          (candidate) =>
+            candidate.table === table &&
+            candidate.columns.includes(found.column),
+        );
 
-      const referenced = key?.referencedColumns[0];
+      const at = key?.columns.indexOf(found.column) ?? -1;
+      const referenced = key?.referencedColumns[at];
 
       if (key === undefined || referenced === undefined) {
         continue;
       }
 
+      const companions = Object.fromEntries(
+        key.columns.flatMap((column, index) => {
+          const other = key.referencedColumns[index];
+
+          return index === at || other === undefined ? [] : [[column, other]];
+        }),
+      );
+
+      const match = { ...companions, ...fact.match };
+
       entries.push({
         table,
         column: found.column,
+        ...(fact.tenant === undefined ? {} : { tenant: fact.tenant }),
         references: {
           table: key.references,
           column: referenced,
           ...(fact.where === undefined ? {} : { where: fact.where }),
+          ...(fact.parentTenant === undefined
+            ? {}
+            : { tenant: fact.parentTenant }),
         },
-        ...(fact.match === undefined ? {} : { match: fact.match }),
+        ...(Object.keys(match).length === 0 ? {} : { match }),
         ...(fact.through === undefined ? {} : { through: fact.through }),
         ...(key.deferrable === true ? { deferrable: true } : {}),
-        shared: true,
+        ...(fact.shared === undefined ? {} : { shared: fact.shared }),
       });
     }
   }

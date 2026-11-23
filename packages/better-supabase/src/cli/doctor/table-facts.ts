@@ -144,20 +144,26 @@ function tableFactProblems(context: DoctorContext): FindingInput[] {
     }
 
     const columnProblems = table.columns.flatMap((column) => {
-      const fact = sameTenantTag(column.comment ?? null);
+      let fact: ReturnType<typeof sameTenantTag>;
+
+      try {
+        fact = sameTenantTag(column.comment ?? null);
+      } catch (error) {
+        return [error instanceof Error ? error.message : String(error)];
+      }
 
       if (fact === undefined || fact.skip === true) {
         return [];
       }
 
-      const single = table.foreignKeys.some(
-        (key) => key.columns.length === 1 && key.columns[0] === column.name,
+      const held = table.foreignKeys.some((key) =>
+        key.columns.includes(column.name),
       );
 
-      return single
+      return held
         ? []
         : [
-            `@bsb same-tenant on ${column.name} needs a single-column foreign key on that column`,
+            `@bsb same-tenant on ${column.name} needs a foreign key that holds that column`,
           ];
     });
 
@@ -184,7 +190,7 @@ export const TABLE_FACT_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Table tag cannot take effect",
     description:
-      "A `@bsb data-lifecycle`, `grant` or `same-tenant` tag is malformed or incomplete: a non-boolean flag, a `data-lifecycle` tag with neither `user=` nor `tenant=`, a `grant` with an unknown role or privilege, or `same-tenant` on a column with no single-column foreign key. The tag is ignored until it is fixed.",
+      "A `@bsb data-lifecycle`, `grant` or `same-tenant` tag is malformed or incomplete: a non-boolean flag, a `data-lifecycle` tag with neither `user=` nor `tenant=`, a `grant` with an unknown role or privilege, or `same-tenant` on a column no foreign key holds. The tag is ignored until it is fixed.",
     check: tableFactProblems,
   },
 ];

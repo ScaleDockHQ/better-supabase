@@ -5,10 +5,11 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { BlockSqlFile } from "../../sql/index.ts";
 
 import { moduleSchemaExtensions } from "../../sql/index.ts";
-import { applyPlan, changeLines } from "../core/files.ts";
-import { migrationsDir, sqlPlan } from "../sql-layout.ts";
-import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
-import { hasMigrationSuffix, migrationFile } from "./migration-names.ts";
+import { changeLines } from "../core/files.ts";
+import { migrationsDir } from "../sql-layout.ts";
+import { readSupabaseConfig, sqlWorkflow } from "../supabase-config.ts";
+import { hasMigrationSuffix } from "./migration-names.ts";
+import { writeMigration } from "./migration-write.ts";
 
 /** The migration the migrations workflow writes the SQL modules into. */
 export const MODULES_SUFFIX = "_better_supabase_modules.sql";
@@ -30,7 +31,7 @@ export async function writesMigrations(
   config: ResolvedConfig,
 ): Promise<boolean> {
   return (
-    sqlWorkflow(config, await readSupabaseToml(config.root)) === "migrations"
+    sqlWorkflow(config, await readSupabaseConfig(config.root)) === "migrations"
   );
 }
 
@@ -193,22 +194,15 @@ export async function writeLatestMigration(
 
   const dir = migrationsDir(config);
 
-  const names: string[] = await readdir(resolve(config.root, dir)).catch(
-    () => [],
-  );
-
-  const path = `${dir}/${
-    migrationFile(names, options.now, suffix, contents, options.force !== true)
-      .name
-  }`;
-
-  const applied = await applyPlan(
-    sqlPlan(config, {
-      regenerate: "better-supabase upgrade",
-      files: [{ path, contents }],
-    }),
-    { "dry-run": options.dryRun },
-  );
+  const { path, applied } = await writeMigration(config, {
+    dir,
+    now: () => options.now,
+    suffix,
+    contents,
+    regenerate: "better-supabase upgrade",
+    flags: { "dry-run": options.dryRun },
+    reuse: options.force !== true,
+  });
 
   return {
     path,

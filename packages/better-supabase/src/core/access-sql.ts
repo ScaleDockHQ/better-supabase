@@ -36,11 +36,18 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   subject: [],
   subjectForTenant: ["tenant", "scope"],
   bootstrapPermissions: ["tenant", "scope"],
-  approverFor: ["kind", "id"],
+  approverFor: ["kind", "id", "requester", "tenant"],
   managedUsers: ["tenant"],
   canApprove: ["tool", "tenant", "scope"],
   canIn: ["permission", "tenant", "scope"],
 };
+
+/**
+ * Whether a provider's `approverFor` template names the request, its requester
+ * or its tenant. A template that names none of them is not read (ADR 1172).
+ */
+export const approverForNamesRequest = (template: string): boolean =>
+  /\{(?:id|requester|tenant)\}/.test(template);
 
 /** The Postgres types a scope's ids can have. */
 export const SCOPE_ID_TYPES: readonly string[] = [

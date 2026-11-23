@@ -35,4 +35,42 @@ describe("codemod account-calls", () => {
 
     expect(moveAccountCalls(text)).toEqual({ text, review: [] });
   });
+
+  it("reports a call on ctx.bsb instead of writing ctx.deleteAccount(bsb, id)", () => {
+    const text =
+      'import { x } from "better-supabase";\nawait ctx.bsb.deleteAccount(id);\n';
+
+    const result = moveAccountCalls(text);
+
+    expect(result.text).toBe(text);
+    expect(result.review).toEqual([
+      expect.objectContaining({
+        line: 2,
+        message: expect.stringContaining("deleteAccount"),
+      }),
+    ]);
+  });
+
+  it("leaves a call in a comment or a string alone", () => {
+    const text = '// bsb.deleteAccount(id)\nconst s = "bsb.endSessions(id)";\n';
+
+    expect(moveAccountCalls(text)).toEqual({ text, review: [] });
+  });
+
+  it("adds a name to an import that already exists", () => {
+    const result = moveAccountCalls(
+      'import { endSessions } from "better-supabase/server/account";\nbsb.deleteAccount(id);\nbsb.endSessions(id);\n',
+    );
+
+    expect(result.text).toContain(
+      'import { endSessions, deleteAccount } from "better-supabase/server/account";',
+    );
+    expect(result.text).toContain("deleteAccount(bsb, id)");
+  });
+
+  it("handles a call without arguments", () => {
+    expect(moveAccountCalls("bsb.endSessions();\n").text).toContain(
+      "endSessions(bsb);",
+    );
+  });
 });

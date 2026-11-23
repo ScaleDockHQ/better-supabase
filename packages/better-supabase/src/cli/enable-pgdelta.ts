@@ -1,21 +1,21 @@
-import { dirname, join } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import { applyPlan } from "./core/files.ts";
 import { display } from "./core/io.ts";
 import {
   diffEngine,
   findSupabaseRoot,
-  PGDELTA_TABLE,
-  readSupabaseToml,
+  readSupabaseConfig,
   tomlGet,
-} from "./supabase-toml.ts";
+  withConfigValue,
+} from "./supabase-config.ts";
 
 /**
- * Adds `[experimental.pgdelta] enabled = true` to `supabase/config.toml` when
- * it has no such table, so `supabase db schema declarative sync` runs on
- * pg-delta. A table set to `enabled = false` is left alone, as is a project
- * that lists `[db.migrations] schema_paths`, and a project without
- * `config.toml` gets nothing.
+ * Sets `experimental.pgdelta.enabled = true` in the project config
+ * (`config.toml`, `config.json` or `config.jsonc`) when it has no such table,
+ * so `supabase db schema declarative sync` runs on pg-delta. A table set to
+ * `enabled = false` is left alone, as is a project that lists `[db.migrations]
+ * schema_paths`, and a project without a config file gets nothing.
  */
 export async function enablePgDelta(
   root: string,
@@ -23,13 +23,13 @@ export async function enablePgDelta(
   base: string = root,
 ): Promise<string[]> {
   const supabaseRoot = findSupabaseRoot(root);
-  const toml = await readSupabaseToml(root);
+  const toml = await readSupabaseConfig(root);
 
   if (supabaseRoot === undefined || toml === undefined) {
     return [];
   }
 
-  const path = join(supabaseRoot, "supabase/config.toml");
+  const path = resolve(root, toml.path);
   const shown = display(base, path);
 
   if (diffEngine(toml) === "pg-delta") {
@@ -55,13 +55,6 @@ export async function enablePgDelta(
     ];
   }
 
-  const separator =
-    toml.text === "" || toml.text.endsWith("\n\n")
-      ? ""
-      : toml.text.endsWith("\n")
-        ? "\n"
-        : "\n\n";
-
   await applyPlan(
     {
       root: dirname(path),
@@ -69,7 +62,11 @@ export async function enablePgDelta(
       files: [
         {
           path,
-          contents: `${toml.text}${separator}${PGDELTA_TABLE}`,
+          contents: withConfigValue(
+            toml,
+            ["experimental", "pgdelta", "enabled"],
+            true,
+          ),
           policy: "edit",
         },
       ],

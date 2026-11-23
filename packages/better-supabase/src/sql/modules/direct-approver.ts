@@ -72,16 +72,49 @@ export function hasDecider(ctx: BlockSqlContext): boolean {
 }
 
 /**
+ * The request's requester (a uuid expression) and tenant, for the provider's
+ * `{requester}` and `{tenant}` placeholders.
+ */
+export interface DeciderRow {
+  readonly requester: string;
+  readonly tenant: string;
+}
+
+/**
+ * The row of a request an approval step names by id, as scalar subselects, for
+ * the `{requester}` and `{tenant}` placeholders where only the subject id is at
+ * hand. `requester` gets the alias of the request table.
+ */
+export function subjectRow(
+  table: string,
+  columns: {
+    readonly id: string;
+    readonly tenant: string;
+    readonly requester: (alias: string) => string;
+  },
+  subjectId: string,
+): DeciderRow {
+  const from = `from ${table} s where s.${columns.id} = ${subjectId}::uuid`;
+
+  return {
+    requester: `(select ${columns.requester("s")} ${from})`,
+    tenant: `(select s.${columns.tenant} ${from})`,
+  };
+}
+
+/**
  * ` or <the caller may decide request id>` for `options.decider`, an app
  * function `(id uuid) returns boolean` that lets more callers decide, such as
  * the managers up the requester's reporting chain; else, when the provider's
- * `approverFor` names the request with `{id}`, a caller in its set; else `""`.
- * The explicit option wins. A null answer denies.
+ * `approverFor` names the request with `{id}`, `{requester}` or `{tenant}`, a
+ * caller in its set; else `""`. The explicit option wins. A null answer denies.
+ * A template that names the requester or the tenant needs `row`.
  */
 export function deciderCall(
   ctx: BlockSqlContext,
   where: string,
   id: string,
+  row?: DeciderRow,
 ): string {
   const name = ctx.text("decider", "");
 
@@ -91,7 +124,7 @@ export function deciderCall(
     const approvers = fillTemplate(
       "authorization.functions.approverFor",
       ctx.providerApproverFor,
-      { kind: sqlString(kind), id },
+      { kind: sqlString(kind), id, ...row },
     );
 
     return ` or coalesce(auth.uid() in (select t.u from ${approvers} as t(u)), false)`;

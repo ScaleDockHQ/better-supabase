@@ -441,6 +441,14 @@ const cli = defineConfig({
     "mapper/bin": "src/mapper/bin.ts",
   },
   platform: "node",
+  // jsonc-parser's `main` is a UMD file that requires its siblings at run time;
+  // its `module` entry is the ES build the bundle can inline.
+  alias: {
+    "jsonc-parser": resolve(
+      import.meta.dirname,
+      "node_modules/jsonc-parser/lib/esm/main.js",
+    ),
+  },
   format: "esm",
   fixedExtension: false,
   dts: true,
@@ -504,6 +512,7 @@ const cli = defineConfig({
     onlyBundle: [
       "@clack/core",
       "@clack/prompts",
+      "@jridgewell/sourcemap-codec",
       "@t3-oss/env-core",
       "ajv",
       "ajv-formats",
@@ -521,7 +530,10 @@ const cli = defineConfig({
       "fast-wrap-ansi",
       "fastest-levenshtein",
       "json-schema-traverse",
+      "jsonc-parser",
       "jsonpath-rfc9535",
+      "magic-string",
+      "oxc-walker",
       "pathe",
       "pkg-types",
       "rc9",

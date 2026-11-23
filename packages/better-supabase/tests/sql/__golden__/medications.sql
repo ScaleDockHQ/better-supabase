@@ -2827,16 +2827,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:9ac20a32ff0d1b406f3ef5614b84093015a234a984f29fa8279ae4c055f27b3c
+-- @bsb-hash sha256:bf25d184c573e970b2546d89a38052f1064fbb445e165835be82f780085569d1
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Medications: the organization's catalog, orders for a record with a dose,
 -- route and schedule, planned doses, and each dose given, refused, skipped or
 -- missed, with a second check for high-risk medication.

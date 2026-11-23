@@ -29,10 +29,10 @@ import { enablePgDelta } from "../enable-pgdelta.ts";
 import { sqlPlan } from "../sql-layout.ts";
 import {
   migrationCommand,
-  readSupabaseToml,
+  readSupabaseConfig,
   schemaPaths,
   sqlWorkflow,
-} from "../supabase-toml.ts";
+} from "../supabase-config.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
 import { DATA_NEXT, writeExtensionsMigration } from "./migrations.ts";
 import {
@@ -150,7 +150,7 @@ export async function write(
   only?: readonly string[],
   upgrade: readonly string[] = [],
 ): Promise<SqlWrite> {
-  const workflow = sqlWorkflow(config, await readSupabaseToml(config.root));
+  const workflow = sqlWorkflow(config, await readSupabaseConfig(config.root));
   const migrations = workflow === "migrations";
   const lines: string[] = [];
   const dryRun = args["dry-run"] === true;
@@ -262,7 +262,7 @@ export async function write(
 
 /** The command that takes the written modules to the database. */
 export async function nextStep(config: ResolvedConfig): Promise<NextStep> {
-  const workflow = sqlWorkflow(config, await readSupabaseToml(config.root));
+  const workflow = sqlWorkflow(config, await readSupabaseConfig(config.root));
 
   return workflow === "migrations"
     ? { command: migrationCommand(workflow), when: "applies the migration" }
@@ -281,7 +281,7 @@ export async function unlistedModuleFiles(
   names: readonly string[],
   sqlLayout: BlockSqlLayout,
 ): Promise<string[]> {
-  const toml = await readSupabaseToml(config.root);
+  const toml = await readSupabaseConfig(config.root);
   const workflow = sqlWorkflow(config, toml);
 
   if (workflow !== "migra") {

@@ -539,16 +539,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_bulk_actions.sql
 -- better-supabase module: bulk-actions
 -- @bsb-block bulk-actions@1 managed
--- @bsb-hash sha256:0bdbe2bff4c57ffadcdd637b6bdf2c9100acbdfaa98c9014f03c5080d0062290
+-- @bsb-hash sha256:22780936548774385cd2700c2f0dae2b80241bb233860e6a13e7fe0385c65b39
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table "app_private"."bulk_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,

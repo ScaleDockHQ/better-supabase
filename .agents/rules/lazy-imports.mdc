@@ -11,11 +11,13 @@ paths:
 Imports stay at the top of the module. The exceptions are optional
     peers loaded lazily, each with a comment and a fallback:
     `@supabase/config/io` through a variable specifier in
-    `src/cli/supabase-toml.ts` (smol-toml parses `config.toml`
+    `src/cli/supabase-config.ts` (smol-toml parses `config.toml` and jsonc-parser the JSON formats
     without it), `pg` in `src/cli/db.ts` and `@supabase/postgrest-typegen`
     in `src/cli/introspect/typegen.ts`, `@supabase/pg-delta` in
-    `src/cli/in-stack-diff.ts` (an install message when they are
-    missing), `oxfmt` in the same file (unformatted output with a
+    `src/cli/in-stack-diff.ts` (a dependency of the package that loads on
+    first use to keep CLI startup fast, with a reinstall message; ADR 1171), `@supabase/pg-topo` in
+    `src/cli/doctor/pg-topo.ts` (the doctor group skips when it fails to load;
+    ADR 1206), `oxfmt` in the same file (unformatted output with a
     notice), `stripe` through a variable specifier in
     `src/blocks/stripe.ts` (an install message, or pass a client) and by
     name in `src/stripe/stripe.ts`, so bundlers include it for
@@ -34,6 +36,9 @@ Imports stay at the top of the module. The exceptions are optional
     `@vercel/sandbox` and `@ai-sdk/sandbox-vercel` through
     `importOptionalPeer` in `src/vercel-sandbox/vercel-sandbox.ts` (an
     install message, or pass `load` and `loadSession`),
+    `typescript/sync` and `typescript/ast` through variable specifiers in
+    `src/cli/typescript-symbols/index.ts` (a reason and per-file codemods
+    without TypeScript 7.1; ADR 1187),
     `@vercel/connect/mcp` through `importOptionalPeer` in
     `src/ai-sdk/mcp/mcp.ts` (an install message, or pass the module), `@supabase/mcp-server-supabase` through variable
     specifiers in `src/core/supabase-mcp.ts` (an install message),

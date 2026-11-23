@@ -216,3 +216,79 @@ export function assertViewColumns(missing: readonly MissingViewColumn[]): void {
     ].join("\n"),
   );
 }
+
+/**
+ * The `null` entries for an optional column that a table of the app's lacks
+ * anyway. A table that doesn't declare an optional column leaves it out, so the
+ * entry restates what the render does (ADR 1189). Tables whose columns aren't
+ * known are left alone.
+ */
+export function redundantTableNulls(
+  layout: BlockSqlLayout,
+  modules: AnyBlocksConfig | undefined,
+  namesOf: (module: string) => BlockSqlNames | undefined,
+): readonly RedundantNull[] {
+  const known = layout.ownColumns;
+
+  if (modules === undefined || known === undefined) {
+    return [];
+  }
+
+  const found: RedundantNull[] = [];
+
+  for (const [block, config] of Object.entries(modules)) {
+    const names = namesOf(block);
+
+    if (config === undefined || names === undefined) {
+      continue;
+    }
+
+    let ctx: ReturnType<typeof createModuleContext>;
+
+    try {
+      ctx = createModuleContext(block, namesOf, {
+        modules,
+        ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
+        ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
+        ownColumns: known,
+      });
+    } catch {
+      // The render refuses a config this context can't validate alone.
+      continue;
+    }
+
+    // SAFETY: a block config's `columns` maps logical tables to logical columns.
+    const configured = (config.columns ?? {}) as ColumnMap;
+
+    for (const logical of ctx.appOwned) {
+      const spec = names.tables[logical];
+
+      if (spec === undefined || ctx.appViews.includes(logical)) {
+        continue;
+      }
+
+      const parts = ctx.tableName(logical);
+      const table = `${parts.schema}.${parts.name}`;
+      const has = known[table];
+
+      if (has === undefined) {
+        continue;
+      }
+
+      for (const [column, named] of Object.entries(configured[logical] ?? {})) {
+        const bare = spec.columns[column];
+
+        if (
+          named === null &&
+          bare !== undefined &&
+          spec.optional?.includes(column) === true &&
+          !has.includes(bare)
+        ) {
+          found.push({ block, logical, column, view: table, name: bare });
+        }
+      }
+    }
+  }
+
+  return found;
+}

@@ -248,7 +248,7 @@ describe("managementAdvisors", () => {
     });
 
     await expect(failing.lints("security")).rejects.toThrow(
-      "Management API security advisors failed (403): forbidden",
+      "Management API security advisors was refused (403): the access token is valid but a scoped token does not allow it to read the project's advisors",
     );
 
     const empty = managementAdvisors({

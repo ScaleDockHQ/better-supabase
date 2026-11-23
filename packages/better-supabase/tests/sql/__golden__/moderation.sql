@@ -2491,16 +2491,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:e09727cda52101fa60854ad52d249a62cde27f710331a1a2db00266104bddfa6
+-- @bsb-hash sha256:647a06fd6672b0c4e8e1ae33aec1e2634096d6ebd5aa3fe412303c5eff7524bb
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table "app_private"."moderation_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -5050,7 +5050,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:e23fe4a13f080f68d0b7de413d9ba915025d43459288c28915eb01d8edee0841
+-- @bsb-hash sha256:449f8810344612da8f195731c57764e6b3ba53e710e16cf8e9607b460768f512
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5125,7 +5125,7 @@ alter table "better_supabase"."moderation_statements" add column if not exists "
 alter table "better_supabase"."moderation_statements" add column if not exists "terms_ground" text constraint bsb_moderation_statements_terms_ground_check check ("terms_ground" is null or length("terms_ground") <= 2000);
 alter table "better_supabase"."moderation_statements" add column if not exists "automated_detection" boolean not null default false;
 alter table "better_supabase"."moderation_statements" add column if not exists "automated_decision" boolean not null default false;
-alter table "better_supabase"."moderation_statements" add column if not exists "redress" text[] not null default array['internal_complaint';
+alter table "better_supabase"."moderation_statements" add column if not exists "redress" text[] not null default array['internal_complaint', 'out_of_court', 'judicial'];
 alter table "better_supabase"."moderation_statements" add column if not exists "issued_by" uuid;
 alter table "better_supabase"."moderation_statements" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "moderation_statements_item_idx" on "better_supabase"."moderation_statements" ("item_id", "created_at" desc);

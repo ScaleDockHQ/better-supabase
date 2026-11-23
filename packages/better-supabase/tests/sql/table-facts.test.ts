@@ -139,7 +139,67 @@ describe("sameTenantTagsOf", () => {
         references: { table: "public.projects", column: "id" },
         match: { region: "region" },
         deferrable: true,
-        shared: true,
+      },
+    ]);
+  });
+
+  it("reads tenant, parent-tenant and shared from the tag", () => {
+    const tags = sameTenantTagsOf(
+      [
+        "comment on column public.tasks.project_id is '@bsb same-tenant tenant=org_id parent-tenant=owner_org shared=false';",
+      ],
+      ["public"],
+      keys,
+    );
+
+    expect(tags.entries).toEqual([
+      {
+        table: "public.tasks",
+        column: "project_id",
+        tenant: "org_id",
+        references: {
+          table: "public.projects",
+          column: "id",
+          tenant: "owner_org",
+        },
+        deferrable: true,
+        shared: false,
+      },
+    ]);
+  });
+
+  it("rejects a shared flag that is not true or false", () => {
+    expect(() =>
+      sameTenantTagsOf(
+        [
+          "comment on column public.tasks.project_id is '@bsb same-tenant shared=maybe';",
+        ],
+        ["public"],
+        keys,
+      ),
+    ).toThrow("shared must be true or false");
+  });
+
+  it("checks the other columns of a composite key as match pairs", () => {
+    const tags = sameTenantTagsOf(
+      ["comment on column public.tasks.project_id is '@bsb same-tenant';"],
+      ["public"],
+      [
+        {
+          table: "public.tasks",
+          columns: ["project_id", "region"],
+          references: "public.projects",
+          referencedColumns: ["id", "region"],
+        },
+      ],
+    );
+
+    expect(tags.entries).toEqual([
+      {
+        table: "public.tasks",
+        column: "project_id",
+        references: { table: "public.projects", column: "id" },
+        match: { region: "region" },
       },
     ]);
   });

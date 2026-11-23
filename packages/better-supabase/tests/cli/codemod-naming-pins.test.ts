@@ -220,13 +220,13 @@ describe("withColumnPins", () => {
 
   it("writes the pin inside blocks, at the next line's indent", () => {
     const text = withColumnPins(
-      `export default {
+      `const drive = { deletedAt: "keep" };
+export default {
   blocks: {
     drive: {
       tables: {},
     },
   },
-  const drive = { deletedAt: "keep" };
 };
 `,
       [pin],
@@ -234,6 +234,86 @@ describe("withColumnPins", () => {
 
     expect(text).toContain('          deletedAt: "deleted_at",');
     expect(text).toContain('const drive = { deletedAt: "keep" }');
+  });
+
+  it("keeps the comments of the entries around the pin", () => {
+    const text = withColumnPins(
+      `export default {
+  blocks: {
+    // the drive block
+    drive: {
+      columns: {
+        nodes: {
+          // keep the title
+          name: "title", // why
+        },
+      },
+    },
+  },
+};
+`,
+      [pin],
+    ).text;
+
+    expect(text).toContain("// the drive block");
+    expect(text).toContain('name: "title", // why');
+    expect(text).toContain('deletedAt: "deleted_at"');
+  });
+
+  it("follows a shorthand and a spread to the object that holds the block", () => {
+    const shorthand = withColumnPins(
+      `const drive = { tables: {} };
+export default { blocks: { drive } };
+`,
+      [pin],
+    );
+
+    expect(shorthand.missed).toEqual([]);
+    expect(shorthand.text).toContain(
+      'const drive = { tables: {}, columns: {\n  nodes: {\n    deletedAt: "deleted_at",',
+    );
+    expect(shorthand.text).toContain("blocks: { drive }");
+
+    const spread = withColumnPins(
+      `const shared = { drive: { columns: { nodes: {} } } };
+export default { blocks: { ...shared } };
+`,
+      [pin],
+    );
+
+    expect(spread.missed).toEqual([]);
+    expect(spread.text).toContain('deletedAt: "deleted_at"');
+    expect(spread.text).toContain("blocks: { ...shared }");
+  });
+
+  it("keeps CRLF line endings and tabs", () => {
+    const text = withColumnPins(
+      "export default {\r\n\tblocks: {\r\n\t\tdrive: {\r\n\t\t\ttables: {},\r\n\t\t},\r\n\t},\r\n};\r\n",
+      [pin],
+    ).text;
+
+    expect(text).not.toMatch(/[^\r]\n/);
+    expect(text).toContain('\t\t\t\t\tdeletedAt: "deleted_at",\r\n');
+  });
+
+  it("reports a block it cannot edit instead of skipping it", () => {
+    const imported = withColumnPins(
+      `import { drive } from "./drive.ts";
+export default { blocks: { drive } };
+`,
+      [pin],
+    );
+
+    expect(imported.missed).toEqual([pin]);
+    expect(imported.text).toContain('import { drive } from "./drive.ts";');
+    expect(imported.text).not.toContain("deleted_at");
+
+    const call = withColumnPins(
+      "export default { blocks: { drive: makeDrive() } };",
+      [pin],
+    );
+
+    expect(call.missed).toEqual([pin]);
   });
 
   it("writes a history actor pin on its own line", () => {
@@ -328,9 +408,9 @@ describe("withColumnPins", () => {
     expect(present.text).not.toContain("actor_user_id");
 
     const around = withColumnPins(
-      `const columns = { nodes: {} };
+      `const unrelated = { nodes: {} };
 export default { blocks: { drive: { tables: {} } } };
-const columns = { nodes: {} };
+const other = { nodes: {} };
 `,
       [pin],
     );
@@ -480,18 +560,17 @@ describe("withColumnPins search edges", () => {
     expect(missed).toEqual([]);
     expect(out).toContain('const note = "drive: { columns: {} }";');
     expect(out).toMatch(
-      /instances: \{ drive: \{\n\s*columns: \{\n\s*nodes: \{\n\s*deletedAt: "deleted_at",/u,
+      /instances: \{ drive: \{ block: 'drive', columns: \{\n\s*nodes: \{\n\s*deletedAt: "deleted_at",/u,
     );
   });
 
-  it("misses a block with no object or an unclosed one", () => {
+  it("misses a block with no object and rejects an unclosed one", () => {
     expect(
       withColumnPins("export default { blocks: {} };", [pin]).missed,
     ).toEqual([pin]);
-    expect(
-      withColumnPins("export default { blocks: { drive: { x: 1 }", [pin])
-        .missed,
-    ).toEqual([pin]);
+    expect(() =>
+      withColumnPins("export default { blocks: { drive: { x: 1 }", [pin]),
+    ).toThrow("Expected");
   });
 });
 

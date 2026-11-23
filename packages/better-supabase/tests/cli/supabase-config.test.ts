@@ -1,0 +1,386 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import type { SupabaseConfig } from "../../src/cli/supabase-config.ts";
+import type { SqlWorkflow } from "../../src/config/index.ts";
+
+import { readSupabasePort } from "../../src/cli/config.ts";
+import {
+  declarativeSchemasDir,
+  detectWorkflow,
+  diffEngine,
+  findSupabaseRoot,
+  migrationCommand,
+  parseToml,
+  readSupabaseConfig,
+  schemaPaths,
+  sqlWorkflow,
+  supabaseDir,
+  tomlGet,
+  makeSupabaseConfig,
+  supabaseConfigFromText,
+} from "../../src/cli/supabase-config.ts";
+
+describe("readSupabaseConfig", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "better-supabase-config-"));
+    await mkdir(join(dir, "supabase"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("parses with @supabase/config, including env() values", async () => {
+    await writeFile(
+      join(dir, "supabase/config.toml"),
+      [
+        'project_id = "demo"',
+        "[db]",
+        "port = 55422",
+        "[auth]",
+        'site_url = "env(BS_TOML_SITE_URL)"',
+        "jwt_expiry = 7200",
+        "",
+      ].join("\n"),
+    );
+    process.env["BS_TOML_SITE_URL"] = "https://example.test";
+
+    try {
+      const toml = await readSupabaseConfig(dir);
+      expect(toml?.parser).toBe("@supabase/config");
+      expect(tomlGet(toml!.document, ["auth", "site_url"])).toBe(
+        "https://example.test",
+      );
+      expect(tomlGet(toml!.document, ["auth", "jwt_expiry"])).toBe(7200);
+      expect(await readSupabasePort(dir, "db")).toBe(55_422);
+      expect(await readSupabasePort(dir, "api")).toBeUndefined();
+    } finally {
+      delete process.env["BS_TOML_SITE_URL"];
+    }
+  });
+
+  it("parses a file without env() with smol-toml and reuses the parse", async () => {
+    const path = join(dir, "supabase/config.toml");
+    await writeFile(path, "[db]\nport = 55422\n");
+    const first = await readSupabaseConfig(dir);
+    expect(first?.parser).toBe("smol-toml");
+    expect(await readSupabaseConfig(dir)).toBe(first);
+    await writeFile(path, "[db]\nport = 55432\n");
+    const changed = await readSupabaseConfig(dir);
+    expect(changed).not.toBe(first);
+    expect(tomlGet(changed!.document, ["db", "port"])).toBe(55_432);
+  });
+
+  it("returns undefined without a config.toml", async () => {
+    expect(await readSupabaseConfig(join(dir, "missing"))).toBeUndefined();
+  });
+
+  it("finds supabase/config.toml in a parent directory", async () => {
+    await writeFile(join(dir, "supabase/config.toml"), "[db]\nport = 55422\n");
+    const app = join(dir, "apps/web");
+    await mkdir(app, { recursive: true });
+    expect(findSupabaseRoot(app)).toBe(dir);
+    expect(supabaseDir(app)).toBe("../../supabase");
+    expect(supabaseDir(dir)).toBe("supabase");
+    const toml = await readSupabaseConfig(app);
+    expect(toml).toMatchObject({
+      path: "../../supabase/config.toml",
+      dir: "../../supabase",
+    });
+    expect(await readSupabasePort(app, "db")).toBe(55_422);
+    expect((await readSupabaseConfig(dir))?.path).toBe("supabase/config.toml");
+  });
+
+  it("stops the search at a .git directory", async () => {
+    await writeFile(join(dir, "supabase/config.toml"), "[db]\nport = 55422\n");
+    const nested = join(dir, "vendor/other");
+    await mkdir(join(nested, ".git"), { recursive: true });
+    expect(findSupabaseRoot(join(nested, "src"))).toBeUndefined();
+    expect(findSupabaseRoot(nested)).toBeUndefined();
+    expect(supabaseDir(nested)).toBe("supabase");
+    await rm(join(nested, ".git"), { recursive: true });
+    await mkdir(join(dir, ".git"));
+    expect(findSupabaseRoot(nested)).toBe(dir);
+  });
+});
+
+describe("parseToml", () => {
+  it("reads arrays over several lines, with comments", () => {
+    const document = parseToml(
+      [
+        "[db.migrations]",
+        "schema_paths = [",
+        '  "./schemas/010_extensions.sql", # first',
+        "  # the CRM tables",
+        '  "./schemas/030_crm/*.sql",',
+        "]",
+        "enabled = true",
+      ].join("\n"),
+    );
+
+    expect(tomlGet(document, ["db", "migrations", "schema_paths"])).toEqual([
+      "./schemas/010_extensions.sql",
+      "./schemas/030_crm/*.sql",
+    ]);
+    expect(tomlGet(document, ["db", "migrations", "enabled"])).toBe(true);
+  });
+
+  it("turns dates into ISO strings and invalid files into an empty table", () => {
+    expect(
+      parseToml("[auth]\nsince = 2026-01-02T03:04:05Z\nlimits = { rate = 10 }"),
+    ).toEqual({
+      auth: { since: "2026-01-02T03:04:05.000Z", limits: { rate: 10 } },
+    });
+    expect(parseToml("[auth\nbroken")).toEqual({});
+  });
+});
+
+describe("schemaPaths", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "better-supabase-schema-paths-"));
+    await mkdir(join(dir, "supabase/schemas/030_crm"), { recursive: true });
+
+    for (const file of [
+      "010_extensions.sql",
+      "020_types.sql",
+      "030_crm/b.sql",
+      "030_crm/a.sql",
+      "999_unlisted.sql",
+    ]) {
+      await writeFile(join(dir, "supabase/schemas", file), "");
+    }
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  const tomlWith = (text: string): SupabaseConfig =>
+    supabaseConfigFromText(text);
+
+  it("keeps the listed order, expands globs by name and puts unmatched files last", async () => {
+    const order = await schemaPaths(
+      dir,
+      tomlWith(
+        [
+          "[db.migrations]",
+          "schema_paths = [",
+          '  "./schemas/030_crm/*.sql",',
+          '  "./schemas/010_extensions.sql",',
+          '  "./schemas/020_types.sql",',
+          "]",
+        ].join("\n"),
+      ),
+    );
+
+    expect(order).toEqual({
+      configured: true,
+      files: [
+        "supabase/schemas/030_crm/a.sql",
+        "supabase/schemas/030_crm/b.sql",
+        "supabase/schemas/010_extensions.sql",
+        "supabase/schemas/020_types.sql",
+        "supabase/schemas/999_unlisted.sql",
+      ],
+      unlisted: ["supabase/schemas/999_unlisted.sql"],
+    });
+  });
+
+  it("reads the schemas of a supabase directory above the project", async () => {
+    const app = join(dir, "apps/web");
+    await mkdir(app, { recursive: true });
+    await writeFile(join(dir, "supabase/config.toml"), "");
+    const toml = await readSupabaseConfig(app);
+    expect((await schemaPaths(app, toml)).files).toEqual([
+      "../../supabase/schemas/010_extensions.sql",
+      "../../supabase/schemas/020_types.sql",
+      "../../supabase/schemas/030_crm/a.sql",
+      "../../supabase/schemas/030_crm/b.sql",
+      "../../supabase/schemas/999_unlisted.sql",
+    ]);
+  });
+
+  it("reads supabase/schemas in name order without schema_paths", async () => {
+    expect(await schemaPaths(dir, undefined)).toEqual({
+      configured: false,
+      files: [
+        "supabase/schemas/010_extensions.sql",
+        "supabase/schemas/020_types.sql",
+        "supabase/schemas/030_crm/a.sql",
+        "supabase/schemas/030_crm/b.sql",
+        "supabase/schemas/999_unlisted.sql",
+      ],
+      unlisted: [],
+    });
+  });
+
+  it("ignores schema_paths under pg-delta and reads its schema directory", async () => {
+    const pgdelta = tomlWith(
+      [
+        "[db.migrations]",
+        'schema_paths = ["./schemas/020_types.sql"]',
+        "[experimental.pgdelta]",
+        "enabled = true",
+      ].join("\n"),
+    );
+
+    expect(diffEngine(pgdelta)).toBe("pg-delta");
+    expect(await schemaPaths(dir, pgdelta)).toEqual({
+      configured: false,
+      files: [
+        "supabase/schemas/010_extensions.sql",
+        "supabase/schemas/020_types.sql",
+        "supabase/schemas/030_crm/a.sql",
+        "supabase/schemas/030_crm/b.sql",
+        "supabase/schemas/999_unlisted.sql",
+      ],
+      unlisted: [],
+    });
+
+    const custom = tomlWith(
+      [
+        "[experimental.pgdelta]",
+        'enabled = "true"',
+        'declarative_schema_path = "./schemas/030_crm/"',
+      ].join("\n"),
+    );
+
+    expect((await schemaPaths(dir, custom)).files).toEqual([
+      "supabase/schemas/030_crm/a.sql",
+      "supabase/schemas/030_crm/b.sql",
+    ]);
+
+    const missing = tomlWith(
+      '[experimental.pgdelta]\nenabled = true\ndeclarative_schema_path = "./db"',
+    );
+
+    expect(await schemaPaths(dir, missing)).toEqual({
+      configured: false,
+      files: [],
+      unlisted: [],
+    });
+  });
+});
+
+describe("migrationCommand", () => {
+  const tomlWith = (text: string): SupabaseConfig =>
+    supabaseConfigFromText(text);
+
+  it("names the command of each workflow", () => {
+    expect(diffEngine(undefined)).toBe("migra");
+    expect(diffEngine(tomlWith("[experimental.pgdelta]\nenabled = true"))).toBe(
+      "pg-delta",
+    );
+    expect(migrationCommand("migra", "add_tags")).toBe(
+      "supabase db diff -f add_tags",
+    );
+    expect(migrationCommand("migra")).toBe("supabase db diff");
+    expect(migrationCommand("pg-delta", "add_tags")).toBe(
+      "supabase db schema declarative sync -f add_tags",
+    );
+    expect(migrationCommand("pg-delta")).toBe(
+      "supabase db schema declarative sync",
+    );
+    expect(migrationCommand("migrations", "add_tags")).toBe(
+      "supabase migration up",
+    );
+  });
+});
+
+describe("sqlWorkflow", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "better-supabase-workflow-"));
+    await mkdir(join(dir, "supabase"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  const tomlWith = (text: string): SupabaseConfig =>
+    supabaseConfigFromText(text);
+
+  const config = (workflow?: SqlWorkflow) => ({
+    root: dir,
+    sql: workflow === undefined ? {} : { workflow },
+  });
+
+  it("uses sql.workflow when it is set", () => {
+    const pgdelta = tomlWith("[experimental.pgdelta]\nenabled = true");
+    expect(sqlWorkflow(config("migrations"), pgdelta)).toBe("migrations");
+    expect(sqlWorkflow(config("migra"), pgdelta)).toBe("migra");
+    expect(sqlWorkflow(config("pg-delta"), tomlWith(""))).toBe("pg-delta");
+  });
+
+  it("defaults to pg-delta without a config.toml or anything that says otherwise", () => {
+    expect(sqlWorkflow(config(), undefined)).toBe("pg-delta");
+    expect(detectWorkflow(dir, tomlWith(""))).toBe("pg-delta");
+    expect(
+      detectWorkflow(dir, tomlWith("[experimental.pgdelta]\nenabled = true")),
+    ).toBe("pg-delta");
+  });
+
+  it("detects migra from config.toml or existing schema files", async () => {
+    expect(
+      detectWorkflow(dir, tomlWith("[experimental.pgdelta]\nenabled = false")),
+    ).toBe("migra");
+    expect(
+      detectWorkflow(
+        dir,
+        tomlWith('[db.migrations]\nschema_paths = ["./schemas/*.sql"]'),
+      ),
+    ).toBe("migra");
+    await mkdir(join(dir, "supabase/schemas/app"), { recursive: true });
+    expect(detectWorkflow(dir, tomlWith(""))).toBe("pg-delta");
+    await writeFile(join(dir, "supabase/schemas/app/tables.sql"), "");
+    expect(detectWorkflow(dir, tomlWith(""))).toBe("migra");
+  });
+
+  it("never detects the migrations workflow", async () => {
+    await mkdir(join(dir, "supabase/migrations"));
+    await writeFile(
+      join(dir, "supabase/migrations/20260101000000_init.sql"),
+      "",
+    );
+    expect(sqlWorkflow(config(), tomlWith(""))).toBe("pg-delta");
+  });
+
+  it("reads no declarative schemas under the migrations workflow", async () => {
+    await mkdir(join(dir, "supabase/schemas"));
+    await writeFile(join(dir, "supabase/schemas/app.sql"), "");
+    expect(await schemaPaths(dir, tomlWith(""), "migrations")).toEqual({
+      configured: false,
+      files: [],
+      unlisted: [],
+    });
+  });
+});
+
+describe("declarativeSchemasDir", () => {
+  const tomlAt = (dir: string, text = ""): SupabaseConfig =>
+    makeSupabaseConfig({
+      path: `${dir}/config.toml`,
+      dir,
+      format: "toml",
+      text,
+      document: parseToml(text),
+      parser: "smol-toml",
+    });
+
+  it("resolves the schemas folder next to the config.toml it found", () => {
+    expect(declarativeSchemasDir(undefined)).toBe("supabase/schemas");
+    expect(declarativeSchemasDir(tomlAt("supabase"))).toBe("supabase/schemas");
+    expect(declarativeSchemasDir(tomlAt("../../supabase"))).toBe(
+      "../../supabase/schemas",
+    );
+  });
+});

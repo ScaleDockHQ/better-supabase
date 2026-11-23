@@ -1,6 +1,6 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { tomlGet } from "../supabase-toml.ts";
+import { tomlGet } from "../supabase-config.ts";
 import { lineOf } from "./shared.ts";
 
 /** `auth: 'user'` in a function's source, the option that expects a user JWT. */

@@ -181,6 +181,8 @@ export function toCatalog(snapshot: Snapshot): Catalog {
     ),
   );
 
+  const viewComments = snapshot.extras.viewColumnComments ?? {};
+
   const foreignKeysOf = (
     schema: string,
     name: string,
@@ -210,6 +212,11 @@ export function toCatalog(snapshot: Snapshot): Catalog {
           oneToOne: rel.is_one_to_one,
           onDelete: action?.onDelete ?? "no action",
           onUpdate: action?.onUpdate ?? "no action",
+          ...(action?.deferrable ? { deferrable: true as const } : {}),
+          ...(action?.initiallyDeferred
+            ? { initiallyDeferred: true as const }
+            : {}),
+          ...(action?.match ? { match: action.match } : {}),
         };
       })
       .toSorted((a, b) => byCodePoint(a.name, b.name));
@@ -239,7 +246,16 @@ export function toCatalog(snapshot: Snapshot): Catalog {
       name: entry.name,
       comment: entry.comment,
       ...flags,
-      columns: own.map(toColumn),
+      columns: own.map((column) => {
+        const entryColumn = toColumn(column);
+
+        const viewComment =
+          viewComments[`${entry.schema}.${entry.name}`]?.[column.name];
+
+        return entryColumn.comment === null && viewComment !== undefined
+          ? { ...entryColumn, comment: viewComment }
+          : entryColumn;
+      }),
       primaryKey:
         extra && extra.primaryKey.length > 0
           ? extra.primaryKey

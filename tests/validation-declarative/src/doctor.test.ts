@@ -89,9 +89,10 @@ describe("doctor on the declarative fixture", () => {
         // BS303 compares generated client code, which this app has none of.
         // BS700 and BS701 report the host's shared memory. BS630 reports
         // memberships.user_id and memberships.invited_by, both keys to
-        // auth.users.
+        // auth.users. BS709 reports the pg-delta and pg-topo entries this
+        // package keeps for the plan parity test, which needs a second copy.
         "--ignore",
-        "BS303,BS630,BS700,BS701",
+        "BS303,BS630,BS700,BS701,BS709",
         "--fail-on",
         "warning",
         "--snapshot",
@@ -222,14 +223,16 @@ describe("doctor on the declarative fixture", () => {
   );
 
   it(
-    "fails on a block-added column the app does not declare",
+    "does not require the optional columns a block could add to an app table",
     { timeout: TIMEOUT },
     async () => {
       const found = await seeded(async (dir) => {
         await rm(join(dir, "supabase/schemas/profiles.block-columns.sql"));
       });
 
-      expect(found).toStrictEqual({ code: 1, codes: ["BS622"] });
+      // BS622 reports required columns only (ADR 1189), and every column the
+      // file declares is nullable or has a default.
+      expect(found).toStrictEqual({ code: 0, codes: [] });
     },
   );
 

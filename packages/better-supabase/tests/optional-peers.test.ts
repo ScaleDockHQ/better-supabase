@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const manifest: {
+  dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
   peerDependencies: Record<string, string>;
   peerDependenciesMeta: Record<string, { optional?: boolean }>;
@@ -26,8 +27,6 @@ const INTEGRATIONS = [
   "@openfeature/server-sdk",
   "@powersync/common",
   "@supabase-labs/middleware-openfeature",
-  "@supabase/pg-delta",
-  "@supabase/pg-topo",
   "@vercel/blob",
   "@vercel/connect",
   "@vercel/firewall",
@@ -52,6 +51,7 @@ const INTEGRATIONS = [
   "resumable-stream",
   "jsonpath-rfc9535",
   "temporal-polyfill",
+  "typescript",
   "undici",
 ] as const;
 
@@ -86,6 +86,30 @@ const GENERATED = ["nuqs", "valibot", "zod"] as const;
  * `chat`). Only apps that import that subpath install them.
  */
 const SUBPATH_SDKS = ["ai", "chat", "workflow"] as const;
+
+describe("dependencies", () => {
+  it("are the allow list, so a new one needs an ADR", () => {
+    expect(Object.keys(manifest.dependencies).toSorted()).toEqual(
+      [
+        "@standard-schema/spec",
+        "@supabase/middleware",
+        "@supabase/pg-delta",
+        "@supabase/pg-parser",
+        "@supabase/pg-topo",
+        "@supabase/postgrest-js",
+        "@supabase/server",
+        "@supabase/ssr",
+        "oxc-parser",
+      ].toSorted(),
+    );
+  });
+
+  it("are no peers, so an app never installs a second copy", () => {
+    for (const name of Object.keys(manifest.dependencies)) {
+      expect(manifest.peerDependencies[name]).toBeUndefined();
+    }
+  });
+});
 
 describe("optional peers", () => {
   it.each([...INTEGRATIONS, ...FRAMEWORKS, ...GENERATED, ...SUBPATH_SDKS])(

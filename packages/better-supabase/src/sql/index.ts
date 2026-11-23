@@ -65,6 +65,8 @@ export {
 
 export { blockSqlVersion } from "./module-types.ts";
 
+export { mappingTagsOf, withMappingTags } from "./mapping-tags.ts";
+
 export { moduleSource, resolveBlocks, SQL_MODULES } from "./registry.ts";
 
 export { seedDefaultsFunctions } from "./seed-functions.ts";
@@ -226,6 +228,7 @@ export {
 } from "./schema-scan.ts";
 
 export {
+  approverForNamesRequest,
   resolveProviderSql,
   SCOPE_ID_TYPES,
   scopeProblems,
@@ -348,7 +351,24 @@ export {
   setTagBlock,
 } from "./tag-statements.ts";
 
-export type { RenderedFeature, TagRenderOptions } from "./tag-statements.ts";
+export type {
+  AccessPolicy,
+  AccessPolicyOperation,
+  RenderedFeature,
+  TagRenderOptions,
+} from "./tag-statements.ts";
+
+export { accessPolicies } from "./tag-statements.ts";
+
+export { listAccessPolicies, listActions } from "./listings.ts";
+
+export type {
+  AccessPolicyListing,
+  ActionKeySource,
+  ActionKind,
+  ActionListing,
+  TaggedComment,
+} from "./listings.ts";
 
 export {
   keysetPredicate,
@@ -379,3 +399,5 @@ export {
   cacheInvalidationSql,
   type CacheInvalidationSqlOptions,
 } from "./cache-notify.ts";
+
+export { policyOf, policySnapshot } from "./modules/approvals-policies.ts";

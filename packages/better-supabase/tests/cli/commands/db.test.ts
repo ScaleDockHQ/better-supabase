@@ -185,6 +185,8 @@ describe("db diff", () => {
             issues: [],
             diagnostics: [],
             skipped: [],
+            blocking: [],
+            custom: [],
             ...plan,
           });
         },
@@ -223,7 +225,7 @@ describe("db diff", () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("Created a migration");
     expect(await readFile(join(root, "args"), "utf-8")).toBe(
-      "db schema declarative sync --no-apply -f add\n",
+      "db schema declarative sync --no-apply --strict-coverage -f add\n",
     );
   });
 
@@ -236,10 +238,38 @@ describe("db diff", () => {
     const result = await diff(["-f", "add"], harness, "pg-delta", remote);
 
     expect(harness.calls).toEqual([
-      ["db", "schema", "declarative", "sync", "--no-apply", "-f", "add"],
+      [
+        "db",
+        "schema",
+        "declarative",
+        "sync",
+        "--no-apply",
+        "--strict-coverage",
+        "-f",
+        "add",
+      ],
     ]);
     expect(harness.inStack).toHaveLength(0);
     expect(result.output).toBe("Created supabase/migrations/1_add.sql");
+  });
+
+  it("writes nothing while pg-delta cannot manage an object, and says how to relax it", async () => {
+    const harness = deps({ code: 1, stderr: SHADOW }, "", {
+      blocking: [
+        {
+          code: "unmodeled_kind",
+          severity: "warning",
+          message: "a cast pg-delta does not model",
+        },
+      ],
+    });
+
+    const result = await diff(["-f", "add"], harness, "migra");
+
+    expect(result.code).toBe(1);
+    expect(result.error).toContain("[unmodeled_kind]");
+    expect(result.error).toContain("--no-strict-coverage");
+    expect(harness.inStack[0]?.strictCoverage).toBe(true);
   });
 
   it("falls back to the running stack when the shadow database can't start", async () => {
@@ -280,6 +310,32 @@ describe("db diff", () => {
     expect(harness.inStack[0]?.allowDataLoss).toBe(false);
     expect(result.output).toBe("create table a ();");
     expect(result.data).toMatchObject({ engine: "in-stack", fellBack: false });
+  });
+
+  it("tells you which _custom/ files no migration delivers", async () => {
+    const harness = deps({ code: 0 }, "create table a ();", {
+      custom: [
+        { path: "_custom/casts.sql", status: "undelivered" },
+        {
+          path: "_custom/ops.sql",
+          status: "dangling",
+          migration: "../../migrations/9_gone.sql",
+        },
+      ],
+    });
+
+    const result = await diff([], harness);
+
+    expect(result.output).toBe("create table a ();");
+    expect(harness.lines.join("\n")).toContain(
+      "_custom/casts.sql has no `-- pgdelta-migration:` line",
+    );
+    expect(harness.lines.join("\n")).toContain(
+      "_custom/ops.sql names ../../migrations/9_gone.sql, which does not exist",
+    );
+    expect(result.data).toMatchObject({
+      custom: [{ path: "_custom/casts.sql" }, { path: "_custom/ops.sql" }],
+    });
   });
 
   it("passes the renames recorded in the migrations to the plan", async () => {
@@ -356,6 +412,15 @@ describe("db diff", () => {
 
     expect(harness.calls).toEqual([["db", "diff", "-f", "add"]]);
     expect(result.output).toBe("No schema changes.");
+  });
+
+  it("names the pg-delta-only feature and the config lines under migra", async () => {
+    await expect(
+      diff(["--in-stack"], deps({ code: 0 }, ""), "migra"),
+    ).rejects.toMatchObject({
+      code: "usage",
+      message: expect.stringContaining("experimental.pgdelta.enabled = true"),
+    });
   });
 
   it("says so when nothing changed", async () => {

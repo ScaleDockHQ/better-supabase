@@ -33,7 +33,7 @@ const STACKS = [
   stack({ id: "idle", branch: "refs/heads/feature" }),
 ];
 
-function deps(calls: string[][] = [], code = 0): StackDeps {
+function deps(calls: string[][] = [], code = 0, version = "3.2.0"): StackDeps {
   return {
     memory: () =>
       Promise.resolve({
@@ -46,6 +46,10 @@ function deps(calls: string[][] = [], code = 0): StackDeps {
       }),
     stacks: () => Promise.resolve(STACKS),
     supabase: (args) => {
+      if (args[0] === "--version") {
+        return Promise.resolve({ code: 0, stdout: `${version}\n`, stderr: "" });
+      }
+
       calls.push([...args]);
 
       return Promise.resolve({
@@ -113,12 +117,39 @@ describe("stack prune", () => {
       },
     ]);
     expect(calls).toEqual([
-      ["stack", "destroy", "--stack-id", "gone", "--yes"],
+      ["stack", "prune", "--yes"],
       ["stack", "stop", "--stack-id", "idle"],
     ]);
   });
 
-  it("passes --yes to supabase stack destroy only after consent", async () => {
+  it("delegates missing directories to supabase stack prune and keeps destroy for deleted branches", async () => {
+    const calls: string[][] = [];
+
+    await runStackPrune("/code/app", {}, env, () => {}, {
+      ...deps(calls),
+      stacks: () =>
+        Promise.resolve([
+          stack({ id: "gone", worktreeExists: false, branchExists: undefined }),
+          stack({ id: "deleted", branchExists: false }),
+        ]),
+    });
+
+    expect(calls).toEqual([
+      ["stack", "prune", "--yes"],
+      ["stack", "destroy", "--stack-id", "deleted", "--yes"],
+    ]);
+  });
+
+  it("fails with supabase_cli_too_old before it prunes on an older CLI", async () => {
+    const calls: string[][] = [];
+
+    await expect(
+      runStackPrune("/code/app", {}, env, () => {}, deps(calls, 0, "3.1.0")),
+    ).rejects.toMatchObject({ code: "supabase_cli_too_old" });
+    expect(calls).toEqual([]);
+  });
+
+  it("passes --yes to supabase stack prune only after consent", async () => {
     const calls: string[][] = [];
 
     await expect(
@@ -135,9 +166,7 @@ describe("stack prune", () => {
     expect(calls).toEqual([]);
 
     await runStackPrune("/code/app", {}, env, () => {}, deps(calls));
-    expect(calls).toEqual([
-      ["stack", "destroy", "--stack-id", "gone", "--yes"],
-    ]);
+    expect(calls).toEqual([["stack", "prune", "--yes"]]);
   });
 
   it("stops nothing without --stop-idle and reports a failing destroy", async () => {
@@ -151,9 +180,7 @@ describe("stack prune", () => {
       deps(calls, 1),
     );
 
-    expect(calls).toEqual([
-      ["stack", "destroy", "--stack-id", "gone", "--yes"],
-    ]);
+    expect(calls).toEqual([["stack", "prune", "--yes"]]);
     expect(result).toMatchObject({ code: 1, errorCode: "supabase_cli_failed" });
   });
 });
@@ -162,6 +189,10 @@ describe("stack edge cases", () => {
   const supabase =
     (calls: string[][], stdout = ""): StackDeps["supabase"] =>
     (args) => {
+      if (args[0] === "--version") {
+        return Promise.resolve({ code: 0, stdout: "3.2.0", stderr: "" });
+      }
+
       calls.push([...args]);
 
       return Promise.resolve({
@@ -264,6 +295,7 @@ describe("stack commands through the CLI", () => {
       [
         "#!/bin/sh",
         `if [ "$1 $2" = "stack list" ]; then printf '%s' '${list}'; exit 0; fi`,
+        `if [ "$1" = "--version" ]; then echo 3.2.0; exit 0; fi`,
         `echo "$@" >> "${join(dir, "calls.log")}"`,
       ].join("\n"),
     );
@@ -274,7 +306,7 @@ describe("stack commands through the CLI", () => {
 
   const io = { stdout: (): void => {}, stderr: (): void => {} };
 
-  it("lists the stacks and destroys the one whose worktree is gone", async () => {
+  it("lists the stacks and prunes the one whose worktree is gone", async () => {
     const env = { SUPABASE_BIN: await fakeSupabase(), BSB_AGENT: "no" };
 
     const ls = await run(["dev", "stack", "ls", "--json", "--cwd", dir], {
@@ -292,7 +324,7 @@ describe("stack commands through the CLI", () => {
 
     expect(prune.code).toBe(0);
     expect(await readFile(join(dir, "calls.log"), "utf-8")).toBe(
-      "stack destroy --stack-id gone --yes\n",
+      "stack prune --yes\n",
     );
   });
 });

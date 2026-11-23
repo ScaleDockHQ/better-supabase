@@ -1,6 +1,6 @@
 # 0108: `db diff` plans with pg-delta's library on the stack's postgres role
 
-- Status: accepted
+- Status: accepted; the optional peers are superseded by 1171
 - Date: 2026-10-26
 
 ## Context

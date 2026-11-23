@@ -829,7 +829,9 @@ resumes members with [`suspend_member` and `resume_member`](/docs/blocks/organiz
 
 `current_tenant_id()` and the [memberships extension](/docs/blocks/memberships) need
 the tenant a request works in. `blocks.permissions.activeTenant` says where it comes
-from.
+from. `'resolver'` means the request: the tenant the server resolved, and the
+default. A provider whose token hook reads the request states the same with
+`tokenHook.activeOrganizationFrom: "resolver"`, so the config needs no entry.
 
 | Source                   | Reads                                                                             |
 | ------------------------ | --------------------------------------------------------------------------------- |

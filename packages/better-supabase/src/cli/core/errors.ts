@@ -27,6 +27,7 @@ export type CliErrorCode =
   | "database_unreachable"
   | "supabase_cli_missing"
   | "supabase_cli_failed"
+  | "supabase_cli_too_old"
   | "network_error"
   | "request_failed"
   | "auth_required"
@@ -64,6 +65,7 @@ const ERRORS: {
   database_unreachable: ["Database unreachable", 1],
   supabase_cli_missing: ["Supabase CLI not found", 1],
   supabase_cli_failed: ["Supabase CLI failed", 1],
+  supabase_cli_too_old: ["Supabase CLI too old", 1],
   network_error: ["No response", 1],
   request_failed: ["Request failed", 1],
   auth_required: ["Authentication required", 2],

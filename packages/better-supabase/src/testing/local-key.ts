@@ -6,20 +6,27 @@ import type { SigningJwk, TestJwtClaims } from "./jwt.ts";
 
 import { signTestJwtWithKey } from "./jwt.ts";
 
-const SIGNING_KEYS_PATH = /^\s*signing_keys_path\s*=\s*"([^"]+)"/m;
+/** `signing_keys_path` in `config.toml`, or in `config.json` and `config.jsonc`. */
+const SIGNING_KEYS_PATH = /^\s*"?signing_keys_path"?\s*[=:]\s*"([^"]+)"/m;
+
+/** The files the Supabase CLI reads its config from (3.2.0 reads all three). */
+const CONFIG_FILES = ["config.json", "config.jsonc", "config.toml"] as const;
 
 /**
- * `supabase/config.toml`'s `signing_keys_path`, else
- * `supabase/signing_keys.json`, in `from` or a parent.
+ * `signing_keys_path` from the project config (`config.toml`, `config.json` or
+ * `config.jsonc`), else `supabase/signing_keys.json`, in `from` or a parent.
  */
 async function findSigningKeys(from: string): Promise<string | undefined> {
   for (let dir = resolve(from); ; dir = dirname(dir)) {
     const supabase = join(dir, "supabase");
-    const toml = join(supabase, "config.toml");
 
-    if (existsSync(toml)) {
+    const file = CONFIG_FILES.map((name) => join(supabase, name)).find(
+      (candidate) => existsSync(candidate),
+    );
+
+    if (file !== undefined) {
       const configured = SIGNING_KEYS_PATH.exec(
-        await readFile(toml, "utf-8"),
+        await readFile(file, "utf-8"),
       )?.[1];
 
       const path = resolve(supabase, configured ?? "signing_keys.json");
@@ -47,7 +54,7 @@ const isSigningKey = (value: unknown): value is SigningJwk =>
  * The key the local stack signs with: the first entry of the file
  * `better-supabase dev keys` wrote. `path` defaults to
  * `$SUPABASE_SIGNING_KEYS_PATH`, then `signing_keys_path` from the nearest
- * `supabase/config.toml`.
+ * project config.
  */
 export async function localSigningKey(path?: string): Promise<SigningJwk> {
   const file =

@@ -135,13 +135,30 @@ function castType(value: string, what: string): string {
 
 const OPERATIONS = ["read", "create", "update", "delete"] as const;
 
-function accessBlock(
+export type AccessPolicyOperation = (typeof OPERATIONS)[number];
+
+/** One policy a `@bsb access` tag renders, as data. */
+export interface AccessPolicy {
+  readonly schema: string;
+  readonly table: string;
+  readonly operation: AccessPolicyOperation;
+  readonly name: string;
+  readonly key: string;
+  readonly tenantColumn: string;
+  /** Whether the policy also checks the actor guard (create and update). */
+  readonly actorGuard: boolean;
+}
+
+/**
+ * The policies a `@bsb access` tag renders for `schema.table`. `accessBlock`
+ * renders its statements from these rows, so a listing and the SQL agree.
+ */
+export function accessPolicies(
   schema: string,
   table: string,
   tag: BsbTag,
-  options: TagRenderOptions,
-): string {
-  const target = `${quote(schema)}.${quote(table)}`;
+  options: TagRenderOptions = {},
+): AccessPolicy[] {
   const column = tenantColumn(tag, options);
 
   if (column === undefined) {
@@ -150,41 +167,72 @@ function accessBlock(
     );
   }
 
-  const permissions = OPERATIONS.flatMap((operation) => {
-    const permission = arg(tag, operation);
+  const policies = OPERATIONS.flatMap((operation): AccessPolicy[] => {
+    const key = arg(tag, operation);
 
-    return permission === undefined ? [] : [[operation, permission] as const];
-  });
+    if (key === undefined) {
+      return [];
+    }
 
-  if (permissions.length === 0) {
-    throw new TypeError(
-      "@bsb access needs at least one of read=, create=, update= or delete= with a permission key",
-    );
-  }
-
-  const scope = options.scope ?? "organization";
-
-  const can = (permission: string): string => {
-    const problem = options.keyProblem?.(permission);
+    const problem = options.keyProblem?.(key);
 
     if (problem !== undefined) {
       throw new TypeError(problem);
     }
 
+    return [
+      {
+        schema,
+        table,
+        operation,
+        name: `bsb_access_${table}_${operation}`,
+        key,
+        tenantColumn: column,
+        actorGuard:
+          tag.args["actor-guard"] === true &&
+          (operation === "create" ||
+            operation === "update" ||
+            operation === "delete"),
+      },
+    ];
+  });
+
+  if (policies.length === 0) {
+    throw new TypeError(
+      "@bsb access needs at least one of read=, create=, update= or delete= with a permission key",
+    );
+  }
+
+  return policies;
+}
+
+function accessBlock(
+  schema: string,
+  table: string,
+  tag: BsbTag,
+  options: TagRenderOptions,
+): string {
+  const target = `${quote(schema)}.${quote(table)}`;
+  const policies = accessPolicies(schema, table, tag, options);
+  const scope = options.scope ?? "organization";
+
+  const can = (policy: AccessPolicy): string => {
     if (options.canIn === undefined) {
-      return `${quote(column)} in (select better_supabase.tenant_ids_with(${sqlString(permission)}))`;
+      return `${quote(policy.tenantColumn)} in (select better_supabase.tenant_ids_with(${sqlString(policy.key)}))`;
     }
 
     return `(${fillTemplate("authorization.functions.canIn", options.canIn, {
-      permission: sqlString(permission),
-      tenant: quote(column),
+      permission: sqlString(policy.key),
+      tenant: quote(policy.tenantColumn),
       scope,
     })})`;
   };
 
-  let guard = "";
+  const guardOf = (policy: AccessPolicy): string => {
+    if (!policy.actorGuard) {
+      return "";
+    }
 
-  if (tag.args["actor-guard"] === true) {
     const template = options.actorMayWrite;
 
     if (template !== undefined && templatePlaceholders(template).length > 0) {
@@ -193,15 +241,15 @@ function accessBlock(
       );
     }
 
-    guard = ` and (${template === undefined ? "better_supabase.actor_may_write()" : fillTemplate("authorization.functions.actorMayWrite", template, {})})`;
-  }
+    return ` and (${template === undefined ? "better_supabase.actor_may_write()" : fillTemplate("authorization.functions.actorMayWrite", template, {})})`;
+  };
 
-  const statements = permissions.map(([operation, permission]) => {
-    const name = quote(`bsb_access_${table}_${operation}`);
-    const header = `create policy ${name} on ${target}`;
-    const check = can(permission);
+  const statements = policies.map((policy) => {
+    const header = `create policy ${quote(policy.name)} on ${target}`;
+    const check = can(policy);
+    const guard = guardOf(policy);
 
-    switch (operation) {
+    switch (policy.operation) {
       case "read": {
         return `${header}\n  for select to authenticated\n  using (${check});`;
       }
@@ -219,7 +267,7 @@ function accessBlock(
       }
 
       default: {
-        operation satisfies never;
+        policy.operation satisfies never;
 
         return "";
       }

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   settleGroups,
-  topLevelValue,
   withoutConfigPaths,
 } from "../../src/cli/codemod-prune.ts";
 
@@ -52,6 +51,58 @@ describe("withoutConfigPaths", () => {
   });
 });
 
+describe("withoutConfigPaths on shapes the text scanner missed", () => {
+  it("finds an array path such as sameTenant[1]", () => {
+    const { text, missed } = withoutConfigPaths(
+      `export default defineConfig({\n  sameTenant: ["a", "b", "c"],\n});\n`,
+      ["sameTenant[1]"],
+    );
+
+    expect(missed).toEqual([]);
+    expect(text).toContain('sameTenant: ["a", "c"]');
+  });
+
+  it("ignores a config shape inside a comment or a string", () => {
+    const { text, missed } = withoutConfigPaths(
+      `// export default defineConfig({ a: 1 })\nconst note = "{ a: 2 }";\nexport default defineConfig({\n  a: 3,\n  b: 4,\n});\n`,
+      ["a"],
+    );
+
+    expect(missed).toEqual([]);
+    expect(text).toContain("// export default defineConfig({ a: 1 })");
+    expect(text).toContain('const note = "{ a: 2 }";');
+    expect(text).not.toContain("a: 3");
+  });
+
+  it("follows a block name in the blocks list", () => {
+    const { text, missed } = withoutConfigPaths(
+      `export default defineConfig({\n  blocks: ["x", { block: "tags", columns: { tags: { rank: null } } }],\n});\n`,
+      ["blocks.tags.columns.tags.rank"],
+    );
+
+    expect(missed).toEqual([]);
+    expect(text).not.toContain("rank");
+  });
+
+  it("removes a property through a shorthand and keeps the file valid", () => {
+    const { text, missed } = withoutConfigPaths(
+      `const columns = { a: 1, b: 2 };\nexport default defineConfig({\n  blocks: { x: { columns } },\n});\n`,
+      ["blocks.x.columns.a"],
+    );
+
+    expect(missed).toEqual([]);
+    expect(text).toContain("const columns = { b: 2 };");
+  });
+
+  it("reports a spread it cannot edit and leaves the file alone", () => {
+    const source = `export default defineConfig({\n  blocks: { x: { ...shared } },\n});\n`;
+    const { text, missed } = withoutConfigPaths(source, ["blocks.x.a"]);
+
+    expect(text).toBe(source);
+    expect(missed).toEqual(["blocks.x.a"]);
+  });
+});
+
 describe("settleGroups", () => {
   const groups = [
     ["blocks.a", ["blocks.a.x"]],
@@ -94,14 +145,14 @@ describe("withoutConfigPaths misses", () => {
   const missed = (text: string, path: string) =>
     withoutConfigPaths(text, [path]).missed;
 
-  it("misses every path without a closed config object", () => {
+  it("misses every path without a config object and rejects an unclosed one", () => {
     expect(missed("const x = 1;\n", "sql.dir")).toEqual(["sql.dir"]);
-    expect(missed("export default defineConfig({ sql: {", "sql")).toEqual([
-      "sql",
-    ]);
+    expect(() => missed("export default defineConfig({ sql: {", "sql")).toThrow(
+      "Expected",
+    );
   });
 
-  it("misses a path through a listed name, a scalar or an unclosed object", () => {
+  it("misses a path through a listed name or a scalar and rejects an unclosed object", () => {
     expect(
       missed(
         'export default defineConfig({ blocks: ["tags"] });',
@@ -111,27 +162,16 @@ describe("withoutConfigPaths misses", () => {
     expect(
       missed('export default defineConfig({ sql: "x" });', "sql.dir"),
     ).toEqual(["sql.dir"]);
-    expect(
+    expect(() =>
       missed("export default defineConfig({ a: { b: { c: 1 } });", "a.b.c"),
-    ).toEqual(["a.b.c"]);
+    ).toThrow("Expected");
   });
 
   it("removes a last property on the closing line", () => {
     expect(
       withoutConfigPaths("export default defineConfig({ a: 1, b: 2 })", ["b"])
         .text,
-    ).toBe("export default defineConfig({ a: 1})");
-  });
-});
-
-describe("topLevelValue", () => {
-  it("finds the value text of a top-level key", () => {
-    const text = 'export default defineConfig({ sql: { dir: "db" } });';
-    const range = topLevelValue(text, "sql")!;
-
-    expect(text.slice(range.start, range.end).trim()).toBe('{ dir: "db" }');
-    expect(topLevelValue(text, "casing")).toBeUndefined();
-    expect(topLevelValue("const x = 1;", "sql")).toBeUndefined();
+    ).toBe("export default defineConfig({ a: 1 })");
   });
 });
 

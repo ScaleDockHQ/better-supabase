@@ -1,14 +1,16 @@
+import { readFileSync } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
 import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
+import type { ProjectSymbols } from "./typescript-symbols/index.ts";
 
-import { restatedEntries } from "../config/index.ts";
+import { restatedEntries, suggestSqlApi } from "../config/index.ts";
 import { clientNotNull, redundantNulls, SQL_MODULES } from "../sql/index.ts";
-import { codeRanges } from "./code-ranges.ts";
 import { settleGroups, withoutConfigPaths } from "./codemod-prune.ts";
+import { ConfigDocument, followImports } from "./config-document/index.ts";
 import { loadConfig } from "./config.ts";
 import { mergeRestated, probeRestated } from "./restated-probe.ts";
 import { ownLayout } from "./sql-layout.ts";
@@ -79,124 +81,115 @@ export function tenantEntries(
   );
 }
 
-/**
- * The index of the `}` that closes the `{` at `open`, skipping strings and
- * comments.
- */
-export function closing(
-  text: string,
-  open: number,
-  code: (index: number) => boolean,
-): number {
-  let depth = 0;
+/** The text without the entries, and a line for each the file builds elsewhere. */
+export interface ColumnEntryEdit {
+  readonly text: string;
+  readonly review: readonly string[];
+  /** Files that declare a value the config imports, with their edited text. */
+  readonly others: readonly { readonly file: string; readonly text: string }[];
+}
 
-  for (let at = open; at < text.length; at += 1) {
-    if (!code(at)) {
-      continue;
-    }
-
-    depth += text[at] === "{" ? 1 : text[at] === "}" ? -1 : 0;
-
-    if (depth === 0) {
-      return at;
-    }
-  }
-
-  return -1;
+/** What lets an edit follow a value the config imports from another file. */
+export interface ImportFollow {
+  readonly symbols: ProjectSymbols | undefined;
+  readonly configFile: string;
 }
 
 /**
- * `text` without the `<column>: ...` property of each entry, found under
- * `<block>: { columns: { <table>: { ... } } }`, with its comma and its line.
- * Only code counts: a name in a string or a comment stays.
+ * `text` without the `<column>` entry of each `blocks.<block>.columns.<table>`
+ * entry, with its comma, its line and its comments. A name in a string or a
+ * comment stays. An entry the document cannot find or follow (it comes from an
+ * import, a call or a computed key) stays in the file with a review line.
  */
 export function withoutColumnEntries(
   text: string,
   entries: readonly ColumnEntry[],
-): string {
-  let out = text;
+  follow?: ImportFollow,
+): ColumnEntryEdit {
+  const document = ConfigDocument.parse(text);
+  const review: string[] = [];
+
+  const imports =
+    follow === undefined
+      ? undefined
+      : followImports(follow.symbols, follow.configFile, document);
 
   for (const entry of entries) {
-    const ranges = codeRanges(out);
+    const path = ["blocks", entry.block, "columns", entry.table, entry.column];
+    const result = document.remove(path);
 
-    const code = (index: number): boolean =>
-      ranges.some(([start, end]) => index >= start && index < end);
+    if (result.status !== "absent") {
+      continue;
+    }
 
-    const block = new RegExp(
-      `(?:^|[\\s,{])(?:"${entry.block}"|${entry.block})\\s*:\\s*\\{`,
-      "g",
+    const owner = imports?.followed.find(
+      ({ prefix }) =>
+        prefix.length <= path.length &&
+        prefix.every((segment, index) => segment === path[index]),
     );
 
-    for (const found of out.matchAll(block)) {
-      const open = found.index + found[0].length - 1;
-
-      if (!code(open)) {
-        continue;
-      }
-
-      const end = closing(out, open, code);
-      const body = out.slice(open, end + 1);
-      const columns = /\bcolumns\s*:\s*\{/.exec(body);
-
-      if (columns === null) {
-        continue;
-      }
-
-      const tables = open + columns.index + columns[0].length - 1;
-
-      const tablesEnd = closing(out, tables, code);
-      const inner = out.slice(tables, tablesEnd + 1);
-      const table = new RegExp(`\\b${entry.table}\\s*:\\s*\\{`).exec(inner);
-
-      if (table === null) {
-        continue;
-      }
-
-      const tableOpen = tables + table.index + table[0].length - 1;
-      const tableEnd = closing(out, tableOpen, code);
-      const rows = out.slice(tableOpen, tableEnd + 1);
-
-      const value = String.raw`(?:null|"[^"]*"|'[^']*')`;
-
-      const property =
-        new RegExp(
-          String.raw`^[ \t]*${entry.column}\s*:\s*${value}\s*,?[ \t]*\n`,
-          "m",
-        ).exec(rows) ??
-        new RegExp(String.raw`\b${entry.column}\s*:\s*${value}\s*,[ \t]*`).exec(
-          rows,
-        ) ??
-        new RegExp(
-          String.raw`\s*,\s*\b${entry.column}\s*:\s*${value}(?=\s*\})`,
-        ).exec(rows) ??
-        new RegExp(
-          String.raw`\s*\b${entry.column}\s*:\s*${value}\s*(?=\})`,
-        ).exec(rows);
-
-      if (property === null) {
-        continue;
-      }
-
-      const from = tableOpen + property.index;
-
-      out = out.slice(0, from) + out.slice(from + property[0].length);
-      break;
+    if (
+      owner?.document.remove(path.slice(owner.prefix.length)).status === "done"
+    ) {
+      continue;
     }
+
+    review.push(
+      `${path.join(".")}: ${entry.why}, but the codemod could not find it in the config file${
+        imports === undefined ? " (it may come from another file)" : ""
+      }; remove it by hand.`,
+    );
   }
 
-  return out;
+  const others = (imports?.followed ?? [])
+    .filter(
+      ({ document: followed, file }) =>
+        followed.text !== readFileSync(file, "utf-8"),
+    )
+    .map(({ file, document: followed }) => ({ file, text: followed.text }));
+
+  return {
+    text: document.text,
+    review: [
+      ...(imports?.review ?? []),
+      ...review,
+      ...document.review,
+      ...(imports?.followed.flatMap(
+        ({ document: followed }) => followed.review,
+      ) ?? []),
+    ],
+    others,
+  };
 }
 
 /** The files that drop the config entries the render refuses. */
 export function configFiles(
   entries: readonly ColumnEntry[],
   config: { readonly path: string; readonly text: string },
-): readonly PlannedFile[] {
-  const text = withoutColumnEntries(config.text, entries);
+  symbols?: ProjectSymbols,
+): {
+  readonly files: readonly PlannedFile[];
+  readonly review: readonly { readonly message: string }[];
+} {
+  const edit = withoutColumnEntries(config.text, entries, {
+    symbols,
+    configFile: config.path,
+  });
 
-  return text === config.text
-    ? []
-    : [{ path: config.path, contents: text, policy: "edit" }];
+  const review = edit.review.map((message) => ({ message }));
+
+  const files: PlannedFile[] = [
+    ...(edit.text === config.text
+      ? []
+      : [{ path: config.path, contents: edit.text, policy: "edit" as const }]),
+    ...edit.others.map(({ file, text }) => ({
+      path: file,
+      contents: text,
+      policy: "edit" as const,
+    })),
+  ];
+
+  return { files, review };
 }
 
 /** The rendered files of `config`, by path. */
@@ -224,6 +217,80 @@ function firstDifference(
   }
 
   return undefined;
+}
+
+/**
+ * `sql.api` for a project that has none when most blocks name the same schema:
+ * the new default goes in, the matching `api` entries go out, and each block
+ * with no entry gets `api: false`, since it would write wrappers otherwise. The
+ * edit is kept only when the render stays the same.
+ */
+async function withSqlApi(
+  project: CodemodProject,
+  before: ReadonlyMap<string, string>,
+): Promise<{ text: string; review: readonly string[] }> {
+  const { config, configFile, configText } = project;
+
+  if (configFile === undefined || configText === undefined) {
+    return { text: configText ?? "", review: [] };
+  }
+
+  const found = suggestSqlApi(config.blockApis, config.sql.blockDefaults?.api);
+
+  if (found === undefined) {
+    return { text: configText, review: [] };
+  }
+
+  const document = ConfigDocument.parse(configText);
+
+  const edits = [
+    document.ensure(["database", "sql", "api"], JSON.stringify(found.schema)),
+    ...found.drop.map((name) => document.remove(["blocks", name, "api"])),
+    ...found.disable.map((name) =>
+      document.ensure(["blocks", name, "api"], "false"),
+    ),
+  ];
+
+  const where = `${configFile}: database.sql.api "${found.schema}" covers the api entries of ${found.drop.join(", ")}`;
+
+  if (
+    edits.some((edit) => edit.status !== "done") ||
+    document.review.length > 0
+  ) {
+    return {
+      text: configText,
+      review: [
+        `${where}, but the codemod could not edit every block in place; set it by hand.`,
+        ...document.review,
+      ],
+    };
+  }
+
+  const copy = join(
+    dirname(configFile),
+    `.${basename(configFile, extname(configFile))}.api-${String(process.pid)}${extname(configFile)}`,
+  );
+
+  try {
+    await writeFile(copy, document.text);
+
+    const after = await loadConfig(dirname(configFile), copy);
+
+    if (firstDifference(before, await renderedFiles(after)) === undefined) {
+      return { text: document.text, review: [] };
+    }
+  } catch {
+    // A config that no longer renders counts as a difference.
+  } finally {
+    await rm(copy, { force: true });
+  }
+
+  return {
+    text: configText,
+    review: [
+      `${where}, but setting it changes the render, so the entries stay.`,
+    ],
+  };
 }
 
 /**
@@ -277,8 +344,12 @@ async function prune(
     };
   }
 
+  const before = await renderedFiles(config);
+
+  const api = await withSqlApi(project, before);
+  const baseText = api.text;
   const allPaths = entries.map((entry) => entry.path);
-  const first = withoutConfigPaths(configText, allPaths);
+  const first = withoutConfigPaths(baseText, allPaths);
 
   const review: { message: string }[] = first.missed
     .filter(
@@ -288,7 +359,11 @@ async function prune(
       message: `${path} repeats its default, but the codemod could not find it in ${configFile}; remove it by hand.`,
     }));
 
-  if (first.text === configText) {
+  review.push(
+    ...[...api.review, ...first.review].map((message) => ({ message })),
+  );
+
+  if (first.text === baseText && baseText === configText) {
     return { files: [], review };
   }
 
@@ -297,15 +372,13 @@ async function prune(
     `.${basename(configFile, extname(configFile))}.prune-${String(process.pid)}${extname(configFile)}`,
   );
 
-  const before = await renderedFiles(config);
-
   // Whether the config without these paths renders the same files. A config that no longer
   // renders at all counts as a difference, because an option may need the entry it restates.
   const renderUnchanged = async (
     paths: readonly string[],
   ): Promise<boolean> => {
     try {
-      await writeFile(copy, withoutConfigPaths(configText, paths).text);
+      await writeFile(copy, withoutConfigPaths(baseText, paths).text);
 
       const after = await loadConfig(dirname(configFile), copy);
 
@@ -338,7 +411,7 @@ async function prune(
     });
   }
 
-  const pruned = withoutConfigPaths(configText, kept);
+  const pruned = withoutConfigPaths(baseText, kept);
 
   if (pruned.text === configText) {
     return { files: [], review };
@@ -393,13 +466,11 @@ export function configCodemod(): Codemod {
         };
       }
 
-      return {
-        files: configFiles(entries, {
-          path: project.configFile,
-          text: project.configText ?? "",
-        }),
-        review: [],
-      };
+      return configFiles(
+        entries,
+        { path: project.configFile, text: project.configText ?? "" },
+        project.symbols,
+      );
     },
   };
 }

@@ -17,7 +17,7 @@ import { subjectUuid } from "../contributions.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { extraFieldsArg, schemaPreamble } from "../shared.ts";
-import { deciderCall } from "./direct-approver.ts";
+import { deciderCall, hasDecider, subjectRow } from "./direct-approver.ts";
 import { expenseAccountingSources } from "./expenses-accounting.ts";
 import {
   EXPENSE_REPORT_RESERVED,
@@ -35,6 +35,7 @@ import {
 } from "./expenses-standalone.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { recordOwner } from "./record-owner.ts";
 
 const REPORT_PAYLOAD = [
   "organizationId",
@@ -465,16 +466,31 @@ const CONTRIBUTES: BlockContributes = {
                     `${own.fn("expense_self_decides")}(${subjectId}::uuid)`,
                 }
               : {}),
-            ...(deciderCall(own, "blocks.expenses.options", "null") === ""
-              ? {}
-              : {
+            ...(hasDecider(own)
+              ? {
                   decides: ({ subjectId }) =>
                     deciderCall(
                       own,
                       "blocks.expenses.options",
                       `${subjectId}::uuid`,
+                      subjectRow(
+                        own.table("expenses"),
+                        {
+                          id: own.col("expenses", "id"),
+                          tenant: own.col("expenses", "tenant"),
+                          requester: (alias) =>
+                            recordOwner(own, {
+                              block: "expenses",
+                              table: "expenses",
+                              noun: "expense",
+                              helper: "expense_is_mine",
+                            }).requester(alias),
+                        },
+                        subjectId,
+                      ),
                     ).replace(/^ or /u, ""),
-                }),
+                }
+              : {}),
           },
         ]
       : expenseApprovals(own)

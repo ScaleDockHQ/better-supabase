@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/better-supabase/schemas/config-actions-v1.json",
+  "title": "better-supabase config actions",
+  "description": "Output of `better-supabase config actions --json`: every action the config makes better-supabase check and the permission key it resolves to.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "actions"],
+  "properties": {
+    "version": { "const": 1 },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "name", "action", "key", "source"],
+        "properties": {
+          "kind": { "enum": ["block", "recordType", "bucket", "topic"] },
+          "name": { "type": "string" },
+          "action": { "type": "string" },
+          "key": { "type": ["string", "null"] },
+          "source": { "enum": ["config", "provider", "default"] }
+        }
+      }
+    }
+  }
+}

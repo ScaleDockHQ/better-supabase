@@ -621,16 +621,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@2 managed
--- @bsb-hash sha256:9aa14c8e1f3f5ec62b0a93443f454badfb397f293b947cc6ab98e16593d24e41
+-- @bsb-hash sha256:b2c240993daedb0320dbe6d6a7f297cc04c3f5496f0b1b44c0e32f11d795b0be
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found. Members read which of their owners have keys, with the key dates and what they encrypt, through field_key_status(), and rotate_field_key replaces a data key and encrypts its values again.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 create extension if not exists pgcrypto with schema extensions;
 
 -- Field data keys live only in Vault, one per owner (tenant:<id>, user:<id>

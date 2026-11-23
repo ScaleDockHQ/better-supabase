@@ -118,6 +118,13 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           !(
             finding.code === "BS371" &&
             finding.message.includes("file_node.bsb_tenant_scope_select")
+          ) &&
+          // The same replacement, seen by BS722: the drive module and
+          // 990_centrakit_policies.sql both create that policy, and the
+          // policies file loads last on purpose.
+          !(
+            finding.code === "BS722" &&
+            finding.message.includes("file_node.bsb_tenant_scope_select")
           )
         ) {
           (warnings[`${finding.severity} ${finding.code}`] ??= []).push(
@@ -208,9 +215,6 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
         ],
         // Block columns on tables CentraKit creates itself, left undeclared.
         "warning BS622": [
-          "centrakit.audit_logs.summary_key",
-          "centrakit.audit_logs.summary_params",
-          "centrakit.field_definitions.archived_at",
           "centrakit.import_runs.diff",
           "centrakit.import_runs.heartbeat_at",
           "centrakit.import_runs.lease_expires_at",

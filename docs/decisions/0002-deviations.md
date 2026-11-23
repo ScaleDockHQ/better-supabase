@@ -33,7 +33,7 @@ backlogs too large to clear in the upgrade.
   `"error"`. Vercel builds run whatever pnpm the image ships, and
   `"download"` lets them fetch the pinned 12.8.1 (commit `19f5247`).
 - `engines.node` in the published packages stays `>=24`, a floor for
-  consumers, instead of the `24.x` the repo develops on (`.node-version`).
+  consumers, instead of the `26.x` the repo develops on (`.node-version`).
   Pinning a published package to one major would reject Node 25 and later.
 - `turbo.json` turns on every future flag except `globalConfiguration` and
   keeps `globalEnv`, `globalPassThroughEnv` and `globalDependencies` at the

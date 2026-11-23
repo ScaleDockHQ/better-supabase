@@ -59,7 +59,12 @@ describe("pipeline seeds", () => {
     expect(body).toContain("'deal', null, 'default', 'Default'");
     expect(body).toContain("'lead', 'Lead', ('open'), ('open')");
     expect(body).toMatch(/'lead', 10\n/);
-    expect(body.match(/where not exists/g)).toHaveLength(3);
+    expect(body).toContain(
+      "if better_supabase.declared_defaults_of('pipeline_stage', 'deal') is not null then",
+    );
+    expect(body).toContain(
+      "and not (better_supabase.declared_defaults_of('pipeline_stage', 'deal') is not null)",
+    );
   });
 
   it("seeds a variant binding for its variant and when none is named", () => {

@@ -1679,16 +1679,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:698581bb25e2f4e9d2e2d120e713459afc882be4134ba01b27840e18dfc5f27f
+-- @bsb-hash sha256:636bc4bc3df2f2d2efb5a34a322d57506f380dfa1ea4970757517a0504d72ef6
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- OAuth 2.1 authorization server storage: registered clients (RFC 7591)
 -- with hashed secrets, a user's grant per client, single-use authorization
 -- codes bound to a PKCE S256 challenge (RFC 7636), device codes (RFC 8628)

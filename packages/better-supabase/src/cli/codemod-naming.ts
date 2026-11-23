@@ -380,16 +380,28 @@ export function namingCodemod(
     source: (text) => {
       const keys = renameConfigKeys(text, renames);
 
-      return {
-        text: renameBlockReferences(
-          renameArguments(
-            renameQuotedNames(renameEnvNames(keys.text, renames), renames),
-            renames,
-          ),
-          renames,
-        ),
-        review: keys.review,
-      };
+      const named = renameArguments(
+        renameQuotedNames(renameEnvNames(keys.text, renames), renames),
+        renames,
+      );
+
+      const references = renameBlockReferences(named.text, renames);
+
+      // Both rewrites read the same file, so a file that does not parse is
+      // listed once.
+      const seen = new Set<string>();
+
+      const review = [
+        ...keys.review,
+        ...named.review,
+        ...references.review,
+      ].filter((line) => {
+        const key = `${String(line.line)}:${line.message}`;
+
+        return seen.has(key) ? false : Boolean(seen.add(key));
+      });
+
+      return { text: references.text, review };
     },
     files: async (project) => {
       if (project.configLoaded === false) {

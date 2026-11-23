@@ -11,7 +11,7 @@ import {
   leaveConfidential,
   leaveConfidentialFilter,
   leaveConfidentialKey,
-  leavePartsMapped,
+  leaveParts,
 } from "./leave-owner.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { liveShareLink, touchShareLink } from "./share-links.ts";
@@ -31,7 +31,7 @@ export function leavePartial(ctx: BlockSqlContext, row: string): string {
     return `${row}.${ctx.col("requests", "partial")}`;
   }
 
-  if (leavePartsMapped(ctx)) {
+  if (leaveParts(ctx)) {
     const start = `${row}.${ctx.col("requests", "startPart")}::text`;
     const end = `${row}.${ctx.col("requests", "endPart")}::text`;
     const single = `${row}.${ctx.col("requests", "startsOn")} = ${row}.${ctx.col("requests", "endsOn")}`;
@@ -45,13 +45,13 @@ export function leavePartial(ctx: BlockSqlContext, row: string): string {
 }
 
 export function leaveStartPart(ctx: BlockSqlContext, row: string): string {
-  return leavePartsMapped(ctx)
+  return leaveParts(ctx)
     ? `${row}.${ctx.col("requests", "startPart")}::text`
     : `(case ${leavePartial(ctx, row)} when 'afternoon' then 'afternoon' when 'hours' then 'hours' else 'full' end)`;
 }
 
 export function leaveEndPart(ctx: BlockSqlContext, row: string): string {
-  return leavePartsMapped(ctx)
+  return leaveParts(ctx)
     ? `${row}.${ctx.col("requests", "endPart")}::text`
     : `(case ${leavePartial(ctx, row)} when 'morning' then 'morning' when 'hours' then 'hours' else 'full' end)`;
 }

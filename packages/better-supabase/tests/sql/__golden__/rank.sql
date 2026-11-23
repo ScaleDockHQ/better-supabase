@@ -307,16 +307,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_066_rank.sql
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:94a43b11be80f95a138d7805eedb2de95e53000e1cdc76fbe5fa020d5edf5d47
+-- @bsb-hash sha256:d619678f1e8816f9de250dd0face093900687c54b49dd9978119a34830cd73f4
 -- Fractional rank keys: rank_between, move() for every config.recordTypes entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Fractional rank keys (ADR 0021). Keys are base-62 text compared with
 -- collate "C"; the steps match rankBetween in better-supabase/blocks/rank.
 create or replace function "app_private"."rank_between"(previous text, next text)

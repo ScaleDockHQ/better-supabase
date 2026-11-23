@@ -1214,16 +1214,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_161_warranty.sql
 -- better-supabase module: warranty
 -- @bsb-block warranty@1 managed
--- @bsb-hash sha256:6bfb30d79334014a0a8f4104058d3a707584defe3abd0d0d5e65b7191621ac19
+-- @bsb-hash sha256:db4688e45d8777fc7248489b8b720855126a0539b562ee0bd5e18ce32e05628c
 -- Warranty claims for an asset: the supplier or manufacturer, the covered amount, a status, a decision and attachments on the claim.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Warranty claims: a supplier or manufacturer, an asset, a covered amount and
 -- a decision. Status moves draft, submitted, approved or denied, then closed.
 

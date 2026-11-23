@@ -187,14 +187,14 @@ describe("appColumnsOf", () => {
     ).toStrictEqual({ "public.tags": [{ name: "region", type: "text" }] });
   });
 
-  it("reads an @bsb fields tag from a comment with line breaks", () => {
+  it("reads an @bsb fields tag from a comment with line breaks, up to the next tag", () => {
     const text = `create table public.deposit_lines (
   id uuid primary key,
   region text,
   note text
 );
 comment on table public.deposit_lines is 'Lines of a deposit.
-@bsb fields region, note
+@bsb fields region, note; grant authenticated="select(*)"
 @bsb audit';`;
 
     expect(
