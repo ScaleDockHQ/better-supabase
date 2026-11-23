@@ -44,7 +44,7 @@ async function readSql(folder: string): Promise<ReadonlyMap<string, string>> {
 
 /**
  * Writes a data migration for each rows file that changed since its last
- * migration (ADR 1192).
+ * migration (ADR 1193).
  */
 async function runRows(
   config: ResolvedConfig,

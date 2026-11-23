@@ -231,7 +231,7 @@ export function optionBindings(ctx: BlockSqlContext): readonly OptionBinding[] {
         min,
         max,
         follow: follow ?? false,
-        // Left out when the app declares the items as rows (ADR 1191).
+        // Left out when the app declares the items as rows (ADR 1192).
         items:
           entry["items"] === undefined
             ? []

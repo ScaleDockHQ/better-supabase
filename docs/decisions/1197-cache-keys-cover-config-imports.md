@@ -1,4 +1,4 @@
-# 1196: Key the render and generator caches on the config imports
+# 1197: Key the render and generator caches on the config imports
 
 - Status: accepted
 - Date: 2026-11-22

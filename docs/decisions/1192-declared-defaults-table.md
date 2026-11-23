@@ -1,4 +1,4 @@
-# 1191: Read declared defaults from one table before the config literal
+# 1192: Read declared defaults from one table before the config literal
 
 - Status: accepted
 - Date: 2026-11-22
@@ -41,7 +41,7 @@ their permission checks.
 
 ## Consequences
 
-Defaults become data, so a change ships as a migration (ADR 1192) and not as a
+Defaults become data, so a change ships as a migration (ADR 1193) and not as a
 regeneration. The fallback to the config literal keeps old configs working. The
 price is one more stable function call per seed, and `approval_policy` is now
 `stable` instead of `immutable`.

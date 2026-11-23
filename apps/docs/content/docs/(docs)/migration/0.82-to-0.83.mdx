@@ -354,8 +354,8 @@ with neither declared nor literal items raises `OPTION_SET_DEFAULTS_MISSING`.
 `db rows` then writes one data migration for each rows file, stamped with the hash of its
 statements, and `db rows --check` exits 1 in CI when a file has none. A row you remove from a file
 stays in the database and is reported, unless the file carries `-- bsb-rows: delete-removed`. See
-[ADR 1191](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1191-declared-defaults-table.md)
-and [ADR 1192](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1192-declared-rows-migrations.md).
+[ADR 1192](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1192-declared-defaults-table.md)
+and [ADR 1193](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1193-declared-rows-migrations.md).
 
 ## Schemas by module reference
 

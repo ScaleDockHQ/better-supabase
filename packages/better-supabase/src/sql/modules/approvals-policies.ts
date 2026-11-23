@@ -499,7 +499,7 @@ ${items
 
 /**
  * `fallback` behind the floors the app declared as `approval_floor` rows (ADR
- * 1191). The subject is `<subjectType>:<action>`, with `*` for any, and the
+ * 1192). The subject is `<subjectType>:<action>`, with `*` for any, and the
  * most specific one wins, as in `policyCase`. The value is the snapshot
  * `policySnapshot` renders.
  */

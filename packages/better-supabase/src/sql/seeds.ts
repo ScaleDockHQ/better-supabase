@@ -40,7 +40,7 @@ export interface SeedRow {
   readonly values: Readonly<Record<string, SeedValue>>;
   /**
    * A SQL condition that, when true, skips the row. The pipelines module uses
-   * it to leave a template out once the app declared rows for it (ADR 1191).
+   * it to leave a template out once the app declared rows for it (ADR 1192).
    */
   readonly unless?: string;
 }

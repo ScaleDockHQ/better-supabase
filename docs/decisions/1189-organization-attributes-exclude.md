@@ -1,4 +1,4 @@
-# 1188: Organization attributes are the columns the app adds, less an exclude list
+# 1189: Organization attributes are the columns the app adds, less an exclude list
 
 - Status: accepted
 - Date: 2026-11-22

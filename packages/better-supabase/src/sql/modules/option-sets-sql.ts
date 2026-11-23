@@ -44,7 +44,7 @@ function itemInsert(
 
 /**
  * One `insert` of the items the app declared as `option_set_item` rows (ADR
- * 1191): `v_declared` holds their jsonb list, in order.
+ * 1192): `v_declared` holds their jsonb list, in order.
  */
 function declaredInsert(names: OptionNames): string {
   const { t, c } = names;

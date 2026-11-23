@@ -1,4 +1,4 @@
-# 1195: Report record type keys under recordTypes, and count the keys a provider could supply
+# 1196: Report record type keys under recordTypes, and count the keys a provider could supply
 
 - Status: accepted
 - Date: 2026-11-22

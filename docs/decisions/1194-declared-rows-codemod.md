@@ -1,4 +1,4 @@
-# 1193: Move config items to rows with a codemod
+# 1194: Move config items to rows with a codemod
 
 - Status: accepted
 - Date: 2026-11-22
@@ -6,7 +6,7 @@
 ## Context
 
 Apps that already declare option set items, pipeline stages or approval floors in
-the config need a way to move them into `supabase/rows` (ADR 1192) without
+the config need a way to move them into `supabase/rows` (ADR 1193) without
 retyping them, and without leaving the same data in two places.
 
 ## Decision
@@ -29,4 +29,4 @@ Removing unused imports itself: it cannot tell whether another file uses them.
 ## Consequences
 
 The move is one command and one review. A config that stays as it is keeps
-working, because declared rows are optional (ADR 1191).
+working, because declared rows are optional (ADR 1192).
