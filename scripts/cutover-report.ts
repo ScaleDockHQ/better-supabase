@@ -85,24 +85,24 @@ export const ALLOWLIST: AllowlistEntry[] = [
     name: "declared defaults table and lookup",
     file: /module_000_prelude/,
     pattern:
-      /declared_defaults|^\s*(kind|subject|rows|primary key|check)\b|^\s*\)\s*;?$/i,
+      /declared_defaults|^\s*(kind|subject|key) text not null,|^\s*position integer not null default 0,|^\s*value jsonb not null,|^\s*primary key \(kind, subject, key\)|^\s*\);?$|^\s*(select jsonb_agg|from better_supabase|where d\.kind|language sql|stable|security definer|set search_path = ''|returns jsonb|as \$\$|\$\$)/i,
   },
   {
     name: "declared defaults lookup in pipelines",
     file: /module_092_pipelines/,
-    pattern: /v_declared|declared_defaults_of|ordinality|jsonb_to_recordset/i,
+    pattern:
+      /v_declared|declared_defaults_of|ordinality|jsonb_to_recordset|^\s*(else|end if;)$|insert into "better_supabase"\."pipeline_stages"|select default_pipeline\.tenant, v_id, x\.key|from \(select d\.key|\) x\(key, name|v_brand :=/i,
   },
   {
     name: "declared defaults lookup in option sets",
     file: /module_184_option_sets/,
     pattern:
-      /v_declared|v_brand|declared_defaults_of|ordinality|jsonb_to_recordset/i,
+      /v_declared|v_brand|declared_defaults_of|ordinality|jsonb_to_recordset|^\s*(else|end if;)$|insert into "better_supabase"\."option_set_items"|select default_option_set\.tenant, v_id, x\.key/i,
   },
   {
-    name: "inferred same-tenant trigger on the inventory tables",
+    name: "inferred same-tenant triggers on tables that reference product_variants",
     file: /module_004_memberships/,
-    pattern:
-      /bsb_same_tenant_variant_id.*inventory_(level_signals|reorder_rules)|inventory_(level_signals|reorder_rules).*bsb_same_tenant_variant_id|same_tenant\('variant_id'/,
+    pattern: /bsb_same_tenant_variant_id|same_tenant\('variant_id'/,
   },
   {
     name: "main: tax data module version",
