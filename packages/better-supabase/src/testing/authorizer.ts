@@ -1,7 +1,11 @@
 import type {
+  AuthorizationCallKind,
+  AuthorizationEnforcement,
+  AuthorizationIntent,
   AuthorizationOutcome,
   AuthorizationRequest,
   Authorizer,
+  AuthorizerRuntime,
 } from "../core/authorizer.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { ConformanceReport } from "./conformance.ts";
@@ -81,7 +85,10 @@ export function testAuthorizer<Ref>(
       context: { intent: "read", operation: "get", requestId: "conformance" },
     });
 
-  const writeFor = (action: Ref): AuthorizationRequest<Ref> =>
+  const writeFor = (
+    action: Ref,
+    enforcement?: AuthorizationEnforcement,
+  ): AuthorizationRequest<Ref> =>
     authorizationRequest({
       action,
       resource: {
@@ -94,6 +101,7 @@ export function testAuthorizer<Ref>(
       context: {
         intent: "write",
         operation: "update",
+        ...(enforcement ? { enforcement } : {}),
         requestId: "conformance",
         approval: "conformance",
       },
@@ -143,7 +151,7 @@ export function testAuthorizer<Ref>(
       async () => {
         for (const request of [
           ...requests,
-          ...options.permissions.map(writeFor),
+          ...options.permissions.map((permission) => writeFor(permission)),
         ]) {
           const outcome = await authorizer.evaluate(frozenCopy(request));
           expect(
@@ -205,7 +213,16 @@ export function testAuthorizer<Ref>(
 
           const forgedInput = await authorizer.evaluate(writeFor(permission));
 
-          for (const forged of [forgedResource, forgedContext, forgedInput]) {
+          const forgedRls = await authorizer.evaluate(
+            writeFor(permission, "rls"),
+          );
+
+          for (const forged of [
+            forgedResource,
+            forgedContext,
+            forgedInput,
+            forgedRls,
+          ]) {
             expect(
               forged.outcome !== "granted" || plain.outcome === "granted",
               `input claiming a service caller was granted ${authorizer.key(permission)}`,
@@ -347,4 +364,86 @@ export function staticAuthorizer<Ref extends string>(
     evaluate,
     evaluations: (requests) => Promise.resolve(requests.map(evaluate)),
   });
+}
+
+/** One check a `recordingAuthorizer` saw. */
+export interface RecordedCheck<Ref> {
+  readonly action: Ref;
+  readonly resource: string;
+  readonly operation?: AuthorizationCallKind;
+  readonly intent?: AuthorizationIntent;
+  /** `context.enforcement`; `undefined` means unknown, so `definer`. */
+  readonly enforcement?: AuthorizationEnforcement;
+}
+
+/** An authorizer that records every check before `inner` decides it. */
+export interface RecordingAuthorizer<Ref> extends Authorizer<Ref> {
+  readonly checks: readonly RecordedCheck<Ref>[];
+  /** Forgets the recorded checks. */
+  clear(): void;
+}
+
+/**
+ * Wraps an authorizer so a test can assert what each call site sent: the
+ * operation, intent and `enforcement` of every check, in order.
+ *
+ * ```ts
+ * const authorizer = recordingAuthorizer(staticAuthorizer({ roles }));
+ * await ctx.db.notes.create({ data: { body: "hi" } });
+ * expect(authorizer.checks.at(-1)?.enforcement).toBe("rls");
+ * ```
+ */
+export function recordingAuthorizer<Ref>(
+  inner: Authorizer<Ref>,
+): RecordingAuthorizer<Ref> {
+  const checks: RecordedCheck<Ref>[] = [];
+
+  const record = (request: AuthorizationRequest<Ref>): void => {
+    const { intent, operation, enforcement } = request.context;
+
+    checks.push({
+      action: request.action,
+      resource: request.resource.type,
+      ...(operation === undefined ? {} : { operation }),
+      ...(intent === undefined ? {} : { intent }),
+      ...(enforcement === undefined ? {} : { enforcement }),
+    });
+  };
+
+  return {
+    apiVersion: 1,
+    name: inner.name,
+    checks,
+    clear: () => {
+      checks.length = 0;
+    },
+    key: (ref) => inner.key(ref),
+    ...(inner.forOperation
+      ? {
+          forOperation: (table: string, operation: string) =>
+            inner.forOperation?.(table, operation),
+        }
+      : {}),
+    evaluate: (request, runtime) => {
+      record(request);
+
+      return inner.evaluate(request, runtime);
+    },
+    ...(inner.evaluations
+      ? {
+          evaluations: (
+            requests: readonly AuthorizationRequest<Ref>[],
+            runtime?: AuthorizerRuntime,
+          ) => {
+            for (const request of requests) {
+              record(request);
+            }
+
+            return (
+              inner.evaluations?.(requests, runtime) ?? Promise.resolve([])
+            );
+          },
+        }
+      : {}),
+  };
 }

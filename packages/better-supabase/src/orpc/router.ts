@@ -262,6 +262,9 @@ function blockRun(
         permission,
         resource: { type: source.name },
         context: contextOf(db),
+        // Block verbs call the SQL module's functions, which run as
+        // `security definer`: RLS doesn't check the write again.
+        enforcement: "definer",
       });
 
       if (!permitted.ok) {

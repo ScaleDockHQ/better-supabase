@@ -57,7 +57,7 @@ function actorFrom(claims: JsonObject | undefined): Actor | undefined {
 export function authorizationRequest<Ref>(
   input: AuthorizationRequestInput<Ref>,
 ): AuthorizationRequest<Ref> {
-  const { intent, operation, tenant, requestId, approval } =
+  const { intent, operation, enforcement, tenant, requestId, approval } =
     input.context ?? {};
 
   const actor = input.subject ?? actorFrom(input.claims);
@@ -73,6 +73,7 @@ export function authorizationRequest<Ref>(
   const built = requestOf(context, {
     ...(intent === undefined ? {} : { intent }),
     ...(operation === undefined ? {} : { operation }),
+    ...(enforcement === undefined ? {} : { enforcement }),
   });
 
   return {

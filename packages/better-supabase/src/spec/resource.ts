@@ -1,4 +1,8 @@
-import type { AnyAuthorizer, AuthorizationIntent } from "../core/authorizer.ts";
+import type {
+  AnyAuthorizer,
+  AuthorizationEnforcement,
+  AuthorizationIntent,
+} from "../core/authorizer.ts";
 import type { SchemaMeta, TableMeta } from "../schema/types.ts";
 import type {
   JsonObject,
@@ -37,6 +41,13 @@ export interface ResourceActionSpec<Ref = string> {
    * `GET` action and `write` for the others.
    */
   readonly intent?: AuthorizationIntent;
+  /**
+   * What the authorizer sees as `context.enforcement`: `rls` when the handler
+   * writes only through the caller's client, `definer` when it calls a
+   * `security definer` function or the admin client. Unset, a provider treats
+   * it as `definer`.
+   */
+  readonly enforcement?: AuthorizationEnforcement;
   /** Names of the events the action emits, for AsyncAPI. */
   readonly emits?: readonly string[];
 }

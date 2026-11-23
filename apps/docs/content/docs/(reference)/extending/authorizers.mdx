@@ -102,15 +102,16 @@ a subject, an action, a resource and a context.
 
 Every `context` field is optional:
 
-| Field       | What it holds                                                                              |
-| ----------- | ------------------------------------------------------------------------------------------ |
-| `tenant`    | The request's tenant                                                                       |
-| `aal`       | The token's assurance level (`aal1`, `aal2`)                                               |
-| `scopes`    | The token's `scope` claim, split on spaces                                                 |
-| `intent`    | `read` or `write`                                                                          |
-| `operation` | The kind of call: `get`, `list`, `create`, `update`, `delete`, `action`, `route` or `tool` |
-| `requestId` | The server's request id, the same for every check in one request scope                     |
-| `approval`  | The approval id the client resumes with (see [Approvals](#approvals))                      |
+| Field         | What it holds                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| `tenant`      | The request's tenant                                                                       |
+| `aal`         | The token's assurance level (`aal1`, `aal2`)                                               |
+| `scopes`      | The token's `scope` claim, split on spaces                                                 |
+| `intent`      | `read` or `write`                                                                          |
+| `operation`   | The kind of call: `get`, `list`, `create`, `update`, `delete`, `action`, `route` or `tool` |
+| `enforcement` | How the guarded write is enforced: `rls` or `definer` (see [Enforcement](#enforcement))    |
+| `requestId`   | The server's request id, the same for every check in one request scope                     |
+| `approval`    | The approval id the client resumes with (see [Approvals](#approvals))                      |
 
 A route is a read for `GET` and `HEAD` and a write for every other method. An
 action is a write. An MCP tool is a read when its `readOnlyHint` annotation is
@@ -358,6 +359,43 @@ entry also exports the claim names (`PERMISSIONS_CLAIM`, `MEMBERSHIPS_CLAIM`,
 `decodeEntitlementClaim`, `permissionCapOf`, and the `isUserSession`,
 `isApiKeySession` and `isSessionSnapshot` guards.
 
+## Enforcement
+
+`context.enforcement` says whether the database checks the write again. A
+provider that reads its live authorization version before each write, so a
+stale grant can't pass, may skip that read for `rls`:
+
+| Value     | Set by                                                                     | What the database does                                              |
+| --------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `rls`     | Repository `create`, `update`, `delete` and `upsert` through a caller's db | Runs the write as the caller, so RLS checks it again                |
+| `definer` | Block verbs, and actions, routes or tools that declare it                  | A `security definer` function skips RLS: the check is the only gate |
+| unset     | Reads, actions, routes and tools without `enforcement`, and any admin db   | Unknown: treat it as `definer`                                      |
+
+An action, a route (`AuthorizeOptions`), a resource action and an MCP tool
+take `enforcement` on their definition. It stays unset by default, because the
+library can't see what a handler calls: set `rls` only when the handler writes
+through the caller's own client. A repository write through the admin client,
+or a db with no actor, never carries `rls`. The field is additive on
+`apiVersion: 1`, so an authorizer that ignores it behaves as before.
+
+`recordingAuthorizer` from `better-supabase/testing` wraps an authorizer and
+records each check's `operation`, `intent` and `enforcement`, so a test can
+assert what a call site sent:
+
+```ts title="tests/notes.test.ts"
+import { recordingAuthorizer, staticAuthorizer } from "better-supabase/testing";
+
+const authorizer = recordingAuthorizer(
+  staticAuthorizer({ roles: { authenticated: ["notes.create"] } }),
+);
+
+// ...create a note through the caller's db, then:
+expect(authorizer.checks.at(-1)).toMatchObject({
+  operation: "create",
+  enforcement: "rls",
+});
+```
+
 ## Test an authorizer
 
 `testAuthorizer` from `better-supabase/testing` runs the conformance kit
@@ -367,7 +405,8 @@ one of the three outcomes and leaves the request unchanged, that
 `evaluations` agrees with `evaluate` and keeps the order, that the decision
 comes from the subject and never from a forged input (a role, `claims` or
 `memberships` placed in the resource properties, a `source: "input"` resource,
-its `change` or the context), and that an unknown permission is never granted.
+its `change`, the context or `enforcement: "rls"`), and that an unknown
+permission is never granted.
 The kit builds its requests with `authorizationRequest`, so they carry the
 `intent`, `operation` and `requestId` a server sends:
 

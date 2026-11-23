@@ -10,6 +10,7 @@ import {
 
 import type {
   AnyAuthorizer,
+  AuthorizationEnforcement,
   AuthzVersionCache,
   PermissionRef,
 } from "../core/authorizer.ts";
@@ -148,6 +149,13 @@ export interface McpTool<
    * tool.
    */
   readonly permission?: unknown;
+  /**
+   * What the authorizer sees as `context.enforcement` on a call: `rls` when
+   * `run` writes only through `ctx.db`, `definer` when it calls a `security
+   * definer` function or the admin client. Unset, a provider treats it as
+   * `definer`.
+   */
+  readonly enforcement?: AuthorizationEnforcement;
   /** The provider operation the tool checks, in place of `mcp.tool.<name>`. */
   readonly operation?: string;
   run(args: never, ctx: ToolContext<M, F, E, C, P, B>): unknown;
@@ -208,6 +216,13 @@ export interface ToolDefinition<
    * denies.
    */
   readonly permission?: Ref;
+  /**
+   * What the authorizer sees as `context.enforcement` on a call: `rls` when
+   * `run` writes only through `ctx.db`, `definer` when it calls a `security
+   * definer` function or the admin client. Unset, a provider treats it as
+   * `definer`.
+   */
+  readonly enforcement?: AuthorizationEnforcement;
   /**
    * The provider operation whose permission the tool checks, in place of
    * `mcp.tool.<name>` (`invoices.void`).
@@ -467,6 +482,9 @@ export function defineTool<
     ...(definition.permission === undefined
       ? {}
       : { permission: definition.permission }),
+    ...(definition.enforcement === undefined
+      ? {}
+      : { enforcement: definition.enforcement }),
     ...(definition.operation === undefined
       ? {}
       : { operation: definition.operation }),

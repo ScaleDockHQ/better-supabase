@@ -326,7 +326,11 @@ function authorizerOf(
   return { authorizer, requests };
 }
 
-function userDb() {
+const USER_ACTOR = { kind: "user", id: "u1", role: "authenticated" } as const;
+
+function userDb(
+  actor: { kind: "user" | "service"; id: string; role: string } = USER_ACTOR,
+) {
   const queries: Parameters<Executor["execute"]>[0][] = [];
 
   const executor: Executor = {
@@ -347,7 +351,7 @@ function userDb() {
   };
 
   const db = betterSupabase.connect(executor, {
-    actor: { kind: "user", id: "u1", role: "authenticated" },
+    actor,
     tenant: "o1",
     claims: { scope: "read write" },
   });
@@ -588,6 +592,56 @@ describe("defineResource hooks", () => {
 });
 
 describe("defineResource permissions", () => {
+  it("tells the authorizer a caller's write is enforced by RLS, an admin write isn't", async () => {
+    const { authorizer, requests } = authorizerOf(() => ({
+      outcome: "granted",
+    }));
+
+    const customers = defineResource(
+      betterSupabase,
+      "customers",
+      {
+        permissions: {
+          create: "customers.create",
+          update: "customers.update",
+          delete: "customers.delete",
+          get: "customers.read",
+        },
+      },
+      authorizer,
+    );
+
+    const caller = userDb().db;
+
+    const admin = userDb({
+      kind: "service",
+      id: "service",
+      role: "service_role",
+    }).db;
+
+    for (const db of [caller, admin]) {
+      await customers.execute(db, "create", {
+        data: { name: "N", organizationId: "o1" },
+      });
+      await customers.execute(db, "update", { id: "c1", data: { name: "B" } });
+      await customers.execute(db, "delete", { id: "c1" });
+      await customers.execute(db, "get", { id: "c1" });
+    }
+
+    expect(
+      requests.map(({ context }) => [context.operation, context.enforcement]),
+    ).toEqual([
+      ["create", "rls"],
+      ["update", "rls"],
+      ["delete", "rls"],
+      ["get", undefined],
+      ["create", undefined],
+      ["update", undefined],
+      ["delete", undefined],
+      ["get", undefined],
+    ]);
+  });
+
   it("checks the permission with the fetched row before update", async () => {
     const { db, queries } = userDb();
 
@@ -638,6 +692,7 @@ describe("defineResource permissions", () => {
         scopes: ["read", "write"],
         intent: "write",
         operation: "update",
+        enforcement: "rls",
       },
     });
     expect(
@@ -753,6 +808,53 @@ describe("defineResource permissions", () => {
       approval: { id: "apr_1" },
     });
     expect(queries.map((query) => query.kind)).toEqual(["select"]);
+  });
+
+  it("passes an action's enforcement to the authorizer", async () => {
+    const { db } = userDb();
+
+    const { authorizer, requests } = authorizerOf(() => ({
+      outcome: "granted",
+    }));
+
+    const customers = defineResource(
+      betterSupabase,
+      "customers",
+      {
+        actions: {
+          refund: {
+            method: "POST",
+            path: "/{id}/refund",
+            permission: "customers.refund",
+            enforcement: "definer",
+            handler: () => ok({ refunded: true }),
+          },
+          archive: {
+            method: "POST",
+            path: "/{id}/archive",
+            permission: "customers.archive",
+            handler: () => ok({ archived: true }),
+          },
+        },
+      },
+      authorizer,
+    );
+
+    await customers.serve(
+      request("/customers/c1/refund", { method: "POST" }),
+      db,
+      "c1/refund",
+    );
+    await customers.serve(
+      request("/customers/c1/archive", { method: "POST" }),
+      db,
+      "c1/archive",
+    );
+
+    expect(requests.map(({ context }) => context.enforcement)).toEqual([
+      "definer",
+      undefined,
+    ]);
   });
 
   it("filters list rows with one batch and keeps the request order", async () => {

@@ -175,7 +175,13 @@ export {
   type TestDeliveryTransportOptions,
 } from "./delivery-transport.ts";
 
-export { staticAuthorizer, testAuthorizer } from "./authorizer.ts";
+export type { RecordedCheck, RecordingAuthorizer } from "./authorizer.ts";
+
+export {
+  recordingAuthorizer,
+  staticAuthorizer,
+  testAuthorizer,
+} from "./authorizer.ts";
 
 export { testDocumentFormat } from "./document-format.ts";
 
