@@ -37627,7 +37627,8 @@ export const PRESET_CATALOG: PresetCatalog = {
             "parentId",
             "assigneeId",
             "open",
-            "ready"
+            "ready",
+            "waiting"
           ],
           "search": [
             "title",

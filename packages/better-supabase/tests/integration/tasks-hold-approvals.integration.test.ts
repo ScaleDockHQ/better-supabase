@@ -231,6 +231,38 @@ describe.skipIf(!live)("task hold approvals", () => {
     );
   });
 
+  it("decides a rejection by the hold kind's own onReject", async () => {
+    const outcomes = { review: "closed", spend: "held" };
+
+    for (const [kind, expected] of Object.entries(outcomes)) {
+      await run(
+        "keep",
+        async ({ s, tasks, owner, taskId, approvalId }) => {
+          const id = await approvalId();
+
+          expect(id).not.toBe("");
+
+          await s.as(owner);
+          await s.value(DECIDE, [id, "rejected", "no"]);
+
+          const task = await tasks.get(taskId).orThrow();
+
+          const state =
+            task?.closedAt === undefined
+              ? task?.heldAt === undefined
+                ? "open"
+                : "held"
+              : "closed";
+
+          expect(state).toBe(expected);
+        },
+        { kinds: ["review", "spend", "input"] },
+        { kinds: { review: { onReject: "cancel" }, spend: true } },
+        kind,
+      );
+    }
+  });
+
   it("refuses an approval kind the hold does not allow", async () => {
     const s = await BlockSession.open(pool);
 

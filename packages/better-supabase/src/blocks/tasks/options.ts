@@ -9,6 +9,15 @@ import { blockOptions, option } from "../options.ts";
  */
 export type TaskStageRef = string | { readonly category: string };
 
+/**
+ * How one hold kind is approved, over the top-level `hold.approval` values: an
+ * approvals policy without `run`, and what a rejection does. ADR 1219.
+ */
+export type TaskHoldApprovalRule = {
+  readonly policy?: unknown;
+  readonly onReject?: "cancel" | "keep";
+};
+
 /** `blocks.tasks.options`. */
 export type TasksSqlOptions = {
   readonly prefix?: string;
@@ -52,10 +61,19 @@ export type TasksSqlOptions = {
      * What `claimNext` picks from. `assigned` (default) takes only tasks
      * assigned to the caller and refuses a `filter.assigneeId` naming someone
      * else; `any` also takes the oldest unassigned ready task. A session whose
-     * act claim is of kind `agent` always picks as `assigned`, and claims by id
-     * only tasks assigned to it. ADR 1180.
+     * act claim is of kind `agent` (or another kind in `agents`) always picks
+     * as `assigned`, and claims by id only tasks assigned to it. ADR 1180.
      */
     readonly next?: "assigned" | "any";
+    /**
+     * The sessions the claim rules treat as agents: they pick and claim only
+     * tasks assigned to their user and never take over a reserved task. `agent`
+     * is an act claim of kind `agent` and always counts; add `oauth-client` (a
+     * `client_id`, or an act claim without a kind, as an MCP client has) and
+     * `api-key` (an app API key). An organization API key acts as no user, so
+     * it claims nothing. Default `["agent"]`. ADR 1219.
+     */
+    readonly agents?: readonly ("agent" | "oauth-client" | "api-key")[];
     readonly startStage?: TaskStageRef;
     readonly expiredStage?: TaskStageRef;
   };
@@ -73,6 +91,11 @@ export type TasksSqlOptions = {
    * kind raises `TASK_HOLD_INVALID`. `approval.kinds` limits which kinds open
    * an approval and must be a subset of `kinds`. Releasing a hold, leaving the
    * hold stage and closing the task cancel a pending approval request. ADR 1182.
+   *
+   * `approval.kinds` can also be a record of the kinds that open an approval,
+   * each `true` (the top-level `policy` and `onReject`) or `{ policy, onReject
+   * }` over them. Kinds whose `onReject` differ need the `hold_kind` column.
+   * ADR 1219.
    */
   readonly hold?: {
     readonly stage?: TaskStageRef;
@@ -82,7 +105,9 @@ export type TasksSqlOptions = {
       | {
           readonly policy?: unknown;
           readonly onReject?: "cancel" | "keep";
-          readonly kinds?: readonly string[];
+          readonly kinds?:
+            | readonly string[]
+            | Readonly<Record<string, true | TaskHoldApprovalRule>>;
         };
   };
 };
