@@ -43,8 +43,6 @@ export {
 
 export { renderKey } from "./pipeline/render-key.ts";
 
-export { splitStatements, type SqlStatement } from "./pipeline/split.ts";
-
 export { entityRenamePlan } from "./entity-upgrade.ts";
 
 export { moduleDataDir, moduleFilePaths } from "./paths.ts";

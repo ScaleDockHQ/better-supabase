@@ -589,12 +589,12 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       /^\d+ data statements of .*memberships.* are in no data migration/,
     );
     expect((await sql(["data", "--dry-run"], config)).output).toMatch(
-      /^Would create supabase\/migrations\/\d{14}_better_supabase_module_data_[0-9a-f]{8}\.sql$/,
+      /^Would create supabase\/migrations\/\d{14}_better_supabase_module_data_v2-[0-9a-f]{8}\.sql$/,
     );
     const wrote = await sql(["data"], config);
     const path = wrote.output!.replace("Created ", "");
     expect(path).toMatch(
-      /^supabase\/migrations\/\d{14}_better_supabase_module_data_[0-9a-f]{8}\.sql$/,
+      /^supabase\/migrations\/\d{14}_better_supabase_module_data_v2-[0-9a-f]{8}\.sql$/,
     );
     const migration = await readFile(join(root, path), "utf-8");
     expect(migration).toContain("values ('memberships', 3, 'managed')");
@@ -1080,12 +1080,12 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       "create extension if not exists pgmq;\n",
     );
     expect((await sql(["sync", "--dry-run"], config)).output).toMatch(
-      /^Would create supabase\/migrations\/\d{14}_better_supabase_extensions_[0-9a-f]{8}\.sql$/m,
+      /^Would create supabase\/migrations\/\d{14}_better_supabase_extensions_v2-[0-9a-f]{8}\.sql$/m,
     );
     const synced = await sql(["sync"], config);
 
     const path =
-      /^Created (supabase\/migrations\/\d{14}_better_supabase_extensions_[0-9a-f]{8}\.sql)$/m.exec(
+      /^Created (supabase\/migrations\/\d{14}_better_supabase_extensions_v2-[0-9a-f]{8}\.sql)$/m.exec(
         synced.output ?? "",
       )?.[1];
 
@@ -1098,7 +1098,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       "_better_supabase_extensions.sql",
     );
     expect((await sql(["data"], config)).output).toMatch(
-      /^Created supabase\/migrations\/\d{14}_better_supabase_module_data_[0-9a-f]{8}\.sql$/,
+      /^Created supabase\/migrations\/\d{14}_better_supabase_module_data_v2-[0-9a-f]{8}\.sql$/,
     );
   });
 
@@ -1138,7 +1138,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       "",
     );
     expect((await sql(["data"], config)).output).toMatch(
-      /^Created supabase\/migrations\/30000101000000_better_supabase_module_data_[0-9a-f]{8}\.sql$/,
+      /^Created supabase\/migrations\/30000101000000_better_supabase_module_data_v2-[0-9a-f]{8}\.sql$/,
     );
   });
 
@@ -1152,7 +1152,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
     await writeFile(join(root, "supabase/migrations/40000101000000.sql"), "");
     expect((await sql(["data"], config)).output).toMatch(
-      /^Created supabase\/migrations\/40000101000001_better_supabase_module_data_[0-9a-f]{8}\.sql$/,
+      /^Created supabase\/migrations\/40000101000001_better_supabase_module_data_v2-[0-9a-f]{8}\.sql$/,
     );
   });
 
@@ -1515,11 +1515,11 @@ create policy b on public.notes for select to authenticated using (true);
     it("writes the modules into one migration and nothing into sql.dir", async () => {
       const config = migrations(["queue", "jsonb-schemas"]);
       expect((await sql(["sync", "--dry-run"], config)).output).toMatch(
-        /^Would create supabase\/migrations\/\d{14}_better_supabase_modules_[0-9a-f]{8}\.sql$/m,
+        /^Would create supabase\/migrations\/\d{14}_better_supabase_modules_v2-[0-9a-f]{8}\.sql$/m,
       );
       const synced = await sql(["sync"], config);
       expect(synced.output).toMatch(
-        /^Created supabase\/migrations\/\d{14}_better_supabase_modules_[0-9a-f]{8}\.sql$/m,
+        /^Created supabase\/migrations\/\d{14}_better_supabase_modules_v2-[0-9a-f]{8}\.sql$/m,
       );
       expect(synced.output).not.toContain("sql data");
       expect(
@@ -1621,7 +1621,7 @@ create policy b on public.notes for select to authenticated using (true);
     it("adds a module into the migration and says to apply it", async () => {
       const added = await sql(["add", "mfa"], migrations([]));
       expect(added.output).toMatch(
-        /^Created supabase\/migrations\/\d{14}_better_supabase_modules_[0-9a-f]{8}\.sql$/m,
+        /^Created supabase\/migrations\/\d{14}_better_supabase_modules_v2-[0-9a-f]{8}\.sql$/m,
       );
       expect(added.next).toEqual([
         { command: "supabase migration up", when: "applies the migration" },

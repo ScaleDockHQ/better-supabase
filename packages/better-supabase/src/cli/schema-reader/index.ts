@@ -8,11 +8,15 @@ import {
 
 import type { FileFacts, SchemaReadError } from "./facts.ts";
 import type { RawStatement } from "./read.ts";
+import type { SqlStatement } from "./statements.ts";
 
 import { factsFrom } from "./read.ts";
 import { Source } from "./source.ts";
+import { statementsFrom } from "./statements.ts";
 
 export type * from "./facts.ts";
+
+export type { SqlStatement } from "./statements.ts";
 
 /** The Postgres grammar used when `db.major_version` is missing or unknown. */
 const DEFAULT_VERSION: SupportedVersion = 17;
@@ -226,4 +230,99 @@ export async function parseStatements(
     start: statement.stmt_location ?? 0,
     length: statement.stmt_len ?? 0,
   }));
+}
+
+/** Statements split ahead of time, by file text. */
+const split = new Map<string, readonly SqlStatement[]>();
+
+/**
+ * Splits every text into statements with the scanner, so `statementsOf` can
+ * answer synchronously. The scanner needs no valid grammar, so a text that does
+ * not parse still splits.
+ *
+ * @param texts - The SQL texts to split.
+ * @param options - The Postgres major version.
+ */
+export async function primeStatements(
+  texts: readonly string[],
+  options: { majorVersion?: number } = {},
+): Promise<void> {
+  await Promise.all(
+    texts.map(async (text) => {
+      if (split.has(text)) {
+        return;
+      }
+
+      const scanned = await scanSql(text, options);
+
+      split.set(text, statementsFrom(new Source(text, scanned)));
+    }),
+  );
+}
+
+/**
+ * The statements of a text that `primeStatements` split before.
+ *
+ * @param text - A SQL text.
+ * @returns Its statements, comments dropped, with the line each starts on.
+ */
+export function statementsOf(text: string): readonly SqlStatement[] {
+  const known = split.get(text);
+
+  if (known === undefined) {
+    throw new Error(
+      "The SQL reader has not split this text yet; await primeStatements first.",
+    );
+  }
+
+  return known;
+}
+
+/** A statement as whitespace-collapsed text without its closing semicolon. */
+const collapsed = (statement: string): string =>
+  statement.replaceAll(/\s+/g, " ").trim().replace(/\s*;$/, "");
+
+/**
+ * The canonical text of a SQL text: the parser's deparse of its tree, so
+ * whitespace, comments, keyword case and identifier quoting that mean the same
+ * thing compare equal.
+ *
+ * @param text - The SQL text.
+ * @param options - The Postgres major version.
+ * @returns The deparsed text (empty for a text with no statement), or
+ *   `undefined` when the text does not parse.
+ */
+export async function canonicalSql(
+  text: string,
+  options: { majorVersion?: number } = {},
+): Promise<string | undefined> {
+  const parser = parserFor(options.majorVersion);
+  const parsed = await parser.parse(text);
+
+  if (parsed.error !== undefined) {
+    return undefined;
+  }
+
+  if ((parsed.tree.stmts ?? []).length === 0) {
+    return "";
+  }
+
+  const deparsed = await parser.deparse(parsed.tree);
+
+  return deparsed.error === undefined ? deparsed.sql : undefined;
+}
+
+/**
+ * The key two statements are compared by: their canonical text, or their
+ * whitespace-collapsed text when one does not parse.
+ *
+ * @param statement - One statement.
+ * @param options - The Postgres major version.
+ * @returns The comparison key.
+ */
+export async function canonicalKey(
+  statement: string,
+  options: { majorVersion?: number } = {},
+): Promise<string> {
+  return (await canonicalSql(statement, options)) ?? collapsed(statement);
 }

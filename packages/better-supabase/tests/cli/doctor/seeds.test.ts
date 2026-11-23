@@ -6,6 +6,7 @@ import {
   SAMPLE_FILE_MARKER,
   SEED_RULES,
 } from "../../../src/cli/doctor/seeds.ts";
+import { primeFiles } from "../../helpers/prime-statements.ts";
 
 const rule = (code: string) => {
   const found = SEED_RULES.find((each) => each.code === code);
@@ -48,8 +49,13 @@ function context(state: SeedState): DoctorContext {
   } as unknown as DoctorContext;
 }
 
-const run = (code: string, state: SeedState) =>
-  rule(code).check(context(state));
+const run = async (code: string, state: SeedState) => {
+  await primeFiles(state.sqlFiles ?? []);
+  await primeFiles(state.files ?? []);
+  await primeFiles(state.dataFiles ?? []);
+
+  return rule(code).check(context(state));
+};
 
 describe("BS354 defaults not applied", () => {
   // `tax` declares defaults (tax-seeds.ts) and `memberships` is the base.

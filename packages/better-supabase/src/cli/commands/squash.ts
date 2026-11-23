@@ -74,7 +74,7 @@ const NO_TRANSACTION = /^--\s*pg-delta:\s*transaction=false\s*$/m;
  * gives each file of a multi-file migration.
  */
 const isMigrationNamed = (file: string, wanted: string): boolean => {
-  const name = migrationName(file).replace(/_[0-9a-f]{8}$/, "");
+  const name = migrationName(file).replace(/_(?:v2-)?[0-9a-f]{8}$/, "");
 
   return name === wanted || new RegExp(`^${wanted}_\\d+$`).test(name);
 };

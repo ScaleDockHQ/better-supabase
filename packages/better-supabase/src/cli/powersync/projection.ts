@@ -1,4 +1,4 @@
-import { splitStatements } from "../../sql/index.ts";
+import { primeStatements, statementsOf } from "../schema-reader/index.ts";
 
 /**
  * One column a projection view selects: the base column and the name it has in
@@ -76,13 +76,22 @@ function topLevel(text: string): string[] {
  * A view with a join, an aggregate or an expression in its select list is not a
  * projection: it has no one-to-one stream.
  */
-export function projectionsOf(
+export async function projectionsOf(
+  texts: readonly { readonly text: string }[],
+): Promise<ReadonlyMap<string, Projection>> {
+  await primeStatements(texts.map((file) => file.text));
+
+  return primedProjections(texts);
+}
+
+/** `projectionsOf` for texts `primeStatements` split before. */
+export function primedProjections(
   texts: readonly { readonly text: string }[],
 ): ReadonlyMap<string, Projection> {
   const found = new Map<string, Projection>();
 
   for (const { text } of texts) {
-    for (const statement of splitStatements(text)) {
+    for (const statement of statementsOf(text)) {
       const match = VIEW.exec(statement.text.replaceAll(/\s+/g, " "));
 
       if (match === null || COMPLEX.test(statement.text)) {

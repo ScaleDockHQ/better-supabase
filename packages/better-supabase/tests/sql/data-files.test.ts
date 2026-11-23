@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { splitStatements } from "../../src/sql/index.ts";
+import { splitStatements } from "../../src/sql/pipeline/split.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 

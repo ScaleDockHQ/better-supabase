@@ -53,8 +53,8 @@ const VIEW =
 const config = resolveConfig({ blocks: { attachments: {} } }, "/project");
 
 describe("projectedReads", () => {
-  it("keys the views over a block table, and the table's own key", () => {
-    const found = projectedReads(config, meta, [{ text: VIEW }]);
+  it("keys the views over a block table, and the table's own key", async () => {
+    const found = await projectedReads(config, meta, [{ text: VIEW }]);
 
     expect(found.viewKeys).toStrictEqual(
       new Map([["better_supabase.attachments", ["jobAttachments"]]]),
@@ -62,17 +62,17 @@ describe("projectedReads", () => {
     expect([...found.baseKeys]).toStrictEqual(["attachments"]);
   });
 
-  it("ignores a view over the app's own table", () => {
+  it("ignores a view over the app's own table", async () => {
     expect(
-      projectedReads(config, meta, [
+      await projectedReads(config, meta, [
         { text: "create view public.open_jobs as select id from public.jobs;" },
       ]),
     ).toStrictEqual(NO_PROJECTED_READS);
   });
 
-  it("ignores a view the typed client doesn't key", () => {
+  it("ignores a view the typed client doesn't key", async () => {
     expect(
-      projectedReads(
+      await projectedReads(
         config,
         { ...meta, tables: { jobs: meta.tables["jobs"]! } },
         [{ text: VIEW }],
@@ -80,9 +80,11 @@ describe("projectedReads", () => {
     ).toStrictEqual(NO_PROJECTED_READS);
   });
 
-  it("finds nothing without blocks", () => {
+  it("finds nothing without blocks", async () => {
     expect(
-      projectedReads(resolveConfig({}, "/project"), meta, [{ text: VIEW }]),
+      await projectedReads(resolveConfig({}, "/project"), meta, [
+        { text: VIEW },
+      ]),
     ).toStrictEqual(NO_PROJECTED_READS);
   });
 });

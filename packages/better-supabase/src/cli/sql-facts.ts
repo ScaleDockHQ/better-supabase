@@ -3,6 +3,7 @@ import type { DeclarationSummary } from "./schema-reader/queries.ts";
 
 import {
   factsOf,
+  primeStatements,
   readSchemaFacts,
   readSchemaFactsLeniently,
 } from "./schema-reader/index.ts";
@@ -53,6 +54,11 @@ export async function primeSchemaFacts(
   const reader = {
     ...(typeof major === "number" ? { majorVersion: major } : {}),
   };
+
+  await primeStatements(
+    files.map((file) => file.text),
+    reader,
+  );
 
   if (options.lenient === true) {
     return readSchemaFactsLeniently(files, reader);

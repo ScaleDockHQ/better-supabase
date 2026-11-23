@@ -1,6 +1,6 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { splitStatements } from "../../sql/index.ts";
+import { statementsOf } from "../schema-reader/index.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
 import { OWNERSHIP_RULES } from "./ownership.ts";
 
@@ -20,7 +20,7 @@ function appStatements(
         !writtenByBlocks(file),
     )
     .flatMap((file) =>
-      splitStatements(file.text).map((statement) => ({
+      statementsOf(file.text).map((statement) => ({
         path: file.path,
         text: statement.text.replaceAll(/\s+/g, " "),
         line: statement.line,

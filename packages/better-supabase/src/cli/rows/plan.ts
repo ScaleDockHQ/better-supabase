@@ -148,7 +148,7 @@ export async function planRows(
 
     const body = migrationText(file, removed);
 
-    const target = migrationFile(
+    const target = await migrationFile(
       [...names, ...planned.map((each) => each.file)],
       now,
       suffixOf(name),

@@ -136,7 +136,7 @@ describe("planRows", () => {
 
     expect(plan.migrations).toHaveLength(1);
     expect(plan.migrations[0]?.file).toMatch(
-      /^20261122\d{6}_declared_rows_priorities_[0-9a-f]{8}\.sql$/,
+      /^20261122\d{6}_declared_rows_priorities_v2-[0-9a-f]{8}\.sql$/,
     );
     expect(plan.migrations[0]?.text).toContain(
       "-- @bsb-rows priorities sha256:",

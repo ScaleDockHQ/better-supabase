@@ -45,6 +45,7 @@ pnpm better-supabase gen sql
 | [Hold kinds](#hold-kinds)                                                 | None; new options                                                                         |
 | [Reserve a task for a profile](#reserve-a-task)                           | Read `delegateProfile` if you stored the old label                                        |
 | [before_task_close on every close](#before-task-close)                    | Check a hook that relied on running only in close                                         |
+| [SQL reading](#sql-reading)                                               | Replace `splitStatements` from `better-supabase/sql` if you call it                       |
 | [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`                                                             |
 
 ## What the codemods did to CentraKit
@@ -459,6 +460,25 @@ on every path that closes a task, from an after-update trigger, and a hook that
 raises refuses the close with its own error. Templates are skipped. It no longer
 runs when `reopen` sets the outcome `open`, and it is not called for a task
 inserted already closed.
+
+## SQL reading
+
+The CLI reads every SQL file with one reader on `@supabase/pg-parser`. This is
+a breaking change for code that imports from `better-supabase/sql`: the
+statement splitter `splitStatements` and its `SqlStatement` type are removed.
+The other text scanners of that entry stay for now and move to internal modules
+as each render function takes facts as plain data (ADR 1300).
+
+| Removed                | Replace with                                        |
+| ---------------------- | --------------------------------------------------- |
+| `splitStatements(sql)` | Your own splitter, or run `doctor`, `gen` or `sync` |
+| `SqlStatement`         | `{ text: string; line: number }`                    |
+
+`sync` compares statements by their canonical text, so a statement that differs
+only in spacing, keyword case or quoting is not written again. The migration
+file name carries a versioned hash: new files end in `_v2-<8 hex digits>.sql`.
+A migration an earlier release wrote keeps its name and is still recognized as
+the same file, so upgrading writes no new migration (ADR 1301).
 
 ## Doctor
 

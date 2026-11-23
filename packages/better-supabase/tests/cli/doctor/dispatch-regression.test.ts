@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import { dispatchRegressions } from "../../../src/cli/doctor/dispatch-regression.ts";
+import { primeFiles } from "../../helpers/prime-statements.ts";
+
+const regressions = async (
+  files: readonly { path: string; text: string }[],
+  entities: readonly string[],
+) => {
+  await primeFiles(files);
+
+  return dispatchRegressions(files, entities);
+};
 
 const schema = (arms: readonly string[]): string =>
   `create function public.import_apply_batch(run uuid)
@@ -17,9 +27,9 @@ const migration = (name: string, body: string) => ({
   text: body,
 });
 
-describe("BS629 dispatch arms", () => {
-  it("names the arms a later migration dropped", () => {
-    const findings = dispatchRegressions(
+describe("BS629 dispatch arms", async () => {
+  it("names the arms a later migration dropped", async () => {
+    const findings = await regressions(
       [
         {
           path: "supabase/schemas/overrides.sql",
@@ -36,8 +46,8 @@ describe("BS629 dispatch arms", () => {
     );
   });
 
-  it("passes once the migration dispatches every schema arm", () => {
-    const findings = dispatchRegressions(
+  it("passes once the migration dispatches every schema arm", async () => {
+    const findings = await regressions(
       [
         {
           path: "supabase/schemas/overrides.sql",
@@ -51,8 +61,8 @@ describe("BS629 dispatch arms", () => {
     expect(findings).toEqual([]);
   });
 
-  it("names a configured entity the override does not dispatch", () => {
-    const findings = dispatchRegressions(
+  it("names a configured entity the override does not dispatch", async () => {
+    const findings = await regressions(
       [{ path: "supabase/schemas/overrides.sql", text: schema(["invoice"]) }],
       ["invoice", "quote"],
     );

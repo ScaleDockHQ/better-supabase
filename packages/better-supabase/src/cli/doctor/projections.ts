@@ -2,7 +2,7 @@ import type { SubjectConfig } from "../../config/index.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { blockTables, parseBsbComment } from "../../sql/index.ts";
-import { projectionsOf } from "../powersync/projection.ts";
+import { primedProjections } from "../powersync/projection.ts";
 import { subjectFromTag } from "../subject-tag.ts";
 import { catalogOf } from "./shared.ts";
 import { callStrings } from "./tree.ts";
@@ -29,7 +29,7 @@ export function projectedBlockTables(
       !/(^|\/)900_better_supabase_/.test(file.path),
   );
 
-  const projections = projectionsOf(files);
+  const projections = primedProjections(files);
 
   const owned = new Set(
     Object.values(blockTables(context.config).byBlock).flatMap((tables) =>

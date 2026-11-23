@@ -307,7 +307,7 @@ describe("powersyncOutput shaping", () => {
   } as const;
 
   it("scopes a view's attachments to the rows of the subject it keeps", async () => {
-    const projections = projectionsOf([
+    const projections = await projectionsOf([
       {
         text: `create view public.job_attachments as
           select id, tenant_id as organization_id, subject_id as job_id from better_supabase.attachments where subject_type = 'job';`,
@@ -324,7 +324,7 @@ describe("powersyncOutput shaping", () => {
   });
 
   it("leaves attachments alone when the subject is unknown or has no tenant", async () => {
-    const projections = projectionsOf([
+    const projections = await projectionsOf([
       {
         text: `create view public.job_attachments as
           select id, tenant_id as organization_id from better_supabase.attachments where subject_type = 'job';`,
@@ -348,7 +348,7 @@ describe("powersyncOutput shaping", () => {
     tenant: "organization_id",
   } as const;
 
-  const several = (where: string) =>
+  const several = async (where: string) =>
     projectionsOf([
       {
         text: `create view public.case_attachments as
@@ -366,7 +366,7 @@ describe("powersyncOutput shaping", () => {
       "subject_type in ('job', 'quote')",
       "subject_type = 'job' or subject_type = 'quote'",
     ]) {
-      const { streams } = await run("", several(where), { subjects });
+      const { streams } = await run("", await several(where), { subjects });
 
       expect(streams).toContain(
         "AND (subject_type = 'job' AND subject_id IN (SELECT id::text FROM public.jobs WHERE organization_id IN active_orgs AND deleted_at IS NULL) OR subject_type = 'quote' AND subject_id IN (SELECT id::text FROM public.quotes WHERE organization_id IN active_orgs))",
@@ -378,7 +378,7 @@ describe("powersyncOutput shaping", () => {
   it("keeps a subject type the app doesn't register to its organization bound", async () => {
     const { streams } = await run(
       "",
-      several("subject_type in ('job', 'note')"),
+      await several("subject_type in ('job', 'note')"),
       { subjects: new Map([["job", jobs]]) },
     );
 
@@ -388,7 +388,7 @@ describe("powersyncOutput shaping", () => {
 
   it("leaves several unregistered subjects organization-wide", async () => {
     expect(
-      (await run("", several("subject_type in ('a', 'b')"))).streams,
+      (await run("", await several("subject_type in ('a', 'b')"))).streams,
     ).not.toContain("subject_id IN");
   });
 
@@ -495,7 +495,7 @@ describe("powersyncOutput shaping", () => {
   });
 
   it("streams the columns and rows of the app's view under the view's names", async () => {
-    const projections = projectionsOf([
+    const projections = await projectionsOf([
       {
         text: `create view public.job_attachments with (security_invoker = true) as
           select id, tenant_id as organization_id, name from better_supabase.attachments where subject_type = 'job';`,
@@ -516,7 +516,7 @@ describe("powersyncOutput shaping", () => {
 
 describe("projectionsOf", () => {
   it("reads a view over one table and skips joins and expressions", async () => {
-    const found = projectionsOf([
+    const found = await projectionsOf([
       {
         text: `create view public.a as select x, y as z from b.t;
 create view public.c as select t.x from b.t join b.u on true;

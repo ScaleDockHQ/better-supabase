@@ -31,12 +31,12 @@ export const NO_PROJECTED_READS: ProjectedReads = {
  * the keys the typed client gives them. A view the typed client has no key for
  * (outside `config.schemas`) is left out.
  */
-export function projectedReads(
+export async function projectedReads(
   config: ResolvedConfig,
   meta: SchemaMeta,
   texts: readonly { readonly text: string }[],
-): ProjectedReads {
-  const projections = projectionsOf(texts);
+): Promise<ProjectedReads> {
+  const projections = await projectionsOf(texts);
 
   if (projections.size === 0 || config.blockNames.length === 0) {
     return NO_PROJECTED_READS;

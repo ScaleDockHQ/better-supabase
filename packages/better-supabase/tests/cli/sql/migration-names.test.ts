@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -39,8 +40,8 @@ describe("migrationFile", () => {
   const now = new Date("2026-03-04T05:06:07.000Z");
   const suffix = "_better_supabase_block_upgrade.sql";
 
-  it("puts a hash of the statements before .sql and a free stamp first", () => {
-    const first = migrationFile(
+  it("puts a versioned hash of the statements before .sql and a free stamp first", async () => {
+    const first = await migrationFile(
       ["20260304050607_other.sql"],
       now,
       suffix,
@@ -49,15 +50,16 @@ describe("migrationFile", () => {
 
     expect(first.exists).toBe(false);
     expect(first.name).toMatch(
-      /^20260304050608_better_supabase_block_upgrade_[0-9a-f]{8}\.sql$/,
+      /^20260304050608_better_supabase_block_upgrade_v2-[0-9a-f]{8}\.sql$/,
     );
   });
 
-  it("returns the file an earlier run wrote for the same statements", () => {
-    const written = migrationFile([], now, suffix, "-- a\nselect  1;").name;
+  it("returns the file an earlier run wrote for the same statements", async () => {
+    const written = (await migrationFile([], now, suffix, "-- a\nselect  1;"))
+      .name;
 
     expect(
-      migrationFile(
+      await migrationFile(
         [written],
         new Date(now.getTime() + 9e6),
         suffix,
@@ -66,9 +68,47 @@ describe("migrationFile", () => {
     ).toEqual({ name: written, exists: true });
   });
 
-  it("writes a new file when the statements change", () => {
-    const written = migrationFile([], now, suffix, "select 1;").name;
-    const next = migrationFile([written], now, suffix, "select 2;");
+  it("treats statements that differ only in case, quoting and spacing as the same", async () => {
+    const written = (
+      await migrationFile(
+        [],
+        now,
+        suffix,
+        'create table "public"."t" (id int);',
+      )
+    ).name;
+
+    expect(
+      (
+        await migrationFile(
+          [written],
+          now,
+          suffix,
+          "CREATE TABLE public.t (\n  id INT\n);",
+        )
+      ).exists,
+    ).toBe(true);
+  });
+
+  it("recognizes the file a release with the version 1 hash wrote", async () => {
+    const legacy = `20260101000000${suffix.replace(".sql", `_${createHash("sha256").update("select 1;").digest("hex").slice(0, 8)}.sql`)}`;
+
+    expect(
+      await migrationFile([legacy], now, suffix, "-- note\nselect  1;"),
+    ).toEqual({ name: legacy, exists: true });
+    expect(hasMigrationSuffix(legacy, suffix)).toBe(true);
+  });
+
+  it("falls back to the version 1 hash for text that does not parse", async () => {
+    const result = await migrationFile([], now, suffix, "selec 1;");
+
+    expect(result.name).toMatch(/_[0-9a-f]{8}\.sql$/);
+    expect(result.name).not.toContain("v2-");
+  });
+
+  it("writes a new file when the statements change", async () => {
+    const written = (await migrationFile([], now, suffix, "select 1;")).name;
+    const next = await migrationFile([written], now, suffix, "select 2;");
 
     expect(next.exists).toBe(false);
     expect(next.name).not.toBe(written);
@@ -84,6 +124,12 @@ describe("hasMigrationSuffix", () => {
     expect(
       hasMigrationSuffix(
         "20260304050607_better_supabase_module_data_0a1b2c3d.sql",
+        suffix,
+      ),
+    ).toBe(true);
+    expect(
+      hasMigrationSuffix(
+        "20260304050607_better_supabase_module_data_v2-0a1b2c3d.sql",
         suffix,
       ),
     ).toBe(true);

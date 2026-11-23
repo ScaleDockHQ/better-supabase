@@ -152,7 +152,7 @@ declarative_schema_path = "./schemas"
       const synced = (await sql(["sync"])).output;
       expect(synced).toContain("run `better-supabase add --adopt`");
       expect(synced).toMatch(
-        /^Created supabase\/migrations\/\d{14}_better_supabase_extensions_[0-9a-f]{8}\.sql$/m,
+        /^Created supabase\/migrations\/\d{14}_better_supabase_extensions_v2-[0-9a-f]{8}\.sql$/m,
       );
       supabase(root, [
         "db",
@@ -165,7 +165,7 @@ declarative_schema_path = "./schemas"
         "block",
       ]);
       expect((await sql(["data"])).output).toMatch(
-        /^Created supabase\/migrations\/\d{14}_better_supabase_module_data_[0-9a-f]{8}\.sql$/,
+        /^Created supabase\/migrations\/\d{14}_better_supabase_module_data_v2-[0-9a-f]{8}\.sql$/,
       );
 
       const migrations = (
@@ -174,10 +174,10 @@ declarative_schema_path = "./schemas"
 
       expect(migrations).toHaveLength(3);
       expect(migrations[0]).toMatch(
-        /_better_supabase_extensions_[0-9a-f]{8}\.sql$/,
+        /_better_supabase_extensions_v2-[0-9a-f]{8}\.sql$/,
       );
       expect(migrations[2]).toMatch(
-        /_better_supabase_module_data_[0-9a-f]{8}\.sql$/,
+        /_better_supabase_module_data_v2-[0-9a-f]{8}\.sql$/,
       );
 
       const schema = await readFile(

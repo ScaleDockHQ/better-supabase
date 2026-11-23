@@ -8,12 +8,12 @@ import {
   unappliedMigrations,
 } from "../../../src/cli/doctor/migration-safety.ts";
 import { RULE_CODES } from "../../../src/cli/doctor/rules.ts";
-import { splitStatements } from "../../../src/sql/pipeline/split.ts";
 import {
   addNotNullCheck,
   notNullCheckName,
   validateConstraint,
 } from "../../../src/sql/shared.ts";
+import { primeFiles } from "../../helpers/prime-statements.ts";
 
 const migration = (version: string, text: string): TextFile => ({
   path: `supabase/migrations/${version}_change.sql`,
@@ -53,35 +53,12 @@ const run = async (
 ): Promise<string[]> => {
   const rule = MIGRATION_SAFETY_RULES.find((each) => each.code === code);
 
+  await primeFiles(files);
+
   return (await rule!.check(context(files, extra))).map(
     (finding) => finding.message,
   );
 };
-
-describe("splitStatements", () => {
-  it("splits at semicolons outside quotes, dollar quotes and comments", () => {
-    expect(
-      splitStatements(
-        [
-          "-- a comment; with a semicolon",
-          "create table a (x text default 'a;b');",
-          "/* block; /* nested; */ */",
-          "create function f() returns void language plpgsql as $body$",
-          "begin perform 1; end;",
-          "$body$;",
-          'select ";" as "x;y"',
-        ].join("\n"),
-      ),
-    ).toEqual([
-      { text: "create table a (x text default 'a;b')", line: 2 },
-      {
-        text: "create function f() returns void language plpgsql as $body$\nbegin perform 1; end;\n$body$",
-        line: 4,
-      },
-      { text: 'select ";" as "x;y"', line: 7 },
-    ]);
-  });
-});
 
 describe("migration safety", () => {
   it("registers BS229 to BS235", () => {

@@ -6,12 +6,13 @@ import type { BlockSqlExtension, BlockSqlFile } from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
-import {
-  moduleSchemaExtensions,
-  splitStatements,
-  SQL_MODULES,
-} from "../../sql/index.ts";
+import { moduleSchemaExtensions, SQL_MODULES } from "../../sql/index.ts";
 import { changeLines } from "../core/files.ts";
+import {
+  canonicalKey,
+  primeStatements,
+  statementsOf,
+} from "../schema-reader/index.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { readSupabaseConfig, sqlWorkflow } from "../supabase-config.ts";
 import { hasMigrationSuffix } from "./migration-names.ts";
@@ -100,17 +101,23 @@ const DATA_SUFFIX = "_better_supabase_module_data.sql";
 
 const LOCK_TIMEOUT = "set lock_timeout = '5s';";
 
-/** A statement without comments and extra whitespace, the key it is compared by. */
-const normalized = (statement: string): string =>
-  statement.replaceAll(/\s+/g, " ").trim().replace(/;$/, "");
+/**
+ * The key a statement is compared by: the parser's canonical text, so spacing,
+ * keyword case and identifier quoting do not make a statement new (ADR 1301).
+ */
+const normalized = (statement: string): Promise<string> =>
+  canonicalKey(statement);
 
 /** The statements of a migration, comments and the lock timeout left out. */
-const migrationStatements = (sql: string): Set<string> =>
-  new Set(
-    splitStatements(sql)
-      .map((statement) => normalized(statement.text))
-      .filter((text) => text !== normalized(LOCK_TIMEOUT)),
+async function migrationStatements(sql: string): Promise<Set<string>> {
+  const lock = await normalized(LOCK_TIMEOUT);
+
+  const keys = await Promise.all(
+    statementsOf(sql).map((statement) => normalized(statement.text)),
   );
+
+  return new Set(keys.filter((key) => key !== lock));
+}
 
 /**
  * Whether an upgrade step since the version an earlier data migration recorded
@@ -122,7 +129,7 @@ function rerunsData(
 ): boolean {
   const row = new RegExp(
     `\\binsert into better_supabase\\.blocks \\(name, (?:block, )?version, mode\\) values \\('${file.instance ?? file.module}', (?:'[^']*', )?(\\d+),`,
-    "u",
+    "iu",
   );
 
   const versions = [...migrated].flatMap((statement) => {
@@ -153,34 +160,35 @@ interface PendingData {
  * in the migrations folder, so a statement is never written twice and a changed
  * statement is written once more.
  */
-function pendingData(
+async function pendingData(
   files: readonly BlockSqlFile[],
   migrated: ReadonlySet<string>,
-): PendingData[] {
+): Promise<PendingData[]> {
   const seen = new Set(migrated);
+  const lock = await normalized(LOCK_TIMEOUT);
+  const pending: PendingData[] = [];
 
-  return files.flatMap((file): PendingData[] => {
+  for (const file of files) {
     const rerun = rerunsData(file, migrated);
+    const statements: string[] = [];
 
-    const statements = splitStatements(file.contents)
-      .map((statement) => statement.text)
-      .filter((text) => {
-        const key = normalized(text);
+    for (const { text } of statementsOf(file.contents)) {
+      const key = await normalized(text);
 
-        if (
-          key === normalized(LOCK_TIMEOUT) ||
-          (seen.has(key) && !(rerun && migrated.has(key)))
-        ) {
-          return false;
-        }
+      if (key === lock || (seen.has(key) && !(rerun && migrated.has(key)))) {
+        continue;
+      }
 
-        seen.add(key);
+      seen.add(key);
+      statements.push(text);
+    }
 
-        return true;
-      });
+    if (statements.length > 0) {
+      pending.push({ module: file.module, statements });
+    }
+  }
 
-    return statements.length === 0 ? [] : [{ module: file.module, statements }];
-  });
+  return pending;
 }
 
 /**
@@ -245,15 +253,24 @@ export async function dataMigration(
   const latest = dataMigrations.at(-1);
   const migrated = new Set<string>();
 
-  for (const name of dataMigrations) {
-    for (const statement of migrationStatements(
-      await readFile(resolve(config.root, dir, name), "utf-8"),
-    )) {
+  const migrationTexts = await Promise.all(
+    dataMigrations.map((name) =>
+      readFile(resolve(config.root, dir, name), "utf-8"),
+    ),
+  );
+
+  await primeStatements([
+    ...migrationTexts,
+    ...files.map((file) => file.contents),
+  ]);
+
+  for (const text of migrationTexts) {
+    for (const statement of await migrationStatements(text)) {
       migrated.add(statement);
     }
   }
 
-  const pending = pendingData(files, migrated);
+  const pending = await pendingData(files, migrated);
 
   if (pending.length === 0) {
     return {

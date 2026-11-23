@@ -365,11 +365,13 @@ export function adoptNamesCodemod(): Codemod {
         files.push({
           path: resolve(
             dir,
-            migrationFile(
-              existing,
-              new Date(),
-              "_better_supabase_adopt_names.sql",
-              sql,
+            (
+              await migrationFile(
+                existing,
+                new Date(),
+                "_better_supabase_adopt_names.sql",
+                sql,
+              )
             ).name,
           ),
           contents: sql,

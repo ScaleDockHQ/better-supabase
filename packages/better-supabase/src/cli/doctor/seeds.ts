@@ -3,7 +3,8 @@ import { posix } from "node:path";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { PRESET_CATALOG } from "../../preset/index.ts";
-import { ownerOf, resolveBlocks, splitStatements } from "../../sql/index.ts";
+import { ownerOf, resolveBlocks } from "../../sql/index.ts";
+import { statementsOf } from "../schema-reader/index.ts";
 
 /** The first characters of a file `db seed --sample --out` wrote. */
 export const SAMPLE_FILE_MARKER =
@@ -150,7 +151,7 @@ function insertedTables(
   files: readonly { readonly path: string; readonly text: string }[],
 ): { path: string; table: string; line: number; text: string }[] {
   return files.flatMap((file) =>
-    splitStatements(file.text).flatMap((statement) => {
+    statementsOf(file.text).flatMap((statement) => {
       const match = INSERT_TARGET.exec(statement.text);
 
       return match === null
@@ -212,7 +213,7 @@ function seedFunctionWithoutLocale(context: DoctorContext): FindingInput[] {
   return (context.sqlFiles ?? [])
     .filter((file) => !/(?:^|\/)migrations\//.test(file.path))
     .flatMap((file) =>
-      splitStatements(file.text).flatMap((statement): FindingInput[] => {
+      statementsOf(file.text).flatMap((statement): FindingInput[] => {
         const match = SEED_FUNCTION.exec(statement.text);
 
         if (match === null) {
@@ -330,7 +331,7 @@ function dataInSchemaFiles(context: DoctorContext): FindingInput[] {
         ownerOf(file.path, file.text).kind === "app",
     )
     .flatMap((file) =>
-      splitStatements(file.text).flatMap((statement): FindingInput[] => {
+      statementsOf(file.text).flatMap((statement): FindingInput[] => {
         const table = SCHEMA_DATA.exec(statement.text)?.[1];
 
         if (table === undefined || !held.has(tableKey(table))) {

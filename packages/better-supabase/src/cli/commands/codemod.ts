@@ -547,11 +547,13 @@ async function runWithSymbols(
       path: resolve(
         config.root,
         dir,
-        migrationFile(
-          existing,
-          new Date(),
-          `_better_supabase_${codemod.name}.sql`,
-          sql,
+        (
+          await migrationFile(
+            existing,
+            new Date(),
+            `_better_supabase_${codemod.name}.sql`,
+            sql,
+          )
         ).name,
       ),
       contents: sql,

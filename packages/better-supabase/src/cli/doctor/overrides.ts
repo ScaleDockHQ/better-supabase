@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { ownerOf, splitStatements } from "../../sql/index.ts";
+import { ownerOf } from "../../sql/index.ts";
+import { statementsOf } from "../schema-reader/index.ts";
 
 const IDENT = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
 
@@ -79,7 +80,7 @@ function moduleFunctions(
   return files
     .filter((file) => ownerOf(file.path, file.text).kind === "module")
     .flatMap((file) =>
-      splitStatements(file.text)
+      statementsOf(file.text)
         .map((statement) => statement.text)
         .filter((text) => {
           const declared = FUNCTION_START.exec(

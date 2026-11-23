@@ -1,6 +1,6 @@
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { splitStatements } from "../../sql/index.ts";
+import { statementsOf } from "../schema-reader/index.ts";
 
 const ARM = /when\s+'([a-z0-9_]+)'\s+then/giu;
 
@@ -34,7 +34,7 @@ function armsByFunction(
   const found = new Map<string, readonly string[]>();
 
   for (const file of files) {
-    for (const statement of splitStatements(file.text)) {
+    for (const statement of statementsOf(file.text)) {
       const name = createdFunction(statement.text);
       const arms = name === undefined ? [] : dispatchArms(statement.text);
 

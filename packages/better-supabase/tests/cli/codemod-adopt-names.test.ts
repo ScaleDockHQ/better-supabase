@@ -227,7 +227,9 @@ describe("adoptNamesCodemod", () => {
       ["seats.sql", "edit"],
       ["better-supabase.config.ts", "edit"],
       [
-        expect.stringMatching(/_better_supabase_adopt_names_[0-9a-f]+\.sql$/u),
+        expect.stringMatching(
+          /_better_supabase_adopt_names(?:_v2)?[-_][0-9a-f]+\.sql$/u,
+        ),
         "create",
       ],
     ]);

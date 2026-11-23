@@ -39,12 +39,14 @@ export async function writeMigration(
     ];
 
     const path = `${options.dir}/${
-      migrationFile(
-        names,
-        options.now(),
-        options.suffix,
-        options.contents,
-        options.reuse ?? true,
+      (
+        await migrationFile(
+          names,
+          options.now(),
+          options.suffix,
+          options.contents,
+          options.reuse ?? true,
+        )
       ).name
     }`;
 

@@ -12,6 +12,7 @@ import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
+import { primeFiles } from "../../helpers/prime-statements.ts";
 import { moduleSnapshotFixture as fixture } from "../fixtures/library.ts";
 
 const base = await parseSnapshot(fixture);
@@ -48,11 +49,14 @@ const context = (
   ...extra,
 });
 
-const run = (ctx: DoctorContext, code: string) =>
-  runRules(
+const run = async (ctx: DoctorContext, code: string) => {
+  await primeFiles(ctx.sqlFiles ?? []);
+
+  return runRules(
     ctx,
     RULES.filter((rule) => rule.code === code),
   );
+};
 
 const trigger = (name: string, fn = "better_supabase.fn") => ({
   name,
@@ -830,10 +834,13 @@ describe("BS393 import batches near the statement timeout", () => {
 describe("BS628 list cursor indexes", () => {
   const rule = RULES.find((entry) => entry.code === "BS628");
 
-  const check = (text: string) =>
-    rule!.check({
+  const check = async (text: string) => {
+    await primeFiles([{ text }]);
+
+    return rule!.check({
       sqlFiles: [{ path: "supabase/schemas/app.sql", text }],
     } as unknown as DoctorContext);
+  };
 
   it("flags a list ordered by created_at and id without an index", async () => {
     const findings = await check(`
