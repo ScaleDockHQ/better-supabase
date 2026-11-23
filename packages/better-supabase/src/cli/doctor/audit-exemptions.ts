@@ -1,8 +1,7 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { tenantNameOf } from "../../config/index.ts";
-import { blockTables } from "../../sql/block-tables.ts";
-import { auditExemptTag } from "../../sql/index.ts";
+import { auditExemptTag, blockTables } from "../../sql/index.ts";
 import { errorText } from "../core/errors.ts";
 import { exemptions, globs, moduleOwned } from "./audit-coverage.ts";
 import { ident as sqlIdent, literal as sqlString } from "./live.ts";

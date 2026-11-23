@@ -3072,6 +3072,48 @@ exemption shows when they stopped. The JSON report carries the same rows, one
 finding each. Review the list when a table's purpose changes. Needs a database;
 saved snapshots skip it.
 
+### BS641
+
+**Info: many policies for one command.** Postgres evaluates every permissive
+policy (or-ed together) and every restrictive policy (and-ed) of a command for
+each row, so each policy adds a condition to every query on the table. Doctor
+reports a table and command with more than `doctor.policies.max` policies for
+`authenticated` (default 4) and lists each with its kind and origin: `library`
+for `bsb_` policies and block tables, `provider` when it calls a function of
+the authorization provider, and `app` otherwise. The library adds one
+restrictive guard and one permissive grant per command, so a long list usually
+points at provider or app policies to fold into fewer conditions:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ doctor: { policies: { max: 6 } } });
+```
+
+### BS642
+
+**Info: an index leads with an enum column on an RLS table.** Postgres marks
+`enum_eq` as not leakproof (checked on Postgres 17.6), so on a table with RLS
+it can't use `where status = 'open'` as an index condition before the policies
+pass, and the query filters after a wider scan. `text` and `uuid` comparisons
+are leakproof. Store the value as `text` with a check constraint, the way every
+block does:
+
+```sql
+status text not null check (status in ('open', 'paid', 'void'))
+```
+
+Marking `enum_eq` leakproof needs a superuser, which Supabase doesn't grant, so
+the library ships no helper for it.
+
+### BS643
+
+**Info: functions by caller.** One finding per schema with how many of its
+functions a policy calls, a trigger runs, `anon` or `authenticated` may execute
+(app RPC), only `service_role` may execute (service only), or nothing names
+(unreferenced). [`config functions --all`](/docs/cli/config#list-the-functions)
+lists each one. An unreferenced function may still be called by another
+function, so doctor drops nothing. Snapshots saved before 0.85 have no
+inventory and skip the rule.
+
 ### BS633
 
 **Info: an app row trigger has no `importing()` guard.** An import writes many

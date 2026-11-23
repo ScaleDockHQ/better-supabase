@@ -3845,6 +3845,15 @@
             "policyHelperLimit": {
               "type": "number"
             },
+            "policies": {
+              "type": "object",
+              "properties": {
+                "max": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            },
             "parallelReads": {
               "type": "number"
             },
@@ -5414,6 +5423,7 @@
                 "type": "boolean",
                 "default": false
               },
+              "retention": {},
               "staffClaim": {
                 "type": "string"
               },
@@ -6603,7 +6613,8 @@
               "events": {},
               "audit": {
                 "type": "string"
-              }
+              },
+              "chunks": {}
             }
           }
         }

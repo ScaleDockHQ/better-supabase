@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/better-supabase/schemas/config-functions-v1.json",
+  "title": "better-supabase config functions",
+  "description": "Output of `better-supabase config functions --json`: every function of the read schemas with its caller class, and the counts per schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "counts", "functions"],
+  "$defs": {
+    "caller": {
+      "enum": ["policy", "trigger", "app RPC", "service only", "unreferenced"]
+    }
+  },
+  "properties": {
+    "version": { "const": 1 },
+    "counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "policy",
+          "trigger",
+          "app RPC",
+          "service only",
+          "unreferenced"
+        ],
+        "properties": {
+          "policy": { "type": "integer" },
+          "trigger": { "type": "integer" },
+          "app RPC": { "type": "integer" },
+          "service only": { "type": "integer" },
+          "unreferenced": { "type": "integer" }
+        }
+      }
+    },
+    "functions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schema", "name", "signature", "caller"],
+        "properties": {
+          "schema": { "type": "string" },
+          "name": { "type": "string" },
+          "signature": { "type": "string" },
+          "caller": { "$ref": "#/$defs/caller" }
+        }
+      }
+    }
+  }
+}

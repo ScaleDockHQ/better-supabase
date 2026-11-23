@@ -20,6 +20,7 @@ writes the trigger, function and table changes below.
 | [Import chunks](#import-chunks)                   | Finish a run only when every chunk is done; read `result`, not `items` |
 | [Open items](#open-items)                         | Filter `invoice_open_items` on `document_type` if you query it         |
 | [Audit retention](#audit-retention)               | Optional: set `retention` so `maintenance()` purges the log            |
+| [Doctor rules](#doctor-rules)                     | None; set `doctor.policies.max` to move the BS641 limit                |
 
 ## Provider fields
 
@@ -114,3 +115,13 @@ Nothing changes until you set `blocks.audit.options.retention`. With
 `maintenance()` purges entries past a year every hour. If you scheduled
 `purge_audit_log` yourself, remove that job once `maintenance()` runs, or keep
 it and leave `retention` unset. See [Retention](/docs/blocks/audit#retention).
+
+## Doctor rules
+
+Doctor prints three new information rules (ADR 1216). BS641 lists a table with
+more than four policies for one command, with each policy's origin, and
+`doctor.policies.max` moves the limit. BS642 names an index that leads with an
+enum column on a table with RLS. BS643 counts the functions per schema by
+caller, and `better-supabase config functions --all` lists them. Run
+`better-supabase gen --save-snapshot` once so an offline doctor has the
+function inventory.

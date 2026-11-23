@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { ResolvedConfig } from "../../src/config/index.ts";
 
 import { resolveConfig } from "../../src/config/index.ts";
-import { listAccessPolicies, listActions } from "../../src/sql/listings.ts";
+import {
+  functionCounts,
+  listAccessPolicies,
+  listActions,
+  listFunctions,
+} from "../../src/sql/listings.ts";
 import { renderTagBlock } from "../../src/sql/tag-statements.ts";
 
 function configWith(
@@ -123,5 +128,53 @@ describe("listAccessPolicies", () => {
     expect(
       listAccessPolicies(configWith(undefined), [comment("@bsb audit")]),
     ).toEqual([]);
+  });
+});
+
+describe("listFunctions", () => {
+  const fn = (
+    name: string,
+    over: { execute?: string[]; policy?: boolean; trigger?: boolean } = {},
+  ) => ({
+    schema: name.startsWith("app_") ? "public" : "better_supabase",
+    name,
+    signature: "",
+    execute: over.execute ?? [],
+    policy: over.policy ?? false,
+    trigger: over.trigger ?? false,
+  });
+
+  it("gives each function one caller class, policy first", () => {
+    const listing = listFunctions([
+      fn("can", { policy: true, execute: ["authenticated"] }),
+      fn("touch", { trigger: true }),
+      fn("app_rpc", { execute: ["authenticated", "service_role"] }),
+      fn("purge", { execute: ["service_role"] }),
+      fn("helper"),
+    ]);
+
+    expect(listing.map((row) => [row.name, row.caller])).toEqual([
+      ["can", "policy"],
+      ["touch", "trigger"],
+      ["app_rpc", "app RPC"],
+      ["purge", "service only"],
+      ["helper", "unreferenced"],
+    ]);
+    expect(functionCounts(listing)).toEqual({
+      better_supabase: {
+        policy: 1,
+        trigger: 1,
+        "app RPC": 0,
+        "service only": 1,
+        unreferenced: 1,
+      },
+      public: {
+        policy: 0,
+        trigger: 0,
+        "app RPC": 1,
+        "service only": 0,
+        unreferenced: 0,
+      },
+    });
   });
 });

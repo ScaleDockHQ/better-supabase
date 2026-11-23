@@ -1280,12 +1280,12 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     const text = await readFile(path, "utf-8");
     await writeFile(
       path,
-      text.replace("-- @bsb-block invoices@3", "-- @bsb-block invoices@2"),
+      text.replace("-- @bsb-block invoices@4", "-- @bsb-block invoices@2"),
     );
 
     const done = await sql(["upgrade"], config);
     expect(done.code).toBe(0);
-    expect(done.output).toContain("invoices: version 2 to 3");
+    expect(done.output).toContain("invoices: version 2 to 4");
     expect(done.output).toContain(
       "The delivery log is e_invoice_deliveries (ADR 0206).",
     );
@@ -1303,7 +1303,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(migration).toContain(
       'alter table "better_supabase"."invoice_e_deliveries" rename to "e_invoice_deliveries"',
     );
-    expect(migration).not.toMatch(/\bdrop\b/i);
+    expect(migration).not.toMatch(/\bdrop table\b/i);
   });
 
   it("renames an installed block's tables when blocks.<name>.entities changes", async () => {

@@ -331,9 +331,15 @@ export interface ResolvedConfig {
     readonly manifest?: string;
   };
   readonly doctor: Required<
-    Omit<DoctorConfig, "claimsLimit" | "file" | "migrationSafety" | "baseline">
+    Omit<
+      DoctorConfig,
+      "claimsLimit" | "file" | "migrationSafety" | "baseline" | "policies"
+    >
   > &
-    Pick<DoctorConfig, "claimsLimit" | "file" | "migrationSafety" | "baseline">;
+    Pick<
+      DoctorConfig,
+      "claimsLimit" | "file" | "migrationSafety" | "baseline"
+    > & { readonly policies: { readonly max: number } };
   /**
    * `tasks` stays unset without a list, so `gen` picks the steps the project
    * uses.

@@ -1,6 +1,6 @@
 import type { FindingInput, Rule } from "./rules.ts";
 
-import { blockFunction, blockTables } from "../../sql/block-tables.ts";
+import { blockFunction, blockTables } from "../../sql/index.ts";
 import { errorText } from "../core/errors.ts";
 import { ident as sqlIdent, literal as sqlString } from "./live.ts";
 

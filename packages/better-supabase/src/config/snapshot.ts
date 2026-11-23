@@ -65,6 +65,12 @@ export interface SnapshotExtras {
    */
   readonly functionComments?: Readonly<Record<string, string>>;
   /**
+   * Every function in the read schemas that no extension owns, with who may
+   * call it and whether a policy or a trigger does, for `config functions` and
+   * doctor BS643. Absent in older snapshots.
+   */
+  readonly functionInventory?: readonly InventoryFunction[];
+  /**
    * Comments of the columns of views and materialized views in the read
    * schemas, by `schema.view` and then column. Absent in version 2 snapshots
    * and when no view column has a comment.
@@ -120,6 +126,20 @@ export interface ExtrasHookFunction extends ExtrasFunction {
   readonly schemaUsage: readonly string[];
   /** The function body (`pg_proc.prosrc`). Absent in snapshots that predate it. */
   readonly source?: string;
+}
+
+/** A function of the read schemas, with what calls it. */
+export interface InventoryFunction {
+  readonly schema: string;
+  readonly name: string;
+  /** Identity arguments, e.g. `organization uuid`. */
+  readonly signature: string;
+  /** Which of `anon`, `authenticated` and `service_role` may execute it. */
+  readonly execute: readonly string[];
+  /** A policy expression calls it. */
+  readonly policy: boolean;
+  /** It returns `trigger` or a trigger runs it. */
+  readonly trigger: boolean;
 }
 
 /** A function as doctor needs it for RLS checks, in any schema. */

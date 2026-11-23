@@ -2571,6 +2571,14 @@
     "message": "Support sessions are read-only (blocks.impersonation.options.allowWrites)"
   },
   {
+    "code": "IMPORT_CHUNK_FAILED",
+    "message": "chunk "
+  },
+  {
+    "code": "IMPORT_CHUNKS_OPEN",
+    "message": "the import has chunks that are not done"
+  },
+  {
     "code": "IMPORT_CREDIT_WITHOUT_ORIGINAL",
     "message": "a negative total has no original invoice, so it stays an invoice"
   },

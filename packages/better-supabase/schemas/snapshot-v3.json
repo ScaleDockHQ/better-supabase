@@ -976,6 +976,33 @@
             "type": "string"
           }
         },
+        "functionInventory": {
+          "description": "Every function in the read schemas that no extension owns, with who may call it, for config functions and doctor BS643.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schema",
+              "name",
+              "signature",
+              "execute",
+              "policy",
+              "trigger"
+            ],
+            "properties": {
+              "schema": { "type": "string" },
+              "name": { "type": "string" },
+              "signature": { "type": "string" },
+              "execute": {
+                "type": "array",
+                "items": { "enum": ["anon", "authenticated", "service_role"] }
+              },
+              "policy": { "type": "boolean" },
+              "trigger": { "type": "boolean" }
+            }
+          }
+        },
         "domains": {
           "type": "array",
           "items": {
