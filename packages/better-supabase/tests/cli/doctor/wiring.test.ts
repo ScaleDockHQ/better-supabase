@@ -121,8 +121,10 @@ describe("BS505", () => {
             {
               path: "src/lib/supabase/providers.ts",
               text: [
-                '  "mail-sync": blocks["mail-sync"].with({',
+                "export const providers = {",
+                '  "mail-sync": blocks["mail-sync"].with({}),',
                 "  leads: blocks.leads.using((options) => createEnrichment(options)),",
+                "};",
               ].join("\n"),
             },
           ],
@@ -131,6 +133,30 @@ describe("BS505", () => {
     );
 
     expect(findings).toEqual([]);
+  });
+});
+
+describe("BS505 reads the syntax tree", () => {
+  it("does not count a comment, a string or a call in the chain", async () => {
+    const findings = await rule("BS505").check(
+      context(
+        { leads: "enrichment" },
+        {
+          sources: [
+            {
+              path: "src/a.ts",
+              text: [
+                "// leads: blocks.leads.with({})",
+                'const note = "leads: blocks.leads.with({})";',
+                "export const a = { leads: make().with({}) };",
+              ].join("\n"),
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(findings).toHaveLength(1);
   });
 });
 
@@ -157,6 +183,32 @@ describe("BS507", () => {
     );
 
     expect(registered).toEqual([]);
+  });
+});
+
+describe("BS507 and BS508 read the syntax tree", () => {
+  const comment = {
+    path: "route.ts",
+    text: [
+      "// createActionRegistry([...blockActions(blocks)]); blockTickHandler(blocks)",
+      'const note = "blockActions( blockTickHandler";',
+      "export { note };",
+    ].join("\n"),
+  };
+
+  it("ignores a comment and a string", async () => {
+    expect(
+      await rule("BS507").check(
+        context({ tasks: "tasks" }, { sources: [comment] }),
+      ),
+    ).toHaveLength(1);
+    expect(
+      (
+        await rule("BS508").check(
+          context({ cases: "cases" }, { sources: [comment] }),
+        )
+      ).length,
+    ).toBeGreaterThan(0);
   });
 });
 
@@ -248,6 +300,29 @@ revoke all on function better_supabase.maintenance_schedule(text) from public;`;
   });
 });
 
+describe("BS510 reads the app sources as a tree", () => {
+  it("does not count a comment that names maintenanceTick", async () => {
+    const findings = await rule("BS510").check(
+      context(
+        {},
+        {
+          sqlFiles: [
+            {
+              path: "a.sql",
+              text: "create view better_supabase.maintenance_jobs as select 1;",
+            },
+          ],
+          sources: [
+            { path: "route.ts", text: "// maintenanceTick(rpc)\nexport {};" },
+          ],
+        },
+      ),
+    );
+
+    expect(findings).toHaveLength(1);
+  });
+});
+
 describe("BS511", () => {
   const run = (text: string) =>
     rule("BS511").check(
@@ -265,6 +340,28 @@ describe("BS511", () => {
         '"use client";\nimport { defineBlocks } from "x";\ndefineBlocks(a, b);',
       ),
     ).toHaveLength(1);
+  });
+
+  it("ignores a directive, an import and a call in comments and strings", async () => {
+    expect(
+      await run(
+        [
+          '// "use client"',
+          'import { blocks } from "@/lib/supabase/blocks.generated";',
+        ].join("\n"),
+      ),
+    ).toHaveLength(0);
+    expect(
+      await run(
+        [
+          '"use client";',
+          '// import { blocks } from "@/lib/supabase/blocks.generated";',
+          'const text = "defineBlocks(a)";',
+          "api.defineBlocks(a);",
+          "export { text };",
+        ].join("\n"),
+      ),
+    ).toHaveLength(0);
   });
 
   it("accepts blocks.config and server files", async () => {

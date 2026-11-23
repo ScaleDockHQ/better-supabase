@@ -391,7 +391,10 @@ describe("BS260", () => {
     const findings = await rule.check({
       config: { blocks: {} },
       sources: [
-        { path: "a.ts", text: "const s = buildApiModel(x);\n" },
+        {
+          path: "a.ts",
+          text: 'import { buildApiModel } from "better-supabase";\nconst s = buildApiModel(x);\n',
+        },
         { path: "b.ts", text: "const s = defineApiModel(x);\n" },
         { path: "c.ts", text: "process.env.BSB_STACK\n" },
       ],
@@ -414,6 +417,51 @@ describe("BS260", () => {
       target: "a.ts",
       location: { file: "a.ts", line: 1 },
     });
+  });
+
+  it("leaves a local function of the same name alone", async () => {
+    expect(
+      await rule.check({
+        config: { blocks: {} },
+        sources: [{ path: "a.ts", text: "const s = buildApiModel(x);\n" }],
+      } as never),
+    ).toEqual([]);
+  });
+});
+
+describe("BS260 reads what the codemod changes", () => {
+  const rule = NAMING_RENAME_RULES[0]!;
+
+  it("ignores an old name in a comment or a longer string", async () => {
+    const findings = await rule.check({
+      config: { blocks: {} },
+      sources: [
+        {
+          path: "a.ts",
+          text: [
+            "// buildApiModel(x) was renamed",
+            'const note = "call buildApiModel(x) and BSB_STACK";',
+            "export { note };",
+          ].join("\n"),
+        },
+      ],
+    } as never);
+
+    expect(findings).toEqual([]);
+  });
+
+  it("names the line of the first change", async () => {
+    const findings = await rule.check({
+      config: { blocks: {} },
+      sources: [
+        {
+          path: "a.ts",
+          text: '// buildApiModel\nimport { buildApiModel } from "better-supabase";\nconst s = buildApiModel(x);\n',
+        },
+      ],
+    } as never);
+
+    expect(findings).toMatchObject([{ location: { file: "a.ts", line: 2 } }]);
   });
 });
 

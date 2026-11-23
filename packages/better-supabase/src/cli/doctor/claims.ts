@@ -2,9 +2,8 @@ import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { providerLabel } from "../authorization.ts";
 import { configuredHooks, isProviderHook, signatureOf } from "./hooks.ts";
-import { catalogOf, lineOf } from "./shared.ts";
-
-const PERMISSIONS_AUTHORIZER = /\bpermissionsAuthorizer\s*\(/;
+import { catalogOf } from "./shared.ts";
+import { firstCallLine } from "./tree.ts";
 
 const MODULE_VERSION = /better_supabase\s*\.\s*authz_version\s*\(/i;
 
@@ -34,7 +33,9 @@ function claimGaps(context: DoctorContext): FindingInput[] {
     : `doesn't mark ${incomplete.join(", ")} sqlComplete, so the permissions claim leaves ${incomplete.length === 1 ? "it" : "them"} out`;
 
   return context.sources.flatMap((file) => {
-    if (!PERMISSIONS_AUTHORIZER.test(file.text)) {
+    const line = firstCallLine(file.text, "permissionsAuthorizer");
+
+    if (line === undefined) {
       return [];
     }
 
@@ -42,10 +43,7 @@ function claimGaps(context: DoctorContext): FindingInput[] {
       {
         message: `${file.path} decides with permissionsAuthorizer, but ${providerLabel(provider)} ${missing}. Those checks are denied unless \`load\` asks the database. Mark the keys sqlComplete when the SQL functions answer for them, or pass \`load\` (my_permissions).`,
         target: `${file.path}:permissionsAuthorizer`,
-        location: {
-          file: file.path,
-          line: lineOf(file.text, PERMISSIONS_AUTHORIZER) ?? 1,
-        },
+        location: { file: file.path, line },
       },
     ];
   });

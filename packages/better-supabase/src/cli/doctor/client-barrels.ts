@@ -3,14 +3,10 @@ import { posix } from "node:path";
 import type { Rule } from "./rules.ts";
 
 import { schemaModulePath } from "../gen/emit.ts";
-import { lineOf } from "./shared.ts";
+import { hasDirective, moduleSpecifiers } from "./tree.ts";
 
-/** A `"use client"` directive as the first statement, after comments. */
-const USE_CLIENT =
-  /^\s*(?:(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/)\s*)*["']use client["']/;
-
-const SPECIFIER =
-  /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(["'])(\.{1,2}\/[^"']+|@\/[^"']+|~\/[^"']+)\1/g;
+/** A relative or aliased specifier; a package never is a generated barrel. */
+const LOCAL_SPECIFIER = /^(?:\.{1,2}\/|@\/|~\/)/;
 
 const stem = (specifier: string): string =>
   posix.basename(specifier).replace(/\.[cm]?[jt]sx?$/, "");
@@ -42,23 +38,20 @@ export const CLIENT_BARREL_RULES: readonly Rule[] = [
       ]);
 
       return context.sources
-        .filter((file) => USE_CLIENT.test(file.text))
+        .filter((file) => hasDirective(file.text, "use client"))
         .flatMap((file) =>
-          [...file.text.matchAll(SPECIFIER)]
-            .filter((match) => barrels.has(stem(match[2]!)))
-            .map((match) => ({
-              message: `${file.path} is a client file and imports \`${stem(match[2]!)}\`, which holds every ${stem(match[2]!).startsWith("blocks") ? "block" : "table"}. Import the table modules or block slices it uses instead.`,
-              target: `${file.path}:${stem(match[2]!)}`,
-              location: {
-                file: file.path,
-                line: lineOf(file.text, new RegExp(escape(match[2]!))) ?? 1,
-              },
+          moduleSpecifiers(file.text)
+            .filter(
+              (site) =>
+                LOCAL_SPECIFIER.test(site.specifier) &&
+                barrels.has(stem(site.specifier)),
+            )
+            .map((site) => ({
+              message: `${file.path} is a client file and imports \`${stem(site.specifier)}\`, which holds every ${stem(site.specifier).startsWith("blocks") ? "block" : "table"}. Import the table modules or block slices it uses instead.`,
+              target: `${file.path}:${stem(site.specifier)}`,
+              location: { file: file.path, line: site.line },
             })),
         );
     },
   },
 ];
-
-function escape(text: string): string {
-  return text.replaceAll(/[.*+?^${}()|[\]\\/]/g, String.raw`\$&`);
-}

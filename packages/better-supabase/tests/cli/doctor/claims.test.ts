@@ -53,6 +53,41 @@ describe("BS419", () => {
     ]);
   });
 
+  it("ignores a comment, a string and a mention without a call", () => {
+    const text = [
+      "// permissionsAuthorizer(options) is described in the docs",
+      'const note = "permissionsAuthorizer(";',
+      "const alias = permissionsAuthorizer;",
+      "export { alias, note };",
+    ].join("\n");
+
+    expect(check(stubProvider, [{ path: "src/note.ts", text }])).toEqual([]);
+  });
+
+  it("reports the line of a member call", () => {
+    const [rule] = CLAIM_RULES;
+
+    const config = resolveConfig(
+      { auth: { authorization: stubProvider } },
+      "/project",
+    );
+
+    const findings = rule?.check({
+      config,
+      sources: [
+        {
+          path: "src/a.ts",
+          text: "// c\nexport const a = blocks.permissionsAuthorizer({});",
+        },
+      ],
+      // SAFETY: BS419 reads only `config` and `sources`.
+    } as unknown as DoctorContext);
+
+    expect(findings).toEqual([
+      expect.objectContaining({ location: { file: "src/a.ts", line: 2 } }),
+    ]);
+  });
+
   it("skips complete providers, no provider and files without the authorizer", () => {
     const complete: AuthorizationProvider = {
       ...stubProvider,

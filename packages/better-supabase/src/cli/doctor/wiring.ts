@@ -2,6 +2,14 @@ import type { WiringProvider } from "../wiring.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { configInstances, wiringFor } from "../wiring.ts";
+import {
+  callsAny,
+  hasDirective,
+  hasWiredProperty,
+  mentionsExactly,
+  mentionsName,
+  moduleSpecifiers,
+} from "./tree.ts";
 
 /** The view the housekeeping module creates. */
 const MAINTENANCE_JOBS = /\bmaintenance_jobs\b/u;
@@ -11,8 +19,10 @@ const MAINTENANCE_SCHEDULED =
   /\bmaintenance_schedule\s*\(\s*(?:\)|')|cron\.schedule\s*\(\s*'[^'%][^;]*\bmaintenance\s*\(/u;
 
 /** The tick handler, or an app call of the dispatcher. */
-const MAINTENANCE_SOURCE =
-  /\bmaintenanceTick\b|["']maintenance(?:_schedule)?["']/u;
+const maintenanceSource = (text: string): boolean =>
+  ["maintenanceTick", "maintenance", "maintenance_schedule"].some((name) =>
+    mentionsExactly(text, name),
+  );
 
 const ENV_KEY = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/;
 
@@ -31,44 +41,21 @@ function listedKeys(files: readonly TextFile[]): Set<string> {
 const camel = (name: string): string =>
   name.replaceAll(/-([a-z0-9])/g, (_, letter: string) => letter.toUpperCase());
 
-const escape = (text: string): string =>
-  text.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
 /**
- * Whether a source line outside a comment passes the instance a provider:
- * `enrichment: blocks.enrichment.with({ provider })` or `.using(...)`.
+ * Whether code outside a comment passes the instance a provider: `enrichment:
+ * blocks.enrichment.with({ provider })` or `.using(...)`.
  */
 function wired(sources: readonly TextFile[], entry: WiringProvider): boolean {
-  const keys = [...new Set([entry.instance, camel(entry.instance)])].map(
-    escape,
-  );
+  const keys = [...new Set([entry.instance, camel(entry.instance)])];
 
-  const pattern = new RegExp(
-    `(?:^|[\\s{,])["']?(?:${keys.join("|")})["']?\\s*:\\s*[\\w$.\\[\\]"'-]*\\.(?:with|using)\\(`,
-  );
-
-  return sources.some((file) =>
-    file.text.split("\n").some((line) => {
-      const code = line.trim();
-
-      return (
-        !code.startsWith("//") && !code.startsWith("*") && pattern.test(code)
-      );
-    }),
-  );
+  return sources.some((file) => hasWiredProperty(file.text, keys));
 }
-
-const USE_CLIENT =
-  /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/))*\s*["']use client["']/u;
 
 /**
  * A static import of the server wiring: the generated block modules or
  * `providers.ts`.
  */
-const SERVER_WIRING_IMPORT =
-  /\bfrom\s+["'][^"']*\/(?:blocks\.generated|providers)(?:\.ts)?["']/gu;
-
-const DEFINE_BLOCKS_CALL = /(?:^|[^.\w])defineBlocks\s*\(/mu;
+const SERVER_WIRING_IMPORT = /\/(?:blocks\.generated|providers)(?:\.ts)?$/u;
 
 const PG_NET = /\bcreate\s+extension\s+(?:if\s+not\s+exists\s+)?"?pg_net\b/iu;
 
@@ -260,7 +247,7 @@ export const WIRING_RULES: readonly Rule[] = [
       // sources to read, it stays required.
       const unread = (key: string): boolean =>
         context.sources.length > 0 &&
-        !context.sources.some((file) => file.text.includes(key));
+        !context.sources.some((file) => mentionsName(file.text, key));
 
       return plan.env
         .filter(
@@ -309,16 +296,7 @@ export const WIRING_RULES: readonly Rule[] = [
       }
 
       const registered = context.sources.some((file) =>
-        file.text.split("\n").some((line) => {
-          const code = line.trim();
-
-          return (
-            !code.startsWith("//") &&
-            !code.startsWith("*") &&
-            (code.includes("blockActions(") ||
-              code.includes("createActionRegistry("))
-          );
-        }),
+        callsAny(file.text, ["blockActions", "createActionRegistry"]),
       );
 
       return registered
@@ -345,15 +323,7 @@ export const WIRING_RULES: readonly Rule[] = [
       }
 
       const handled = context.sources.some((file) =>
-        file.text.split("\n").some((line) => {
-          const code = line.trim();
-
-          return (
-            !code.startsWith("//") &&
-            !code.startsWith("*") &&
-            code.includes("blockTickHandler")
-          );
-        }),
+        mentionsExactly(file.text, "blockTickHandler"),
       );
 
       return handled
@@ -382,7 +352,7 @@ export const WIRING_RULES: readonly Rule[] = [
 
       const scheduled =
         sql.some((file) => MAINTENANCE_SCHEDULED.test(file.text)) ||
-        context.sources.some((file) => MAINTENANCE_SOURCE.test(file.text));
+        context.sources.some((file) => maintenanceSource(file.text));
 
       return scheduled
         ? []
@@ -403,13 +373,18 @@ export const WIRING_RULES: readonly Rule[] = [
       "A `use client` module imports `blocks.generated` or `providers.ts`, or calls `defineBlocks`, so every installed block client lands in the browser bundle. Import `blockConfig` from `blocks.config.ts` instead, and list the blocks the browser needs in `gen.clientBlocks` (they come from `blocks.client.ts`).",
     check: (context) =>
       context.sources.flatMap((file) => {
-        if (!USE_CLIENT.test(file.text)) {
+        if (!hasDirective(file.text, "use client")) {
           return [];
         }
 
-        const imports = [...file.text.matchAll(SERVER_WIRING_IMPORT)];
+        const imports = moduleSpecifiers(file.text).filter((site) =>
+          SERVER_WIRING_IMPORT.test(site.specifier),
+        );
 
-        if (imports.length === 0 && !DEFINE_BLOCKS_CALL.test(file.text)) {
+        if (
+          imports.length === 0 &&
+          !callsAny(file.text, ["defineBlocks"], true)
+        ) {
           return [];
         }
 

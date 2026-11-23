@@ -4595,6 +4595,33 @@ describe("Supabase Lite gaps (BS328, BS329)", () => {
     }
   });
 
+  it("reads the tree: a comment or a string is not a call", async () => {
+    const quiet = {
+      path: "src/quiet.ts",
+      text: [
+        '// await bsb.$rpc("note_count"); supabase.channel("a")',
+        "const note = \"supabase.functions.invoke('send') .rpc(\";",
+        "export { note };",
+      ].join("\n"),
+    };
+
+    expect(
+      await run(
+        "BS328",
+        context(base, {
+          configToml: lite("sqlite-postgres"),
+          sources: [quiet],
+        }),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS329",
+        context(base, { configToml: lite("pglite"), sources: [quiet] }),
+      ),
+    ).toEqual([]);
+  });
+
   it("reports Realtime and Edge Functions on any Lite driver", async () => {
     const findings = await run(
       "BS329",
