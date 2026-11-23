@@ -1035,7 +1035,7 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 7,
+  version: 8,
   upgrades: [
     {
       from: 1,
@@ -1060,6 +1060,12 @@ export const WORK_ITEMS: BlockSqlDefinition = {
       description:
         "delegate_task takes to_profile and reserves the task for that profile of the user (ADR 1183). delegate_profile held the delegator's label at version 6, so its values are cleared.",
       sql: (ctx) => upgradeFromSix(ctx),
+    },
+    {
+      from: 7,
+      description:
+        "Adds options.claims.agents, which names the sessions the claim rules treat as agents, approval rules per hold kind in options.hold.approval.kinds, and the waiting list filter (ADR 1219).",
+      sql: () => "",
     },
   ],
   names: NAMES,

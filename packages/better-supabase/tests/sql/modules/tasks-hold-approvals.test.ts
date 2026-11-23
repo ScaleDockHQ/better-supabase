@@ -42,6 +42,86 @@ describe("tasks hold approvals", () => {
     expect(approvals).not.toContain("settle_task_hold(");
   });
 
+  it("files each kind with its own policy and decides a rejection by kind", () => {
+    const options = layout(
+      {
+        onReject: "keep",
+        kinds: {
+          decision: true,
+          spend: {
+            policy: {
+              steps: [{ approvers: { permission: "finance.approve" } }],
+            },
+            onReject: "cancel",
+          },
+        },
+      },
+      { kinds: ["input", "decision", "spend"] },
+    );
+
+    const tasks = sql("tasks", options, ["approvals", "outbox"]);
+    const approvals = sql("approvals", options, ["tasks"]);
+
+    expect(tasks).toContain("if hold_task.kind = any(array['decision']) then");
+    expect(tasks).toContain("elsif hold_task.kind = any(array['spend']) then");
+    expect(tasks).toContain("finance.approve");
+    expect(tasks).not.toContain("array['input']");
+    expect(tasks).toMatch(/"hold_kind" = any \(array\['spend'\]::text\[\]\)/u);
+    expect(approvals).toContain("'reject'");
+  });
+
+  it("keeps one rejection outcome when every kind shares it", () => {
+    const approvals = sql(
+      "approvals",
+      layout({ kinds: { decision: true, spend: { onReject: "cancel" } } }),
+      ["tasks"],
+    );
+
+    expect(approvals).toContain("'cancel'");
+    expect(approvals).not.toContain("'reject'");
+  });
+
+  it("refuses a malformed per-kind rule", () => {
+    const render =
+      (approval: unknown, extra = {}) =>
+      () =>
+        sql("tasks", layout(approval, extra), ["approvals"]);
+
+    expect(render({ kinds: {} })).toThrow(/must name at least one hold kind/u);
+    expect(render({ kinds: { Spend: true } })).toThrow(
+      /not a short lowercase word/u,
+    );
+    expect(render({ kinds: { spend: "yes" } })).toThrow(
+      /kinds\.spend must be true or \{ policy, onReject \}/u,
+    );
+    expect(render({ kinds: { spend: { when: 1 } } })).toThrow(
+      /kinds\.spend has no key "when"/u,
+    );
+    expect(render({ kinds: { spend: { onReject: "drop" } } })).toThrow(
+      /kinds\.spend\.onReject must be/u,
+    );
+    expect(
+      render({ kinds: { spend: { policy: { steps: [], run: 1 } } } }),
+    ).toThrow(/run is not allowed|steps/u);
+    expect(render({ kinds: { spend: true } }, { kinds: ["input"] })).toThrow(
+      /names "spend", which blocks.tasks.options.hold.kinds does not allow/u,
+    );
+    expect(() =>
+      renderBlocks(["tasks", "approvals"], {
+        modules: {
+          tasks: {
+            options: {
+              hold: {
+                approval: { kinds: { a: true, b: { onReject: "keep" } } },
+              },
+            },
+            columns: { items: { holdKind: null } },
+          },
+        },
+      }),
+    ).toThrow(/needs the hold_kind column/u);
+  });
+
   it("changes nothing without the option", () => {
     const tasks = sql("tasks", {}, ["approvals"]);
 

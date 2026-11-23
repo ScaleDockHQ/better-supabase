@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@7 managed
--- @bsb-hash sha256:92d18e852fbbda97b1be199e9e94dc39f6f775ca12c53baedb05d9aac4bb5635
+-- @bsb-block tasks@8 managed
+-- @bsb-hash sha256:673a9777b2ff21a85af25c0b01e7b24853bca13f0ca75cccc642a7fe21dcb54b
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -944,6 +944,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     )
@@ -970,6 +971,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -1005,6 +1007,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -1035,6 +1038,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -1065,6 +1069,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -1095,6 +1100,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -1125,6 +1131,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by lower(x."title") asc, x."id" asc
@@ -1155,6 +1162,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by lower(x."title") desc, x."id" asc
@@ -1185,6 +1193,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -1215,6 +1224,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -1245,6 +1255,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -1275,6 +1286,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -1300,6 +1312,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -2666,21 +2679,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restr
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:df74b624944442edf8ce2a80c8dd228743663b2cfda6d46901d7a6076cb7c6e8
+-- @bsb-hash sha256:70d8f6f94593f1b82d0aed00045f172f57949f81e7b2979714e2fefd47f1b250
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 7, 'managed')
+values ('tasks', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@7 managed
--- @bsb-hash sha256:976ce8504af66e16b6a1218f6d979dbb4db81b6d74b00778f638194b6e950fd1
+-- @bsb-block tasks@8 managed
+-- @bsb-hash sha256:5f93b1b75cfe01a8ec071cfc53abfd6561594699f7a3d9255aa4f97697ab778a
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3681,6 +3694,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     )
@@ -3707,6 +3721,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -3742,6 +3757,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -3772,6 +3788,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -3802,6 +3819,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -3832,6 +3850,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -3862,6 +3881,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by lower(x."title") asc, x."id" asc
@@ -3892,6 +3912,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by lower(x."title") desc, x."id" asc
@@ -3922,6 +3943,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -3952,6 +3974,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -3982,6 +4005,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -4012,6 +4036,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -4037,6 +4062,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -5771,7 +5797,7 @@ create trigger bsb_realtime_delete after delete on "better_supabase"."tasks" ref
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:cb1bbc966037418edd9b8e00314269fb803fcb2f0e763cad5d968337ff982c23
+-- @bsb-hash sha256:8b4fffe0fd16dd8aee32920ccfd7bd68fe220b9d48c3a70feb7ee0be14cfc855
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5783,14 +5809,14 @@ from "better_supabase"."projects" x
 where exists (select 1 from "better_supabase"."accounting_settings" s where s."tenant_id" = x."tenant_id");
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 7, 'managed')
+values ('tasks', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@7 managed
--- @bsb-hash sha256:0b846a9f8d6fd9b68d0be24e622bddf2489c4f0362df26382cd9b7310a7315c1
+-- @bsb-block tasks@8 managed
+-- @bsb-hash sha256:1145160bb1c136b2d7d19066be2f5845cae3948768a23209332c060153c07137
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6738,6 +6764,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     )
@@ -6764,6 +6791,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -6799,6 +6827,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -6829,6 +6858,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -6859,6 +6889,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -6889,6 +6920,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -6919,6 +6951,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by lower(x."title") asc, x."id" asc
@@ -6949,6 +6982,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by lower(x."title") desc, x."id" asc
@@ -6979,6 +7013,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -7009,6 +7044,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -7039,6 +7075,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -7069,6 +7106,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -7094,6 +7132,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -8460,21 +8499,21 @@ create policy bsb_tenant_scope_delete on "app_private"."iterations" as restricti
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:df74b624944442edf8ce2a80c8dd228743663b2cfda6d46901d7a6076cb7c6e8
+-- @bsb-hash sha256:70d8f6f94593f1b82d0aed00045f172f57949f81e7b2979714e2fefd47f1b250
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 7, 'managed')
+values ('tasks', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@7 managed
--- @bsb-hash sha256:6fd2f570f020d562abf1afca1b3691059780a6cb54682e4d11e8bafd9127607d
+-- @bsb-block tasks@8 managed
+-- @bsb-hash sha256:28f18907eeba1c1a9ba9f0b769f71620ccdaacbed53027b1105c633bf0137ce7
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9417,6 +9456,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     )
@@ -9443,6 +9483,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -9478,6 +9519,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -9508,6 +9550,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -9538,6 +9581,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -9568,6 +9612,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -9598,6 +9643,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by lower(x."title") asc, x."id" asc
@@ -9628,6 +9674,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by lower(x."title") desc, x."id" asc
@@ -9658,6 +9705,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -9688,6 +9736,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -9718,6 +9767,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -9748,6 +9798,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -9773,6 +9824,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -11479,21 +11531,21 @@ grant execute on function "api"."task_stage_times"(uuid) to authenticated, servi
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:df74b624944442edf8ce2a80c8dd228743663b2cfda6d46901d7a6076cb7c6e8
+-- @bsb-hash sha256:70d8f6f94593f1b82d0aed00045f172f57949f81e7b2979714e2fefd47f1b250
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 7, 'managed')
+values ('tasks', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@7 managed
--- @bsb-hash sha256:bd926c3d7e43dd5de3a5694363d938dbb5b5b529a0612d546576b49abd96338b
+-- @bsb-block tasks@8 managed
+-- @bsb-hash sha256:74ec55ffa13958f293064fc0bf558dd7370071a8088056c7de487bb162637066
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12417,6 +12469,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     )
@@ -12443,6 +12496,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -12478,6 +12532,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -12508,6 +12563,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -12538,6 +12594,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -12568,6 +12625,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -12598,6 +12656,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by lower(x."title") asc, x."id" asc
@@ -12628,6 +12687,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by lower(x."title") desc, x."id" asc
@@ -12658,6 +12718,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -12688,6 +12749,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -12718,6 +12780,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -12748,6 +12811,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -12773,6 +12837,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -14139,21 +14204,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restr
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:df74b624944442edf8ce2a80c8dd228743663b2cfda6d46901d7a6076cb7c6e8
+-- @bsb-hash sha256:70d8f6f94593f1b82d0aed00045f172f57949f81e7b2979714e2fefd47f1b250
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 7, 'managed')
+values ('tasks', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@7 managed
--- @bsb-hash sha256:8fe1a2b94b54e5411ac7f634a9f079af7aa119845b57ebbe80f4359be29ca5c1
+-- @bsb-block tasks@8 managed
+-- @bsb-hash sha256:ebd4a5ea111328d2b3e6d5dc5852e6fe1b95549697e119ae6b060c46fb404396
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15096,6 +15161,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     )
@@ -15122,6 +15188,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -15157,6 +15224,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -15187,6 +15255,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -15217,6 +15286,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -15247,6 +15317,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -15277,6 +15348,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by lower(x."title") asc, x."id" asc
@@ -15307,6 +15379,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by lower(x."title") desc, x."id" asc
@@ -15337,6 +15410,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -15367,6 +15441,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -15397,6 +15472,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -15427,6 +15503,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -15452,6 +15529,7 @@ begin
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -16818,13 +16896,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restr
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:df74b624944442edf8ce2a80c8dd228743663b2cfda6d46901d7a6076cb7c6e8
+-- @bsb-hash sha256:70d8f6f94593f1b82d0aed00045f172f57949f81e7b2979714e2fefd47f1b250
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 7, 'managed')
+values ('tasks', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

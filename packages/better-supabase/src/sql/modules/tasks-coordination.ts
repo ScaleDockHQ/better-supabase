@@ -27,6 +27,35 @@ const CATEGORY_KEY = /^[a-z][a-z0-9_]{0,62}$/;
 const DEFAULT_LEASE = 900;
 const MAX_PLAN = 100;
 
+/** A session kind `claims.agents` can name. */
+export type AgentKind = "agent" | "oauth-client" | "api-key";
+
+const AGENT_KINDS: readonly AgentKind[] = ["agent", "oauth-client", "api-key"];
+
+function isAgentKind(value: unknown): value is AgentKind {
+  return AGENT_KINDS.some((kind) => kind === value);
+}
+
+/** Reads `claims.agents`: `agent` always counts, the list adds kinds to it. */
+function agentKindsOf(value: unknown, at: string): readonly AgentKind[] {
+  if (value === undefined) {
+    return ["agent"];
+  }
+
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    !value.every(isAgentKind) ||
+    new Set(value).size !== value.length
+  ) {
+    throw new TypeError(
+      `${at} must be a list of distinct session kinds: "agent", "oauth-client" or "api-key"`,
+    );
+  }
+
+  return AGENT_KINDS.filter((kind) => kind === "agent" || value.includes(kind));
+}
+
 /** What `blocks.tasks.options` `needs`, `claims` and `hold` resolve to. */
 export interface Coordination {
   /** The prerequisite rules, or null when the app keeps no `waiting_on`. */
@@ -38,6 +67,8 @@ export interface Coordination {
    * one.
    */
   readonly next: "assigned" | "any";
+  /** The session kinds the claim rules treat as agents. Always holds `agent`. */
+  readonly agents: readonly AgentKind[];
   readonly startStage: StageRef | null;
   readonly expiredStage: StageRef | null;
   /** The stage key a hold moves a task to, or null for a flag-only hold. */
@@ -117,6 +148,7 @@ export function coordinationOf(
     "lease",
     "maxLease",
     "next",
+    "agents",
     "startStage",
     "expiredStage",
   ]);
@@ -182,6 +214,7 @@ export function coordinationOf(
     lease,
     maxLease,
     next,
+    agents: agentKindsOf(claims["agents"], `${at}.claims.agents`),
     startStage: stageKey(claims["startStage"], `${at}.claims.startStage`),
     expiredStage: stageKey(claims["expiredStage"], `${at}.claims.expiredStage`),
     holdStage: stageKey(hold["stage"], `${at}.hold.stage`),

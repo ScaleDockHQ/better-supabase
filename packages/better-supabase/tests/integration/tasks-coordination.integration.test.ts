@@ -128,6 +128,21 @@ describe.skipIf(!live)("task coordination", () => {
 
       expect(await ready()).toEqual(["Design schema", "seed"]);
 
+      const waiting = async () =>
+        (
+          await tasks
+            .page({
+              organizationId: org,
+              filters: { waiting: ["true"] },
+              limit: 50,
+            })
+            .orThrow()
+        ).items
+          .map((task) => task.title)
+          .toSorted();
+
+      expect(await waiting()).toEqual(["Build API", "Build UI"]);
+
       expect(hint(await tasks.claim({ taskId: api.id }))).toBe(
         "TASK_NOT_READY",
       );
@@ -135,16 +150,24 @@ describe.skipIf(!live)("task coordination", () => {
       await tasks.complete({ taskId: schema.id }).orThrow();
       expect((await tasks.getTask(api.id).orThrow()).waitingOn).toBe(0);
       expect(await ready()).toEqual(["Build API", "seed"]);
+      expect(await waiting()).toEqual(["Build UI"]);
 
       // A cancelled prerequisite keeps its dependents blocked.
       await tasks
         .cancel({ taskId: api.id, stageId: stage("canceled") })
         .orThrow();
       expect((await tasks.getTask(ui.id).orThrow()).waitingOn).toBe(1);
+      expect(await waiting()).toEqual(["Build UI"]);
 
       expect(
         hint(await tasks.setNeeds({ taskId: schema.id, needs: [ui.id] })),
       ).toBe("RELATION_CYCLE");
+
+      // A closed task leaves the waiting list even while it still waits.
+      await tasks
+        .cancel({ taskId: ui.id, stageId: stage("canceled") })
+        .orThrow();
+      expect(await waiting()).toEqual([]);
     } finally {
       await env.s.close();
     }
@@ -757,6 +780,50 @@ describe.skipIf(!live)("task coordination", () => {
         expect(mine.id).toBeDefined();
       } finally {
         await env.s.close();
+      }
+    }
+  });
+
+  it("treats API keys and OAuth clients as agents only when claims.agents lists them", async () => {
+    const sessions = {
+      "api-key": { api_key: { id: "key-1", scopes: ["*"] } },
+      "oauth-client": { client_id: "mcp-client", scope: "*" },
+    };
+
+    for (const [kind, claims] of Object.entries(sessions)) {
+      for (const agents of [undefined, [kind]]) {
+        const env = await setup({
+          next: "any",
+          ...(agents === undefined ? {} : { agents }),
+        });
+
+        try {
+          const { s, tasks, org, team, alice } = env;
+          await stages(env);
+          await s.as(alice);
+
+          const make = (title: string, assigneeIds?: string[]) =>
+            tasks
+              .create({
+                organizationId: org,
+                input: { title, teamId: team },
+                ...(assigneeIds === undefined ? {} : { assigneeIds }),
+              })
+              .orThrow();
+
+          const mine = await make("Mine", [alice.id]);
+          const free = await make("Free");
+
+          await s.as(alice, claims);
+
+          // A person claims an unassigned task by id; an agent only its own.
+          expect(hint(await tasks.claim({ taskId: free.id }))).toBe(
+            agents === undefined ? "ok" : "TASK_NOT_ASSIGNED",
+          );
+          expect(hint(await tasks.claim({ taskId: mine.id }))).toBe("ok");
+        } finally {
+          await env.s.close();
+        }
       }
     }
   });

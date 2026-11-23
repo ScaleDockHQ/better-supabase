@@ -44,6 +44,27 @@ describe("tasks coordination options", () => {
     expect(render({ needs: false })).not.toContain("recount_task_needs");
   });
 
+  it("treats only an agent act claim as an agent by default", () => {
+    const sql = render({});
+
+    expect(sql).toContain(
+      `coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false)`,
+    );
+    expect(sql).not.toContain("'api_key'");
+  });
+
+  it("adds the session kinds claims.agents names to the agent rules", () => {
+    const sql = render({ claims: { agents: ["api-key", "oauth-client"] } });
+
+    expect(sql).toContain(
+      `coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent' or (coalesce(auth.jwt() ->> 'client_id', '') <> ''`,
+    );
+    expect(sql).toContain(`jsonb_typeof(auth.jwt() -> 'api_key') = 'object'`);
+    expect(render({ claims: { agents: ["api-key"] } })).toContain(
+      `coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent' or jsonb_typeof(auth.jwt() -> 'api_key') = 'object', false)`,
+    );
+  });
+
   it("refuses options it can't use", () => {
     const at = "blocks.tasks.options";
 
@@ -64,6 +85,13 @@ describe("tasks coordination options", () => {
     );
     expect(() => render({ claims: { lease: "60" } })).toThrow(/whole seconds/u);
     expect(() => render({ claims: { lease: 1.5 } })).toThrow(/whole seconds/u);
+
+    for (const agents of [[], ["bot"], ["agent", "agent"], "agent"]) {
+      expect(() => render({ claims: { agents } })).toThrow(
+        `${at}.claims.agents must be a list of distinct session kinds`,
+      );
+    }
+
     expect(() => render({ claims: { startStage: "In Progress" } })).toThrow(
       `${at}.claims.startStage must be a stage key`,
     );
