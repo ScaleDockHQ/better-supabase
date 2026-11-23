@@ -37,7 +37,7 @@ export default defineConfig({
   // The record types comments attach to are @bsb subject tags in 000_centrakit.sql.
   blocks: [
     // Tenant defaults that new organizations receive.
-    { block: "seeds", api: false },
+    { block: "seeds" },
     {
       block: "permissions",
       model: "provider",
@@ -49,7 +49,7 @@ export default defineConfig({
     {
       block: "memberships",
       tables: { memberships: "centrakit.organization_users" },
-      columns: { memberships: { tenant: "organization_id", role: "role_id" } },
+      columns: { memberships: { role: "role_id" } },
       options: {
         // The roles table holds the system roles too.
         roleThrough: {
@@ -115,7 +115,6 @@ export default defineConfig({
     {
       block: "organizations",
       tables: { organizations: "centrakit.organizations" },
-      columns: { organizations: { createdBy: null, deletedAt: null } },
       callbacks: {
         schema: "centrakit",
         functions: { after_organization_create: "seed_organization" },
@@ -140,8 +139,6 @@ export default defineConfig({
           tenant: "organization_id",
           role: "role_id",
           tokenHash: "token",
-          acceptedBy: null,
-          revokedAt: null,
         },
       },
       options: {
@@ -162,14 +159,7 @@ export default defineConfig({
     {
       block: "profiles",
       tables: { profiles: "centrakit.profiles" },
-      columns: {
-        profiles: {
-          key: "user_id",
-          fullName: null,
-          avatar: "avatar_path",
-          onboarding: null,
-        },
-      },
+      columns: { profiles: { key: "user_id", avatar: "avatar_path" } },
       callbacks: {
         schema: "centrakit",
         functions: { after_profile_sync: "create_contact_profile" },
@@ -197,18 +187,8 @@ export default defineConfig({
       },
       columns: {
         log: {
-          table: null,
           record: "target_id",
-          op: null,
-          old: null,
-          new: null,
-          changed: null,
-          actorRole: null,
           tenant: "organization_id",
-          occurredAt: "occurred_at",
-          impersonatedBy: null,
-          impersonationReason: null,
-          supportSession: null,
           metadata: "safe_metadata",
         },
         restricted: {
@@ -240,13 +220,9 @@ export default defineConfig({
       tables: { events: "centrakit.workflow_events" },
       columns: {
         events: {
-          position: "position",
           type: "kind",
           tenant: "organization_id",
           key: "idempotency_key",
-          subject: null,
-          actor: null,
-          xid: null,
         },
       },
       idType: "uuid",
@@ -265,18 +241,13 @@ export default defineConfig({
       columns: {
         events: {
           tenant: "organization_id",
-          key: null,
           actor: "actor_user_id",
           data: "metadata",
         },
         recipients: { tenant: "organization_id", user: "recipient_user_id" },
-        deliveries: {
-          tenant: "organization_id",
-          attempts: null,
-          nextAttemptAt: null,
-        },
-        subscriptions: { tenant: "organization_id", updatedAt: null },
-        preferences: { tenant: "organization_id", updatedAt: null },
+        deliveries: { tenant: "organization_id" },
+        subscriptions: { tenant: "organization_id" },
+        preferences: { tenant: "organization_id" },
       },
       idType: "uuid",
       options: {
@@ -292,19 +263,8 @@ export default defineConfig({
         deliveries: "centrakit.webhook_deliveries",
       },
       columns: {
-        endpoints: {
-          tenant: "organization_id",
-          eventTypes: "event_kinds",
-          failingSince: null,
-          disabledAt: null,
-          disabledReason: null,
-        },
-        secrets: {
-          tenant: "organization_id",
-          endpoint: "destination_id",
-          vaultId: null,
-          expiresAt: null,
-        },
+        endpoints: { tenant: "organization_id", eventTypes: "event_kinds" },
+        secrets: { tenant: "organization_id", endpoint: "destination_id" },
         deliveries: {
           tenant: "organization_id",
           endpoint: "destination_id",
@@ -334,9 +294,7 @@ export default defineConfig({
         secrets: {
           name: "key",
           tenant: "organization_id",
-          scope: null,
           vaultId: "vault_secret_id",
-          secret: null,
         },
       },
     },
@@ -348,18 +306,8 @@ export default defineConfig({
           tenant: "organization_id",
           tokenHash: "token_digest",
           verify: "verification",
-          secret: null,
           secretId: "vault_secret_id",
-          previousSecret: null,
-          previousSecretId: null,
-          previousSecretExpiresAt: null,
-          maxBodyBytes: null,
-          receiveCount: null,
-          lastReceivedAt: null,
-          lastStatus: null,
           metadata: "settings",
-          subjectType: null,
-          subjectId: null,
         },
       },
       permissions: {
@@ -378,9 +326,6 @@ export default defineConfig({
           eventType: "event_kind",
           tenant: "organization_id",
           lockedUntil: "locked_until",
-          headers: null,
-          maxAttempts: null,
-          checkpoint: null,
         },
       },
     },
@@ -395,13 +340,10 @@ export default defineConfig({
     {
       block: "tags",
       tables: { tags: "centrakit.organization_tags", taggings: null },
-      // CentraKit orders tags by an integer position, not rank keys.
-      columns: { tags: { rank: null } },
       // CentraKit's provider has no apply permission; tagging needs manage.
       permissions: { apply: "tags.manage" },
       on: {
         task: {
-          table: "centrakit.tasks",
           kinds: ["task"],
           links: {
             table: "centrakit.task_tags",
@@ -423,7 +365,6 @@ export default defineConfig({
         options: "centrakit.field_options",
         values: "centrakit.field_values",
       },
-      columns: { definitions: { rank: null }, options: { rank: null } },
     },
     {
       block: "share-links",
@@ -432,7 +373,6 @@ export default defineConfig({
         views: "centrakit.subject_views",
         state: "centrakit.subject_user_state",
       },
-      columns: { links: { versionId: null } },
     },
     {
       block: "reminders",
@@ -453,31 +393,8 @@ export default defineConfig({
         grants: "centrakit.file_node_grant",
       },
       columns: {
-        nodes: {
-          tenant: "organization_id",
-          attachment: null,
-          path: null,
-          rank: null,
-          deletedAt: null,
-          drive: null,
-          source: null,
-          externalId: null,
-          externalMetadata: null,
-          legalHoldUntil: null,
-          lockedBy: null,
-          lockedUntil: null,
-          lockNote: null,
-          downloadBlocked: null,
-          previewPages: null,
-        },
-        grants: {
-          tenant: "organization_id",
-          node: "file_node_id",
-          principalType: null,
-          principalId: null,
-          expiresAt: null,
-          createdBy: null,
-        },
+        nodes: { tenant: "organization_id" },
+        grants: { tenant: "organization_id", node: "file_node_id" },
       },
       options: { roles: ["viewer", "commenter", "editor"] },
     },
@@ -506,15 +423,10 @@ export default defineConfig({
     {
       block: "attachments",
       on: {
-        task: { table: "centrakit.tasks", idType: "uuid", cascade: true },
-        project: {
-          table: "centrakit.projects",
-          idType: "uuid",
-          scope: "project",
-        },
+        task: { idType: "uuid", cascade: true },
+        project: { idType: "uuid", scope: "project" },
         // centrakit.customers checks crm.read, not tenant membership (BS345).
         customer: {
-          table: "centrakit.customers",
           idType: "bigint",
           permissions: { read: "crm.read", upload: "crm.read" },
         },
