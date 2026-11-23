@@ -51,6 +51,7 @@ import {
   permissionCatalogSql,
 } from "./permission-catalog.ts";
 import { render } from "./render.ts";
+import { checkInstalledModules } from "./rendered-check.ts";
 
 export interface GenOptions extends SnapshotSource {
   readonly config: ResolvedConfig;
@@ -160,6 +161,14 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     config,
     snapshot,
   );
+
+  const badModule = options.isolated
+    ? undefined
+    : await checkInstalledModules(config);
+
+  if (badModule) {
+    return badModule;
+  }
 
   // Under the migrations workflow the read sets go into a migration, which
   // the manifest never lists: a later run must not remove it.

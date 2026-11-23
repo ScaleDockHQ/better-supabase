@@ -88,3 +88,14 @@ describe("select", () => {
     expect(select([`${PKG}/src/gone.ts`], root).mode).toBe("full");
   });
 });
+
+describe("select on this repository", () => {
+  it("selects the rendered-modules test for a change to a SQL module", () => {
+    const repository = join(import.meta.dirname, "..");
+
+    expect(
+      select([`${PKG}/src/sql/modules/accounting-budgets.ts`], repository)
+        .tests,
+    ).toContain("tests/cli/schema-reader/rendered-modules.test.ts");
+  });
+});
