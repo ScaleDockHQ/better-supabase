@@ -13,6 +13,12 @@ export type RestatedKind =
   | "default"
   | "permission"
   | "option"
+  | "hook"
+  | "table"
+  | "column"
+  | "api"
+  | "binding"
+  | "recordType"
   | "provider"
   | "notNull";
 
