@@ -24,6 +24,13 @@ on the schema or the plugin list (column maps, default orders, plugin hook
 arrays) is computed once per table and cached in a `WeakMap` keyed on the
 table or the plugin list, not rebuilt inside a method.
 
+## Upstream workarounds
+
+`tests/upstream.test.ts` pins the Supabase behaviours a workaround depends on,
+one case per filed issue. When a case fails, the upstream fix has shipped:
+remove the workaround the title names, then the case, instead of updating the
+assertion.
+
 ## Plugin order and hook copies
 
 `guards()` must see the query as the caller wrote it, so it declares
