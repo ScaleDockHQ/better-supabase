@@ -196,7 +196,8 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid;${reservable ? `\n  v_name text := ${fn("task_actor")}(claim_next_task.profile) ->> 'name';\n  v_writer boolean := ${n.service} or ${ctx.scope.can("claim_next_task.tenant", n.write)};` : ""}
+  v_id uuid;
+  v_lost uuid[] := '{}';${reservable ? `\n  v_name text := ${fn("task_actor")}(claim_next_task.profile) ->> 'name';\n  v_writer boolean := ${n.service} or ${ctx.scope.can("claim_next_task.tenant", n.write)};` : ""}
 begin
   if not (better_supabase.actor_may_write()) then
     ${fail("ACTOR_READ_ONLY", "This session is read-only")}
@@ -205,13 +206,19 @@ ${assignedOnly}
   if not (${n.service} or ${ctx.scope.can("claim_next_task.tenant", co.claim)}) then
     ${fail("TASK_FORBIDDEN", "not allowed to claim work items")}
   end if;
-  select x.${w("id")} into v_id from ${t("items")} x
-  where x.${w("tenant")} = claim_next_task.tenant and x.${w("archivedAt")} is null and x.${w("closedAt")} is null${n.templates ? `\n    and x.${w("template")} is null` : ""}${has("heldAt") ? `\n    and x.${w("heldAt")} is null` : ""}${co.needs === null ? "" : `\n    and x.${w("waitingOn")} = 0`}
-    and (not ${restricted} or ${mine("x")})${reservable ? `\n    and ${reservedOk("x", "v_name", "v_writer")}` : ""}
-    and not exists (select 1 from ${t("claims")} c where c.${k("task")} = x.${w("id")} and ${live("c")})${filter("x")}
-  order by (case when exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and y.${a("user")} = auth.uid()) then 0 else 1 end), x.${w("number")}
-  limit 1
-  for update of x skip locked;
+  -- A claim committed after this statement's snapshot is invisible to it, so
+  -- a row picked here can already be taken. Check again and pick another.
+  loop
+    select x.${w("id")} into v_id from ${t("items")} x
+    where x.${w("id")} <> all (v_lost) and x.${w("tenant")} = claim_next_task.tenant and x.${w("archivedAt")} is null and x.${w("closedAt")} is null${n.templates ? `\n      and x.${w("template")} is null` : ""}${has("heldAt") ? `\n      and x.${w("heldAt")} is null` : ""}${co.needs === null ? "" : `\n      and x.${w("waitingOn")} = 0`}
+      and (not ${restricted} or ${mine("x")})${reservable ? `\n      and ${reservedOk("x", "v_name", "v_writer")}` : ""}
+      and not exists (select 1 from ${t("claims")} c where c.${k("task")} = x.${w("id")} and ${live("c")})${filter("x")}
+    order by (case when exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and y.${a("user")} = auth.uid()) then 0 else 1 end), x.${w("number")}
+    limit 1
+    for update of x skip locked;
+    exit when v_id is null or not exists (select 1 from ${t("claims")} c where c.${k("task")} = v_id and ${live("c")});
+    v_lost := v_lost || v_id;
+  end loop;
   if v_id is null then
     ${fail("TASK_NOTHING_READY", "no task is ready to claim", "P0002")}
   end if;

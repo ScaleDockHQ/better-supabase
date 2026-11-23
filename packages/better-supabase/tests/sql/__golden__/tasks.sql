@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@7 managed
--- @bsb-hash sha256:5e9f56b2618b6089c0423cf8e7a8dac8aac3e879e70d14a0c7d463c05dbc9888
+-- @bsb-hash sha256:92d18e852fbbda97b1be199e9e94dc39f6f775ca12c53baedb05d9aac4bb5635
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2098,6 +2098,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_lost uuid[] := '{}';
   v_name text := "better_supabase"."task_actor"(claim_next_task.profile) ->> 'name';
   v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
@@ -2113,21 +2114,27 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
-  select x."id" into v_id from "better_supabase"."tasks" x
-  where x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
-    and x."held_at" is null
-    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
-    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
-    and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
+  -- A claim committed after this statement's snapshot is invisible to it, so
+  -- a row picked here can already be taken. Check again and pick another.
+  loop
+    select x."id" into v_id from "better_supabase"."tasks" x
+    where x."id" <> all (v_lost) and x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
+      and x."held_at" is null
+      and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+      and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
+      and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
       and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
-  order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
-  limit 1
-  for update of x skip locked;
+    order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
+    limit 1
+    for update of x skip locked;
+    exit when v_id is null or not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = v_id and c."expires_at" > now());
+    v_lost := v_lost || v_id;
+  end loop;
   if v_id is null then
     raise exception 'no task is ready to claim' using errcode = 'P0002', hint = 'TASK_NOTHING_READY';
   end if;
@@ -2673,7 +2680,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@7 managed
--- @bsb-hash sha256:8b6daad808ad571fef17a363f24074e0e26a6ee5dc749fef110b5a9051ee975e
+-- @bsb-hash sha256:976ce8504af66e16b6a1218f6d979dbb4db81b6d74b00778f638194b6e950fd1
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5071,6 +5078,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_lost uuid[] := '{}';
   v_name text := "better_supabase"."task_actor"(claim_next_task.profile) ->> 'name';
   v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
@@ -5086,21 +5094,27 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
-  select x."id" into v_id from "better_supabase"."tasks" x
-  where x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
-    and x."held_at" is null
-    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
-    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
-    and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
+  -- A claim committed after this statement's snapshot is invisible to it, so
+  -- a row picked here can already be taken. Check again and pick another.
+  loop
+    select x."id" into v_id from "better_supabase"."tasks" x
+    where x."id" <> all (v_lost) and x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
+      and x."held_at" is null
+      and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+      and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
+      and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
       and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
-  order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
-  limit 1
-  for update of x skip locked;
+    order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
+    limit 1
+    for update of x skip locked;
+    exit when v_id is null or not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = v_id and c."expires_at" > now());
+    v_lost := v_lost || v_id;
+  end loop;
   if v_id is null then
     raise exception 'no task is ready to claim' using errcode = 'P0002', hint = 'TASK_NOTHING_READY';
   end if;
@@ -5776,7 +5790,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@7 managed
--- @bsb-hash sha256:881b9c3ac2b80532db508f8905a9a8a25167cd8a6f2371bcaf0321c15c6ba536
+-- @bsb-hash sha256:0b846a9f8d6fd9b68d0be24e622bddf2489c4f0362df26382cd9b7310a7315c1
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7878,6 +7892,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_lost uuid[] := '{}';
   v_name text := "app_private"."task_actor"(claim_next_task.profile) ->> 'name';
   v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
@@ -7893,21 +7908,27 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
-  select x."id" into v_id from "app_private"."tasks" x
-  where x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
-    and x."held_at" is null
-    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
-    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
-    and not exists (select 1 from "app_private"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
+  -- A claim committed after this statement's snapshot is invisible to it, so
+  -- a row picked here can already be taken. Check again and pick another.
+  loop
+    select x."id" into v_id from "app_private"."tasks" x
+    where x."id" <> all (v_lost) and x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
+      and x."held_at" is null
+      and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+      and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
+      and not exists (select 1 from "app_private"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
       and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
-  order by (case when exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
-  limit 1
-  for update of x skip locked;
+    order by (case when exists (select 1 from "app_private"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
+    limit 1
+    for update of x skip locked;
+    exit when v_id is null or not exists (select 1 from "app_private"."task_claims" c where c."task_id" = v_id and c."expires_at" > now());
+    v_lost := v_lost || v_id;
+  end loop;
   if v_id is null then
     raise exception 'no task is ready to claim' using errcode = 'P0002', hint = 'TASK_NOTHING_READY';
   end if;
@@ -8453,7 +8474,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@7 managed
--- @bsb-hash sha256:38ac98bb7dbc2eddb459a11ff898ffe1dbb749f1ca893d6ece3291f8ec13ff72
+-- @bsb-hash sha256:6fd2f570f020d562abf1afca1b3691059780a6cb54682e4d11e8bafd9127607d
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10550,6 +10571,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_lost uuid[] := '{}';
   v_name text := "better_supabase"."task_actor"(claim_next_task.profile) ->> 'name';
   v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
@@ -10565,21 +10587,27 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
-  select x."id" into v_id from "better_supabase"."tasks" x
-  where x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
-    and x."held_at" is null
-    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
-    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
-    and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
+  -- A claim committed after this statement's snapshot is invisible to it, so
+  -- a row picked here can already be taken. Check again and pick another.
+  loop
+    select x."id" into v_id from "better_supabase"."tasks" x
+    where x."id" <> all (v_lost) and x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
+      and x."held_at" is null
+      and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+      and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
+      and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
       and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
-  order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
-  limit 1
-  for update of x skip locked;
+    order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
+    limit 1
+    for update of x skip locked;
+    exit when v_id is null or not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = v_id and c."expires_at" > now());
+    v_lost := v_lost || v_id;
+  end loop;
   if v_id is null then
     raise exception 'no task is ready to claim' using errcode = 'P0002', hint = 'TASK_NOTHING_READY';
   end if;
@@ -11465,7 +11493,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@7 managed
--- @bsb-hash sha256:ee31f93b2d68adc72fe0b8591812074c4c0e516edc4dfde1150568e08417a9b2
+-- @bsb-hash sha256:bd926c3d7e43dd5de3a5694363d938dbb5b5b529a0612d546576b49abd96338b
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13543,6 +13571,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_lost uuid[] := '{}';
   v_name text := "better_supabase"."task_actor"(claim_next_task.profile) ->> 'name';
   v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
@@ -13558,21 +13587,27 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
-  select x."id" into v_id from "better_supabase"."tasks" x
-  where x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
-    and x."held_at" is null
-    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
-    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
-    and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
+  -- A claim committed after this statement's snapshot is invisible to it, so
+  -- a row picked here can already be taken. Check again and pick another.
+  loop
+    select x."id" into v_id from "better_supabase"."tasks" x
+    where x."id" <> all (v_lost) and x."tenant_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
+      and x."held_at" is null
+      and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+      and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
+      and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
       and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
-  order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
-  limit 1
-  for update of x skip locked;
+    order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
+    limit 1
+    for update of x skip locked;
+    exit when v_id is null or not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = v_id and c."expires_at" > now());
+    v_lost := v_lost || v_id;
+  end loop;
   if v_id is null then
     raise exception 'no task is ready to claim' using errcode = 'P0002', hint = 'TASK_NOTHING_READY';
   end if;
@@ -14118,7 +14153,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@7 managed
--- @bsb-hash sha256:02fd28c72a7ea2fcf3e58978d053a2eaccae813fef9fa2b435a6edab833b4cfd
+-- @bsb-hash sha256:8fe1a2b94b54e5411ac7f634a9f079af7aa119845b57ebbe80f4359be29ca5c1
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16215,6 +16250,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_lost uuid[] := '{}';
   v_name text := "better_supabase"."task_actor"(claim_next_task.profile) ->> 'name';
   v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false);
 begin
@@ -16230,21 +16266,27 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
-  select x."id" into v_id from "better_supabase"."tasks" x
-  where x."org_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
-    and x."held_at" is null
-    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
-    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
-    and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
+  -- A claim committed after this statement's snapshot is invisible to it, so
+  -- a row picked here can already be taken. Check again and pick another.
+  loop
+    select x."id" into v_id from "better_supabase"."tasks" x
+    where x."id" <> all (v_lost) and x."org_id" = claim_next_task.tenant and x."archived_at" is null and x."closed_at" is null
+      and x."held_at" is null
+      and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()))
+      and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
+      and not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = x."id" and c."expires_at" > now())
       and (claim_next_task.filter ->> 'teamId' is null or x."team_id" = (claim_next_task.filter ->> 'teamId')::uuid)
       and (claim_next_task.filter ->> 'projectId' is null or x."project_id" = (claim_next_task.filter ->> 'projectId')::uuid)
       and (claim_next_task.filter ->> 'parentId' is null or x."parent_id" = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or x."stage_id" = (claim_next_task.filter ->> 'stageId')::uuid)
       and (claim_next_task.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_task.filter ->> 'delegateProfile')
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = (claim_next_task.filter ->> 'assigneeId')::uuid))
-  order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
-  limit 1
-  for update of x skip locked;
+    order by (case when exists (select 1 from "better_supabase"."task_assignees" y where y."task_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
+    limit 1
+    for update of x skip locked;
+    exit when v_id is null or not exists (select 1 from "better_supabase"."task_claims" c where c."task_id" = v_id and c."expires_at" > now());
+    v_lost := v_lost || v_id;
+  end loop;
   if v_id is null then
     raise exception 'no task is ready to claim' using errcode = 'P0002', hint = 'TASK_NOTHING_READY';
   end if;
