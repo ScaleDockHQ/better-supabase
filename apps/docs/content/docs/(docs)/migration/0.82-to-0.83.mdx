@@ -44,27 +44,27 @@ reported these config lines per top-level key of `better-supabase.config.ts`.
 
 | Section       | Before | After |
 | ------------- | -----: | ----: |
-| `blocks`      |   2931 |  2707 |
+| `blocks`      |   2931 |  2673 |
 | preamble      |    239 |   239 |
 | `recordTypes` |    225 |   225 |
 | `database`    |    174 |   104 |
 | `gen`         |     54 |    20 |
 | `auth`        |     27 |    27 |
 | `tooling`     |      7 |     7 |
-| **Total**     |   3657 |  3329 |
+| **Total**     |   3657 |  3295 |
 
-The target of 2500 lines is not met: 829 lines remain over it, 2707 of them in `blocks`, led by
-`memberships` (274), `calendar` (126), `invoices` (115), `audit` (112) and `data-lifecycle` (105). The 565
+The target of 2500 lines is not met: 795 lines remain over it, 2673 of them in `blocks`, led by
+`memberships` (274), `calendar` (126), `invoices` (115), `audit` (112) and `data-lifecycle` (105). The 564
 entries that stay each state a fact the SQL does not hold.
 
 | Kept entries | Reason                                                          |
 | -----------: | --------------------------------------------------------------- |
 |          206 | the database column differs from the convention's name          |
-|          128 | a choice the SQL does not declare: it exists only in the config |
+|          129 | a choice the SQL does not declare: it exists only in the config |
 |           68 | the database table differs from the block's default             |
 |           60 | drops a generated column the database lacks                     |
 |           40 | the api schema or exposure differs from the preset              |
-|           33 | a block setting the convention does not cover                   |
+|           31 | a block setting the convention does not cover                   |
 |           22 | the block has no table here                                     |
 |            8 | an api object with an explicit function list                    |
 
@@ -188,6 +188,17 @@ no `approverFor` or `managedUsers`.
 `actionKeys.buckets` and `actionKeys.topics` are typed and checked only. The
 storage and realtime policies are code in your schema files, so they do not
 read the map.
+
+## Entries the render answers
+
+`codemod config --prune` renders the config with and without an entry and removes the entry when
+the files are byte-equal. Besides `permissions` and `options`, it now tries the hook entries under
+`callbacks`, the `api` entries, `tables` and `columns` entries that keep the block's default name,
+`on` entries (`links`, `column`, `table`) and the `idType`, `table` and `cascade` of a record type.
+It tries a hook that keeps its name, such as `after_invoice_clone: "after_invoice_clone"`, and a
+`callbacks.schema` of `public`. On CentraKit this removed 17 hook and 17 `api` lines. The probe
+stops after 400 renders, and options nested deeper than three keys (workflow `steps` and `effects`)
+are left alone, because they are data, not defaults. Run it again to try the rest.
 
 ## Record types
 
