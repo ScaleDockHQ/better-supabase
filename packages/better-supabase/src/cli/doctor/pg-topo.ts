@@ -98,6 +98,12 @@ function locate(
 const refText = (ref: ObjectRef): string =>
   `${ref.kind} ${ref.schema === undefined ? "" : `${ref.schema}.`}${ref.name}`;
 
+/** Built-in types pg-topo's own list lacks, so it reads them as `public.<name>`. */
+const PG_TOPO_BUILTIN_TYPES: ReadonlySet<string> = new Set([
+  "pg_snapshot",
+  "xid8",
+]);
+
 /**
  * Objects the platform or an extension supplies. pg-topo reads an unqualified
  * function as `public.<name>`, so a missing function in `public` is not
@@ -106,6 +112,15 @@ const refText = (ref: ObjectRef): string =>
  * constraints are left to the table's own finding.
  */
 function isPlatformRef(ref: ObjectRef): boolean {
+  // A `schema` ref names the schema in `name`.
+  if (ref.kind === "schema" && PLATFORM_SCHEMAS.has(ref.name)) {
+    return true;
+  }
+
+  if (ref.kind === "type" && (ref.schema ?? "public") === "public") {
+    return PG_TOPO_BUILTIN_TYPES.has(ref.name);
+  }
+
   if (
     ref.kind === "role" ||
     ref.kind === "extension" ||
@@ -173,21 +188,43 @@ export const PG_TOPO_RULES: readonly Rule[] = [
     title: "A schema file uses an object no file creates",
     description:
       "A statement under `supabase/schemas` refers to a table, view, type, sequence or schema that no schema file creates, outside the platform's schemas. pg-delta loads the files into an empty database, so the load fails or runs the statement out of order. Create the object in a schema file, or add `-- pg-topo:provides <kind>:<schema>.<name>` above the statement that creates it when it does so through dynamic SQL.",
-    check: async (context) =>
-      findings(
-        await analysisOf(context),
+    check: async (context) => {
+      const analysis = await analysisOf(context);
+
+      // pg-topo matches a call to a function by its argument types, so a call
+      // that leaves out arguments with defaults, or passes untyped literals,
+      // finds no producer. A function some file creates under that name is
+      // not reported.
+      const created = new Set(
+        (analysis?.result.ordered ?? []).flatMap((node) =>
+          node.provides
+            .filter(
+              (ref) => ref.kind === "function" || ref.kind === "procedure",
+            )
+            .map((ref) => `${ref.schema ?? "public"}.${ref.name}`),
+        ),
+      );
+
+      const missing = (ref: ObjectRef): boolean =>
+        !isPlatformRef(ref) &&
+        !(
+          (ref.kind === "function" || ref.kind === "procedure") &&
+          created.has(`${ref.schema ?? "public"}.${ref.name}`)
+        );
+
+      return findings(
+        analysis,
         ["UNRESOLVED_DEPENDENCY"],
-        (diagnostic) =>
-          (diagnostic.objectRefs ?? []).length > 0 &&
-          !(diagnostic.objectRefs ?? []).every(isPlatformRef),
+        (diagnostic) => (diagnostic.objectRefs ?? []).some(missing),
         (diagnostic, where) =>
           `${where} needs ${(diagnostic.objectRefs ?? [])
-            .filter((ref) => !isPlatformRef(ref))
+            .filter(missing)
             .map(refText)
             .join(
               ", ",
             )}, which no schema file creates. Create it in a schema file, or declare it with \`-- pg-topo:provides\` where dynamic SQL creates it.`,
-      ),
+      );
+    },
   },
   {
     code: "BS722",

@@ -51,6 +51,17 @@ describe("pg-topo doctor group", () => {
     expect(found[0]?.target).toBe("supabase/schemas/b.sql");
   });
 
+  it("accepts a platform schema, a built-in type and a call that uses a default argument", async () => {
+    const found = await run("BS721", {
+      "a.sql": `create extension if not exists pgcrypto schema extensions;
+create table public.t (x xid8);
+create function public.f(a text, b text default null) returns void language sql as 'select 1';
+create function public.g() returns void language plpgsql as $$ begin perform public.f('a'); end $$;`,
+    });
+
+    expect(found).toEqual([]);
+  });
+
   it("reports a table no file creates, but not the platform's", async () => {
     const found = await run("BS721", {
       "a.sql": `create table app.t (u uuid references auth.users (id), o int references app.orders (id));`,
