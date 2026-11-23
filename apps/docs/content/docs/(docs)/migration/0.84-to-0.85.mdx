@@ -179,8 +179,8 @@ deployment and a maintainer run of `scripts/probe-vercel-tags.ts`.
 | Fills for 20 concurrent misses on two processes    | 20                                | 1                                          |
 | First request of a process (JWKS, PostgREST, pool) | 87 to 97 ms                       | 86 to 90 ms, or about 25 ms after `warm()` |
 | Calls of a session-handle fill in request stats    | 0 (expected 1)                    | 1                                          |
-| Example app, cold page, p50 and p95                | 206 ms and 310 ms                 | pending                                    |
-| Example app, warm page, p50 and p95                | 146 ms and 194 ms                 | pending                                    |
+| Example app, cold page, p50 and p95                | 205 ms and 310 ms                 | 161 ms and 244 ms                          |
+| Example app, warm page, p50 and p95                | 146 ms and 194 ms                 | 112 ms and 156 ms                          |
 | Runtime Cache read and fill on Vercel              | pending maintainer run            | pending maintainer run                     |
 | Tag expiry by method on Vercel                     | pending maintainer run            | pending maintainer run                     |
 
