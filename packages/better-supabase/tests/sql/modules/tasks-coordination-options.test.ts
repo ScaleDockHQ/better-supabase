@@ -24,7 +24,14 @@ describe("tasks coordination options", () => {
     });
 
     expect(sql).toContain("claim_task");
+    expect(sql).toContain(
+      "least(600, greatest(1, coalesce(claim_task.lease, 120)))",
+    );
+    expect(sql).toContain(
+      "least(600, greatest(1, coalesce(renew_task_claim.lease, 120)))",
+    );
     expect(sql).toContain("'in_progress'");
+    expect(sql).toContain("'todo'");
     expect(sql).toContain("'blocked'");
   });
 

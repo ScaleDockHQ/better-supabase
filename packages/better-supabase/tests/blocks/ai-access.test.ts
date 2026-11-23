@@ -342,8 +342,34 @@ describe("ai-evals with access granted", () => {
     ];
 
     expect(results.map((result) => result.ok)).toEqual(results.map(() => true));
-    expect(calls.map((call) => call.fn)).toContain(
+    expect(
+      results.map((result) => (result.ok ? result.data : null)),
+    ).toMatchObject([
+      { id: "d1" },
+      { id: "d1" },
+      2,
+      [],
+      { id: "r1", status: "running" },
+      { id: "r1" },
+      { id: "r1" },
+      { runId: "r1", itemId: "i1", passed: true },
+      { id: "r1" },
+      {
+        description: "Dataset d1",
+        prompts: ["p"],
+        providers: ["m"],
+        tests: [],
+      },
+    ]);
+    expect(
+      calls.map((call) => call.fn).filter((fn) => !fn.startsWith("get_")),
+    ).toEqual([
       "add_eval_items_from_feedback",
-    );
+      "list_eval_items",
+      "create_eval_run",
+      "record_eval_result",
+      "finish_eval_run",
+      "list_eval_items",
+    ]);
   });
 });

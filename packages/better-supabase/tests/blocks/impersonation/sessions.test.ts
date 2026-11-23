@@ -1,4 +1,4 @@
-/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list until 0.70 (ADR 1077). */
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list alias (ADR 1077) while it ships. 2 findings. */
 import { describe, expect, it } from "vitest";
 
 import { createImpersonation } from "../../../src/blocks/impersonation/index.ts";
@@ -65,7 +65,16 @@ describe("support session pages", () => {
       value: 3,
       exact: true,
     });
-    expect(Array.isArray(facets)).toBe(true);
+    expect(facets).toEqual([
+      {
+        facet: "readOnly",
+        values: [{ value: "true", count: { value: 3, exact: true } }],
+      },
+    ]);
+    expect(transport.calls.map(([, args]) => args["filters"])).toEqual([
+      { facet: "readOnly" },
+      { count: true },
+    ]);
   });
 });
 

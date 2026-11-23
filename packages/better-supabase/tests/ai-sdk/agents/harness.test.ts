@@ -59,7 +59,7 @@ describe("harnessStateCipher", () => {
   });
 });
 
-function fakes(lockResult = true) {
+function fakes(lockResult = true, finishReason?: Promise<unknown>) {
   const calls: string[] = [];
   let stored: unknown;
   const steered: string[] = [];
@@ -96,9 +96,11 @@ function fakes(lockResult = true) {
     createSession: async () => session,
     stream: async () => ({
       toUIMessageStreamResponse: () => new Response("ok"),
-      finishReason: new Promise((resolve) => {
-        setTimeout(resolve, 30);
-      }),
+      finishReason:
+        finishReason ??
+        new Promise((resolve) => {
+          setTimeout(resolve, 30);
+        }),
     }),
   };
 
@@ -177,13 +179,23 @@ describe("harnessRoute", () => {
   });
 
   it("feeds messages sent during the turn to the running session", async () => {
-    const f = fakes();
+    const { promise: polled, resolve: endTurn } = Promise.withResolvers();
+    const f = fakes(true, polled);
     const pending: Promise<unknown>[] = [];
+    let polls = 0;
 
+    // The turn ends at the second poll, after the first one's message is fed.
     const steering: SteeringMailbox = {
       push: async () => ({ ok: true, data: undefined }) as never,
-      pending: async () =>
-        ({ ok: true, data: [{ id: "m2", text: "use tests" }] }) as never,
+      pending: async () => {
+        polls += 1;
+
+        if (polls > 1) {
+          endTurn(undefined);
+        }
+
+        return { ok: true, data: [{ id: "m2", text: "use tests" }] } as never;
+      },
     };
 
     const route = harnessRoute({
@@ -341,7 +353,8 @@ describe("harnessRoute input and failures", () => {
   });
 
   it("reports a failed save, a failed poll and a failed steer", async () => {
-    const f = fakes();
+    const { promise: steered, resolve: endTurn } = Promise.withResolvers();
+    const f = fakes(true, steered);
     const pending: Promise<unknown>[] = [];
     const reported: unknown[] = [];
     let polls = 0;
@@ -373,6 +386,7 @@ describe("harnessRoute input and failures", () => {
           sessionId: "s",
           detach: async () => ({}),
           experimental_steerTurn: async () => {
+            endTurn(undefined);
             throw new Error("steer");
           },
         }),
