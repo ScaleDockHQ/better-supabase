@@ -234,6 +234,35 @@ When any of the three doesn't hold, the entry falls back to one per user,
 two holders get one key and read the same rows, and a caller without the
 grant gets another key.
 
+#### Run your own services in a shared fill
+
+An app that builds its own `db`, for example over its own Postgres pool in its
+request context, passes it through `shareGuard(ctx, db)` from
+`better-supabase/server` inside the fill. In a `share: "tenant"` fill the
+guarded db reads only the entry's tables and functions, and a refusal keeps
+the entry from being stored, as with `ctx.db`. Outside a shared fill it
+returns the db unchanged, so a service can call it on every path.
+
+```ts
+import { shareGuard } from "better-supabase/server";
+
+export const customerPage = bsb.kept(
+  async (ctx, organizationId: string) => {
+    const db = shareGuard(ctx, await appContext().db);
+
+    return customerService(db).page(organizationId);
+  },
+  { name: "customer-page", tables: ["customers"], share: "tenant" },
+);
+```
+
+The db must run as the caller: its request context carries the caller's
+`sub` and role in `claims`, and its connection sets them for RLS. A db whose
+claims name another user, the service role or no one answers `SHARE_REFUSED`
+for every read. `inTenantFill(ctx, tables, body)` from
+`better-supabase/testing` runs a service the way a shared fill does, so a test
+can check it without a Next.js request.
+
 ## Query specs
 
 A `QuerySpec` is a read described as plain JSON:

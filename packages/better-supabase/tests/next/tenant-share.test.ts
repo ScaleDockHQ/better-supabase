@@ -9,9 +9,12 @@ import { defineAuthorizationHooks } from "../../src/core/contracts/authorization
 import { createSupabase } from "../../src/core/define.ts";
 import { memoryKeptStore } from "../../src/core/kept-cache.ts";
 import { createNext } from "../../src/next/index.ts";
+import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { defineSchema } from "../../src/schema/define.ts";
+import { shareGuard } from "../../src/server/tenant-share.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { expectTenantShare } from "../../src/testing/tenant-share.ts";
+import { fakeSql } from "../fixtures/fake-sql.ts";
 import meta from "../fixtures/generated-camel.meta.js";
 
 const mocks = vi.hoisted(() => ({ headers: new Headers() }));
@@ -345,6 +348,87 @@ describe('bsb.kept({ share: "tenant" })', () => {
     expect(await unlisted()).toContain("$rpc");
     expect(requests).toHaveLength(0);
     expect(set).not.toHaveBeenCalled();
+  });
+
+  describe("shareGuard", () => {
+    const appDb = (claims: Readonly<Record<string, unknown>>) => {
+      const fake = fakeSql();
+
+      return {
+        fake,
+        db: createSupabase(shared).connect(postgresExecutor(fake.sql), {
+          claims,
+        }),
+      };
+    };
+
+    it("gates an app-built db that runs as the caller", async () => {
+      const own = appDb({ sub: ALICE, role: "authenticated" });
+
+      const service = bsb.kept(
+        async (ctx) => {
+          const db = shareGuard(ctx, own.db);
+          const rows = await db.customers.list({ select: ["id"] });
+          const other = await db.contacts.list({ select: ["id"] });
+
+          return { rows: rows.ok, other: other.ok ? "read" : other.error.code };
+        },
+        {
+          name: "service",
+          tables: ["customers"],
+          share: "tenant",
+          tenant: () => ORG,
+        },
+      );
+
+      await signIn(ALICE);
+
+      expect(await service()).toEqual({ rows: true, other: "SHARE_REFUSED" });
+      expect(own.fake.calls).toHaveLength(1);
+      expect(set).not.toHaveBeenCalled();
+    });
+
+    it("refuses a db for another user, the service role or no one", async () => {
+      for (const claims of [
+        { sub: BOB, role: "authenticated" },
+        { sub: ALICE, role: "service_role" },
+        {},
+      ]) {
+        const other = appDb(claims);
+
+        const service = bsb.kept(
+          async (ctx) => {
+            const read = await shareGuard(ctx, other.db).customers.list();
+
+            return read.ok ? "read" : read.error.message;
+          },
+          {
+            name: "service-as-other",
+            tables: ["customers"],
+            share: "tenant",
+            tenant: () => ORG,
+          },
+        );
+
+        await signIn(ALICE);
+
+        expect(await service()).toContain("doesn't run as the caller");
+        expect(other.fake.calls).toHaveLength(0);
+      }
+    });
+
+    it("returns the db unchanged outside a shared fill", async () => {
+      const own = appDb({ sub: ALICE, role: "authenticated" });
+
+      const perUser = bsb.kept(
+        async (ctx) => shareGuard(ctx, own.db) === own.db,
+        { name: "per-user", tables: ["customers"] },
+      );
+
+      await signIn(ALICE);
+
+      expect(await perUser()).toBe(true);
+    });
   });
 });
 

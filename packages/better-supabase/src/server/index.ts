@@ -424,6 +424,8 @@ export type {
 
 export { sessionIdTag, sessionTag, tableTags } from "./cache-tags.ts";
 
+export { shareGuard } from "./tenant-share.ts";
+
 export type {
   Access,
   AccessForOptions,

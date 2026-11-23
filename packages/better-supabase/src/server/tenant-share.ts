@@ -538,24 +538,33 @@ export function sharedReader<Ctx extends object>(
 /** The guard of each context `sharedReader` built, for `shareGuard`. */
 const guards = new WeakMap<object, ShareGuard>();
 
-/** The user id a context or a db's request context acts for, if any. */
+/**
+ * The user and database role a context or a db's request context acts as:
+ * `sub:role` from its claims, or `undefined` when it acts for no user.
+ */
 function callerOf(source: object): string | undefined {
   // SAFETY: a server context carries `auth`; a db carries `$context`.
   const value = source as {
     readonly auth?: {
       readonly kind?: string;
-      readonly claims?: { readonly sub?: unknown };
+      readonly claims?: { readonly sub?: unknown; readonly role?: unknown };
     };
-    readonly $context?: { readonly claims?: { readonly sub?: unknown } };
+    readonly $context?: {
+      readonly claims?: { readonly sub?: unknown; readonly role?: unknown };
+    };
   };
 
-  const id = value.auth
+  const claims = value.auth
     ? value.auth.kind === "user"
-      ? value.auth.claims?.sub
+      ? value.auth.claims
       : undefined
-    : value.$context?.claims?.sub;
+    : value.$context?.claims;
 
-  return typeof id === "string" ? id : undefined;
+  const role = claims?.role ?? "authenticated";
+
+  return typeof claims?.sub === "string" && typeof role === "string"
+    ? `${claims.sub}:${role}`
+    : undefined;
 }
 
 function wrapAs<T extends object>(
@@ -575,11 +584,12 @@ function wrapAs<T extends object>(
     return refusingValue(error, record) as T;
   };
 
-  // A db that runs as someone else, or as no one (the admin role), would read
-  // rows the caller's RLS doesn't show, and the entry would hand them out.
+  // A db that runs as someone else, as no one or with another role (the
+  // service role) would read rows the caller's RLS doesn't show, and the entry
+  // would hand them out.
   if (caller === undefined || callerOf(db) !== caller) {
     return refuse(
-      "it doesn't run as the caller (its request context names another user, or none)",
+      "it doesn't run as the caller (its request context names another user or role, or none)",
     );
   }
 
@@ -593,8 +603,8 @@ function wrapAs<T extends object>(
  * `db` for an app-built service inside a `bsb.kept()` or `bsb.remote()` fill:
  * in a `share: "tenant"` fill it reads only the entry's tables and functions,
  * and a refusal keeps the entry from being stored, like `ctx.db`. The db must
- * run as the caller (its `$context.claims.sub` is the caller's id), so RLS
- * still decides the rows. In any other fill it returns `db` unchanged.
+ * run as the caller (its `$context.claims` carry the caller's `sub` and role),
+ * so RLS still decides the rows. In any other fill it returns `db` unchanged.
  */
 export function shareGuard<T extends object>(ctx: object, db: T): T {
   const guard = guards.get(ctx);
