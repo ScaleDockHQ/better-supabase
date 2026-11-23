@@ -1,4 +1,4 @@
-# 1300: The render path takes SQL facts as plain data, and the scanners leave `./sql`
+# 1212: The render path takes SQL facts as plain data, and the scanners leave `./sql`
 
 - Status: accepted
 - Date: 2026-11-23
@@ -62,7 +62,7 @@ the lines and comment handling of the old splitter. The CLI primes it with
   and spans, so the four codemods edit by token position.
 - Doctor rules that stripped comments use the reader's `withoutComments`. Block
   comments keep their newlines, so line numbers stay true.
-- Whitespace compares in `sync` and `diff` use `canonicalSql` (ADR 1301). The
+- Whitespace compares in `sync` and `diff` use `canonicalSql` (ADR 1213). The
   persisted `rows/read.ts` hash is unchanged.
 - The adoption check imports the sql entry, never an internal file, so the CLI
   chunk does not inline the block modules.

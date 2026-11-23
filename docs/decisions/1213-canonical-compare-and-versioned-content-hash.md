@@ -1,4 +1,4 @@
-# 1301: Compare statements by their canonical text, and version the content hash
+# 1213: Compare statements by their canonical text, and version the content hash
 
 - Status: accepted
 - Date: 2026-11-23

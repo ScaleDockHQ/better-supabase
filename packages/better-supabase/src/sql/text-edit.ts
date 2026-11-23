@@ -1,6 +1,6 @@
 /**
  * Lexical helpers the render path uses on SQL it has just generated. They read
- * no user file and carry no facts (ADR 1300).
+ * no user file and carry no facts (ADR 1212).
  */
 
 export const NAME: string = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;

@@ -103,7 +103,7 @@ const LOCK_TIMEOUT = "set lock_timeout = '5s';";
 
 /**
  * The key a statement is compared by: the parser's canonical text, so spacing,
- * keyword case and identifier quoting do not make a statement new (ADR 1301).
+ * keyword case and identifier quoting do not make a statement new (ADR 1213).
  */
 const normalized = (statement: string): Promise<string> =>
   canonicalKey(statement);

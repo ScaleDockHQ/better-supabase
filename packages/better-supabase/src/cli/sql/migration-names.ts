@@ -38,7 +38,7 @@ export function stampAfter(migrations: readonly string[], now: Date): string {
 }
 
 /**
- * The version of the content hash `migrationFile` writes (ADR 1301). Version 1
+ * The version of the content hash `migrationFile` writes (ADR 1213). Version 1
  * hashed the statements as whitespace-collapsed text with `--` lines dropped
  * and has no tag in the name; version 2 hashes the parser's canonical text and
  * is tagged `v2-` before the digits.

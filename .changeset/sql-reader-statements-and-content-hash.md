@@ -2,7 +2,7 @@
 "better-supabase": minor
 ---
 
-Read SQL with one reader and compare statements by their canonical text (ADR 1300 and 1301).
+Read SQL with one reader and compare statements by their canonical text (ADR 1212 and 1213).
 
 Breaking for callers of `better-supabase/sql`: the statement splitter is gone from the entry. The CLI reads statements from the parser's scanner, which needs no valid grammar and keeps the same lines.
 

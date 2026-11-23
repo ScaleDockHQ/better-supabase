@@ -3,7 +3,7 @@
 - Status: accepted
 - Date: 2026-11-08
 - Amends: 0248, 0291
-- Superseded by: 1300 (the schema reader replaces the parse cache and its store)
+- Superseded by: 1212 (the schema reader replaces the parse cache and its store)
 
 ## Context
 

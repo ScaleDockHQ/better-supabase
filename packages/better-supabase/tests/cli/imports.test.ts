@@ -36,7 +36,7 @@ const BUNDLED = new Set([
 ]);
 
 // Pure helpers and types with no module state, which the facts readers share
-// with the library's own text rewriters (ADR 1300).
+// with the library's own text rewriters (ADR 1212).
 const PURE = new Set([
   join(SRC, "sql/text-edit.ts"),
   join(SRC, "sql/layout-types.ts"),

@@ -18,7 +18,7 @@ export interface DeclaredObject {
 
 /**
  * The model reads each file's facts, so the files must have been read first
- * (`primeSchemaTexts`). It is the declaration model of ADR 1300: one reader, no
+ * (`primeSchemaTexts`). It is the declaration model of ADR 1212: one reader, no
  * second parse of the same text.
  */
 

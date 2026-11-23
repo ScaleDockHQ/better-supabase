@@ -466,7 +466,7 @@ inserted already closed.
 The CLI reads every SQL file with one reader on `@supabase/pg-parser`. This is
 a breaking change for code that imports from `better-supabase/sql`: the text
 readers are removed from that entry, and the CLI no longer calls them (ADR
-1300). The render functions take what a file declares as plain data, so they
+1212). The render functions take what a file declares as plain data, so they
 still run on every runtime without the parser.
 
 | Removed from `better-supabase/sql`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Replace with                                                           |
@@ -484,7 +484,7 @@ codemod rewrote it by pattern. The naming codemod no longer rewrites comments.
 only in spacing, keyword case or quoting is not written again. The migration
 file name carries a versioned hash: new files end in `_v2-<8 hex digits>.sql`.
 A migration an earlier release wrote keeps its name and is still recognized as
-the same file, so upgrading writes no new migration (ADR 1301).
+the same file, so upgrading writes no new migration (ADR 1213).
 
 ## Doctor
 

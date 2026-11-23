@@ -1,7 +1,7 @@
 import type { BlockSqlLayout } from "./module-types.ts";
 
 // Plain data the CLI reads from the schema files with its SQL reader and hands
-// to the render functions (ADR 1300). No parser or scanner is imported here.
+// to the render functions (ADR 1212). No parser or scanner is imported here.
 
 /** A table registered with `better_supabase.audit(...)` in a SQL file. */
 export interface AuditedTable {
