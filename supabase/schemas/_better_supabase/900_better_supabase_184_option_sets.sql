@@ -1,6 +1,6 @@
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:be10a52883424235a37e0c51429e7d231eae898948b330bd9f3ffeb760b6819d
+-- @bsb-hash sha256:f88d4b5983f26c49331f781692f1af4b2fccdc6f4b251707b777c8a768a1b1a2
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,6 +75,7 @@ as $$
 declare
   v_id uuid;
   v_brand text;
+  v_declared jsonb;
 begin
   select x."id" into v_id from "better_supabase"."option_sets" x
   where x."tenant_id" = default_option_set.tenant
@@ -106,6 +107,12 @@ begin
         end if;
         return v_id;
       end if;
+      v_declared := better_supabase.declared_defaults_of('option_set_item', default_option_set.subject_type || '.' || default_option_set.field);
+      if v_declared is not null then
+        insert into "better_supabase"."option_set_items" ("tenant_id", "option_set_id", "key", "system_key", "label", "color", "icon", "rank", "level")
+        select default_option_set.tenant, v_id, x.key, x.key, x.label, x.color, x.icon, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((x.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (x.ord % 62)::integer + 1, 1) || 'V', x.level
+        from jsonb_to_recordset(v_declared) with ordinality as x(key text, label text, level integer, color text, icon text, ord bigint);
+      else
       insert into "better_supabase"."option_set_items" ("tenant_id", "option_set_id", "key", "system_key", "label", "color", "icon", "rank", "level")
       select default_option_set.tenant, v_id, x.key, x.key, x.label, x.color, x.icon, x.rank, x.level
       from (values
@@ -115,6 +122,7 @@ begin
           ('high', 'High', 3, null::text, null::text, 'e'),
           ('urgent', 'Urgent', 4, null::text, null::text, 'o')
       ) x(key, label, level, color, icon, rank);
+      end if;
     else
       raise exception 'this field has no option set binding' using errcode = '22023', hint = 'OPTION_SET_FIELD_UNKNOWN';
     end if;

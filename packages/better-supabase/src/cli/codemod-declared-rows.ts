@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 
-import { policyOf, policySnapshot } from "../sql/modules/approvals-policies.ts";
+import { policyOf, policySnapshot } from "../sql/index.ts";
 import { ConfigDocument } from "./config-document/index.ts";
 import { rowsDir } from "./rows/dir.ts";
 
@@ -223,7 +223,7 @@ export function declaredRowsMove(
 }
 
 /** The text of one rows file. */
-export function rowsFileText(name: string, rows: readonly Row[]): string {
+function rowsFileText(name: string, rows: readonly Row[]): string {
   const kinds = [...new Set(rows.map((row) => row.kind))].join(", ");
 
   return `-- Declared rows for ${name} (${kinds}), moved out of the config by \`better-supabase codemod declared-rows\`.

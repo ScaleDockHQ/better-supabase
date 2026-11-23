@@ -47,7 +47,7 @@ export class DeclaredRowsError extends Error {
 }
 
 /** The line that lets a removed row delete its database row. */
-export const DELETE_REMOVED = "-- bsb-rows: delete-removed";
+const DELETE_REMOVED = "-- bsb-rows: delete-removed";
 
 /** Function calls a value may use; every one is deterministic. */
 const ALLOWED_CALLS: ReadonlySet<string> = new Set([
@@ -57,7 +57,7 @@ const ALLOWED_CALLS: ReadonlySet<string> = new Set([
 ]);
 
 /** The hash a migration stamps: the statements, normalized. */
-export function statementsHash(texts: readonly string[]): string {
+function statementsHash(texts: readonly string[]): string {
   return createHash("sha256")
     .update(
       texts.map((text) => text.replaceAll(/\s+/g, " ").trim()).join(";\n"),

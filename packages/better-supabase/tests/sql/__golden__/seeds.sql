@@ -84,16 +84,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_177_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block seeds@1 managed
--- @bsb-hash sha256:bfd9e24aa5d6e598905f8fa7cb3198fc0c5d4c0e1f2fa950a9c045c3806188f2
+-- @bsb-hash sha256:fba045c4c449f705f3b0d1789c5b5e6167a020fb9c7b94a64b1f06402d1b59f7
 -- seed_tenant_defaults(tenant, variants, locale) applies the defaults every installed block declares, in install order. The organizations block calls it when an organization is created.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 
 -- Applies the defaults of every installed module to an organization. Call it
 -- from the organization's create hook or with `better-supabase db seed --defaults`.

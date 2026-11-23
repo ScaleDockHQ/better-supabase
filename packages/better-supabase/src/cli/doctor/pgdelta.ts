@@ -34,9 +34,7 @@ export const lineAt = (text: string, index: number): number =>
  * The declarative schema files pg-delta loads, outside the SQL module files
  * better-supabase writes, when the project diffs with pg-delta.
  */
-export function pgdeltaSchemaFiles(
-  context: DoctorContext,
-): readonly TextFile[] {
+function pgdeltaSchemaFiles(context: DoctorContext): readonly TextFile[] {
   const toml = pgdeltaToml(context);
 
   if (toml === undefined) {

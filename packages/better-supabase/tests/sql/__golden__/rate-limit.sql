@@ -881,16 +881,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:f11acf22e3fa76473e6d1912e22001052752f9582451e453dc23452c9a99a6fa
+-- @bsb-hash sha256:69697507629251a9b788df3ea767efacd231c0c5c41241390e2462b9724d183f
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 
 -- One rule per scope: '*' (every write), a table path ('/customers') or an
 -- RPC path ('/rpc/send_invite'). key_claim is the JWT claim each caller is

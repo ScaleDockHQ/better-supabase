@@ -1023,16 +1023,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_027_incoming_webhooks.sql
 -- better-supabase module: incoming-webhooks
 -- @bsb-block incoming-webhooks@5 managed
--- @bsb-hash sha256:821430de0499fe569721b1c1eb267698f746f81d843619ce33b93ed423e185eb
+-- @bsb-hash sha256:a5a041ad83a2e9bd224162bd59f33676196331783227e62563cb5948f29d297f
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Trigger URLs a tenant hands to another system: /hooks/<token> stores each
 -- delivery in the webhook inbox (source webhook-in), with the endpoint's
 -- tenant. Only the token's hash is kept, and the signing secret is a Vault

@@ -203,16 +203,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:09983b5941d1ea01069a8cc575daa791594e8b7418f87617ae3cfe81b2c3bb17
+-- @bsb-hash sha256:f88c828dcde86577a2e1991c2f8a20b96c0535fac4d4d50f0583f1c16fa52da9
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 
 create table "app_private"."reserved_slugs" (
   "slug" text primary key,

@@ -291,16 +291,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_037_onboarding.sql
 -- better-supabase module: onboarding
 -- @bsb-block onboarding@2 managed
--- @bsb-hash sha256:d733266bfa3056a2f7e62bebc5639bff0574628c6d066a0a268f919b723ad833
+-- @bsb-hash sha256:e1f929f51662c36029c9edd8260d336159247bb99c87c0cc7e8045235cd87291
 -- Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Each checklist runs as the enrollment program onboarding:<checklist>: the
 -- organization is enrolled in an organization checklist, the user (without a
 -- tenant) in a user checklist. The checklists live in the app

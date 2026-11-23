@@ -192,14 +192,9 @@ $$;
 
 revoke all on function ${fn("process_embeddings")}() from public, anon, authenticated;
 
--- Runs the drain with pg_cron when the extension exists.
-do $bsb$
-begin
-  if pg_catalog.to_regprocedure('cron.schedule(text, text, text)') is not null then
-    perform cron.schedule(${literal(`${config.table}_embeddings`)}, ${literal(schedule)}, ${literal(`select ${fn("process_embeddings")}()`)});
-  end if;
-end;
-$bsb$;
+-- Runs the drain with pg_cron, which this file creates above. A plain
+-- statement, so pg-delta reads the job (BS725).
+select cron.schedule(${literal(`${config.table}_embeddings`)}, ${literal(schedule)}, ${literal(`select ${fn("process_embeddings")}()`)});
 
 -- Stores the vector while the row still hashes to what was embedded, then
 -- removes the queue message either way.

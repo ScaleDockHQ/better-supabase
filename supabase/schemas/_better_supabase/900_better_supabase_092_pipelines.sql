@@ -1,6 +1,6 @@
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:a0d4ee0d1f3b6eb7410ba629c53f48f947af01342cfbcb18166ee08a0e8fb798
+-- @bsb-hash sha256:082da59ffe269e7df589669ba00183a16d8857c3a65b5e669cfa286269b83c22
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -137,6 +137,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_declared jsonb;
 begin
   select x."id" into v_id from "better_supabase"."pipelines" x
   where x."tenant_id" = default_pipeline.tenant
@@ -170,6 +171,14 @@ begin
       if v_id is null then
         return "better_supabase"."default_pipeline"(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
       end if;
+      v_declared := better_supabase.declared_defaults_of('pipeline_stage', 'work_item');
+      if v_declared is not null then
+        insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank", "color", "icon")
+      select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank, x.color, x.icon
+      from (select d.key, d.name, d.category, case d.category when 'triage' then 'open' when 'backlog' then 'open' when 'unstarted' then 'open' when 'started' then 'open' when 'completed' then 'success' when 'canceled' then 'failure' else 'open' end as outcome, d.probability, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((d.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (d.ord % 62)::integer + 1, 1) || 'V' as rank, d.color, d.icon
+      from jsonb_to_recordset(v_declared) with ordinality as d(key text, name text, category text, probability smallint, color text, icon text, ord bigint)
+      ) x(key, name, category, outcome, probability, rank, color, icon);
+      else
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
       select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank
       from (values
@@ -181,6 +190,7 @@ begin
           ('done', 'Done', 'completed', 'success', null::smallint, 'g'),
           ('canceled', 'Canceled', 'canceled', 'failure', null::smallint, 'n')
       ) x(key, name, category, outcome, probability, rank);
+      end if;
     when 'maintenance_request' then
       insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
       values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
@@ -189,6 +199,14 @@ begin
       if v_id is null then
         return "better_supabase"."default_pipeline"(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
       end if;
+      v_declared := better_supabase.declared_defaults_of('pipeline_stage', 'maintenance_request');
+      if v_declared is not null then
+        insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank", "color", "icon")
+      select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank, x.color, x.icon
+      from (select d.key, d.name, d.category, case d.category when 'triage' then 'open' when 'backlog' then 'open' when 'unstarted' then 'open' when 'started' then 'open' when 'completed' then 'success' when 'canceled' then 'failure' else 'open' end as outcome, d.probability, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((d.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (d.ord % 62)::integer + 1, 1) || 'V' as rank, d.color, d.icon
+      from jsonb_to_recordset(v_declared) with ordinality as d(key text, name text, category text, probability smallint, color text, icon text, ord bigint)
+      ) x(key, name, category, outcome, probability, rank, color, icon);
+      else
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
       select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank
       from (values
@@ -200,6 +218,7 @@ begin
           ('done', 'Done', 'completed', 'success', null::smallint, 'g'),
           ('canceled', 'Canceled', 'canceled', 'failure', null::smallint, 'n')
       ) x(key, name, category, outcome, probability, rank);
+      end if;
     when 'application' then
       insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
       values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
@@ -208,6 +227,14 @@ begin
       if v_id is null then
         return "better_supabase"."default_pipeline"(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
       end if;
+      v_declared := better_supabase.declared_defaults_of('pipeline_stage', 'application');
+      if v_declared is not null then
+        insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank", "color", "icon")
+      select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank, x.color, x.icon
+      from (select d.key, d.name, d.category, case d.category when 'active' then 'open' when 'hired' then 'success' when 'rejected' then 'failure' when 'withdrawn' then 'failure' else 'open' end as outcome, d.probability, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((d.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (d.ord % 62)::integer + 1, 1) || 'V' as rank, d.color, d.icon
+      from jsonb_to_recordset(v_declared) with ordinality as d(key text, name text, category text, probability smallint, color text, icon text, ord bigint)
+      ) x(key, name, category, outcome, probability, rank, color, icon);
+      else
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
       select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank
       from (values
@@ -219,6 +246,7 @@ begin
           ('rejected', 'Rejected', 'rejected', 'failure', null::smallint, 'g'),
           ('withdrawn', 'Withdrawn', 'withdrawn', 'failure', null::smallint, 'n')
       ) x(key, name, category, outcome, probability, rank);
+      end if;
     when 'case' then
       insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
       values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
@@ -227,6 +255,14 @@ begin
       if v_id is null then
         return "better_supabase"."default_pipeline"(default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id);
       end if;
+      v_declared := better_supabase.declared_defaults_of('pipeline_stage', 'case');
+      if v_declared is not null then
+        insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank", "color", "icon")
+      select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank, x.color, x.icon
+      from (select d.key, d.name, d.category, case d.category when 'open' then 'open' when 'closed' then 'success' when 'canceled' then 'failure' else 'open' end as outcome, d.probability, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((d.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (d.ord % 62)::integer + 1, 1) || 'V' as rank, d.color, d.icon
+      from jsonb_to_recordset(v_declared) with ordinality as d(key text, name text, category text, probability smallint, color text, icon text, ord bigint)
+      ) x(key, name, category, outcome, probability, rank, color, icon);
+      else
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "system_key", "name", "category", "outcome", "probability", "rank")
       select default_pipeline.tenant, v_id, x.key, x.key, x.name, x.category, x.outcome, x.probability, x.rank
       from (values
@@ -237,6 +273,7 @@ begin
           ('closed', 'Closed', 'closed', 'success', null::smallint, 'e'),
           ('canceled', 'Canceled', 'canceled', 'failure', null::smallint, 'm')
       ) x(key, name, category, outcome, probability, rank);
+      end if;
     else
       raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
   end case;
@@ -2033,22 +2070,30 @@ begin
   if (p_variant is null or p_variant = 'b2b-sales') then
     insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
     select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'qualified', 'Qualified', ('open'), ('open'), '8', 'qualified', 20
-    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'qualified');
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'qualified') and not (better_supabase.declared_defaults_of('pipeline_stage', 'deal') is not null);
     insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
     select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'discovery', 'Discovery', ('open'), ('open'), 'G', 'discovery', 35
-    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'discovery');
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'discovery') and not (better_supabase.declared_defaults_of('pipeline_stage', 'deal') is not null);
     insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
     select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'proposal', 'Proposal', ('open'), ('open'), 'O', 'proposal', 55
-    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'proposal');
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'proposal') and not (better_supabase.declared_defaults_of('pipeline_stage', 'deal') is not null);
     insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
     select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'negotiation', 'Negotiation', ('open'), ('open'), 'W', 'negotiation', 75
-    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'negotiation');
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'negotiation') and not (better_supabase.declared_defaults_of('pipeline_stage', 'deal') is not null);
     insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
     select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'closed_won', 'Closed won', ('won'), ('success'), 'e', 'closed_won', 100
-    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'closed_won');
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'closed_won') and not (better_supabase.declared_defaults_of('pipeline_stage', 'deal') is not null);
     insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability")
     select p_tenant, (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1), 'closed_lost', 'Closed lost', ('lost'), ('failure'), 'm', 'closed_lost', 0
-    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'closed_lost');
+    where not exists (select 1 from "better_supabase"."pipeline_stages" x where x."tenant_id" = p_tenant and x."pipeline_id" is not distinct from (select x."id" from "better_supabase"."pipelines" x where x."tenant_id" = p_tenant and x."subject_type" = 'deal' and x."scope_id" is null and x."key" = 'default' limit 1) and x."system_key" is not distinct from 'closed_lost') and not (better_supabase.declared_defaults_of('pipeline_stage', 'deal') is not null);
+    if better_supabase.declared_defaults_of('pipeline_stage', 'deal') is not null then
+      insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "rank", "system_key", "probability", "color", "icon")
+      select p_tenant, (select pl."id" from "better_supabase"."pipelines" pl where pl."tenant_id" = p_tenant and pl."subject_type" = 'deal' and pl."scope_id" is null and pl."key" = 'default' limit 1), x.key, x.name, x.category, x.outcome, x.rank, x.key, x.probability, x.color, x.icon
+      from (select d.key, d.name, d.category, case d.category when 'open' then 'open' when 'won' then 'success' when 'lost' then 'failure' else 'open' end as outcome, d.probability, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((d.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (d.ord % 62)::integer + 1, 1) || 'V' as rank, d.color, d.icon
+        from jsonb_to_recordset(better_supabase.declared_defaults_of('pipeline_stage', 'deal')) with ordinality as d(key text, name text, category text, probability smallint, color text, icon text, ord bigint)
+        ) x(key, name, category, outcome, probability, rank, color, icon)
+      where not exists (select 1 from "better_supabase"."pipeline_stages" e where e."tenant_id" = p_tenant and e."pipeline_id" = (select pl."id" from "better_supabase"."pipelines" pl where pl."tenant_id" = p_tenant and pl."subject_type" = 'deal' and pl."scope_id" is null and pl."key" = 'default' limit 1) and e."system_key" is not distinct from x.key);
+    end if;
   end if;
 end;
 $$;

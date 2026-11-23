@@ -7,8 +7,7 @@ import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 import type { ProjectSymbols } from "./typescript-symbols/index.ts";
 
-import { suggestSqlApi } from "../config/api-default.ts";
-import { restatedEntries } from "../config/index.ts";
+import { restatedEntries, suggestSqlApi } from "../config/index.ts";
 import { clientNotNull, redundantNulls, SQL_MODULES } from "../sql/index.ts";
 import { settleGroups, withoutConfigPaths } from "./codemod-prune.ts";
 import { ConfigDocument, followImports } from "./config-document/index.ts";

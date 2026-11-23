@@ -614,9 +614,11 @@ begin
     raise exception 'blocks.queue.options.httpTick needs pg_cron: create extension pg_cron with schema pg_catalog'
       using hint = 'QUEUE_TICK_NO_PG_CRON';
   end if;
-  perform cron.schedule('${JOBS_TICK_JOB}', '* * * * *', 'select better_supabase.http_tick()');
 end;
-$$;`;
+$$;
+
+-- A plain statement, so pg-delta reads the job (BS725).
+select cron.schedule('${JOBS_TICK_JOB}', '* * * * *', 'select better_supabase.http_tick()');`;
 
 const ensureQueue = (backend: JobsBackend): string =>
   backend === "pgmq"

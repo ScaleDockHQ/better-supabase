@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import type { ResolvedConfig } from "../config/index.ts";
 import type { Move } from "./codemod-table-tags.ts";
 
-import { formatBsbComment } from "../sql/bsb-tags.ts";
+import { formatBsbComment } from "../sql/index.ts";
 import { ConfigDocument } from "./config-document/index.ts";
 import { withTableTags } from "./gen/table-tags.ts";
 import { subjectTagArgs } from "./subject-tag.ts";

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:77e3925858966f25e03476c49489fffb3139d2244c09fed4c3f22b67124e736f
+-- @bsb-hash sha256:28154a103f2e1daf341f9871157bacf1bd9d8a15cadcf070d887485d5a9a1e88
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,6 +75,7 @@ as $$
 declare
   v_id uuid;
   v_brand text;
+  v_declared jsonb;
 begin
   select x."id" into v_id from "better_supabase"."option_sets" x
   where x."tenant_id" = default_option_set.tenant
@@ -754,7 +755,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:4340b2a41998a317e76f90fcad54e97b9b3e397a8149d2efca7d2018bb15b8f5
+-- @bsb-hash sha256:d083232812975c929d46f04b0453040a248b6407d70eba70783e39344e3dbc19
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -829,6 +830,7 @@ as $$
 declare
   v_id uuid;
   v_brand text;
+  v_declared jsonb;
 begin
   select x."id" into v_id from "better_supabase"."option_sets" x
   where x."tenant_id" = default_option_set.tenant
@@ -860,6 +862,12 @@ begin
         end if;
         return v_id;
       end if;
+      v_declared := better_supabase.declared_defaults_of('option_set_item', default_option_set.subject_type || '.' || default_option_set.field);
+      if v_declared is not null then
+        insert into "better_supabase"."option_set_items" ("tenant_id", "option_set_id", "key", "system_key", "label", "color", "icon", "rank", "level")
+        select default_option_set.tenant, v_id, x.key, x.key, x.label, x.color, x.icon, substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', ((x.ord / 62) % 62)::integer + 1, 1) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (x.ord % 62)::integer + 1, 1) || 'V', x.level
+        from jsonb_to_recordset(v_declared) with ordinality as x(key text, label text, level integer, color text, icon text, ord bigint);
+      else
       insert into "better_supabase"."option_set_items" ("tenant_id", "option_set_id", "key", "system_key", "label", "color", "icon", "rank", "level")
       select default_option_set.tenant, v_id, x.key, x.key, x.label, x.color, x.icon, x.rank, x.level
       from (values
@@ -869,6 +877,7 @@ begin
           ('high', 'High', 3, null::text, null::text, 'e'),
           ('urgent', 'Urgent', 4, null::text, null::text, 'o')
       ) x(key, label, level, color, icon, rank);
+      end if;
     else
       raise exception 'this field has no option set binding' using errcode = '22023', hint = 'OPTION_SET_FIELD_UNKNOWN';
     end if;
@@ -1649,16 +1658,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:c43915fb91a6d77545f400788d44229024db6d2154fe24ec153e3844420a7051
+-- @bsb-hash sha256:416112f6bc88e905d9ffda4b5983fe13c55e7533d3951f25c2dc7c7bf1ac259a
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Option sets (ADR 0243): tenant-editable items for a field such as priority,
 -- each with a level that is written to the record's own column, and starter
 -- items per brand.
@@ -1728,6 +1737,7 @@ as $$
 declare
   v_id uuid;
   v_brand text;
+  v_declared jsonb;
 begin
   select x."id" into v_id from "app_private"."option_sets" x
   where x."tenant_id" = default_option_set.tenant
@@ -2407,7 +2417,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:2c073122deac2a3c50e10fdcee16677a268cb9f9f00f954d1276c2c044e58742
+-- @bsb-hash sha256:29dea71358d2d7dc15d1f277fff8431bd924d186e6b0eb04a544a7bcae9ad217
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2481,6 +2491,7 @@ as $$
 declare
   v_id uuid;
   v_brand text;
+  v_declared jsonb;
 begin
   select x."id" into v_id from "better_supabase"."option_sets" x
   where x."tenant_id" = default_option_set.tenant
@@ -3257,7 +3268,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:808ebee102799df2d0d2febea7a8df82423296dbba250a7dba1f123e11135928
+-- @bsb-hash sha256:957e8d265c7d63936859ee98ab86033d580fe76c9f7143a1eb6daf561ed2e906
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3327,6 +3338,7 @@ as $$
 declare
   v_id uuid;
   v_brand text;
+  v_declared jsonb;
 begin
   select x."id" into v_id from "better_supabase"."option_sets" x
   where x."tenant_id" = default_option_set.tenant
@@ -4006,7 +4018,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:3b630c38fff46a093b17b743c934a93df088c1656879b03bfa761a272b2a8650
+-- @bsb-hash sha256:e4d57083cd36a594d28986ba0dbad986ab7ca64e3e571108094b4c4c5d233991
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4080,6 +4092,7 @@ as $$
 declare
   v_id uuid;
   v_brand text;
+  v_declared jsonb;
 begin
   select x."id" into v_id from "better_supabase"."option_sets" x
   where x."org_id" = default_option_set.tenant

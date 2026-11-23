@@ -399,3 +399,5 @@ export {
   cacheInvalidationSql,
   type CacheInvalidationSqlOptions,
 } from "./cache-notify.ts";
+
+export { policyOf, policySnapshot } from "./modules/approvals-policies.ts";

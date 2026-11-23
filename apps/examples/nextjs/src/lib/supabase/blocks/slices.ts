@@ -219,6 +219,9 @@ export const approvalsConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},
+  columns: {
+    description: "text",
+  },
 } as const satisfies GeneratedBlock;
 
 /** The `attachments` instance's config slice. */

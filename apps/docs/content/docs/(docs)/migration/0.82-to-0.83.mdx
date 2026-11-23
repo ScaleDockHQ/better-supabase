@@ -415,6 +415,33 @@ BS706 warns about a shim of a feature the library ships: a seal trigger beside
 `approvals: false` with `standaloneApprovals`, and an app file that redefines a
 block function.
 
+## Generated SQL that doctor BS725 reads
+
+Under pg-delta, BS725 reads the module files better-supabase writes. Three
+rendered statements changed so the files hold what pg-delta can see:
+
+- Every module's `alter default privileges ... revoke all` now names
+  `for role postgres`. Without a role the statement attaches to whichever role
+  loads the file, which differs between the shadow database and yours. On a
+  Supabase project migrations run as `postgres`, so nothing changes there.
+  Run `better-supabase gen` and review the diff of the module files.
+- With `autoEmbed` on a table, the embeddings drain is a plain top-level
+  `select cron.schedule(...)`. The same file already runs
+  `create extension if not exists pg_cron`, so the guard in a `do` block
+  added nothing.
+- With `blocks.queue.options.httpTick`, the tick job is a plain
+  `select cron.schedule(...)` after the check that raises
+  `QUEUE_TICK_NO_PG_CRON` when `cron` is missing.
+
+The other `cron.schedule` calls (knowledge embeddings, computed usage meters,
+the workflow retention job, the maintenance and stream purge schedules and
+`schedule_job`) stay behind a check that pg_cron is installed, because a plain
+statement would make the extension mandatory. BS725 still reports them under
+pg-delta, and so it does `blocks.notifications.options.realtime: "changes"`,
+which adds the table to `supabase_realtime` through `execute format`. Accept
+those findings in `tooling.doctor.baseline` with the reason until a plain form
+exists.
+
 ## Generators
 
 BS244 now names the five largest blocks by generated SQL size when the module SQL passes 2 MB, so you

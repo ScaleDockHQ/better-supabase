@@ -8,17 +8,8 @@ import { createTable, enableRowSecurity } from "./emit/table.ts";
  * `supabase/rows/*.sql`; a function that finds none falls back to what the
  * config renders.
  */
-export const DEFAULT_KINDS = [
-  "option_set_item",
-  "pipeline_stage",
-  "numbering_format",
-  "approval_floor",
-] as const;
-
-export type DefaultKind = (typeof DEFAULT_KINDS)[number];
-
 /** The table the declared rows of every kind go to, one row per key. */
-export const DECLARED_DEFAULTS_TABLE = "better_supabase.declared_defaults";
+const DECLARED_DEFAULTS_TABLE = "better_supabase.declared_defaults";
 
 /** The function that returns the rows of one kind and subject as a jsonb list. */
 export const DECLARED_DEFAULTS_FN = "better_supabase.declared_defaults_of";

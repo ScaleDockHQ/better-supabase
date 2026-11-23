@@ -290,6 +290,7 @@
       "restatedEntries",
       "SKILLS_AGENTS",
       "splitPermissionLevel",
+      "suggestSqlApi",
       "tenantClaimPaths",
       "tenantNameOf"
     ],
@@ -10477,6 +10478,8 @@
       "POLICY_FUNCTIONS",
       "policyFunctionsSql",
       "policyGrants",
+      "policyOf",
+      "policySnapshot",
       "PRELUDE_FUNCTIONS",
       "PRELUDE_MODULE",
       "readArgSource",

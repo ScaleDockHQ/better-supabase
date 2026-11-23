@@ -1416,16 +1416,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:95037077263d3da2e0c3f96a1a27bad8290db5fa6bf64cf4616e77d30efaec6e
+-- @bsb-hash sha256:04998277b9acb2b7d3bb25697dae4aa1a6b28b955a8a7403c0a5dfcd9d1c74e2
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Input and output policies per agent, and the log of what the checks decided.
 -- A policy row holds the config the TypeScript check reads (injection
 -- heuristics, PII handling, deny topics, the deepest tool chain); tenant is
