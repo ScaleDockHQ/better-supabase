@@ -1,7 +1,11 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { SameTenantOption } from "../../src/blocks/memberships/options.ts";
 import type { CodemodProject } from "../../src/cli/codemod.ts";
+import type { ProjectSymbols } from "../../src/cli/typescript-symbols/index.ts";
 import type { BetterSupabaseConfig } from "../../src/config/index.ts";
 
 import {
@@ -277,5 +281,63 @@ describe("projectSameTenantMoves", () => {
     const result = await projectSameTenantMoves(projectOf(ENTRIES.slice(0, 2)));
 
     expect(result.moved).toBe(2);
+  });
+});
+
+describe("sameTenantMoves across files", () => {
+  it("removes a moved entry from the file that declares the imported value", async () => {
+    const root = await mkdtemp(join(tmpdir(), "bsb-same-tenant-"));
+    const file = join(root, "shared.ts");
+
+    const shared = `export const shared = {
+  memberships: {
+    options: {
+      sameTenant: [
+        { table: "public.tasks", column: "project_id", references: "public.projects", match: { region: "region" } },
+      ],
+    },
+  },
+};
+`;
+
+    await writeFile(file, shared);
+
+    const symbols: ProjectSymbols = {
+      root,
+      tier: {
+        version: "7.1.0",
+        references: () => [],
+        declaration: () => ({
+          file,
+          start: shared.indexOf("export"),
+          end: shared.length,
+        }),
+        typeOf: () => undefined,
+        close: () => {},
+      },
+    };
+
+    const configText =
+      'import { shared } from "./shared.ts";\nexport default defineConfig({ blocks: shared });\n';
+
+    const project = projectOf([ENTRIES[0]], {
+      configFile: join(root, "better-supabase.config.ts"),
+      configText,
+      symbols,
+    });
+
+    await primeSchemaFacts(project.sql, "/project");
+
+    const result = await sameTenantMoves(project, {
+      modules: { memberships: { options: { sameTenant: [ENTRIES[0]] } } },
+    });
+
+    expect(result.moved).toBe(1);
+    expect(result.review).toEqual([]);
+
+    const edited = result.files.find((each) => each.path === file);
+
+    expect(edited).toBeDefined();
+    expect(edited?.contents).not.toContain("project_id");
   });
 });

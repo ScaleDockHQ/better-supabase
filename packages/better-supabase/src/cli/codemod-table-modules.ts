@@ -8,6 +8,7 @@ import type { Codemod, FileRewrite, ReviewLine } from "./codemod.ts";
 
 import { rewriteSource } from "./config-document/index.ts";
 import { schemaModulePath } from "./gen/emit.ts";
+import { addNamedImports } from "./import-edits.ts";
 
 /** A table module on disk: the table's key and where its module is. */
 export interface TableModuleFile {
@@ -228,22 +229,15 @@ export function rewriteForTableModules(
       return;
     }
 
-    const imports = [...used.values()]
-      .map(
-        (table) =>
-          `import { ${table.name} } from "${relativeSpecifier(path, posix.join(folder, table.file), "x.ts")}";`,
-      )
-      .join(eol);
-
-    // After the last import, or after the directive, so the file keeps its header.
-    const last =
-      program.body.findLast((each) => each.type === "ImportDeclaration") ??
-      program.body.findLast(
-        (each) =>
-          each.type === "ExpressionStatement" && each.directive !== null,
+    for (const table of used.values()) {
+      addNamedImports(
+        edit,
+        program,
+        relativeSpecifier(path, posix.join(folder, table.file), "x.ts"),
+        [table.name],
+        eol,
       );
-
-    edit.appendLeft(last?.end ?? 0, `${eol}${imports}`);
+    }
   });
 }
 

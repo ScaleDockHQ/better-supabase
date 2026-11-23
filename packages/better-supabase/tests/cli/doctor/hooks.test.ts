@@ -23,6 +23,7 @@ import {
   stubProvider,
   withProvider,
 } from "../../fixtures/authorization-provider.ts";
+import { primeFiles } from "../../helpers/prime-statements.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
 const fixtureSnapshot = await parseSnapshot(fixture);
@@ -120,8 +121,14 @@ describe("hookGrantBlock", () => {
     ]);
   });
 
-  it("points at a grants migration the database has not applied", () => {
+  it("points at a grants migration the database has not applied", async () => {
     const path = "supabase/migrations/2_authz_hook_grants.sql";
+
+    await primeFiles([
+      {
+        text: '-- authz: hook grants\ngrant execute on function "rbac"."custom_access_token_hook"(jsonb) to supabase_auth_admin;',
+      },
+    ]);
 
     const problems = hookGrantProblems(
       context(withHook([ungranted]), {
@@ -155,6 +162,24 @@ describe("hookGrantBlock forms", () => {
 
   const name =
     "rbac.custom_access_token_hook(event jsonb) ([auth.hook.custom_access_token])";
+
+  it("ignores a function and a grant that only a comment or a string names", async () => {
+    const text = `-- authz: access token hook
+-- create function rbac.custom_access_token_hook(event jsonb) returns jsonb as $$ select event $$;
+select 'grant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin';
+/* grant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin; */`;
+
+    await primeFiles([{ text }]);
+
+    const problems = hookGrantProblems(
+      context(withHook([ungranted]), {
+        config: provider(undefined),
+        sqlFiles: [{ path: "supabase/schemas/hook.sql", text }],
+      }),
+    );
+
+    expect(problems.map((problem) => problem.fix.kind)).toEqual(["sql"]);
+  });
 
   it("says so when every hook has its grants", () => {
     expect(hookGrantBlock([])).toBe(
@@ -223,7 +248,13 @@ describe("hookGrantBlock forms", () => {
       { ...stubProvider.tokenHook, grantsCommand: undefined },
       "provider",
     ],
-  ])("picks the fix for a provider with %s", (_, tokenHook, kind) => {
+  ])("picks the fix for a provider with %s", async (_, tokenHook, kind) => {
+    await primeFiles([
+      {
+        text: "-- authz: access token hook\ncreate function rbac.custom_access_token_hook(event jsonb) returns jsonb as $$ select event $$;",
+      },
+    ]);
+
     const problems = hookGrantProblems(
       context(withHook([ungranted]), {
         config: provider(tokenHook),
@@ -253,6 +284,12 @@ describe("hookGrantBlock forms", () => {
         }),
         only("BS404"),
       );
+
+    await primeFiles([
+      {
+        text: "create function rbac.custom_access_token_hook(event jsonb) returns jsonb as $$ select event $$;\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;",
+      },
+    ]);
 
     const [own] = await run(
       {

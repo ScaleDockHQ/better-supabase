@@ -361,7 +361,18 @@ export async function sameTenantMoves(
         .toSorted((a, b) => b.index - a.index)
         .map((entry) => `${entry.path}[${String(entry.index)}]`);
 
-      const cut = withoutConfigPaths(project.configText, gone);
+      const cut = withoutConfigPaths(project.configText, gone, {
+        symbols: project.symbols,
+        configFile: project.configFile,
+      });
+
+      for (const message of cut.review) {
+        review.push({ message });
+      }
+
+      for (const other of cut.others) {
+        files.push({ path: other.file, contents: other.text, policy: "edit" });
+      }
 
       for (const path of cut.missed) {
         review.push({

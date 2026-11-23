@@ -1,5 +1,12 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
+import {
+  codeStatementsOf,
+  indexOfWords,
+  nameAt,
+  wordsAt,
+} from "../schema-reader/index.ts";
+
 /** One app row trigger and the function it runs. */
 export interface RowTrigger {
   readonly name: string;
@@ -7,21 +14,6 @@ export interface RowTrigger {
   readonly fn: string;
   readonly path: string;
 }
-
-const IDENT = String.raw`(?:"[^"]+"|[\w$]+)(?:\.(?:"[^"]+"|[\w$]+))?`;
-
-const TRIGGER = new RegExp(
-  String.raw`create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+("[^"]+"|[\w$]+)\s+(?:before|after|instead\s+of)\s+[^;]*?\bon\s+(${IDENT})([^;]*?)execute\s+(?:function|procedure)\s+(${IDENT})`,
-  "gi",
-);
-
-const FUNCTION = new RegExp(
-  String.raw`create\s+(?:or\s+replace\s+)?function\s+(${IDENT})\s*\([^$]*?\$(\w*)\$([\s\S]*?)\$\2\$`,
-  "gi",
-);
-
-const bare = (name: string): string =>
-  (name.split(".").pop() ?? name).replaceAll('"', "").toLowerCase();
 
 const schemaOf = (name: string): string | undefined =>
   name.includes(".")
@@ -61,23 +53,50 @@ export function appRowTriggers(
   skipSchemas: ReadonlySet<string> = new Set(),
 ): RowTrigger[] {
   return files.flatMap((file) =>
-    [...file.text.matchAll(TRIGGER)].flatMap((match): RowTrigger[] => {
-      const [, name = "", table = "", , fn = ""] = match;
-      const schema = schemaOf(fn);
+    codeStatementsOf(file.text).flatMap(({ tokens }): RowTrigger[] => {
+      const head = wordsAt(tokens, 0, "create", "or", "replace") ? 3 : 1;
+      const constraint = wordsAt(tokens, head, "constraint") ? 1 : 0;
+
+      const created = wordsAt(tokens, head + constraint, "trigger")
+        ? nameAt(tokens, head + constraint + 1)
+        : undefined;
+
+      if (created?.parts.length !== 1) {
+        return [];
+      }
+
+      const on = indexOfWords(tokens, created.next, "on");
+      const table = on === -1 ? undefined : nameAt(tokens, on + 1);
+      const execute = indexOfWords(tokens, created.next, "execute");
+      const fn = execute === -1 ? undefined : nameAt(tokens, execute + 2);
 
       if (
-        name.replaceAll('"', "").toLowerCase().startsWith("bsb_") ||
-        (schema !== undefined && skipSchemas.has(schema)) ||
-        !/for\s+each\s+row/i.test(match[0])
+        table === undefined ||
+        fn === undefined ||
+        !(
+          wordsAt(tokens, execute, "execute", "function") ||
+          wordsAt(tokens, execute, "execute", "procedure")
+        ) ||
+        indexOfWords(tokens, created.next, "for", "each", "row") === -1
+      ) {
+        return [];
+      }
+
+      const name = created.parts[0] ?? "";
+      const schema = fn.parts.length > 1 ? fn.parts[0] : undefined;
+
+      if (
+        name.toLowerCase().startsWith("bsb_") ||
+        (schema !== undefined && skipSchemas.has(schema.toLowerCase()))
       ) {
         return [];
       }
 
       return [
         {
-          name: name.replaceAll('"', ""),
-          table: table.replaceAll('"', ""),
-          fn: bare(fn),
+          name,
+          table: table.parts.join("."),
+          fn: (fn.parts.at(-1) ?? "").toLowerCase(),
           path: file.path,
         },
       ];
@@ -85,19 +104,43 @@ export function appRowTriggers(
   );
 }
 
-/** The body of each function in the files, by its unqualified name. */
-function functionBodies(
+/**
+ * Whether each function the files create calls `better_supabase.importing()`,
+ * by its unqualified name, the last create of a name winning.
+ */
+function importGuards(
   files: readonly { readonly path: string; readonly text: string }[],
-): ReadonlyMap<string, string> {
-  const bodies = new Map<string, string>();
+): ReadonlyMap<string, boolean> {
+  const guards = new Map<string, boolean>();
 
   for (const file of files) {
-    for (const match of file.text.matchAll(FUNCTION)) {
-      bodies.set(bare(match[1] ?? ""), match[3] ?? "");
+    for (const { tokens } of codeStatementsOf(file.text)) {
+      const head = wordsAt(tokens, 0, "create", "or", "replace") ? 3 : 1;
+
+      const created = wordsAt(tokens, head, "function")
+        ? nameAt(tokens, head + 1)
+        : undefined;
+
+      if (created === undefined || tokens[created.next]?.text !== "(") {
+        continue;
+      }
+
+      const body = tokens.filter((token) => token.depth > 0);
+
+      guards.set(
+        (created.parts.at(-1) ?? "").toLowerCase(),
+        body.some(
+          (token, at) =>
+            wordsAt(body, at, "importing") &&
+            body[at + 1]?.text === "(" &&
+            body[at + 2]?.text === ")" &&
+            token.kind === "word",
+        ),
+      );
     }
   }
 
-  return bodies;
+  return guards;
 }
 
 /**
@@ -108,14 +151,12 @@ export function unguardedRowTriggers(
   files: readonly { readonly path: string; readonly text: string }[],
   skipSchemas: ReadonlySet<string> = new Set(),
 ): RowTrigger[] {
-  const bodies = functionBodies(files);
+  const guards = importGuards(files);
 
-  return appRowTriggers(files, skipSchemas).filter((trigger) => {
-    const body = bodies.get(trigger.fn);
-
+  return appRowTriggers(files, skipSchemas).filter(
     // A function outside the schema files can't be read, so it isn't judged.
-    return body !== undefined && !/\bimporting\s*\(\s*\)/i.test(body);
-  });
+    (trigger) => guards.get(trigger.fn) === false,
+  );
 }
 
 export const IMPORT_GUARD_RULES: readonly Rule[] = [

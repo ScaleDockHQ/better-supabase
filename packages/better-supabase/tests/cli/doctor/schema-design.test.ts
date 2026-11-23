@@ -538,6 +538,46 @@ create trigger notes_customer before insert or update on public.notes for each r
     ).toEqual([]);
   });
 
+  it("reads the pooler URL from a value or a string, not a comment (BS226)", async () => {
+    const url =
+      "postgres://postgres.abc:x@aws-0-eu-central-1.pooler.supabase.com:6543/postgres";
+
+    const commented = {
+      path: "src/db.ts",
+      text: `import postgres from "postgres";\n// const old = "${url}";\n/* "${url}" */\nexport const sql = postgres(process.env.DATABASE_URL!);\n`,
+    };
+
+    expect(
+      await run(context(base, { envFiles: [], sources: [commented] }), "BS226"),
+    ).toEqual([]);
+
+    const inString = {
+      path: "src/db.ts",
+      text: `import postgres from "postgres";\nexport const sql = postgres(\`${url}\`);\n`,
+    };
+
+    expect(
+      await run(context(base, { envFiles: [], sources: [inString] }), "BS226"),
+    ).toHaveLength(1);
+
+    const quoted = { path: ".env", text: `export DATABASE_URL="${url}"\n` };
+
+    expect(
+      await run(
+        context(base, {
+          envFiles: [quoted],
+          sources: [
+            {
+              path: "src/prisma.ts",
+              text: 'import { PrismaClient } from "@prisma/client";\n',
+            },
+          ],
+        }),
+        "BS226",
+      ),
+    ).toMatchObject([{ target: ".env:DATABASE_URL", location: { line: 1 } }]);
+  });
+
   it("reports app table columns that drifted from appTables (BS228)", async () => {
     const snap = snapshot((tables) => {
       const notes = table(tables, "notes");

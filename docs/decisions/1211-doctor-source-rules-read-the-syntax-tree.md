@@ -17,10 +17,9 @@ BS351, BS381, BS5xx and BS6xx) read the tree through `src/cli/doctor/tree.ts`
 and `module-calls.ts`. Codes, findings and lines stay the same for real code.
 Each rule has a case for a comment and a string.
 
-These rules still read text, because their input is not TypeScript: `hooks`,
-`dispatch-regression`, `error-codes`, `plain-secrets` and `import-guard` (SQL),
-`env` BS501, BS502, BS503, BS506 and BS509 and `vercel-env` (dotenv), the
-`scale` purge check, and the `:6543` URL line scan in BS226.
+[ADR 1220](1220-remaining-doctor-text-rules-read-tokens.md) moved the SQL and
+dotenv rules and the BS226 and purge scans that this ADR first left on text.
+What still reads text is listed there.
 
 Behavior that changed: BS260 reports only imported function and type names,
 BS511 and BS621 count dynamic imports, BS508 and BS510 match identifiers, and

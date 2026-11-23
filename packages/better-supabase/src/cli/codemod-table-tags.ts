@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { ResolvedConfig } from "../config/index.ts";
 import type { Codemod, CodemodProject } from "./codemod.ts";
+import type { ImportFollow } from "./config-document/index.ts";
 import type { PlannedFile } from "./core/files.ts";
 
 import { withTableTag } from "./codemod-extra-columns.ts";
@@ -347,6 +348,30 @@ export async function tableTagFiles(project: CodemodProject): Promise<{
 
     const missed: string[] = [];
 
+    // A value the config imports is edited in the file that declares it. Each
+    // cut reads that file again, so a second cut in the same file would lose
+    // the first, and it goes to review instead.
+    const follow: ImportFollow = {
+      symbols: project.symbols,
+      configFile: project.configFile,
+    };
+
+    const followed = new Map<string, string>();
+
+    const keep = (cut: ReturnType<typeof withoutConfigPaths>): void => {
+      out.push(...cut.review.map((message) => ({ message })));
+
+      for (const other of cut.others) {
+        if (followed.has(other.file)) {
+          out.push({
+            message: `${other.file} holds more than one moved entry; remove the later ones by hand.`,
+          });
+        } else {
+          followed.set(other.file, other.text);
+        }
+      }
+    };
+
     // Removing a list element moves the ones after it up, so each index drops
     // by the number of earlier elements already cut from the same list.
     const cutFrom = new Map<string, number[]>();
@@ -373,17 +398,18 @@ export async function tableTagFiles(project: CodemodProject): Promise<{
 
       let cut =
         "paths" in move.remove
-          ? withoutConfigPaths(text, move.remove.paths.map(shifted))
-          : withoutConfigPaths(text, [move.remove.path]);
+          ? withoutConfigPaths(text, move.remove.paths.map(shifted), follow)
+          : withoutConfigPaths(text, [move.remove.path], follow);
 
       if (
         "path" in move.remove &&
         cut.missed.length > 0 &&
         move.remove.alt !== undefined
       ) {
-        cut = withoutConfigPaths(text, [move.remove.alt]);
+        cut = withoutConfigPaths(text, [move.remove.alt], follow);
       }
 
+      keep(cut);
       text = cut.text;
       missed.push(...cut.missed);
     }
@@ -410,6 +436,10 @@ export async function tableTagFiles(project: CodemodProject): Promise<{
 
     if (text !== project.configText) {
       files.push({ path: project.configFile, contents: text, policy: "edit" });
+    }
+
+    for (const [path, contents] of followed) {
+      files.push({ path, contents, policy: "edit" });
     }
   } else if (moved.length > 0) {
     out.push({

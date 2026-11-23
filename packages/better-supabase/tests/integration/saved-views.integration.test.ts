@@ -275,10 +275,11 @@ describe.skipIf(!live)("saved views in Postgres", () => {
       [org],
     );
 
+    // The file saves views of several kinds in one organization and the
+    // select has no order, so check that a table view was recorded.
     expect(rows.length).toBeGreaterThan(0);
-    expect(rows[0]?.payload).toMatchObject({
-      organizationId: org,
-      kind: "table",
-    });
+    expect(rows.map((row) => row.payload)).toContainEqual(
+      expect.objectContaining({ organizationId: org, kind: "table" }),
+    );
   });
 });

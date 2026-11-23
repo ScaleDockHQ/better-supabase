@@ -1,6 +1,10 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { CodemodProject } from "../../src/cli/codemod.ts";
+import type { ProjectSymbols } from "../../src/cli/typescript-symbols/index.ts";
 import type { BetterSupabaseConfig } from "../../src/config/index.ts";
 
 import { withTableTag } from "../../src/cli/codemod-extra-columns.ts";
@@ -403,5 +407,57 @@ describe("tableTagFiles edges", () => {
       expect.stringContaining("expose.scratch moved to a comment"),
       expect.stringContaining("could not find its exempt entry"),
     ]);
+  });
+});
+
+describe("tableTagFiles across files", () => {
+  it("removes a moved entry from the file that declares the imported value", async () => {
+    const root = await mkdtemp(join(tmpdir(), "bsb-table-tags-"));
+    const file = join(root, "shared.ts");
+
+    const shared = `export const shared = {
+  expose: {
+    invoices: { authenticated: ["select"] },
+  },
+};
+`;
+
+    await writeFile(file, shared);
+
+    const symbols: ProjectSymbols = {
+      root,
+      tier: {
+        version: "7.1.0",
+        references: () => [],
+        declaration: () => ({
+          file,
+          start: shared.indexOf("export"),
+          end: shared.length,
+        }),
+        typeOf: () => undefined,
+        close: () => {},
+      },
+    };
+
+    const target: CodemodProject = {
+      config: resolveConfig(
+        { database: { expose: { invoices: { authenticated: ["select"] } } } },
+        "/project",
+      ),
+      sql: [schema("invoices")],
+      configFile: join(root, "better-supabase.config.ts"),
+      configText:
+        'import { shared } from "./shared.ts";\nexport default defineConfig({ database: shared });\n',
+      symbols,
+    };
+
+    const { files, review } = await run(target);
+
+    expect(review).toEqual([]);
+
+    const edited = files.find((each) => each.path === file);
+
+    expect(edited).toBeDefined();
+    expect(edited?.contents).not.toContain("invoices");
   });
 });

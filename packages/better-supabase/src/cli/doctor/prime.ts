@@ -1,7 +1,10 @@
 import type { DoctorContext } from "./rules.ts";
 
 import { primeAdoption } from "../adopted-columns.ts";
-import { primeStatements } from "../schema-reader/index.ts";
+import {
+  primeCodeStatements,
+  primeStatements,
+} from "../schema-reader/index.ts";
 import { primeSchemaFacts } from "../sql-facts.ts";
 import { adoptionContext, appTablesOf } from "./app-tables.ts";
 
@@ -13,6 +16,11 @@ export async function primeDoctorFacts(context: DoctorContext): Promise<void> {
   await primeSchemaFacts(context.sqlFiles ?? [], context.config.root, {
     lenient: true,
   });
+
+  // The rules that read calls and names in SQL bodies read code tokens.
+  await primeCodeStatements([
+    ...(context.sqlFiles ?? []).map((file) => file.text),
+  ]);
 
   await primeAdoption(
     context.config.blocks,

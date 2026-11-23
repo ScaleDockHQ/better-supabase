@@ -11,6 +11,7 @@ import {
   staleVariables,
 } from "../stack-env.ts";
 import { readStackStatus } from "../stack-status.ts";
+import { readDotenv } from "./dotenv.ts";
 import { ignoredBy } from "./git-ignored.ts";
 
 export const PUBLIC_PREFIXES: readonly string[] = [
@@ -35,22 +36,11 @@ function normalizedUrl(value: string): string | null {
   }
 }
 
+/** The `KEY=value` assignments of an env file; comments are not entries. */
 export function envEntries(
   file: TextFile,
 ): { key: string; value: string; line: number }[] {
-  return file.text.split("\n").flatMap((raw, index) => {
-    const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(
-      raw,
-    );
-
-    if (!match) {
-      return [];
-    }
-
-    const value = match[2]!.trim().replace(/^(['"])(.*)\1$/, "$2");
-
-    return [{ key: match[1]!, value, line: index + 1 }];
-  });
+  return [...readDotenv(file.text)];
 }
 
 /** The shell's variables next to the running stack's, for BS503. */

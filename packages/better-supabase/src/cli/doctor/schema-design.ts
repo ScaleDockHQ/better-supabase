@@ -4,12 +4,13 @@ import type {
   CatalogIndex,
   CatalogTable,
 } from "../introspect/types.ts";
-import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
+import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { configFor } from "../gen/shared.ts";
 import { sameTenantLayout } from "../same-tenant-layout.ts";
 import { splinterTables } from "./advisor-rules.ts";
 import { enrichedAppTables } from "./app-table-scope.ts";
+import { envEntries } from "./env.ts";
 import { receiverIsNotClient } from "./receiver-types.ts";
 import { escape, withoutStrings } from "./rls.ts";
 import { SCALE_RULES } from "./scale.ts";
@@ -29,6 +30,7 @@ import {
   qualified,
   tableObject,
 } from "./shared.ts";
+import { stringSites } from "./tree.ts";
 
 /** The `format` the database reports for each app column type. */
 const APP_COLUMN_FORMAT: Readonly<Record<AppColumnType, string>> = {
@@ -124,12 +126,6 @@ const TRANSACTION_POOLER = /postgres(?:ql)?:\/\/[^\s"'`]*:6543\b/i;
 
 /** `format_type` names of scalar results that a JSON number can't hold exactly. */
 const WIDE_RESULT = /^(?:bigint|numeric)(?:\[\])?$/;
-
-function lines(file: TextFile): { line: number; text: string }[] {
-  return file.text
-    .split("\n")
-    .map((text, index) => ({ line: index + 1, text }));
-}
 
 const DESIGN_RULES: readonly Rule[] = [
   {
@@ -419,28 +415,26 @@ const DESIGN_RULES: readonly Rule[] = [
     check: (context: DoctorContext) => {
       const serverless =
         context.sources.some((file) => isServerlessSource(file.text)) ||
-        context.envFiles.some((file) => /^\s*VERCEL\w*=/m.test(file.text));
+        context.envFiles.some((file) =>
+          envEntries(file).some((entry) => /^VERCEL\w*$/.test(entry.key)),
+        );
 
       if (!serverless) {
         return [];
       }
 
       return context.envFiles.flatMap((file): FindingInput[] =>
-        lines(file).flatMap(({ line, text }): FindingInput[] => {
-          if (/^\s*#/.test(text) || !DIRECT_URL.test(text)) {
-            return [];
-          }
-
-          const key = /^\s*(?:export\s+)?(\w+)\s*=/.exec(text)?.[1];
-
-          return [
-            {
-              message: `${file.path}${key ? `:${key}` : ""} connects through port 5432 or the direct host, but the app runs on serverless functions. Use the transaction pooler: \`postgres://postgres.<ref>:<password>@<region>.pooler.supabase.com:6543/postgres\`.`,
-              target: `${file.path}${key ? `:${key}` : ""}`,
-              location: { file: file.path, line },
-            },
-          ];
-        }),
+        envEntries(file).flatMap(({ key, line, value }): FindingInput[] =>
+          DIRECT_URL.test(value)
+            ? [
+                {
+                  message: `${file.path}:${key} connects through port 5432 or the direct host, but the app runs on serverless functions. Use the transaction pooler: \`postgres://postgres.<ref>:<password>@<region>.pooler.supabase.com:6543/postgres\`.`,
+                  target: `${file.path}:${key}`,
+                  location: { file: file.path, line },
+                },
+              ]
+            : [],
+        ),
       );
     },
   },
@@ -524,14 +518,28 @@ const DESIGN_RULES: readonly Rule[] = [
     description:
       "The transaction pooler on port 6543 hands each transaction to any server connection, so a named prepared statement from one transaction is missing in the next and the query fails with `prepared statement does not exist`. postgres.js prepares statements unless `prepare: false`, and Prisma does unless the URL has `pgbouncer=true`. `pg` (and `better-supabase/postgres`) sends unnamed statements, which are safe. Doctor looks for a `:6543` URL in the env files and `tooling.doctor.sources`.",
     check: (context) => {
-      const urls = [...context.envFiles, ...context.sources].flatMap((file) =>
-        lines(file)
-          .filter(
-            ({ text }) =>
-              !/^\s*(?:#|\/\/)/.test(text) && TRANSACTION_POOLER.test(text),
-          )
-          .map(({ line, text }) => ({ file, line, text })),
-      );
+      const urls = [
+        ...context.envFiles.flatMap((file) =>
+          envEntries(file)
+            .filter((entry) => TRANSACTION_POOLER.test(entry.value))
+            .map((entry) => ({
+              file,
+              line: entry.line,
+              text: entry.value,
+              key: entry.key,
+            })),
+        ),
+        ...context.sources.flatMap((file) =>
+          stringSites(file.text)
+            .filter((site) => TRANSACTION_POOLER.test(site.value))
+            .map((site) => ({
+              file,
+              line: site.line,
+              text: site.value,
+              key: undefined,
+            })),
+        ),
+      ];
 
       if (urls.length === 0) {
         return [];
@@ -557,12 +565,11 @@ const DESIGN_RULES: readonly Rule[] = [
         return findings;
       }
 
-      for (const { file, line, text } of urls) {
+      for (const { file, line, text, key } of urls) {
         if (/[?&]pgbouncer=true\b/.test(text)) {
           continue;
         }
 
-        const key = /^\s*(?:export\s+)?(\w+)\s*=/.exec(text)?.[1];
         const target = `${file.path}${key ? `:${key}` : `:${line}`}`;
 
         findings.push({

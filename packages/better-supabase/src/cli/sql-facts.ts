@@ -3,6 +3,7 @@ import type { DeclarationSummary } from "./schema-reader/queries.ts";
 
 import {
   factsOf,
+  primeCodeStatements,
   primeStatements,
   readSchemaFacts,
   readSchemaFactsLeniently,
@@ -81,6 +82,7 @@ export async function primeSchemaTexts(
   texts: readonly string[],
 ): Promise<void> {
   await primeStatements(texts);
+  await primeCodeStatements(texts);
   await readSchemaFactsLeniently(
     texts.map((text) => ({ path: "generated.sql", text })),
   );

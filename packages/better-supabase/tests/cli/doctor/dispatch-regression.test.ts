@@ -71,4 +71,28 @@ describe("BS629 dispatch arms", async () => {
       "quote",
     );
   });
+
+  it("ignores an arm named in a comment or a string", async () => {
+    const commented = `create function public.import_apply_batch(run uuid)
+returns jsonb language plpgsql as $$
+begin
+  -- when 'ghost' then null;
+  /* when 'phantom' then null; */
+  perform log('when ''quoted'' then');
+  case entity
+    when 'alpha' then null;
+    else null;
+  end case;
+end $$;`;
+
+    const findings = await regressions(
+      [
+        { path: "supabase/schemas/overrides.sql", text: commented },
+        migration("20261107170100_sync", schema(["alpha"])),
+      ],
+      ["alpha"],
+    );
+
+    expect(findings).toEqual([]);
+  });
 });
