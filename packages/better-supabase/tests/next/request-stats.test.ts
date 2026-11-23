@@ -98,6 +98,39 @@ describe("request stats in cache scopes", () => {
     });
   });
 
+  it("records a slow payload RPC that a private cache function reads with no handle", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "performance"] });
+
+    try {
+      rest.mockImplementation(async () => {
+        vi.advanceTimersByTime(587);
+
+        return Response.json({ order: 1 });
+      });
+
+      const bsb = debugged();
+      const id = await signedIn(bsb);
+
+      const orderPayload = async () => {
+        const ctx = await bsb.cached();
+
+        return ctx.db.$rpc("customers_by_status" as never, {} as never);
+      };
+
+      await orderPayload();
+
+      const stats = await statsOf(bsb, id);
+
+      expect(stats).toMatchObject({
+        calls: 1,
+        tables: ["customers_by_status()"],
+      });
+      expect((stats as { ms: number }).ms).toBeGreaterThanOrEqual(587);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("records a remote cache fill on the request that started it", async () => {
     const bsb = debugged();
     const id = await signedIn(bsb);
