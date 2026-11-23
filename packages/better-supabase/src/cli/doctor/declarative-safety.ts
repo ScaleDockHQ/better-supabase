@@ -1,14 +1,8 @@
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { withoutComments } from "../schema-reader/index.ts";
 import { declarativeSchemasDir, tomlGet } from "../supabase-config.ts";
-import {
-  CATALOG,
-  DO_BLOCK,
-  EXECUTES,
-  lineAt,
-  pgdeltaToml,
-  withoutComments,
-} from "./pgdelta.ts";
+import { CATALOG, DO_BLOCK, EXECUTES, lineAt, pgdeltaToml } from "./pgdelta.ts";
 
 const DDL = /\b(create|alter|drop|grant|revoke|comment\s+on)\b/i;
 

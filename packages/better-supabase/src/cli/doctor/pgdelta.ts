@@ -1,6 +1,7 @@
 import type { SupabaseConfig } from "../supabase-config.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { withoutComments } from "../schema-reader/index.ts";
 import { declarativeSchemasDir } from "../supabase-config.ts";
 import { workflowOf } from "./shared.ts";
 
@@ -13,18 +14,6 @@ export function pgdeltaToml(
   return toml !== undefined && workflowOf(context) === "pg-delta"
     ? toml
     : undefined;
-}
-
-/**
- * Comments blanked out, so a commented-out statement never matches and line
- * numbers stay.
- */
-export function withoutComments(text: string): string {
-  return text
-    .replaceAll(/\/\*[\s\S]*?\*\//g, (comment) =>
-      comment.replaceAll(/[^\n]/g, " "),
-    )
-    .replaceAll(/--[^\n]*/g, (comment) => " ".repeat(comment.length));
 }
 
 export const lineAt = (text: string, index: number): number =>

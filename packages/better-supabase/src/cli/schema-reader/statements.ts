@@ -29,7 +29,7 @@ function textOf(
     text += source.slice(at, comment.start);
 
     if (comment.kind === "C_COMMENT") {
-      text += " ";
+      text += ` ${"\n".repeat(source.slice(comment.start, comment.end).split("\n").length - 1)}`;
     }
 
     at = comment.end;
@@ -104,8 +104,8 @@ export function rawStatementsFrom(source: Source): string[] {
 
 /**
  * The text with each line comment dropped (its newline stays) and each block
- * comment turned into one space, strings, quoted names and dollar quotes
- * untouched.
+ * comment turned into one space plus its newlines, strings, quoted names and
+ * dollar quotes untouched.
  *
  * @param source - The scanned text.
  * @returns The text without comments.
@@ -118,7 +118,7 @@ export function blankedFrom(source: Source): string {
     text += source.slice(at, comment.start);
 
     if (comment.kind === "C_COMMENT") {
-      text += " ";
+      text += ` ${"\n".repeat(source.slice(comment.start, comment.end).split("\n").length - 1)}`;
     }
 
     at = comment.end;

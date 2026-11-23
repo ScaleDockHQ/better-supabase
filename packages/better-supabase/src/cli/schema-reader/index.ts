@@ -313,7 +313,7 @@ export function rawStatementsOf(text: string): readonly string[] {
  *
  * @param text - A SQL text that `primeStatements` scanned before.
  * @returns The text without comments, line comments gone and block comments one
- *   space.
+ *   space that keeps their newlines, so line numbers hold.
  */
 export function withoutComments(text: string): string {
   const known = blanked.get(text);

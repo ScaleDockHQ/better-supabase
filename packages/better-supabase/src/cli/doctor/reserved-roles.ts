@@ -1,5 +1,7 @@
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
+import { withoutComments } from "../schema-reader/index.ts";
+
 /**
  * Supautils' `reserved_roles` on Supabase. Nobody but a superuser may alter,
  * drop or change the memberships of these.
@@ -39,12 +41,7 @@ export const PLATFORM_ROLES: ReadonlySet<string> = new Set([
 
 /** Comments and string literals blanked, newlines kept so offsets map to lines. */
 const sqlCode = (text: string): string =>
-  text
-    .replaceAll(/\/\*[\s\S]*?\*\//g, (comment) =>
-      comment.replaceAll(/[^\n]/g, " "),
-    )
-    .replaceAll(/--[^\n]*/g, "")
-    .replaceAll(/'(?:[^']|'')*'/g, "''");
+  withoutComments(text).replaceAll(/'(?:[^']|'')*'/g, "''");
 
 const roleNames = (list: string): string[] =>
   list

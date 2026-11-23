@@ -3,12 +3,19 @@ import { describe, expect, it } from "vitest";
 import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 
 import { RULES } from "../../../src/cli/doctor/rules.ts";
+import { primeStatements } from "../../../src/cli/schema-reader/index.ts";
 import { supabaseConfigFromText } from "../../../src/cli/supabase-config.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
 const PGDELTA = "[experimental.pgdelta]\nenabled = true\n";
 
-function run(code: string, files: Record<string, string>, tomlText = PGDELTA) {
+async function run(
+  code: string,
+  files: Record<string, string>,
+  tomlText = PGDELTA,
+) {
+  await primeStatements(Object.values(files));
+
   const rule = RULES.find((candidate) => candidate.code === code)!;
 
   const context = {
