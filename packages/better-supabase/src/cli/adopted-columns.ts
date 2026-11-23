@@ -1,11 +1,12 @@
-import type { AnyBlocksConfig } from "../config/blocks.ts";
-import type { BlockSqlContext } from "../sql/context.ts";
-import type { BlockSqlLayout } from "../sql/module-types.ts";
+import type { AnyBlocksConfig } from "../config/index.ts";
+import type { BlockSqlContext, BlockSqlLayout } from "../sql/index.ts";
 
-import { moduleContext } from "../sql/module-context.ts";
-import { SQL_MODULES } from "../sql/registry.ts";
-import { moduleBody } from "../sql/render.ts";
-import { memoized } from "../sql/result-memo.ts";
+import {
+  memoized,
+  moduleBody,
+  moduleContext,
+  SQL_MODULES,
+} from "../sql/index.ts";
 import { qualified } from "../sql/text-edit.ts";
 import { hasValueEntry } from "../sql/value-maps.ts";
 import { computedWrites } from "./plpgsql-text-writes.ts";

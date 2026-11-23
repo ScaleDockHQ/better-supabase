@@ -262,10 +262,6 @@ export function indexSignature(statement: string): string {
   return normalizedSql(rest.replace(/;\s*$/, ""));
 }
 
-/** A call that has `better_supabase.track_updated_at` create the trigger. */
-export const TRACK_UPDATED_AT_CALL: RegExp =
-  /\btrack_updated_at\s*\(\s*'((?:[\w$]+\.)?[\w$]+)'/gi;
-
 /** `text` with comments blanked out, string and identifier quotes kept. */
 export function withoutComments(text: string): string {
   let out = "";

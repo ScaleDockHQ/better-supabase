@@ -42,12 +42,8 @@ const PURE = new Set([
   join(SRC, "sql/layout-types.ts"),
   join(SRC, "sql/bsb-tags.ts"),
   join(SRC, "sql/table-facts.ts"),
+  join(SRC, "sql/value-maps.ts"),
 ]);
-
-// The adoption check walks the module registry and the render pipeline to read
-// what each block writes. It runs only in the CLI, so its copy of that state is
-// the only one it uses (ADR 1300).
-const ADOPTION = join(CLI, "adopted-columns.ts");
 
 describe("the CLI's library imports", () => {
   // The CLI build loads these from the package's own entries, so a deeper
@@ -62,8 +58,7 @@ describe("the CLI's library imports", () => {
             target.startsWith(`${CLI}/`) ||
             entries.has(target) ||
             BUNDLED.has(target) ||
-            PURE.has(target) ||
-            file === ADOPTION
+            PURE.has(target)
           ) {
             return [];
           }

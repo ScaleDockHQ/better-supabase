@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { readFileFacts } from "../../../src/cli/schema-reader/index.ts";
+import {
+  primeStatements,
+  readFileFacts,
+  statementsOf,
+} from "../../../src/cli/schema-reader/index.ts";
+import { files } from "./corpus.ts";
 
 const facts = readFileFacts;
 
@@ -165,5 +170,25 @@ create table things (id int);`);
         onDelete: "cascade",
       },
     ]);
+  });
+});
+
+describe("the schema reader over the repository's own SQL", () => {
+  it("splits every file into as many statements as the parser reads", async () => {
+    expect(files.length).toBeGreaterThan(50);
+
+    const mismatched: string[] = [];
+
+    for (const file of files) {
+      await primeStatements([file.text]);
+
+      const read = await readFileFacts(file.text);
+
+      if (read.statements.length !== statementsOf(file.text).length) {
+        mismatched.push(file.path);
+      }
+    }
+
+    expect(mismatched).toEqual([]);
   });
 });

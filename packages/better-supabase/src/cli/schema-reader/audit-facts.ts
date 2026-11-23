@@ -45,7 +45,7 @@ function nameList(node: unknown): string[] | undefined {
  * `schema.table`, unquoted, from a regclass literal such as
  * `'public."Customers"'`.
  */
-export function regclassName(target: string): string {
+function regclassName(target: string): string {
   const parts = target.match(/"(?:[^"]|"")*"|[^.]+/g) ?? [];
 
   const names = parts.map((part) =>
