@@ -1000,8 +1000,8 @@ over the provider's.
 | `suspension.user` as a column name                                                                   | `userKey` matches that column when the provider's user is the one in use                                                                                | 0.58    |
 | `functions.canIn`                                                                                    | the permission check the `@bsb access` tag renders into its policies; the tag falls back to `tenant_ids_with`                                           | 0.58    |
 | `seed.tenant` (`AuthzSubjectSeed`)                                                                   | the tenant a seeded subject belongs to, so `accessOf` and `testAuthorizer` keep it out of other tenants                                                 | 0.58    |
-| `tables`                                                                                             | `share: "tenant"` or `"row"` per table, with the permissions its reads check, for shared cache entries                                                  | 0.84    |
-| `context.enforcement` on the authorizer's request                                                    | `rls` or `definer`, so the adapter can skip its live version read for a write RLS checks again ([Enforcement](/docs/extending/authorizers#enforcement)) | 0.84    |
+| `tables`                                                                                             | `share: "tenant"` or `"row"` per table, with the permissions its reads check, for shared cache entries                                                  | 0.85    |
+| `context.enforcement` on the authorizer's request                                                    | `rls` or `definer`, so the adapter can skip its live version read for a write RLS checks again ([Enforcement](/docs/extending/authorizers#enforcement)) | 0.85    |
 
 Doctor reports a config value equal to the provider's (BS427).
 
