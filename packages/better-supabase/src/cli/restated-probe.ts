@@ -1,23 +1,49 @@
-import type { RestatedEntry, ResolvedConfig } from "../config/index.ts";
+import type {
+  RestatedEntry,
+  RestatedKind,
+  ResolvedConfig,
+} from "../config/index.ts";
 
-import { renderBlocks } from "../sql/index.ts";
+import { renderBlocks, SQL_MODULES } from "../sql/index.ts";
 import { withLayoutSession } from "./sql-layout.ts";
 import { layoutFor } from "./sql/providers.ts";
 
 interface Candidate {
+  /** A block name, or a record type for `recordTypes` candidates. */
   readonly block: string;
-  /** The keys under the block entry, `["options", "a", "b"]`. */
+  /** `blocks.<name>` entries and `recordTypes.<type>` entries. */
+  readonly scope: "blocks" | "recordTypes";
+  /** The keys under the entry, `["options", "a", "b"]`. */
   readonly keys: readonly (string | number)[];
 }
 
 /** The most renders a probe spends before it gives up and reports what it has. */
 const MAX_RENDERS = 400;
 
+/** An option nested deeper than this is data (steps, effects), not a default. */
+const MAX_OPTION_DEPTH = 4;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** The `on.<type>` keys the render infers from the schema's foreign keys. */
-const INFERRED_KEYS = ["links", "column"] as const;
+/** The block entry sections the probe takes out one entry at a time. */
+const SECTIONS = [
+  "permissions",
+  "options",
+  "hooks",
+  "tables",
+  "columns",
+  "api",
+] as const;
+
+/** The `on.<type>` keys the render may infer from the schema. */
+const ON_KEYS: ReadonlySet<string> = new Set(["links", "column", "table"]);
+
+/** The record type keys the render may derive. */
+const TYPE_KEYS: ReadonlySet<string> = new Set(["idType", "table", "cascade"]);
+
+/** The key a config file writes for a resolved block key. */
+const FILE_KEYS: Readonly<Record<string, string>> = { hooks: "callbacks" };
 
 /** The leaf keys of `value`; arrays of entries yield one candidate per element. */
 function leaves(
@@ -28,7 +54,8 @@ function leaves(
     return [];
   }
 
-  if (isRecord(value)) {
+  // The foreign keys the render infers go whole: a part of them is no entry.
+  if (isRecord(value) && keys.at(-1) !== "links") {
     return Object.entries(value).flatMap(([key, child]) =>
       leaves(child, [...keys, key]),
     );
@@ -41,32 +68,115 @@ function leaves(
   return [keys];
 }
 
-/** The candidates: scalar facts a block's config may restate. */
+/**
+ * Whether the entry at `keys` could equal what the block uses without it. A
+ * hook that keeps its name, a table that keeps its logical name and a column
+ * that keeps the default name may; the rest cost a render for nothing.
+ */
+function plausible(
+  module: string,
+  entry: object,
+  keys: readonly (string | number)[],
+): boolean {
+  const [section, first, second] = keys;
+  const value = valueAt(entry, keys);
+
+  switch (String(section)) {
+    case "hooks": {
+      return first === "schema" ? value === "public" : value === second;
+    }
+
+    case "tables": {
+      return (
+        value === null ||
+        (typeof value === "string" &&
+          value.slice(value.lastIndexOf(".") + 1) === first)
+      );
+    }
+
+    case "columns": {
+      const spec = SQL_MODULES[module]?.names?.tables[String(first)];
+
+      return (
+        value === null ||
+        (typeof value === "string" &&
+          typeof second === "string" &&
+          spec?.columns[second] === value)
+      );
+    }
+
+    default: {
+      return true;
+    }
+  }
+}
+
+function valueAt(value: unknown, keys: readonly (string | number)[]): unknown {
+  let current = value;
+
+  for (const key of keys) {
+    if (!isRecord(current) && !Array.isArray(current)) {
+      return undefined;
+    }
+
+    // SAFETY: a record or an array is indexed by the key the path names.
+    current = (current as Record<string | number, unknown>)[key];
+  }
+
+  return current;
+}
+
+/** The candidates: scalar facts a block's or a record type's config may restate. */
 function candidatesOf(config: ResolvedConfig): Candidate[] {
-  return config.blockNames.flatMap((block) => {
+  const blocks = config.blockNames.flatMap((block) => {
     const entry = config.blocks[block];
 
     if (entry === undefined) {
       return [];
     }
 
-    const bound = isRecord(entry.on)
-      ? Object.entries(entry.on).flatMap(([type, each]) =>
-          isRecord(each)
-            ? INFERRED_KEYS.filter((key) => each[key] !== undefined).map(
-                (key) => ({ block, keys: ["on", type, key] }),
-              )
-            : [],
-        )
-      : [];
+    const own = SECTIONS.flatMap((section) => {
+      // A default the project's `sql.api` filled in is not in the config file.
+      if (section === "api" && entry.api === config.sql.blockDefaults?.api) {
+        return [];
+      }
 
-    return [
-      ...(["permissions", "options"] as const).flatMap((section) =>
-        leaves(entry[section], [section]).map((keys) => ({ block, keys })),
-      ),
-      ...bound,
-    ];
+      return leaves(entry[section], [section]).filter(
+        (keys) =>
+          plausible(entry.block ?? block, entry, keys) &&
+          (section !== "options" ||
+            keys.length <= MAX_OPTION_DEPTH ||
+            keys.includes("sameTenant")),
+      );
+    });
+
+    const bound = leaves(entry.on, ["on"]).filter((keys) =>
+      ON_KEYS.has(String(keys.at(-1))),
+    );
+
+    return [...own, ...bound].map((keys) => ({
+      block,
+      scope: "blocks" as const,
+      keys,
+    }));
   });
+
+  const types = Object.keys(config.subjects).flatMap((type) =>
+    leaves(config.subjects[type], [])
+      .filter((keys) => TYPE_KEYS.has(String(keys.at(-1))))
+      .map((keys) => ({ block: type, scope: "recordTypes" as const, keys })),
+  );
+
+  // The entries that most often equal a default go first, so the render cap
+  // spends its renders on them before the options.
+  const rank = (candidate: Candidate): number =>
+    candidate.keys[0] === "options"
+      ? 2
+      : candidate.keys[0] === "permissions"
+        ? 1
+        : 0;
+
+  return [...blocks, ...types].toSorted((a, b) => rank(a) - rank(b));
 }
 
 /** `value` without the entry at `keys`; empty parents are left alone. */
@@ -105,27 +215,31 @@ function without(value: unknown, keys: readonly (string | number)[]): unknown {
   return value;
 }
 
-/** `config` with every candidate in `removed` taken out of its block entry. */
+/** `config` with every candidate in `removed` taken out of its entry. */
 function patched(
   config: ResolvedConfig,
   removed: readonly Candidate[],
 ): ResolvedConfig {
-  const patch = <T extends object>(name: string, entry: T): T => {
-    // Removing array elements from the highest index first keeps the rest valid.
-    const mine = removed
-      .filter((candidate) => candidate.block === name)
-      .toSorted((a, b) => b.keys.length - a.keys.length);
+  // Array elements go from the highest index first, so the rest stay valid.
+  const order = (a: Candidate, b: Candidate): number => {
+    const left = a.keys.at(-1);
+    const right = b.keys.at(-1);
 
+    return typeof left === "number" && typeof right === "number"
+      ? right - left
+      : 0;
+  };
+
+  const patch = <T extends object>(
+    scope: Candidate["scope"],
+    name: string,
+    entry: T,
+  ): T => {
     let result: unknown = entry;
 
-    for (const candidate of mine.toSorted((a, b) => {
-      const left = a.keys.at(-1);
-      const right = b.keys.at(-1);
-
-      return typeof left === "number" && typeof right === "number"
-        ? right - left
-        : 0;
-    })) {
+    for (const candidate of removed
+      .filter((each) => each.scope === scope && each.block === name)
+      .toSorted(order)) {
       result = without(result, candidate.keys);
     }
 
@@ -138,13 +252,19 @@ function patched(
     blocks: Object.fromEntries(
       Object.entries(config.blocks).map(([name, entry]) => [
         name,
-        entry === undefined ? entry : patch(name, entry),
+        entry === undefined ? entry : patch("blocks", name, entry),
       ]),
     ),
     instances: Object.fromEntries(
       Object.entries(config.instances).map(([name, instance]) => [
         name,
-        { ...instance, config: patch(name, instance.config) },
+        { ...instance, config: patch("blocks", name, instance.config) },
+      ]),
+    ),
+    subjects: Object.fromEntries(
+      Object.entries(config.subjects).map(([type, entry]) => [
+        type,
+        patch("recordTypes", type, entry),
       ]),
     ),
   };
@@ -169,22 +289,86 @@ const sameRender = (
 ): boolean =>
   a.size === b.size && [...a].every(([path, text]) => b.get(path) === text);
 
+const kindOf = (candidate: Candidate): RestatedKind => {
+  if (candidate.scope === "recordTypes") {
+    return "recordType";
+  }
+
+  switch (String(candidate.keys[0])) {
+    case "permissions": {
+      return "permission";
+    }
+
+    case "hooks": {
+      return "hook";
+    }
+
+    case "tables": {
+      return "table";
+    }
+
+    case "columns": {
+      return "column";
+    }
+
+    case "api": {
+      return "api";
+    }
+
+    case "on": {
+      return "binding";
+    }
+
+    default: {
+      return "option";
+    }
+  }
+};
+
 const pathOf = (candidate: Candidate): string =>
   candidate.keys.reduce<string>(
-    (path, key) =>
-      typeof key === "number" ? `${path}[${String(key)}]` : `${path}.${key}`,
-    `blocks.${candidate.block}`,
+    (path, key, index) =>
+      typeof key === "number"
+        ? `${path}[${String(key)}]`
+        : `${path}.${index === 0 && candidate.scope === "blocks" ? (FILE_KEYS[key] ?? key) : key}`,
+    `${candidate.scope}.${candidate.block}`,
   );
 
-const reasonOf = (candidate: Candidate): string =>
-  candidate.keys[0] === "on"
-    ? "is the one the schema's foreign keys give"
-    : candidate.keys[0] === "permissions"
-      ? "names the key the block would use anyway"
-      : candidate.keys.at(-1) === "sameTenant" ||
-          typeof candidate.keys.at(-1) === "number"
+const reasonOf = (candidate: Candidate): string => {
+  if (candidate.scope === "recordTypes") {
+    return "is the value the block derives without it";
+  }
+
+  switch (String(candidate.keys[0])) {
+    case "on": {
+      return "is the one the schema's foreign keys give";
+    }
+
+    case "permissions": {
+      return "names the key the block would use anyway";
+    }
+
+    case "hooks": {
+      return "names the hook function the block looks up anyway";
+    }
+
+    case "tables":
+    case "columns": {
+      return "names the table or column the catalog gives without it";
+    }
+
+    case "api": {
+      return "equals the exposure the block gets without it";
+    }
+
+    default: {
+      return candidate.keys.at(-1) === "sameTenant" ||
+        typeof candidate.keys.at(-1) === "number"
         ? "equals the entry the block derives from the schema"
         : "equals the option's default";
+    }
+  }
+};
 
 /**
  * The `permissions` and `options` entries of the installed blocks that equal
@@ -249,10 +433,7 @@ async function probeWithin(
   await search(candidatesOf(config));
 
   const entries = found.map((candidate) => ({
-    kind:
-      candidate.keys[0] === "permissions"
-        ? ("permission" as const)
-        : ("option" as const),
+    kind: kindOf(candidate),
     path: pathOf(candidate),
     reason: reasonOf(candidate),
     value: undefined,

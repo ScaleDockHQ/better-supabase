@@ -1,71 +1,64 @@
+import type { Node } from "oxc-parser";
+
+import { walk } from "oxc-walker";
+
 import type { Codemod, ReviewLine } from "./codemod.ts";
 
-import { topLevelValue } from "./codemod-prune.ts";
-import { KEY, LEADING_COMMENTS, segments } from "./codemod-sort-keys.ts";
+import { ConfigDocument, propertyName } from "./config-document/index.ts";
+import { CliError } from "./core/errors.ts";
 
-const ALIAS = /\balias\s*:\s*(?:"([^"]*)"|'([^']*)')/;
-const ON_START = /(?<![\w$.])on\s*:\s*(?=[[{])/g;
-const STRING = /"([^"\\]*)"|'([^'\\]*)'/g;
-const BARE_KEY = /([A-Za-z_$][\w$]*)(?=\s*:(?!:))/g;
+function parsedOrUndefined(text: string): ConfigDocument | undefined {
+  try {
+    return ConfigDocument.parse(text);
+  } catch (error) {
+    if (error instanceof CliError) {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
 
 const same = (name: string): string => name.replaceAll("-", "_");
 
 /** The registered type names, and the alias each one writes. */
-function registered(text: string): ReadonlyMap<string, string | undefined> {
-  const located = topLevelValue(text, "recordTypes");
+function registered(
+  document: ConfigDocument,
+): ReadonlyMap<string, string | undefined> {
   const names = new Map<string, string | undefined>();
+  const found = document.locate(["recordTypes"]);
 
-  if (located === undefined) {
+  if (found?.value.type !== "ObjectExpression") {
     return names;
   }
 
-  const value = text.slice(located.start, located.end).trim();
+  for (const property of found.value.properties) {
+    const name =
+      property.type === "Property" ? propertyName(property) : undefined;
 
-  if (!value.startsWith("{") || !value.endsWith("}")) {
-    return names;
-  }
-
-  for (const part of segments(value.slice(1, -1))) {
-    const core = part.trim();
-    const entry = core.slice(LEADING_COMMENTS.exec(core)![0].length);
-    const key = KEY.exec(entry);
-    const name = key === null ? undefined : (key[1] ?? key[2] ?? key[3]);
-
-    if (name !== undefined) {
-      const alias = ALIAS.exec(entry);
-
-      names.set(name, alias === null ? undefined : (alias[1] ?? alias[2]));
+    if (property.type !== "Property" || name === undefined) {
+      continue;
     }
+
+    const alias =
+      property.value.type === "ObjectExpression"
+        ? property.value.properties.find(
+            (each) =>
+              each.type === "Property" && propertyName(each) === "alias",
+          )
+        : undefined;
+
+    names.set(
+      name,
+      alias?.type === "Property" &&
+        alias.value.type === "Literal" &&
+        typeof alias.value.value === "string"
+        ? alias.value.value
+        : undefined,
+    );
   }
 
   return names;
-}
-
-/** The index after the bracket that closes the one at `from`. */
-function closing(text: string, from: number): number {
-  let depth = 0;
-
-  for (let index = from; index < text.length; index += 1) {
-    const char = text.charAt(index);
-
-    if (char === '"' || char === "'") {
-      index += 1;
-
-      while (index < text.length && text.charAt(index) !== char) {
-        index += text.charAt(index) === "\\" ? 2 : 1;
-      }
-    } else if (char === "[" || char === "{") {
-      depth += 1;
-    } else if (char === "]" || char === "}") {
-      depth -= 1;
-
-      if (depth === 0) {
-        return index + 1;
-      }
-    }
-  }
-
-  return text.length;
 }
 
 /**
@@ -76,8 +69,15 @@ export function recordTypes(text: string): {
   readonly text: string;
   readonly review: readonly ReviewLine[];
 } {
-  const types = registered(text);
-  const blocks = topLevelValue(text, "blocks");
+  // The codemod runs on every source file; one that does not parse as TypeScript (JSX) is not the config.
+  const document = parsedOrUndefined(text);
+
+  if (document === undefined) {
+    return { text, review: [] };
+  }
+
+  const types = registered(document);
+  const blocks = document.locate(["blocks"]);
 
   if (types.size === 0 || blocks === undefined) {
     return { text, review: [] };
@@ -101,38 +101,42 @@ export function recordTypes(text: string): {
     return target.get(name) ?? target.get(same(name)) ?? name;
   };
 
-  const head = text.slice(0, blocks.start);
-  const tail = text.slice(blocks.end);
-  const body = text.slice(blocks.start, blocks.end);
-  let out = "";
-  let last = 0;
+  document.rewrite(({ edit }) => {
+    const rename = (inside: Node): void => {
+      walk(inside, {
+        enter(node: Node, parent: Node | null) {
+          if (node.type === "Literal" && typeof node.value === "string") {
+            edit.overwrite(node.start + 1, node.end - 1, fix(node.value));
+          } else if (
+            node.type === "Identifier" &&
+            parent?.type === "Property" &&
+            parent.key === node &&
+            !parent.computed &&
+            !parent.shorthand
+          ) {
+            edit.overwrite(node.start, node.end, fix(node.name));
+          }
+        },
+      });
+    };
 
-  for (const start of body.matchAll(ON_START)) {
-    const from = start.index + start[0].length;
+    walk(blocks.value, {
+      enter(node: Node) {
+        if (
+          node.type === "Property" &&
+          !node.computed &&
+          propertyName(node) === "on" &&
+          (node.value.type === "ArrayExpression" ||
+            node.value.type === "ObjectExpression")
+        ) {
+          rename(node.value);
+          this.skip();
+        }
+      },
+    });
+  });
 
-    if (from < last) {
-      continue;
-    }
-
-    const to = closing(body, from);
-
-    const inner = body
-      .slice(from, to)
-      .replaceAll(STRING, (match, double?: string, single?: string) => {
-        const name = double ?? single ?? "";
-        const quote = match.charAt(0);
-
-        return `${quote}${fix(name)}${quote}`;
-      })
-      .replaceAll(BARE_KEY, (name: string) => fix(name));
-
-    out += body.slice(last, from) + inner;
-    last = to;
-  }
-
-  out += body.slice(last);
-
-  return { text: head + out + tail, review: [] };
+  return { text: document.text, review: [] };
 }
 
 export function recordTypesCodemod(): Codemod {

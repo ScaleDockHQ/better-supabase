@@ -1125,6 +1125,10 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "timeoutMs": {
+                  "type": "integer",
+                  "minimum": 1
                 }
               },
               "required": ["command"],
@@ -7449,6 +7453,13 @@
                 "default": "module"
               },
               "attributes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "attributesExclude": {
                 "type": "array",
                 "items": {
                   "type": "string"

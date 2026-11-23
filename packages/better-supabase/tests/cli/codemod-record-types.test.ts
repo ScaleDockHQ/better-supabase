@@ -12,6 +12,12 @@ const config = (on: string): string => `export default {
 `;
 
 describe("codemod record-types", () => {
+  it("leaves a source file that is not a config alone, even one that is not valid TypeScript", () => {
+    const jsx = 'export const View = () => <div className="a">x</div>;\n';
+
+    expect(recordTypes(jsx).text).toBe(jsx);
+  });
+
   it("writes a list entry as the registered name", () => {
     const { text } = recordTypes(config('["time-entry", "task"]'));
 

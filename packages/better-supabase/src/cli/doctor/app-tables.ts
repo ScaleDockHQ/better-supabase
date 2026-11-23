@@ -2,8 +2,9 @@ import type { BlockSqlLayout } from "../../sql/index.ts";
 import type { AccessProviderMode } from "../authorization.ts";
 import type { DoctorContext } from "./rules.ts";
 
-import { declaredTables, resolveBlocks } from "../../sql/index.ts";
+import { resolveBlocks } from "../../sql/index.ts";
 import { accessProviderMode } from "../authorization.ts";
+import { declaredTables } from "../sql-facts.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
 import { catalogOf, qualified } from "./shared.ts";
 

@@ -10,7 +10,11 @@ import { defineCliCommand } from "../core/command.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { supabaseDir } from "../supabase-toml.ts";
+import {
+  readSupabaseConfig,
+  supabaseDir,
+  tomlGet,
+} from "../supabase-config.ts";
 
 const ARGS = {
   out: {
@@ -125,11 +129,11 @@ async function runKeys(
 
   const lines = changeLines(applied);
 
-  const toml = resolve(config.root, dir, "config.toml");
+  const project = await readSupabaseConfig(config.root);
 
   const configured =
-    existsSync(toml) &&
-    /^\s*signing_keys_path\s*=/m.test(await readFile(toml, "utf-8"));
+    project !== undefined &&
+    tomlGet(project.document, ["auth", "signing_keys_path"]) !== undefined;
 
   if (!configured) {
     const relativeToSupabase = out.startsWith(`${dir}/`)
@@ -138,9 +142,10 @@ async function runKeys(
 
     lines.push(
       "",
-      `Add it to ${dir}/config.toml and restart the stack:`,
-      "  [auth]",
-      `  signing_keys_path = "${relativeToSupabase}"`,
+      `Add it to ${project?.path ?? `${dir}/config.toml`} and restart the stack:`,
+      ...((project?.format ?? "toml") === "toml"
+        ? ["  [auth]", `  signing_keys_path = "${relativeToSupabase}"`]
+        : [`  "auth": { "signing_keys_path": "${relativeToSupabase}" }`]),
     );
   }
 

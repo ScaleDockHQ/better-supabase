@@ -7,7 +7,7 @@ import type { PruneAction, StackReport } from "../stacks.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { supabaseCli } from "../exec.ts";
+import { assertCliVersion, parseCliVersion, supabaseCli } from "../exec.ts";
 import { readSharedMemory } from "../shm.ts";
 import { branchName, listStacks, prunePlan, reportStacks } from "../stacks.ts";
 
@@ -164,26 +164,57 @@ export async function runStackPrune(
     });
   }
 
-  for (const [verb, group] of [
-    ["destroy", destroy],
-    ["stop", stop],
-  ] as const) {
-    if (group.length === 0) {
+  // The Supabase CLI owns the missing-directory rule (`supabase stack prune`),
+  // so a directory on an unmounted drive is judged the way the CLI judges it.
+  // This command keeps the branch and idle rules, which the CLI does not know.
+
+  const missing = destroy.filter(
+    (action) => action.reason === "worktree-missing",
+  );
+
+  const deleted = destroy.filter(
+    (action) => action.reason !== "worktree-missing",
+  );
+
+  if (missing.length > 0) {
+    const { stdout } = await deps.supabase(["--version"], root, env);
+
+    assertCliVersion(parseCliVersion(stdout), "dev stack prune");
+  }
+
+  const commands: readonly (readonly [string, readonly string[]])[] = [
+    ["prune", missing.length > 0 ? ["stack", "prune", "--yes"] : []],
+    [
+      "destroy",
+      deleted.length > 0
+        ? [
+            "stack",
+            "destroy",
+            ...deleted.flatMap((action) => ["--stack-id", action.stack.id]),
+            "--yes",
+          ]
+        : [],
+    ],
+    [
+      "stop",
+      stop.length > 0
+        ? [
+            "stack",
+            "stop",
+            ...stop.flatMap((action) => ["--stack-id", action.stack.id]),
+          ]
+        : [],
+    ],
+  ];
+
+  for (const [verb, command] of commands) {
+    if (command.length === 0) {
       continue;
     }
 
     // The Supabase CLI refuses to destroy without --yes; requireConsent above
     // already has the user's answer.
-    const result = await deps.supabase(
-      [
-        "stack",
-        verb,
-        ...group.flatMap((action) => ["--stack-id", action.stack.id]),
-        ...(verb === "destroy" ? ["--yes"] : []),
-      ],
-      root,
-      env,
-    );
+    const result = await deps.supabase(command, root, env);
 
     if (result.code !== 0) {
       return {

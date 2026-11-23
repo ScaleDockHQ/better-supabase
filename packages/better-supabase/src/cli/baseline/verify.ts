@@ -6,7 +6,7 @@ import type { BaselineContext } from "./stack.ts";
 import { CliError } from "../core/errors.ts";
 import { connect } from "../db.ts";
 import { loadPgDelta, migrationFiles, openPgPool } from "../in-stack-diff.ts";
-import { supabaseDir } from "../supabase-toml.ts";
+import { supabaseDir } from "../supabase-config.ts";
 import { VERSION } from "../version.ts";
 import { applyBaseline } from "./apply.ts";
 import { baselineRoot, findArtifact } from "./artifact.ts";

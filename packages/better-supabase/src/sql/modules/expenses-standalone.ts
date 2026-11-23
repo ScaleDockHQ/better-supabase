@@ -422,9 +422,9 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   // Who may decide: the approve key, the owner's manager (options.approver),
   // or a caller the app's options.decider function accepts.
   const decides = (row: string): string =>
-    `(${ctx.can("tenant", `${row}.${e("tenant")}`, approve)}${managerDecides(ctx, "blocks.expenses.options", managerArgs(row))}${deciderCall(ctx, "blocks.expenses.options", `${row}.${e("id")}`)})`;
+    `(${ctx.can("tenant", `${row}.${e("tenant")}`, approve)}${managerDecides(ctx, "blocks.expenses.options", managerArgs(row))}${deciderCall(ctx, "blocks.expenses.options", `${row}.${e("id")}`, managerArgs(row))})`;
 
-  const deciderOn = deciderCall(ctx, "blocks.expenses.options", "null") !== "";
+  const deciderOn = hasDecider(ctx);
 
   // Another active member who holds the approve key, or, with the manager as
   // approver, an active manager up the owner's chain. The owner or creator

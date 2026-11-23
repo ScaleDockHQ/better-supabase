@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Snapshot } from "../../src/cli/introspect/types.ts";
 
+import { parseSnapshot } from "../../src/cli/commands/snapshot.ts";
 import { defineCliCommand } from "../../src/cli/core/command.ts";
 import { CLI_ERROR_CODES } from "../../src/cli/core/errors.ts";
 import { createCli, run } from "../../src/cli/core/run.ts";
@@ -20,7 +21,10 @@ import { formatReport } from "../../src/cli/doctor/format.ts";
 import { RULES, runRules } from "../../src/cli/doctor/rules.ts";
 import { generatorJsonSchema } from "../../src/cli/introspect/typegen.ts";
 import { buildManifest } from "../../src/cli/spec/diagnostics.ts";
-import { parseToml } from "../../src/cli/supabase-toml.ts";
+import {
+  parseToml,
+  makeSupabaseConfig,
+} from "../../src/cli/supabase-config.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { resultDoc } from "./error-doc.ts";
 import { snapshotFixture as fixture } from "./fixtures/library.ts";
@@ -183,10 +187,13 @@ describe("shipped JSON Schemas", () => {
       "ai-message-v2.json",
       "cli-commands-v2.json",
       "cli-result-v2.json",
+      "config-actions-v1.json",
+      "config-policies-v1.json",
       "config-v1.json",
       "design-v1.json",
       "doctor-report-v1.json",
       "snapshot-v2.json",
+      "snapshot-v3.json",
       "spec-manifest-v1.json",
     ]);
 
@@ -337,7 +344,13 @@ describe("shipped JSON Schemas", () => {
   });
 
   it("describe the fixture snapshot", async () => {
-    expect(await errorsFor("snapshot-v2.json", fixture)).toEqual([]);
+    // The shared fixture is the saved version 3 file `gen --save-snapshot` writes.
+    expect(await errorsFor("snapshot-v3.json", fixture)).toEqual([]);
+
+    expect(
+      await errorsFor("snapshot-v3.json", await parseSnapshot(fixture)),
+    ).toEqual([]);
+
     const [first] = fixture.extras.tables;
 
     const broken = {
@@ -356,14 +369,14 @@ describe("shipped JSON Schemas", () => {
       },
     };
 
-    expect(await errorsFor("snapshot-v2.json", broken)).toEqual([
+    expect(await errorsFor("snapshot-v3.json", broken)).toEqual([
       '$.extras.tables[0].foreignKeys[0].onDelete: "explode" is not one of ["no action","restrict","cascade","set null","set default"]',
       "$.extras.tables[0]: unexpected extra",
     ]);
   });
 
   it("embed the postgrest-typegen metadata schema unchanged", async () => {
-    const schema = (await load("snapshot-v2.json")) as {
+    const schema = (await load("snapshot-v3.json")) as {
       $defs: { generator: unknown };
     };
 
@@ -391,13 +404,14 @@ describe("shipped JSON Schemas", () => {
     const context = {
       config: resolveConfig({}, "/project"),
       snapshot: snapshot as unknown as Snapshot,
-      configToml: {
+      configToml: makeSupabaseConfig({
         path: "supabase/config.toml",
         dir: "supabase",
         text: "[auth]\njwt_expiry = 7200\n",
         document: parseToml("[auth]\njwt_expiry = 7200\n"),
         parser: "smol-toml" as const,
-      },
+        format: "toml",
+      }),
       envFiles: [{ path: ".env", text: "SUPABASE_SECRET_KEY=x\n" }],
       gitignore: "",
       sources: [],
@@ -420,6 +434,40 @@ describe("shipped JSON Schemas", () => {
     ) as unknown;
 
     expect(await errorsFor("doctor-report-v1.json", report)).toEqual([]);
+  });
+
+  it("describe the config actions and policies listings", async () => {
+    expect(
+      await errorsFor("config-actions-v1.json", {
+        version: 1,
+        actions: [
+          {
+            kind: "bucket",
+            name: "logos",
+            action: "read",
+            key: null,
+            source: "default",
+          },
+        ],
+      }),
+    ).toEqual([]);
+
+    expect(
+      await errorsFor("config-policies-v1.json", {
+        version: 1,
+        policies: [
+          {
+            schema: "public",
+            table: "items",
+            operation: "read",
+            name: "bsb_access_items_read",
+            key: "items.read",
+            tenantColumn: "tenant_id",
+            actorGuard: false,
+          },
+        ],
+      }),
+    ).toEqual([]);
   });
 
   it("describe a full config", async () => {

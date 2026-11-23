@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -91,6 +98,84 @@ describe("db squash", () => {
     );
 
     expect(await readdir(dir)).toContain("20260601000031_reference_data.sql");
+  });
+
+  it("carries a kept migration pg-delta wrote as several files, in numeric order", async () => {
+    const { root, dir } = await project();
+
+    await rm(join(dir, "20260103000000_reference_data.sql"));
+    await rm(join(dir, "20260105000000_reference_data.sql"));
+
+    for (const n of [1, 10, 2]) {
+      await writeFile(
+        join(dir, `20260106000000_reference_data_${String(n)}.sql`),
+        `-- pg-delta: transaction=false\nselect ${String(n)};`,
+      );
+    }
+
+    const result = await runSquash(
+      resolveConfig({ database: { sql: { dir: "supabase" } } }, root),
+      args(["--keep", "reference_data"]),
+      {},
+      {
+        now: () => new Date("2026-06-01T00:00:10Z"),
+        supabase: async (_argv, cwd) => {
+          await writeFile(
+            join(cwd, "supabase/migrations/20260601000010_init.sql"),
+            "baseline",
+          );
+
+          return ok;
+        },
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(
+      await readFile(join(dir, "20260601000011_reference_data.sql"), "utf-8"),
+    ).toBe("-- pg-delta: transaction=false\nselect 1;\nselect 2;\nselect 10;");
+  });
+
+  it("names the pg-delta-only feature under migra", async () => {
+    const { root } = await project();
+
+    await writeFile(
+      join(root, "supabase", "config.toml"),
+      '[db.migrations]\nschema_paths = ["./schemas/*.sql"]\n',
+    );
+
+    await expect(
+      runSquash(
+        resolveConfig({ database: { sql: { dir: "supabase" } } }, root),
+        args([]),
+        {},
+      ),
+    ).rejects.toMatchObject({
+      code: "usage",
+      message: expect.stringContaining("db squash"),
+    });
+  });
+
+  it("refuses to join kept files that disagree about transaction=false", async () => {
+    const { root, dir } = await project();
+
+    await writeFile(
+      join(dir, "20260106000000_reference_data_1.sql"),
+      "-- pg-delta: transaction=false\nselect 1;",
+    );
+    await writeFile(
+      join(dir, "20260106000000_reference_data_2.sql"),
+      "select 2;",
+    );
+
+    await expect(
+      runSquash(
+        resolveConfig({ database: { sql: { dir: "supabase" } } }, root),
+        args(["--keep", "reference_data"]),
+        {},
+        { now: () => new Date(), supabase: () => Promise.resolve(ok) },
+      ),
+    ).rejects.toMatchObject({ code: "usage" });
   });
 
   it("restores the migrations when the baseline fails", async () => {

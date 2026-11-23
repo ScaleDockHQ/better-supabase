@@ -61,6 +61,28 @@ describe("provider approverFor", () => {
     ).not.toContain("authz.approvers()");
   });
 
+  it("fills {requester} and {tenant} from the request row", () => {
+    const sql = sqlOf("leave", {
+      modules: MODULES,
+      accessProvider: provider({
+        approverFor: "authz.approvers_of({kind}, {requester}, {tenant})",
+      }),
+    });
+
+    expect(sql).toContain(
+      `authz.approvers_of('leave', (select s."user_id" from`,
+    );
+  });
+
+  it("reads a template that names only the requester", () => {
+    const sql = sqlOf("leave", {
+      modules: MODULES,
+      accessProvider: provider({ approverFor: "authz.chain({requester})" }),
+    });
+
+    expect(sql).toContain("authz.chain(");
+  });
+
   it("lets the decider option win", () => {
     const sql = sqlOf("leave", {
       modules: {

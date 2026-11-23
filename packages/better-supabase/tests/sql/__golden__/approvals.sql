@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:b5d5e2df371c3ff272f241beaf4b9f62a7c8ff5295c9b57a3881cd816fd7cb5d
+-- @bsb-hash sha256:015238670e87d86de732dc94e5a5d3e6981b1f6b3694adc31a27dfafebfebd47
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -86,14 +86,21 @@ create policy bsb_approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
--- The policy a new request snapshots, from options.policies.
+-- The policy a new request snapshots: the approval_floor rows the app declared
+-- (most specific first), else options.policies.
 create or replace function "better_supabase"."approval_policy"(subject_type text, action text)
 returns jsonb
 language sql
-immutable
+stable
 set search_path = ''
 as $$
-  select null::jsonb
+  select coalesce(
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':*') -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:*') -> 0,
+    null::jsonb
+  )
 $$;
 revoke execute on function "better_supabase"."approval_policy"(text, text) from public, anon;
 grant execute on function "better_supabase"."approval_policy"(text, text) to authenticated, service_role;
@@ -1716,7 +1723,7 @@ rollback;
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:619ffa3e782efac0fb479ecc865c9e6fb6fbb909a468fd0e6bef4019297d065c
+-- @bsb-hash sha256:e400acdaf4e56e1824f670cdf9c84bb1c26b19dcb8e23ecbfb5af827dc1089b4
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1801,14 +1808,21 @@ create policy bsb_approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
--- The policy a new request snapshots, from options.policies.
+-- The policy a new request snapshots: the approval_floor rows the app declared
+-- (most specific first), else options.policies.
 create or replace function "better_supabase"."approval_policy"(subject_type text, action text)
 returns jsonb
 language sql
-immutable
+stable
 set search_path = ''
 as $$
-  select null::jsonb
+  select coalesce(
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':*') -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:*') -> 0,
+    null::jsonb
+  )
 $$;
 revoke execute on function "better_supabase"."approval_policy"(text, text) from public, anon;
 grant execute on function "better_supabase"."approval_policy"(text, text) to authenticated, service_role;
@@ -3765,16 +3779,16 @@ rollback;
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:ece3b77dbfdef73988d3e13897899c78d3e2d5f79966c366da8024d143a46f5f
+-- @bsb-hash sha256:1ee6e37ba73275e0e566bdbd4533d4df0b1ab96255669f57d1dbfa5e4b383ef8
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table "app_private"."approval_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -3855,14 +3869,21 @@ create policy bsb_approval_items_read on "app_private"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
--- The policy a new request snapshots, from options.policies.
+-- The policy a new request snapshots: the approval_floor rows the app declared
+-- (most specific first), else options.policies.
 create or replace function "app_private"."approval_policy"(subject_type text, action text)
 returns jsonb
 language sql
-immutable
+stable
 set search_path = ''
 as $$
-  select null::jsonb
+  select coalesce(
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':*') -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:*') -> 0,
+    null::jsonb
+  )
 $$;
 revoke execute on function "app_private"."approval_policy"(text, text) from public, anon;
 grant execute on function "app_private"."approval_policy"(text, text) to authenticated, service_role;
@@ -5485,7 +5506,7 @@ rollback;
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:d3f69f6568926cda472d6980d4876e23113d2aee692d31ab1ddb4011b601f403
+-- @bsb-hash sha256:54575a72cc3835013d214fbe30571ade111b864eefce7f50ecaebd28eb397287
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5570,14 +5591,21 @@ create policy bsb_approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
--- The policy a new request snapshots, from options.policies.
+-- The policy a new request snapshots: the approval_floor rows the app declared
+-- (most specific first), else options.policies.
 create or replace function "better_supabase"."approval_policy"(subject_type text, action text)
 returns jsonb
 language sql
-immutable
+stable
 set search_path = ''
 as $$
-  select null::jsonb
+  select coalesce(
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':*') -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:*') -> 0,
+    null::jsonb
+  )
 $$;
 revoke execute on function "better_supabase"."approval_policy"(text, text) from public, anon;
 grant execute on function "better_supabase"."approval_policy"(text, text) to authenticated, service_role;
@@ -7149,7 +7177,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."approval_policy"(subject_type text, action text)
 returns jsonb
 language sql
-immutable
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."approval_policy"($1, $2) $$;
@@ -7412,7 +7440,7 @@ rollback;
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:cf358b8400502f68b4355170dd7e3c741a71ea573dc8c0e31c119f5a3e6105b9
+-- @bsb-hash sha256:d6b031ffeaa4452d245557c16cb03e71976077f8a795bf22d23c38113f50d5e9
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7489,14 +7517,21 @@ create policy bsb_approval_items_select on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
--- The policy a new request snapshots, from options.policies.
+-- The policy a new request snapshots: the approval_floor rows the app declared
+-- (most specific first), else options.policies.
 create or replace function "better_supabase"."approval_policy"(subject_type text, action text)
 returns jsonb
 language sql
-immutable
+stable
 set search_path = ''
 as $$
-  select null::jsonb
+  select coalesce(
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':*') -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:*') -> 0,
+    null::jsonb
+  )
 $$;
 revoke execute on function "better_supabase"."approval_policy"(text, text) from public, anon;
 grant execute on function "better_supabase"."approval_policy"(text, text) to authenticated, service_role;
@@ -9119,7 +9154,7 @@ rollback;
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:65883c4840959dcec3bd84db473b80e16619bc852c62100c68364dc89cc82919
+-- @bsb-hash sha256:6e263945c82223a9f596dd4a2fbfa7ae926b964a56be7c7b817f3d8ba652d01e
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9204,14 +9239,21 @@ create policy bsb_approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
--- The policy a new request snapshots, from options.policies.
+-- The policy a new request snapshots: the approval_floor rows the app declared
+-- (most specific first), else options.policies.
 create or replace function "better_supabase"."approval_policy"(subject_type text, action text)
 returns jsonb
 language sql
-immutable
+stable
 set search_path = ''
 as $$
-  select null::jsonb
+  select coalesce(
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':*') -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:*') -> 0,
+    null::jsonb
+  )
 $$;
 revoke execute on function "better_supabase"."approval_policy"(text, text) from public, anon;
 grant execute on function "better_supabase"."approval_policy"(text, text) to authenticated, service_role;

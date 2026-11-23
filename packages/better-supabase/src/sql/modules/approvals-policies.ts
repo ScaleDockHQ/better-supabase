@@ -498,6 +498,25 @@ ${items
 }
 
 /**
+ * `fallback` behind the floors the app declared as `approval_floor` rows (ADR
+ * 1192). The subject is `<subjectType>:<action>`, with `*` for any, and the
+ * most specific one wins, as in `policyCase`. The value is the snapshot
+ * `policySnapshot` renders.
+ */
+export function declaredPolicy(fallback: string): string {
+  const of = (subject: string): string =>
+    `better_supabase.declared_defaults_of('approval_floor', ${subject}) -> 0`;
+
+  return `coalesce(
+    ${of("approval_policy.subject_type || ':' || approval_policy.action")},
+    ${of("approval_policy.subject_type || ':*'")},
+    ${of("'*:' || approval_policy.action")},
+    ${of("'*:*'")},
+    ${fallback}
+  )`;
+}
+
+/**
  * The floors as a jsonb list of `{ subjectType, action, effects }`, for the
  * checks that a tenant or platform policy tightens one.
  */

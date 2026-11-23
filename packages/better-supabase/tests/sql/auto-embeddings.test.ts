@@ -16,8 +16,8 @@ describe("renderAutoEmbedding", () => {
     expect(sql).toContain("using hnsw");
     expect(sql).toContain('"extensions".halfvec_cosine_ops');
     expect(sql).toContain("select pgmq.create('articles_embed')");
-    expect(sql).toContain("cron.schedule('articles_embeddings', '10 seconds'");
-    expect(sql).toContain("to_regprocedure('cron.schedule(text, text, text)')");
+    expect(sql).toContain("\nselect cron.schedule('articles_embeddings'");
+    expect(sql).not.toContain("perform cron.schedule");
     expect(sql).toContain("vault.decrypted_secrets");
     expect(sql).toContain('"articles_apply_embedding"');
   });

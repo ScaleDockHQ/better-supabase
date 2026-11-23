@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
@@ -25,7 +23,11 @@ import {
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
-import { supabaseDir } from "../supabase-toml.ts";
+import {
+  readSupabaseConfig,
+  supabaseDir,
+  tomlGet,
+} from "../supabase-config.ts";
 import { runSeedDefaults, runSeedSample } from "./seed-cloud.ts";
 import { DB_URL_STDIN_ARG, STACK_ARG } from "./source-args.ts";
 
@@ -196,23 +198,30 @@ export async function runSeed(
 
   const dir = supabaseDir(config.root);
   let listed = true;
-  const toml = resolve(config.root, dir, "config.toml");
+  const project = await readSupabaseConfig(config.root);
 
   const seedPath = out.startsWith(`${dir}/`)
     ? `./${out.slice(dir.length + 1)}`
     : out;
 
-  if (existsSync(toml)) {
-    const text = await readFile(toml, "utf-8");
+  if (project !== undefined) {
+    const entries = tomlGet(project.document, ["db", "seed", "sql_paths"]);
     const folder = seedPath.replace(/[^/]+$/, "");
 
-    if (!text.includes(seedPath) && !text.includes(`${folder}*`)) {
+    const paths = Array.isArray(entries)
+      ? entries.filter((entry) => typeof entry === "string")
+      : [];
+
+    if (!paths.includes(seedPath) && !paths.includes(`${folder}*`)) {
       listed = false;
       lines.push(
         "",
-        `Add it to ${dir}/config.toml so \`supabase db reset\` runs it:`,
-        "  [db.seed]",
-        `  sql_paths = ["./seed.sql", "${seedPath}"]`,
+        `Add it to ${project.path} so \`supabase db reset\` runs it:`,
+        ...(project.format === "toml"
+          ? ["  [db.seed]", `  sql_paths = ["./seed.sql", "${seedPath}"]`]
+          : [
+              `  "db": { "seed": { "sql_paths": ["./seed.sql", "${seedPath}"] } }`,
+            ]),
       );
     }
   }

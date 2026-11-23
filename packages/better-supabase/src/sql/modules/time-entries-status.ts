@@ -520,7 +520,7 @@ begin
   if not found then
     ${timesheetNotFound}
   end if;
-  if not (${SERVICE_CALLER} or ${sheetMine("v_sheet")} or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}${deciderCall(ctx, "blocks.time-entries.options", `v_sheet.${t("id")}`)}${writerCall(ctx, "blocks.time-entries.options", `v_sheet.${t("tenant")}`, `v_sheet.${owner.timesheets}`)}) then
+  if not (${SERVICE_CALLER} or ${sheetMine("v_sheet")} or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}${deciderCall(ctx, "blocks.time-entries.options", `v_sheet.${t("id")}`, { requester: owner.sheetUser ? `v_sheet.${t("user")}` : owner.userOf(`v_sheet.${owner.timesheets}`), tenant: `v_sheet.${t("tenant")}` })}${writerCall(ctx, "blocks.time-entries.options", `v_sheet.${t("tenant")}`, `v_sheet.${owner.timesheets}`)}) then
     ${forbidden("not allowed to withdraw this timesheet")}
   end if;
   if not ${is("v_sheet", ["submitted"])} then

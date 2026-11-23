@@ -5,11 +5,12 @@ import type { FindingInput, Rule } from "./rules.ts";
 import { isRecord } from "../guards.ts";
 
 const SEVERITIES = new Set(["error", "warning", "info"]);
-const TIMEOUT_MS = 60_000;
+const DEFAULT_PROVIDER_DOCTOR_TIMEOUT_MS = 60_000;
 
 function run(
   command: readonly string[],
   cwd: string,
+  timeoutMs: number,
 ): Promise<{ readonly stdout: string } | { readonly failure: string }> {
   const [file, ...args] = command;
 
@@ -21,11 +22,15 @@ function run(
     execFile(
       file,
       args,
-      { cwd, timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+      { cwd, timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 },
       (error, stdout) => {
         // A provider doctor exits non-zero when it has findings, so the output
         // decides; only a missing or empty output is a failure.
-        if (stdout.trim() === "") {
+        if (error?.killed === true) {
+          done({
+            failure: `it did not finish within ${String(timeoutMs)} ms; raise authorization.doctor.timeoutMs`,
+          });
+        } else if (stdout.trim() === "") {
           done({ failure: error?.message ?? "it printed nothing" });
         } else {
           done({ stdout });
@@ -96,13 +101,18 @@ export function providerFindings(stdout: string): FindingInput[] | undefined {
 async function providerDoctor(
   context: Parameters<Rule["check"]>[0],
 ): Promise<FindingInput[]> {
-  const command = context.config.authorization?.doctor?.command;
+  const doctor = context.config.authorization?.doctor;
+  const command = doctor?.command;
 
   if (command === undefined) {
     return [];
   }
 
-  const result = await run(command, context.config.root);
+  const result = await run(
+    command,
+    context.config.root,
+    doctor?.timeoutMs ?? DEFAULT_PROVIDER_DOCTOR_TIMEOUT_MS,
+  );
 
   if ("failure" in result) {
     return [
@@ -129,7 +139,7 @@ export const PROVIDER_DOCTOR_RULES: readonly Rule[] = [
     severity: "warning",
     title: "The authorization provider's doctor reports a finding",
     description:
-      "When `authorization.doctor.command` is set, doctor runs it in the project root and reads `{ findings: [{ code, severity?, title?, message, target?, help? }] }` from its output. Each finding is reported under BS705 with the provider's code first in its target, and the baseline can accept it like any other finding.",
+      "When `authorization.doctor.command` is set, doctor runs it in the project root (for at most `authorization.doctor.timeoutMs`, 60000 by default; a timeout is a finding that names the setting) and reads `{ findings: [{ code, severity?, title?, message, target?, help? }] }` from its output. Each finding is reported under BS705 with the provider's code first in its target, and the baseline can accept it like any other finding.",
     check: providerDoctor,
   },
 ];

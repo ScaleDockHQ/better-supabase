@@ -4,8 +4,8 @@
   "tags": ["test"],
   "tasks": {
     "test": {
-      "env": ["SHADOW_SYNC"],
-      "passThroughEnv": ["SUPABASE_DB_URL"]
+      "env": ["SHADOW_SYNC", "PLAN_PARITY"],
+      "passThroughEnv": ["SUPABASE_DB_URL", "PLAN_PARITY_DB_URL"]
     }
   }
 }

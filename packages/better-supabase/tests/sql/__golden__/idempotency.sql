@@ -499,16 +499,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:9c87e5c57b87226f22eb69e86c189b5dae5dbe2d0dcf8854074927e47e7dd058
+-- @bsb-hash sha256:b0c94c104a668d8b616701a80a776f7baaa69692c651067ccae270d80fa1ebee
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 
 create table "app_private"."idempotency_keys" (
   "scope" text not null default '',

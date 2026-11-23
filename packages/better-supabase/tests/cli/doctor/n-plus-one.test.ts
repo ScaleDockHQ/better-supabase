@@ -48,6 +48,7 @@ function check(
   code: "BS634" | "BS635",
   text: string,
   views: readonly { schema: string; name: string }[] = [],
+  symbols?: DoctorContext["symbols"],
 ): readonly {
   message: string;
   target?: string;
@@ -60,6 +61,7 @@ function check(
   // SAFETY: both rules read only `sources` and the snapshot's relationships.
   const findings = rule?.check({
     sources,
+    ...(symbols ? { symbols } : {}),
     snapshot: { generator: { relationships, views, materializedViews: [] } },
   } as unknown as DoctorContext);
 
@@ -69,6 +71,9 @@ function check(
 
   return findings;
 }
+
+/** The opening of a template placeholder, kept out of a string literal. */
+const hole = "${";
 
 const lines = (...body: string[]): string => body.join("\n");
 
@@ -586,6 +591,78 @@ describe("BS635 waves and chains", () => {
     expect(findings.map((finding) => finding.location?.line)).toEqual([4]);
     expect(findings[0]?.message).toContain(
       "include: { task: { include: { invoiceTasks: true } } }",
+    );
+  });
+});
+
+describe("parse tree", () => {
+  it("finds a loop read around a regex with a quote, a template and CRLF", () => {
+    const findings = check(
+      "BS634",
+      [
+        "const quote = /[\"'`]/;",
+        `const note = \`${hole}\`(${
+          hole
+        }'{'}\`} for (const id of ids) { await db.customers.get(id); }\`;`,
+        "// for (const id of ids) { await db.orders.get(id); }",
+        "export async function load(db: Db, ids: string[]) {",
+        "  for (const id of ids) {",
+        "    await db.customers.get(id);",
+        "  }",
+        "}",
+      ].join("\r\n"),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.location?.line).toBe(6);
+    expect(findings[0]?.target).toBe("src/lib/data.ts#load:db.customers.get");
+  });
+
+  it("reads a callback with a destructured parameter and a type annotation", () => {
+    const findings = check(
+      "BS634",
+      lines(
+        "export async function load(db: Db, rows: Row[]) {",
+        "  return Promise.all(rows.map(async ({ id }: Row): Promise<unknown> => {",
+        "    return await db.customers.get(id);",
+        "  }));",
+        "}",
+      ),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.location?.line).toBe(3);
+  });
+});
+
+describe("receiver types", () => {
+  const text = [
+    "export async function load(db: Map<string, string>, ids: string[]) {",
+    "  for (const id of ids) {",
+    "    await db.customers.get(id);",
+    "  }",
+    "}",
+  ].join("\n");
+
+  const tier = (type: string): DoctorContext["symbols"] => ({
+    root: "/app",
+    tier: {
+      version: "7.1.0",
+      references: () => [],
+      declaration: () => undefined,
+      typeOf: () => type,
+      close: () => {},
+    },
+  });
+
+  it("drops a loop read whose receiver is not a client", () => {
+    expect(check("BS634", text, [], tier("Map<string, string>"))).toEqual([]);
+  });
+
+  it("keeps it for a client type and when the tier is off", () => {
+    expect(check("BS634", text, [], tier("Db<Database>"))).toHaveLength(1);
+    expect(check("BS634", text, [], { skipped: "not installed" })).toHaveLength(
+      1,
     );
   });
 });

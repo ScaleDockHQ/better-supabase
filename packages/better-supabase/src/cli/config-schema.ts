@@ -391,7 +391,12 @@ const authorization = v.strictObject({
       }),
     ),
   ),
-  doctor: v.optional(v.strictObject({ command: v.array(v.string()) })),
+  doctor: v.optional(
+    v.strictObject({
+      command: v.array(v.string()),
+      timeoutMs: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
+    }),
+  ),
   actionKeys: v.optional(
     v.strictObject({
       blocks: v.optional(

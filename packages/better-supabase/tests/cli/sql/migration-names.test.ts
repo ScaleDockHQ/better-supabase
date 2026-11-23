@@ -90,3 +90,18 @@ describe("hasMigrationSuffix", () => {
     expect(hasMigrationSuffix("20260304050607_other.sql", suffix)).toBe(false);
   });
 });
+
+describe("stampAfter with pg-delta multi-file migrations", () => {
+  it("stamps after files that carry the _1 and _2 suffixes", () => {
+    expect(
+      stampAfter(
+        [
+          "20260601000010_init_1.sql",
+          "20260601000010_init_2.sql",
+          "20260601000010_init_10.sql",
+        ],
+        new Date("2026-06-01T00:00:05Z"),
+      ),
+    ).toBe("20260601000011");
+  });
+});

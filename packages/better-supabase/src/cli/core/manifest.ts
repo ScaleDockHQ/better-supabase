@@ -674,6 +674,24 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [{ kind: "database", access: "write" }],
       },
       {
+        name: "rows",
+        description:
+          "Writes a data migration for each file in supabase/rows whose upserts changed, stamped with the hash of its statements",
+        docs: "/docs/cli/db#rows",
+        examples: [
+          {
+            command: "better-supabase db rows",
+            description:
+              "Writes one migration for each rows file whose hash no migration carries",
+          },
+          {
+            command: "better-supabase db rows --check",
+            description: "Exits 1 when a rows file has no current migration",
+          },
+        ],
+        effects: [FILES],
+      },
+      {
         name: "squash",
         description:
           "Replaces the migrations with one baseline of the declarative schema, keeping the module extensions and the data migrations --keep names",
@@ -790,6 +808,22 @@ export const COMMANDS: readonly CommandSpec[] = [
     group: "inspect",
     docs: "/docs/cli/config#print-the-resolved-config",
     effects: [],
+    subcommands: [
+      {
+        name: "actions",
+        description:
+          "Lists every block, record type, bucket and topic action with the permission key it resolves to and whether the config, the provider or the default named it",
+        docs: "/docs/cli/config#list-the-actions",
+        effects: [],
+      },
+      {
+        name: "policies",
+        description:
+          "Lists the row level security policies the @bsb access tags render, with their key, tenant column and actor guard",
+        docs: "/docs/cli/config#list-the-access-policies",
+        effects: [],
+      },
+    ],
   },
   {
     name: "mcp",
@@ -865,6 +899,20 @@ export const COMMANDS: readonly CommandSpec[] = [
         name: "table-tags",
         description:
           "Move audit exemptions, data-lifecycle tables and expose entries into comment on table tags",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
+        name: "adopt-names",
+        description:
+          "Rename a block table in the migrations and schema files to the name the block expects, and drop its tables entry",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
+        name: "declared-rows",
+        description:
+          "Move option set items, pipeline stages and approval floors out of the config into supabase/rows upserts",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },

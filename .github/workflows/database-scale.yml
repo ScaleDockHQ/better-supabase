@@ -44,7 +44,7 @@ jobs:
           pnpm better-supabase dev keys --cwd .
 
       - name: Seed the library rows only
-        run: sed -i 's|^sql_paths = .*|sql_paths = ["./seed.sql"]|' supabase/config.toml
+        run: node scripts/set-config-value.ts . db.seed.sql_paths '["./seed.sql"]'
 
       - name: Start Supabase
         uses: $/.github/actions/supabase-stack

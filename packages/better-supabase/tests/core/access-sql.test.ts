@@ -131,7 +131,9 @@ describe("fillTemplate", () => {
 
     expect(
       templatePlaceholderProblems("approverFor", "authz.approver_for({user})"),
-    ).toEqual(["functions.approverFor uses {user}; it takes {kind}, {id}"]);
+    ).toEqual([
+      "functions.approverFor uses {user}; it takes {kind}, {id}, {requester}, {tenant}",
+    ]);
   });
 });
 

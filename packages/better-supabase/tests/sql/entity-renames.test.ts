@@ -136,6 +136,8 @@ describe("blocks.<name>.entities in the SQL", () => {
     appraisals: ["'competencies'", "'ratings'", "'appraisalsCreated'"],
     medications: ["'medication'", "'medicationId'"],
     meetings: ["'meetingId'"],
+    // The declared-rows kind of an approval floor is a stored name, not an entity.
+    approvals: ["'approval_floor"],
     memory: ["'/memories'", "'/memories{}'"],
     orders: ["'cartId'", "'orderId'"],
     promotions: ['"promotions"', "'promotionId'"],
@@ -264,7 +266,7 @@ describe("blocks.<name>.entities in the SQL", () => {
             .replaceAll(/constraint bsb_\w+_check/g, "")
             // The default privileges name every object kind, not an entity.
             .replaceAll(
-              /alter default privileges in schema \w+ revoke all on \w+ from[^;]*;/g,
+              /alter default privileges for role \w+ in schema \w+ revoke all on \w+ from[^;]*;/g,
               "",
             )
             // Supabase owns `realtime.messages`.

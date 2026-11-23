@@ -157,8 +157,11 @@ export interface AuthorizationFunctions {
    * set of uuid: it is used as `select u from <template> as t(u)`. Out of
    * office covers, delegations and the manager chain belong in it. Leave,
    * expenses and time entries let a caller in the set decide the request when
-   * the block sets no `options.decider`; the explicit option wins. A template
-   * without `{id}` is not read.
+   * the block sets no `options.decider`; the explicit option wins.
+   * `{requester}` (the requester's user id, a uuid expression) and `{tenant}`
+   * are also available, so a template can answer without reading the request. A
+   * template that names none of `{id}`, `{requester}` and `{tenant}` is not
+   * read.
    */
   readonly approverFor?: string;
   /**
@@ -435,9 +438,12 @@ export interface AuthorizationTokenHook {
   readonly tenantClaim?: string;
   /**
    * Where it reads the active organization from: the `auth.tenant.claim` key in
-   * `app_metadata` (`"claim"`), a profile column, or the request
-   * (`"resolver"`). Doctor BS409 warns when `switch_organization` writes it
-   * somewhere else (`blocks.permissions.activeTenant`).
+   * `app_metadata` (`"claim"`), a profile column, or the request (`"resolver"`:
+   * the tenant the server resolved and sent as `x-bsb-tenant`, also the default
+   * of `blocks.permissions.activeTenant`). Doctor BS409 warns when
+   * `switch_organization` writes it somewhere else
+   * (`blocks.permissions.activeTenant`); a provider that states `"resolver"`
+   * needs no config entry.
    */
   readonly activeOrganizationFrom?: ActiveTenantSource;
   /**
@@ -537,9 +543,13 @@ export interface AuthorizationProvider<Key extends string = string> {
    * "exec", "provider", "doctor", "--json"]`. `better-supabase doctor` runs it
    * in the project root and reads `{ findings: [{ code, severity?, title?,
    * message, target?, help? }] }` from its output. Its findings join the report
-   * as BS705 and the baseline.
+   * as BS705 and the baseline. A command that runs longer than `timeoutMs`
+   * (60000 by default) is stopped and reported as a BS705 finding.
    */
-  readonly doctor?: { readonly command: readonly string[] };
+  readonly doctor?: {
+    readonly command: readonly string[];
+    readonly timeoutMs?: number;
+  };
   readonly memberships?: readonly AuthorizationMembership[];
   /** Rows that say whether a user or a tenant is active. */
   readonly suspension?: {

@@ -6,7 +6,10 @@ import type { FormatDomain } from "./format-domains.ts";
 
 import { APP_TABLES_MODULE } from "../../sql/index.ts";
 import { CliError } from "../core/errors.ts";
-import { declarativeSchemasDir, readSupabaseToml } from "../supabase-toml.ts";
+import {
+  declarativeSchemasDir,
+  readSupabaseConfig,
+} from "../supabase-config.ts";
 import { DOMAIN_SCHEMA, withFormatDomains } from "./format-domains.ts";
 import { layoutFor } from "./providers.ts";
 import { renderBlocksCached } from "./render-cache.ts";
@@ -89,7 +92,7 @@ export async function appTablePlan(
 
   const dir = join(
     config.root,
-    declarativeSchemasDir(await readSupabaseToml(config.root)),
+    declarativeSchemasDir(await readSupabaseConfig(config.root)),
   );
 
   const split = [

@@ -954,15 +954,10 @@ so a saved snapshot skips it. The check is `not valid` on purpose; see
 
 ### BS239
 
-**Warning: pg-delta packages missing.** The project runs the pg-delta
-workflow (`database.sql.workflow`, or the one doctor reads from
-`supabase/config.toml`), but `@supabase/pg-delta` or `@supabase/pg-topo` is not
-installed. [`db diff`](/docs/cli/db#diff) plans the migration with both and
-stops until they are there. Install them as dev dependencies:
-
-```bash
-pnpm add -D @supabase/pg-delta @supabase/pg-topo
-```
+**Retired.** It reported `@supabase/pg-delta` or `@supabase/pg-topo` as not
+installed. better-supabase now installs both as dependencies, so the check can
+no longer fail, and the code stays reserved. See [BS709](#bs709) for the
+opposite mistake.
 
 ### BS240
 
@@ -2310,9 +2305,11 @@ disagree.** The provider's hook writes the active tenant to
 claim, because the memberships extension, the guards and the module's RLS would then
 read a claim the hook never writes. It also warns when the provider's
 `tokenHook.activeOrganizationFrom` (the app_metadata claim, a profile column or
-the request) differs from `blocks.permissions.activeTenant`, where
-`switch_organization` writes the active organization, since switching would
-then never change the token. It notes when `auth.claims.scope` is neither
+the request, which is `"resolver"`) differs from
+`blocks.permissions.activeTenant`, where `switch_organization` writes the
+active organization, since switching would then never change the token. The
+config default is `"resolver"`, so a provider that states `"resolver"` needs no
+config entry. It notes when `auth.claims.scope` is neither
 `tenant` nor the provider's `tenantScope`, notes when the provider sets
 `suspension` or `roleSources` while `blocks.permissions.model` is not
 `provider` (only that model reads them), notes when `functions.canApprove`
@@ -2494,10 +2491,24 @@ uses without it, so it is a second copy that goes stale. Doctor reports:
 - a value equal to the authorization provider's: `platformRoles`, a role
   source's `through`, a membership's `disabledAt`, `suspension` and
   `tokenHook.function` for `impersonation.options.claimsHook`;
+- `blocks.permissions.activeTenant` set to `"resolver"`, the request and the
+  default;
+- a block `api` written as `{ schema: "api" }` (no function list) that equals
+  `database.sql.api`;
+- a `recordTypes.<type>.permissions.<action>` key equal to the provider's
+  `actionKeys.recordTypes` entry;
 - a `permissions` key, an `options` entry or a `sameTenant` element of an
   installed block whose removal leaves every rendered file unchanged: a key
   the block would pick anyway, an option equal to its default, an entry the
   schema already derives.
+
+Values are compared after they resolve, not as written: object key order, the
+order of `active` values, white space and the case of unquoted words in a SQL
+template (`where`, `canAssign`, `canAssignFor`) and the case of the claims hook
+name do not matter, while a string literal, a quoted identifier and a
+placeholder do. A column string (`schema.table.column`) and an active row
+(`{ table, id, disabledAt }`) are never equal, because a missing row disables
+the tenant or user only in the second form.
 
 The provider kinds are reported under the provider access model only, and
 `disabled.userKey` only when `disabled.user` is unset or equal to the
@@ -2840,6 +2851,12 @@ database or snapshot, they still run; BS634 then names no include, BS635 finds
 no waterfall, and an info finding says so. `--snapshot` also reads the CLI's
 cached snapshot (`node_modules/.cache/better-supabase/snapshot-*.json`).
 
+The three rules match a receiver by its name, such as `db` or `userService`.
+With `typescript` 7.1 or newer installed, doctor asks TypeScript for the type
+of the receiver and drops the read when it is a plain collection such as a
+`Map` or an array. Without it, a run that reports one of the rules adds an info
+finding that says receivers were matched by name only.
+
 ### BS610
 
 **Warning: nested private cache scopes.** A function with
@@ -2886,13 +2903,12 @@ mapper mode.
 
 ### BS622
 
-**Warning: a block adds a column to a table your files create.** A block runs
-over a table you create and adds an optional column to it with `add column if
-not exists`, and your own schema files don't declare that column. Blocks no
-longer add columns to tables you own and turn the feature that needs the column
-off instead. Run `better-supabase codemod owned-columns` to
-declare the columns in your schema files, or map the column to `null` in
-`blocks.<name>.columns` to keep the feature off.
+**Warning: a block adds a required column to a table your files create.** A
+block runs over a table you create and needs a required column that your schema
+files don't declare, so it adds the column with `add column if not exists`. Run
+`better-supabase codemod owned-columns` to declare the column in your schema
+files. A block never adds an optional column to such a table: the feature that
+needs one stays off until the table declares the column, and no finding says so.
 
 ### BS623
 
@@ -3088,8 +3104,8 @@ keeps working.
 **Warning: table tag cannot take effect.** A `@bsb data-lifecycle`, `grant` or
 `same-tenant` tag is malformed or incomplete: a flag that is not `true` or
 `false`, a `data-lifecycle` tag with neither `user=` nor `tenant=`, a `grant`
-with an unknown role or privilege, or `same-tenant` on a column that has no
-single-column foreign key. The tag is ignored until you fix it.
+with an unknown role or privilege, or `same-tenant` on a column that no
+foreign key holds. The tag is ignored until you fix it.
 
 ### BS704
 
@@ -3108,6 +3124,13 @@ target?, help? }] }` from its output. The exit status does not matter, only
 the JSON. Each finding is reported as BS705 with the provider's code first in
 its target, so `tooling.doctor.baseline` can accept it. A command that prints
 nothing, or JSON of another shape, is itself reported.
+
+The command is stopped after `authorization.doctor.timeoutMs` milliseconds
+(60000 by default). A command that runs longer is reported as a BS705 finding
+that names the setting. A finding the provider gives `severity: "error"` fails
+the run under the default `--fail-on error`, like any other error. When
+`--update-baseline` adds a new BS705 entry, it copies a reason only from an
+entry with the same provider code, never from a different one.
 
 ### BS706
 
@@ -3136,3 +3159,194 @@ module files, largest first, in one finding that `doctor --json` carries under t
 block to leave out, or which optional table to set to `null` (inventory allocations and accounting budgets drop
 their SQL that way). BS244 names the largest five once the total passes 2 MB. There is no `sql size` command,
 because the `sql` engine is internal.
+
+### BS709
+
+**Warning: own copy of a pg-delta package.** `package.json`, or the
+`package.json` of a workspace package, lists `@supabase/pg-delta` or
+`@supabase/pg-topo`. better-supabase depends on both at an exact version,
+because the migration [`db diff`](/docs/cli/db#diff) plans depends on the
+version. A second entry writes the version twice and can install a second copy
+that plans differently. Remove the entries:
+
+```bash
+pnpm remove @supabase/pg-delta @supabase/pg-topo
+```
+
+### BS710
+
+**Warning: Supabase CLI older than 3.2.0.** The CLI the project runs
+(`$SUPABASE_BIN`, `node_modules/.bin/supabase`, then the `PATH`) is older than
+3.2.0, the release this version of better-supabase is built and tested on. It
+reads `config.json` and `config.jsonc`, runs `config validate` and `stack
+prune`, and expects the multi-file migrations 3.2.0 writes. Commands that need
+it fail with [`supabase_cli_too_old`](/docs/cli/errors#supabase_cli_too_old).
+Update it:
+
+```bash
+pnpm add -D supabase@3.2.0
+```
+
+### BS711
+
+**Error: Supabase config fails validation.** `supabase config validate` rejects
+`config.toml`, `config.json` or `config.jsonc`: a value of the wrong type, an
+unknown key, or a removed key. Each problem is one finding with the file and
+line the CLI reports, and a removed key names its replacement (for example
+`rename [inbucket] to [local_smtp]`). The check needs CLI 3.2.0; BS710 covers
+an older one. `db.major_version` is BS712.
+
+### BS712
+
+**Error or warning: Postgres major version the local stack refuses.**
+`db.major_version` is 13 (an error: Supabase CLI 3.2 refuses to start it) or 14
+(a warning: the next version to go). Upgrade the project to Postgres 17 and set
+`db.major_version = 17`. The
+[upgrade guide](https://supabase.com/docs/guides/platform/upgrading) lists the
+steps.
+
+### BS713
+
+**Error or warning: a migra diff drops part of the schema files.** The project
+diffs `supabase/schemas` with migra, which drops `comment on` statements, grants
+and the `security_invoker` option of views. A `comment on` that holds `@bsb`
+tags is an error, because the owner, policies or access the tags record would be
+lost from the database. Grants and security-invoker views are warnings. Keep
+them by switching to pg-delta:
+
+```toml
+[experimental.pgdelta]
+enabled = true
+```
+
+Remove `schema_paths` from `[db.migrations]` too, and create migrations with
+`supabase db schema declarative sync`.
+
+### BS714
+
+**Warning: a module file lost its hash marker.** A module file has no
+`@bsb-hash` line. `supabase db pull --declarative` exports the database into
+new files without comments, which removes the marker, and `gen sql` then can't
+tell the file from one you wrote. Run `better-supabase gen sql` after a pull to
+write the module files again. A pull keeps `public/_custom/app_tables.sql` and
+the module files where they are, so nothing needs to move.
+
+### BS715
+
+**Info: action keys the provider could supply.** Under the provider access
+model, the config writes action keys (`blocks.<name>.permissions`,
+`recordTypes.<type>.permissions`, a bucket's `policy.access`) that the
+authorization provider's `actionKeys` could name instead. Doctor counts them by
+kind and counts the keys `actionKeys` already supplies.
+`better-supabase config actions --json` lists every action with the key it
+resolves to and whether the config, the provider or the block's default named
+it. A key equal to the provider's is BS427; BS715 is about keys the provider
+does not name yet. Move each key into the provider's `actionKeys` so one place
+names the keys the provider checks.
+
+### BS720
+
+**Error: a schema file does not parse.** pg-topo, the analysis behind BS720 to
+BS724, could not parse a file under `supabase/schemas`. pg-delta loads the same
+files and stops on the same statement. The analysis skips the whole file, so
+fix this first. The group needs no database and runs in every project that has
+files under `supabase/schemas`.
+
+### BS721
+
+**Warning: a schema file uses an object no file creates.** A statement refers
+to a table, view, type, sequence or schema that no schema file creates, outside
+the platform's schemas (`auth`, `storage`, `extensions` and the others pg-delta
+treats as provided). Create the object in a schema file. When dynamic SQL
+creates it, say so above the statement that does:
+
+```sql
+-- pg-topo:provides table:app.orders
+select app.create_orders();
+```
+
+pg-topo also reads `-- pg-topo:depends_on <schema.name>`,
+`-- pg-topo:requires <kind>:<schema.name>` and `-- pg-topo:phase <phase>`
+annotations, for a dependency inside a function or `do` body that it cannot
+read.
+
+### BS722
+
+**Warning: two schema statements create the same object.** A policy or function
+copied between files. pg-delta keeps the last one it loads, so the result
+depends on file order. Keep one definition.
+
+### BS723
+
+**Warning: schema statements depend on each other in a cycle.** pg-delta cannot
+order a cycle and loads it in a fixed order that can fail. Break it with a
+deferred reference, or drop a wrong edge with `-- pg-topo:depends_on`.
+
+### BS724
+
+**Error: a pg-topo annotation is invalid.** A `-- pg-topo:` comment names a
+directive pg-topo does not know (`phase`, `depends_on`, `requires` and
+`provides` are the four) or a value it cannot read.
+
+### BS725
+
+**Warning: a statement pg-delta cannot see in a schema file.** Under pg-delta
+the doctor reads every file in `supabase/schemas`, the module files better-supabase
+writes included, for four patterns: a `do` block that runs DDL (a catalog
+loop is BS318), a `cron.schedule` call inside a function or `do` body that does not first check that pg_cron is installed, an
+`alter publication` through `execute` or `format`, and an `alter default
+privileges` without `for role`. pg-delta reads the database the files load
+into, so what runs later is invisible to it, and default privileges without a
+role attach to whichever role loads the file. Write each as a plain top-level
+statement:
+
+```sql
+select cron.schedule('process_embeddings', '10 seconds', 'select process()');
+alter publication supabase_realtime add table public.messages;
+alter default privileges for role postgres in schema app
+  revoke all on tables from anon, authenticated;
+```
+
+### BS726
+
+**Error: a reserved name in a declarative tree.** pg-delta reserves `_cluster/`
+and `_custom/` as root folders of the tree. A schema named `_cluster` or
+`_custom`, or a folder that differs from `_cluster` only in case, would write
+into them. Pick another name.
+
+### BS727
+
+**Warning: `schema_paths` with pg-delta.** `[db.migrations] schema_paths` is set
+and `[experimental.pgdelta] enabled = true`. pg-delta loads every file under
+`supabase/schemas` and ignores the list. Remove it.
+
+### BS728
+
+**Warning: a `_custom/` file without its migration.** pg-delta loads
+`supabase/schemas/_custom` files into the shadow database only, never into
+yours, so what they hold has to ship in a migration. Record which one at the
+top of the file, or say there is none:
+
+```sql
+-- pgdelta-migration: ../../migrations/20261122120000_add_cast.sql
+-- pgdelta-migration: none
+```
+
+The rule also reports a directive whose migration file does not exist.
+`db diff` stops under strict coverage while an object that lives only in
+`_custom/` is missing from the target.
+
+### BS729
+
+**Warning: a modeled object in `_custom/`.** The file creates a table, view,
+function, policy, index, trigger, sequence, schema, type or domain. pg-delta
+models those, so put them next to their table. `_custom/` is for casts,
+operators, text search objects, statistics objects, transforms and idempotent
+data.
+
+### BS730
+
+**Warning: a published table without a replication key.** A table listed in a
+publication other than `supabase_realtime` has no primary key and no `replica
+identity full`. A Pipeline (replication) source cannot replicate its updates and
+deletes. Add a primary key.

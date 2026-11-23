@@ -42,7 +42,12 @@ also when a step fails. The stack has to have applied every migration first
 (`supabase migration up`), or the diff would repeat them.
 
 Under migra, or on a database that isn't local, `db diff` runs the Supabase
-CLI's command for the workflow (`supabase db diff`). When that command can't
+CLI's command for the workflow (`supabase db diff`). Both engines stay
+supported. A feature only pg-delta has (`--in-stack`, the baseline of `db
+squash`) stops under migra with one message that names it and the two config
+lines that switch: `experimental.pgdelta.enabled = true` and removing
+`db.migrations.schema_paths`. Doctor rule [BS713](/docs/cli/doctor#bs713) lists
+what a migra diff drops from your files. When that command can't
 start its shadow database, usually because every System V shared memory
 segment is in use (macOS allows 32, and each running stack holds one), `db
 diff` plans with the library on the stack you already run.
@@ -56,18 +61,33 @@ The plan is checked before anything is written:
 - An action that destroys data (dropping a table or column, narrowing a
   column type) stops the diff with a `check_failed` error and writes nothing.
   Run it again with `--allow-data-loss` once you have read the list.
+- Under pg-delta the diff runs with strict coverage. When the schema files
+  create an object pg-delta cannot manage (a kind it does not model, an
+  unmodeled object the target lacks, a security label it cannot place, or
+  `supabase_vault` in use), the diff stops with a `check_failed` error that
+  lists each object and writes nothing. Deliver the object in a migration or a
+  `_custom/` file, or run again with `--no-strict-coverage` to leave it out.
+  The Supabase CLI path passes `--strict-coverage` to `supabase db schema
+declarative sync` for the same reason.
+- With `--prove`, the plan is applied to a clone of the local stack and
+  refused unless the clone converges to the files, no table loses rows, and no
+  undeclared action rewrites a table. Cloning briefly disconnects the stack's
+  services, which reconnect on their own. A stack that cannot be cloned skips
+  the proof and says why.
 
-| Flag                | Effect                                                                                        |
-| ------------------- | --------------------------------------------------------------------------------------------- |
-| `-f, --file`        | Saves the diff as `supabase/migrations/<timestamp>_<name>.sql` instead of printing it.        |
-| `--in-stack`        | Plans with the library on the running stack, without the Supabase CLI.                        |
-| `--allow-data-loss` | Writes the migration even when it destroys data.                                              |
-| `--stack <name>`    | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
+| Flag                   | Effect                                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `-f, --file`           | Saves the diff as `supabase/migrations/<timestamp>_<name>.sql` instead of printing it.        |
+| `--in-stack`           | Plans with the library on the running stack, without the Supabase CLI.                        |
+| `--allow-data-loss`    | Writes the migration even when it destroys data.                                              |
+| `--no-strict-coverage` | Writes the migration even when pg-delta finds objects it cannot manage.                       |
+| `--prove`              | Applies the plan to a clone of the stack and refuses it unless it converges and keeps data.   |
+| `--stack <name>`       | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
 
 A migration from the library plan starts with a comment that asks you to
 review it: it compares two databases, so check the order of the statements
 before you apply it. The JSON envelope names the engine in `data.engine`, lists
-the plan's findings in `data.issues` and sets `data.fellBack` when the shadow
+the plan's findings in `data.issues`, the objects strict coverage refused in `data.blocking`, the proof's verdict in `data.proof`, the `_custom/` files that no migration delivers in `data.custom` and sets `data.fellBack` when the shadow
 database failed. `better-supabase dev stack prune` frees the segments that idle
 stacks hold.
 
@@ -348,6 +368,46 @@ that stops can start again; it resumes from the rows already copied.
 
 Side effects: Writes to the database.
 
+## rows
+
+```bash
+pnpm better-supabase db rows
+pnpm better-supabase db rows --check
+```
+
+`db rows` turns the files in `supabase/rows` into data migrations. A rows file
+is a list of upserts of literal rows by their natural key:
+
+```sql
+insert into better_supabase.declared_defaults (kind, subject, key, position, value)
+values
+  ('option_set_item', 'project.priority', 'low', 0, jsonb_build_object('label', 'Low')),
+  ('option_set_item', 'project.priority', 'high', 1, jsonb_build_object('label', 'High'))
+on conflict (kind, subject, key) do update
+  set position = excluded.position, value = excluded.value;
+```
+
+For each file, the command hashes the statements (comments and whitespace do
+not count) and looks for the newest migration that carries
+`-- @bsb-rows <file> sha256:<hash>`. When the hash is the same it does nothing.
+When it differs, it writes a new migration with the statements and the new
+hash, so a migration that was pushed is never rewritten. The reader refuses
+anything that is not an upsert: `do nothing`, a missing conflict target, a
+`select` source, `returning`, a subquery, a key that is not a literal, and every
+function call except `jsonb_build_object`, `jsonb_build_array` and `to_jsonb`.
+
+A row that you remove from a file stays in the database, because a migration
+cannot know whether the app changed it. The command prints a `review:` line for
+it. Put `-- bsb-rows: delete-removed` in the file to make the migration delete
+the removed rows by their natural key.
+
+| Flag        | Effect                                                                 |
+| ----------- | ---------------------------------------------------------------------- |
+| `--check`   | Writes nothing and exits 1 when a file has no migration with its hash. |
+| `--dry-run` | Prints the migrations it would write, and writes nothing.              |
+
+Side effects: Writes files.
+
 ## squash
 
 ```bash
@@ -361,7 +421,9 @@ baseline of the declarative schema files, which it writes with
 diff never writes the module extensions or your seed data, so the command
 carries them over: the `better_supabase_extensions` migration goes in before
 the baseline, and each name in `--keep` goes in after it, with the files of one
-name merged in order. A name with no migration is an error. When the baseline
+name merged in order (`name_1`, `name_2` and `name_10` from pg-delta's
+multi-file output sort by number, and files that disagree about
+`-- pg-delta: transaction=false` are refused). A name with no migration is an error. When the baseline
 fails, the command puts the old migrations back. Never squash migrations a
 hosted project has applied; run it for a deliberate reset and reset the
 database afterwards.
@@ -403,3 +465,14 @@ on those files.
 | `--stack <name>` | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
 
 Side effects: Reads the database, writes files with `--write-tests`.
+
+### `_custom/` files
+
+pg-delta loads every file under `supabase/schemas/_custom` into the shadow
+database and never into yours. The in-stack diff lists, in the log and in
+`data.custom`, each file that has no `-- pgdelta-migration:` line (`undelivered`)
+and each file whose directive names a migration that does not exist
+(`dangling`). Neither stops the diff: an object that exists only in `_custom/`
+and is missing from your database is the case strict coverage already refuses.
+Add the directive when a migration carries the file, or `-- pgdelta-migration:
+none` when none has to.

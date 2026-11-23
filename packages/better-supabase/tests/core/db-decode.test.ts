@@ -73,9 +73,11 @@ describe("db.$decode", () => {
       .$decode("tags")
       .row({ id: "t1", created_at: "nope" });
 
+    // The message comes from the Temporal engine: the polyfill says
+    // "Cannot parse: nope", Node 26's native Temporal a RangeError text.
     expect(!row.ok && row.error).toMatchObject({
       kind: "unexpected",
-      message: "Cannot parse: nope",
+      message: expect.stringMatching(/Cannot parse|Invalid character/),
     });
   });
 

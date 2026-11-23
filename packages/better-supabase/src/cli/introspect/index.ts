@@ -28,7 +28,7 @@ export async function introspect(
   const { metadata: generator, ids } = stabilizeMetadata(metadata);
 
   return {
-    version: 2,
+    version: 3,
     schemas: unique,
     generator,
     extras: {

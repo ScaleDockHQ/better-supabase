@@ -1,14 +1,17 @@
-import type { NamingRename } from "./codemod-naming.ts";
+import type { Node } from "oxc-parser";
 
-import { isSorted, sortObjectBody } from "./codemod-sort-keys.ts";
+import type { NamingRename } from "./codemod-naming.ts";
+import type { PathSegment } from "./config-document/index.ts";
+
+import { isSorted } from "./codemod-sort-keys.ts";
+import { ConfigDocument, propertyName } from "./config-document/index.ts";
 
 interface ReviewLine {
   readonly line: number;
   readonly message: string;
 }
 
-const IDENTIFIER_START = /[A-Za-z_$]/;
-const IDENTIFIER_PART = /[A-Za-z0-9_$]/;
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
 /** The key a `from` path ends in and its parent path, for a same-parent rename. */
 function parts(path: string): {
@@ -22,255 +25,13 @@ function parts(path: string): {
     : { parent: path.slice(0, at), key: path.slice(at + 1) };
 }
 
-/** The keys of one object literal, before and after the renames. */
-interface Frame {
-  readonly start: number;
-  readonly before: string[];
-  readonly after: string[];
-  renamed: boolean;
-}
-
-/**
- * Renames the config keys in `rows` (kind `configKey`) in the text of a file
- * that calls `defineConfig`. A scanner follows the nesting of object literals,
- * skipping strings and comments, so `gen: { output }` becomes `gen: { file }`
- * and `blocks.tasks.output` stays. A row whose `to` has another parent (a key
- * that moved) is not rewritten; it is reported for the author to move.
- */
-function scanSegment(
-  text: string,
-  wanted: readonly NamingRename[],
-  firstLine: number,
-): { readonly text: string; readonly review: readonly ReviewLine[] } {
-  const review: ReviewLine[] = [];
-  const stack: string[] = [];
-  const frames: (Frame | undefined)[] = [];
-  let pending = "";
-  let last = "";
-  let out = "";
-  let line = firstLine;
-  let index = 0;
-
-  const pathOf = (): string =>
-    stack
-      .filter((name) => name !== "" && !name.startsWith("$"))
-      .slice(1)
-      .map((name) => (/^\d+$/.test(name) ? "*" : name))
-      .join(".");
-
-  const rowFor = (key: string): NamingRename | undefined => {
-    const parent = pathOf();
-    const full = parent === "" ? key : `${parent}.${key}`;
-
-    return wanted.find((row) => row.from === full);
-  };
-
-  const noteKey = (before: string, after: string): void => {
-    const frame = frames.at(-1);
-
-    if (frame !== undefined) {
-      frame.before.push(before);
-      frame.after.push(after);
-      frame.renamed ||= before !== after;
-    }
-  };
-
-  while (index < text.length) {
-    const char = text.charAt(index);
-    const next = text.charAt(index + 1);
-
-    if (char === "\n") {
-      line += 1;
-    }
-
-    if (char === "/" && next === "/") {
-      const end = text.indexOf("\n", index);
-      const stop = end === -1 ? text.length : end;
-      out += text.slice(index, stop);
-      index = stop;
-      continue;
-    }
-
-    if (char === "/" && next === "*") {
-      const end = text.indexOf("*/", index + 2);
-      const stop = end === -1 ? text.length : end + 2;
-      const comment = text.slice(index, stop);
-      line += comment.split("\n").length - 1;
-      out += comment;
-      index = stop;
-      continue;
-    }
-
-    if (char === '"' || char === "'" || char === "`") {
-      let stop = index + 1;
-
-      while (stop < text.length && text.charAt(stop) !== char) {
-        stop += text.charAt(stop) === "\\" ? 2 : 1;
-      }
-
-      const literal = text.slice(index, stop + 1);
-      line += literal.split("\n").length - 1;
-      const after = /^\s*:/.exec(text.slice(stop + 1));
-
-      let written = literal;
-
-      if (after !== null && char !== "`" && stack.length > 0) {
-        const key = literal.slice(1, -1);
-        pending = key;
-        const row = rowFor(key);
-        let renamedTo = key;
-
-        if (row !== undefined) {
-          const target = parts(row.to);
-
-          if (target.parent === parts(row.from).parent) {
-            written = `${char}${target.key}${char}`;
-            renamedTo = target.key;
-          }
-        }
-
-        noteKey(key, renamedTo);
-      }
-
-      out += written;
-      last = char;
-      index = stop + 1;
-      continue;
-    }
-
-    if (IDENTIFIER_START.test(char)) {
-      let stop = index + 1;
-
-      while (stop < text.length && IDENTIFIER_PART.test(text.charAt(stop))) {
-        stop += 1;
-      }
-
-      const word = text.slice(index, stop);
-      const isKey = /^\s*:(?!:)/.test(text.slice(stop));
-      const keyPosition = last === "{" || last === "," || last === "";
-
-      if (isKey && keyPosition && stack.length > 0) {
-        const row = rowFor(word);
-        pending = word;
-
-        if (row !== undefined) {
-          const target = parts(row.to);
-
-          if (target.parent === parts(row.from).parent) {
-            out += /^[A-Za-z_$][\w$]*$/.test(target.key)
-              ? target.key
-              : JSON.stringify(target.key);
-            noteKey(word, target.key);
-            last = "a";
-            index = stop;
-            continue;
-          }
-
-          review.push({
-            line,
-            message: `${row.from} moved to ${row.to}; move the key by hand.`,
-          });
-        }
-      }
-
-      if (isKey && keyPosition && stack.length > 0) {
-        noteKey(word, word);
-      }
-
-      out += word;
-      last = "a";
-      index = stop;
-      continue;
-    }
-
-    if (char === "{") {
-      stack.push(pending === "" ? String(stack.length) : pending);
-      frames.push({
-        start: out.length + 1,
-        before: [],
-        after: [],
-        renamed: false,
-      });
-      pending = "";
-    } else if (char === "[") {
-      stack.push(pending === "" ? "" : pending);
-      frames.push(undefined);
-      pending = "";
-    } else if (char === "}" || char === "]") {
-      stack.pop();
-      const frame = frames.pop();
-
-      // A rename can break the order a config's keys were in; keep it.
-      if (
-        frame?.renamed === true &&
-        isSorted(frame.before) &&
-        !isSorted(frame.after)
-      ) {
-        out =
-          out.slice(0, frame.start) + sortObjectBody(out.slice(frame.start));
-      }
-
-      pending = "";
-    } else if (char === ",") {
-      pending = "";
-    }
-
-    out += char;
-
-    if (!/\s/.test(char)) {
-      last = char;
-    }
-
-    index += 1;
-  }
-
-  return { text: out, review };
-}
-
-/** The index just past the `)` that closes the call whose `(` is at `open`. */
-function callEnd(text: string, open: number): number {
-  let depth = 0;
-  let index = open;
-
-  while (index < text.length) {
-    const char = text.charAt(index);
-    const next = text.charAt(index + 1);
-
-    if (char === "/" && next === "/") {
-      const end = text.indexOf("\n", index);
-      index = end === -1 ? text.length : end;
-    } else if (char === "/" && next === "*") {
-      const end = text.indexOf("*/", index + 2);
-      index = end === -1 ? text.length : end + 2;
-    } else if (char === '"' || char === "'" || char === "`") {
-      index += 1;
-
-      while (index < text.length && text.charAt(index) !== char) {
-        index += text.charAt(index) === "\\" ? 2 : 1;
-      }
-
-      index += 1;
-    } else {
-      if (char === "(") {
-        depth += 1;
-      } else if (char === ")") {
-        depth -= 1;
-
-        if (depth === 0) {
-          return index + 1;
-        }
-      }
-
-      index += 1;
-    }
-  }
-
-  return text.length;
-}
-
 /**
  * Renames the config keys in `rows` (kind `configKey`) inside each
- * `defineConfig(...)` call of `text`. See `scanSegment` for what is renamed.
+ * `defineConfig(...)` call of `text`. The tree gives the path of every key, so
+ * `gen: { output }` becomes `gen: { file }` while `blocks.tasks.output` and the
+ * same name in a string, a comment or another object stay. A row whose `to` has
+ * another parent (a key that moved) is not rewritten; it is reported for the
+ * author to move. An object whose keys were sorted stays sorted.
  */
 export function renameConfigKeys(
   text: string,
@@ -278,25 +39,107 @@ export function renameConfigKeys(
 ): { readonly text: string; readonly review: readonly ReviewLine[] } {
   const wanted = rows.filter((row) => row.kind === "configKey");
 
-  if (wanted.length === 0 || !text.includes("defineConfig(")) {
+  if (wanted.length === 0 || !text.includes("defineConfig")) {
     return { text, review: [] };
   }
 
+  const document = ConfigDocument.parse(text);
   const review: ReviewLine[] = [];
-  let out = "";
-  let from = 0;
-  let at = text.indexOf("defineConfig(");
+  const toSort: { call: number; path: PathSegment[] }[] = [];
 
-  while (at !== -1) {
-    const open = at + "defineConfig".length;
-    const end = callEnd(text, open);
-    const line = text.slice(0, at).split("\n").length;
-    const segment = scanSegment(text.slice(open, end), wanted, line);
-    out += text.slice(from, open) + segment.text;
-    review.push(...segment.review);
-    from = end;
-    at = text.indexOf("defineConfig(", end);
+  const lineOf = (offset: number): number =>
+    text.slice(0, offset).split("\n").length;
+
+  document.rewrite(({ edit }) => {
+    const visit = (
+      node: Node,
+      names: readonly string[],
+      location: { call: number; path: PathSegment[] },
+    ): void => {
+      if (node.type === "ArrayExpression") {
+        for (const [index, element] of node.elements.entries()) {
+          if (element !== null && element.type !== "SpreadElement") {
+            visit(element, [...names, "*"], {
+              call: location.call,
+              path: [...location.path, index],
+            });
+          }
+        }
+
+        return;
+      }
+
+      if (node.type !== "ObjectExpression") {
+        return;
+      }
+
+      const before: string[] = [];
+      const after: string[] = [];
+
+      for (const property of node.properties) {
+        const name = propertyName(property);
+
+        if (property.type !== "Property" || name === undefined) {
+          continue;
+        }
+
+        const full = [...names, name].join(".");
+        const row = wanted.find((each) => each.from === full);
+        let written = name;
+
+        if (row !== undefined) {
+          const target = parts(row.to);
+
+          if (target.parent === parts(row.from).parent) {
+            written = target.key;
+            const { key } = property;
+
+            const quote =
+              key.type === "Literal" ? text.charAt(key.start) : undefined;
+
+            edit.overwrite(
+              key.start,
+              key.end,
+              quote === undefined
+                ? IDENTIFIER.test(target.key)
+                  ? target.key
+                  : JSON.stringify(target.key)
+                : `${quote}${target.key}${quote}`,
+            );
+          } else {
+            review.push({
+              line: lineOf(property.start),
+              message: `${row.from} moved to ${row.to}; move the key by hand.`,
+            });
+          }
+        }
+
+        before.push(name);
+        after.push(written);
+        visit(property.value, [...names, name], {
+          call: location.call,
+          path: [...location.path, written],
+        });
+      }
+
+      // A rename can break the order a config's keys were in; keep it.
+      if (
+        before.some((name, index) => name !== after[index]) &&
+        isSorted(before) &&
+        !isSorted(after)
+      ) {
+        toSort.push(location);
+      }
+    };
+
+    for (const [call, object] of document.defineConfigCalls().entries()) {
+      visit(object, [], { call, path: [] });
+    }
+  });
+
+  for (const target of toSort) {
+    document.sortKeys(target.path, target.call);
   }
 
-  return { text: out + text.slice(from), review };
+  return { text: document.text, review };
 }

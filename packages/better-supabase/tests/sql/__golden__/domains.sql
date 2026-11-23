@@ -937,16 +937,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:c40f6ae3da4cb61a75c4cca4c284fe7879b201d389f7a8fd254a55cf47f94a8e
+-- @bsb-hash sha256:c8f733afb3006df2afd98f092e31ea236b23dac8243120a82582fecf561bbcb2
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Hostnames an organization serves its app on: its own domains, verified by a
 -- DNS TXT record _better-supabase.<hostname>, and subdomains of
 -- blocks.domains.options.platformDomain (unset), verified when added. One organization holds

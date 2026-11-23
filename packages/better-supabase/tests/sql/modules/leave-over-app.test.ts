@@ -3,8 +3,14 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
+import { declaredTableColumns } from "../../../src/sql/schema-scan.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 import { renderBlocks } from "../app-columns.ts";
+
+const contentsOf = (
+  files: readonly { readonly kind: string; readonly contents: string }[],
+  kind: string,
+) => files.filter((file) => file.kind === kind).map((file) => file.contents);
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const ALICE = "22222222-2222-4222-8222-222222222222";
@@ -105,6 +111,19 @@ const AS_ALICE = `perform set_config('request.jwt.claims', '{"sub":"${ALICE}","r
   perform set_config('request.jwt.claim.role', 'authenticated', true);`;
 
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
+/** The columns the app's schema declares, as the CLI passes them. */
+const ownColumnsOf = (app: string): Record<string, string[]> =>
+  Object.fromEntries(
+    [...declaredTableColumns([{ text: app }], ["public"])].map(
+      ([table, columns]) => [table, [...columns]],
+    ),
+  );
+
+const CONFIDENTIAL_APP = APP.replace(
+  "  tracked boolean not null default true,",
+  "  tracked boolean not null default true,\n  confidential boolean not null default false,",
+);
+
 const BOOT = { timeout: 120_000 };
 
 async function run(
@@ -113,24 +132,16 @@ async function run(
   names: readonly string[] = ["leave"],
   app: string = APP,
 ): Promise<void> {
-  const files = renderBlocks(names, { modules, ownTables: OWN_TABLES });
+  const files = renderBlocks(names, {
+    modules,
+    ownTables: OWN_TABLES,
+    ownColumns: ownColumnsOf(app),
+  });
 
   await using stack = await liteStack({
     driver: "pglite",
-    migrations: [
-      ROLES,
-      app,
-      ...files
-        .filter((file) => file.kind === "schema")
-        .map((file) => file.contents),
-    ],
-    seed: [
-      ...files
-        .filter((file) => file.kind === "data")
-        .map((file) => file.contents),
-      ALLOW,
-      check,
-    ],
+    migrations: [ROLES, app, ...contentsOf(files, "schema")],
+    seed: [...contentsOf(files, "data"), ALLOW, check],
   });
 
   expect(stack.url).not.toBe("");
@@ -582,10 +593,7 @@ $$;`,
           },
         },
         ["leave", "share-links"],
-        `${APP.replace(
-          "  tracked boolean not null default true,",
-          "  tracked boolean not null default true,\n  confidential boolean not null default false,",
-        )}
+        `${CONFIDENTIAL_APP}
 create schema if not exists extensions;
 create or replace function extensions.gen_random_bytes(n integer) returns bytea
 language sql volatile as $$ select decode(md5(random()::text) || md5(random()::text), 'hex') $$;
@@ -637,6 +645,7 @@ language sql immutable as $$ select sha256(data) $$;
         },
       },
       ownTables: OWN_TABLES,
+      ownColumns: ownColumnsOf(CONFIDENTIAL_APP),
     })
       .map((file) => file.contents)
       .join("\n");
@@ -647,11 +656,6 @@ language sql immutable as $$ select sha256(data) $$;
         .map((file) => file.contents)
         .join("\n"),
     ).not.toContain("lc.");
-    expect(() =>
-      renderBlocks(["leave"], {
-        modules: { leave: { columns: { types: { confidential: "secret" } } } },
-      }),
-    ).toThrow(/confidential/);
   });
 });
 
@@ -720,6 +724,11 @@ create table public.time_off_ledger (
 );
 `;
 
+const EMPLOYEE_CONFIDENTIAL_APP = EMPLOYEE_APP.replace(
+  "  deducts_balance boolean not null default true,",
+  "  deducts_balance boolean not null default true,\n  confidential boolean not null default false,",
+);
+
 const EMPLOYEE_OWN = {
   "public.time_off_types": "app.sql",
   "public.time_off_requests": "app.sql",
@@ -781,25 +790,16 @@ async function runEmployees(
   ownTables: Readonly<Record<string, string>>,
   app: string,
 ): Promise<void> {
-  const files = renderBlocks(["employees", "leave"], { modules, ownTables });
+  const files = renderBlocks(["employees", "leave"], {
+    modules,
+    ownTables,
+    ownColumns: ownColumnsOf(app),
+  });
 
   await using stack = await liteStack({
     driver: "pglite",
-    migrations: [
-      ROLES,
-      app,
-      ...files
-        .filter((file) => file.kind === "schema")
-        .map((file) => file.contents),
-    ],
-    seed: [
-      ...files
-        .filter((file) => file.kind === "data")
-        .map((file) => file.contents),
-      ALLOW,
-      STAFF,
-      check,
-    ],
+    migrations: [ROLES, app, ...contentsOf(files, "schema")],
+    seed: [...contentsOf(files, "data"), ALLOW, STAFF, check],
   });
 
   expect(stack.url).not.toBe("");
@@ -999,14 +999,10 @@ create or replace function extensions.gen_random_bytes(n integer) returns bytea
 language sql volatile as $$ select decode(md5(random()::text) || md5(random()::text), 'hex') $$;
 create or replace function extensions.digest(data bytea, type text) returns bytea
 language sql immutable as $$ select sha256(data) $$;`,
-        ...files
-          .filter((file) => file.kind === "schema")
-          .map((file) => file.contents),
+        ...contentsOf(files, "schema"),
       ],
       seed: [
-        ...files
-          .filter((file) => file.kind === "data")
-          .map((file) => file.contents),
+        ...contentsOf(files, "data"),
         ALLOW,
         STAFF,
         `insert into better_supabase.teams (id, tenant_id, name, slug) values ('88888888-8888-4888-8888-888888888888', '${TENANT}', 'Support', 'support');
@@ -1112,6 +1108,7 @@ $$;`,
         },
       },
       ownTables: EMPLOYEE_OWN,
+      ownColumns: ownColumnsOf(EMPLOYEE_APP),
     })
       .map((file) => file.contents)
       .join("\n");
@@ -1161,30 +1158,24 @@ $$;`,
         },
       },
       ownTables: EMPLOYEE_OWN,
+      ownColumns: ownColumnsOf(EMPLOYEE_CONFIDENTIAL_APP),
     });
 
     await using stack = await liteStack({
       driver: "pglite",
       migrations: [
         ROLES,
-        `${EMPLOYEE_APP.replace(
-          "  deducts_balance boolean not null default true,",
-          "  deducts_balance boolean not null default true,\n  confidential boolean not null default false,",
-        )}
+        `${EMPLOYEE_CONFIDENTIAL_APP}
 create table public.orgs (id uuid primary key, name text not null);
 create schema if not exists extensions;
 create or replace function extensions.gen_random_bytes(n integer) returns bytea
 language sql volatile as $$ select decode(md5(random()::text) || md5(random()::text), 'hex') $$;
 create or replace function extensions.digest(data bytea, type text) returns bytea
 language sql immutable as $$ select sha256(data) $$;`,
-        ...files
-          .filter((file) => file.kind === "schema")
-          .map((file) => file.contents),
+        ...contentsOf(files, "schema"),
       ],
       seed: [
-        ...files
-          .filter((file) => file.kind === "data")
-          .map((file) => file.contents),
+        ...contentsOf(files, "data"),
         ALLOW,
         STAFF,
         `insert into public.orgs values ('${TENANT}', 'Acme');

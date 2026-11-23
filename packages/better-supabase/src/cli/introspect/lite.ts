@@ -3,13 +3,13 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { LiteDriver } from "../../server/index.ts";
-import type { SupabaseToml } from "../supabase-toml.ts";
+import type { SupabaseConfig } from "../supabase-config.ts";
 import type { IntrospectionSource } from "./source.ts";
 
 import { CliError, errorText } from "../core/errors.ts";
 import { connect } from "../db.ts";
 import { LITE_DRIVERS, loadCliLite } from "../lite.ts";
-import { schemaPaths, tomlGet } from "../supabase-toml.ts";
+import { schemaPaths, tomlGet } from "../supabase-config.ts";
 import { pgSource } from "./source.ts";
 
 function isLiteDriver(value: unknown): value is LiteDriver {
@@ -20,7 +20,7 @@ function isLiteDriver(value: unknown): value is LiteDriver {
  * `[db] driver` from `supabase/config.toml`. Only Supabase Lite reads this key,
  * so its presence marks a Lite project.
  */
-export function liteDriverOf(toml?: SupabaseToml): LiteDriver | undefined {
+export function liteDriverOf(toml?: SupabaseConfig): LiteDriver | undefined {
   const driver = tomlGet(toml?.document ?? {}, ["db", "driver"]);
 
   if (driver === undefined) {
@@ -42,7 +42,10 @@ export function liteDriverOf(toml?: SupabaseToml): LiteDriver | undefined {
  * `supabase/migrations/*.sql` in version order, then the declarative schema
  * files.
  */
-async function schemaSql(root: string, toml?: SupabaseToml): Promise<string[]> {
+async function schemaSql(
+  root: string,
+  toml?: SupabaseConfig,
+): Promise<string[]> {
   const migrations = join(root, toml?.dir ?? "supabase", "migrations");
 
   const files = existsSync(migrations)
@@ -69,7 +72,7 @@ async function schemaSql(root: string, toml?: SupabaseToml): Promise<string[]> {
  */
 export async function liteSource(
   root: string,
-  toml: SupabaseToml | undefined,
+  toml: SupabaseConfig | undefined,
   driver: LiteDriver,
   open: typeof connect = connect,
 ): Promise<IntrospectionSource> {

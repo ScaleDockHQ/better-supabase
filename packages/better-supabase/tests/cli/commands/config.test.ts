@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -67,6 +67,35 @@ describe("config", () => {
       expect(result.stdout).not.toContain("sbp_0123456789abcdef");
       expect(result.stdout).toContain("<redacted>");
     }
+  });
+
+  it("lists the actions and the access policies as versioned JSON", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.mjs"),
+      `export default { gen: { generators: [] }, blocks: ["audit"] };\n`,
+    );
+    await mkdir(join(dir, "supabase", "schemas"), { recursive: true });
+    await writeFile(
+      join(dir, "supabase", "schemas", "items.sql"),
+      `create table public.items (id uuid primary key, tenant_id uuid);\ncomment on table public.items is '@bsb access read=items.read';\n`,
+    );
+
+    const actions = JSON.parse(
+      (await run(["config", "actions", "--json", "--cwd", dir], { env: {} }))
+        .stdout,
+    ) as { data: { version: number; actions: { kind: string }[] } };
+
+    expect(actions.data.version).toBe(1);
+    expect(actions.data.actions.length).toBeGreaterThan(0);
+
+    const policies = JSON.parse(
+      (await run(["config", "policies", "--json", "--cwd", dir], { env: {} }))
+        .stdout,
+    ) as { data: { version: number; policies: { name: string }[] } };
+
+    expect(policies.data.policies.map((row) => row.name)).toEqual([
+      "bsb_access_items_read",
+    ]);
   });
 
   it("says when there is no config file", async () => {

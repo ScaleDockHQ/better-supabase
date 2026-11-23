@@ -82,7 +82,7 @@ const LAYOUTS: Readonly<Record<string, Block>> = {
 };
 
 const run = async (config: Block): Promise<{ text: string; out: string }> => {
-  const text = literal(config);
+  const text = `export default ${literal(config)};\n`;
 
   const result = await configCodemod().project!({
     // SAFETY: the object holds only config keys the resolver reads.

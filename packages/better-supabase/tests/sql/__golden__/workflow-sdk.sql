@@ -1909,16 +1909,16 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@9 managed
--- @bsb-hash sha256:2153d10d162979eece0a0ce692a884d7531fd9599e29bd8bef9c78f7ce80634d
+-- @bsb-hash sha256:dedbd519dd948e40b3daee76e39769aacfe7874a8f566e1aa3d6487f9f72c796
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs, the purge backstops of zero-retention runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
-alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- The Workflow SDK World's tables (@workflow/world-postgres 5.4.1).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.

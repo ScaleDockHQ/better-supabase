@@ -7,11 +7,13 @@ import type { ContentMapperSetup } from "../content-mapper.ts";
 import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
 import type { PackageInstall } from "../lockfile.ts";
 import type { PeerVersion } from "../peers.ts";
-import type { SupabaseToml, TomlValue } from "../supabase-toml.ts";
+import type { SupabaseConfig, TomlValue } from "../supabase-config.ts";
+import type { ProjectSymbols } from "../typescript-symbols/index.ts";
 import type { AdvisorSource } from "./advisors.ts";
 import type { StackEnvCheck } from "./env.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
 import type { LocalStackCheck } from "./stacks.ts";
+import type { SupabaseCliCheck } from "./supabase-cli.ts";
 import type { VercelEnvFile } from "./vercel-env.ts";
 
 import {
@@ -27,7 +29,7 @@ import { sameText } from "../core/io.ts";
 import { renderFiles } from "../gen/render.ts";
 import { configFor } from "../gen/shared.ts";
 import { orphanedBlockFiles } from "../sql/orphans.ts";
-import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
+import { diffEngine, migrationCommand, tomlGet } from "../supabase-config.ts";
 import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";
 import { APP_TABLE_SCOPE_RULES } from "./app-table-scope.ts";
@@ -37,6 +39,7 @@ import { BLOCK_PREFIX, blockTargets } from "./block-policies.ts";
 import { BLOCK_WRITE_RULES } from "./block-writes.ts";
 import { CLAIM_RULES } from "./claims.ts";
 import { COOKIE_RULES } from "./cookies.ts";
+import { DECLARATIVE_SAFETY_RULES } from "./declarative-safety.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
 import { DISPATCH_REGRESSION_RULES } from "./dispatch-regression.ts";
 import { ENTITY_PAGE_INDEX_RULES } from "./entity-page-indexes.ts";
@@ -46,10 +49,12 @@ import { FLAG_RULES } from "./flags.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { IMPORT_GUARD_RULES } from "./import-guard.ts";
 import { INLINE_SCHEMA_RULES } from "./inline-schemas.ts";
+import { authSetting, primeDoctorFacts, tomlLocation } from "./inputs.ts";
 import { LITE_RULES } from "./lite.ts";
 import { LIVE_STATE_RULES } from "./live-state-rules.ts";
 import { LIVE_RULES } from "./live.ts";
 import { skippedForMetadata } from "./metadata.ts";
+import { MIGRA_DROP_RULES } from "./migra-drops.ts";
 import { MIGRATION_RULES } from "./migration-rules.ts";
 import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
 import { moduleFiles } from "./module-files.ts";
@@ -57,6 +62,7 @@ import { MODULE_RULES } from "./modules.ts";
 import { N_PLUS_ONE_RULES } from "./n-plus-one.ts";
 import { NEXT_CACHE_RULES } from "./next-cache.ts";
 import { NOT_VALID_RULES } from "./not-valid.ts";
+import { PG_TOPO_RULES } from "./pg-topo.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { PLAIN_SECRET_RULES } from "./plain-secrets.ts";
 import { POLICY_RULES } from "./policies.ts";
@@ -80,6 +86,7 @@ import {
 } from "./shared.ts";
 import { SHIPPED_SHIM_RULES } from "./shipped-shims.ts";
 import { STACK_RULES } from "./stacks.ts";
+import { SUPABASE_CLI_RULES } from "./supabase-cli.ts";
 import { TABLE_FACT_RULES } from "./table-facts.ts";
 import { VERCEL_ENV_RULES } from "./vercel-env.ts";
 import { WIRING_RULES } from "./wiring.ts";
@@ -137,7 +144,7 @@ export interface TextFile {
 export interface DoctorContext {
   readonly config: ResolvedConfig;
   readonly snapshot: Snapshot;
-  readonly configToml: SupabaseToml | undefined;
+  readonly configToml: SupabaseConfig | undefined;
   readonly envFiles: readonly TextFile[];
   readonly gitignore: string;
   /**
@@ -147,6 +154,11 @@ export interface DoctorContext {
   readonly ignoredEnvFiles?: ReadonlySet<string>;
   /** App source files matched by `doctor.sources`. */
   readonly sources: readonly TextFile[];
+  /**
+   * The optional TypeScript 7.1 symbol tier (ADR 1187), or why it is off. The
+   * source rules use it to rule out a receiver that only looks like a client.
+   */
+  readonly symbols?: ProjectSymbols;
   /** `config.readSets`, compiled, or why they could not be loaded. */
   readonly readSets?: BlockSqlLayout["readSets"] | { readonly skipped: string };
   /**
@@ -192,6 +204,8 @@ export interface DoctorContext {
   readonly shellEnv?: Readonly<Record<string, string | undefined>>;
   /** The machine's shared memory segments and managed stacks (BS700, BS701). */
   readonly localStacks?: LocalStackCheck;
+  /** The installed Supabase CLI and its `config validate` result (BS710, BS711). */
+  readonly supabaseCli?: SupabaseCliCheck;
   /** The project's `next.config` file (BS608). */
   readonly nextConfig?: TextFile;
   /**
@@ -200,11 +214,10 @@ export interface DoctorContext {
    */
   readonly vercel?: boolean;
   /**
-   * Whether a script of the project's `package.json` runs `better-supabase db
-   * diff`, which plans with pg-delta's library (BS239). A project that diffs
-   * with the Supabase CLI never loads the library.
+   * The package names the project's `package.json`, or a workspace package,
+   * lists in any dependency field (BS709).
    */
-  readonly libraryDiff?: boolean;
+  readonly listedDependencies?: readonly string[];
   /** The project's `vercel.json` (BS512). */
   readonly vercelConfig?: TextFile;
   /**
@@ -297,30 +310,6 @@ async function moduleVersionsBehind(
   }
 
   return findings;
-}
-
-function authSetting(
-  context: DoctorContext,
-  key: string,
-): TomlValue | undefined {
-  return context.configToml
-    ? tomlGet(context.configToml.document, ["auth", key])
-    : undefined;
-}
-
-function tomlLocation(
-  context: DoctorContext,
-  key: string,
-): Location | undefined {
-  if (!context.configToml) {
-    return undefined;
-  }
-
-  const line =
-    lineOf(context.configToml.text, new RegExp(`^\\s*${key}\\s*=`)) ??
-    lineOf(context.configToml.text, /^\[auth\]/);
-
-  return line ? { file: context.configToml.path, line } : undefined;
 }
 
 /**
@@ -792,12 +781,8 @@ const OWN_RULES: readonly Rule[] = [
         const size = entry["file_size_limit"];
         const mimes = entry["allowed_mime_types"];
 
-        const line = lineOf(
-          toml.text,
-          new RegExp(
-            `^\\[storage\\.buckets\\.${id.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]`,
-          ),
-        );
+        const at = toml.locate(["storage", "buckets", id]);
+        const line = at?.exact ? at.line : undefined;
 
         const inToml = defined
           .drift({
@@ -1164,6 +1149,8 @@ export const RULES: readonly Rule[] = [
   ...LIVE_RULES,
   ...MODULE_RULES,
   ...PGDELTA_RULES,
+  ...PG_TOPO_RULES,
+  ...DECLARATIVE_SAFETY_RULES,
   ...LITE_RULES,
   ...DEPENDENCY_RULES,
   ...WORKFLOW_BUILDER_RULES,
@@ -1187,6 +1174,8 @@ export const RULES: readonly Rule[] = [
   ...VERCEL_ENV_RULES,
   ...WIRING_RULES,
   ...STACK_RULES,
+  ...SUPABASE_CLI_RULES,
+  ...MIGRA_DROP_RULES,
 ].toSorted((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);
@@ -1196,6 +1185,7 @@ export async function runRules(
   rules: readonly Rule[] = RULES,
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
+  await primeDoctorFacts(context);
   const scoped = { ...context, codes: rules.map((rule) => rule.code) };
 
   for (const rule of rules) {

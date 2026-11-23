@@ -14,6 +14,7 @@ import type { Paint } from "../style.ts";
 import { moduleLayout, renderBlocks, sameBlockFile } from "../../sql/index.ts";
 import { providerLabel, unsafeKey } from "../authorization.ts";
 import { loadSnapshot } from "../commands/snapshot.ts";
+import { checkConfigSql } from "../config-sql.ts";
 import { schemaStampPath } from "../content-mapper.ts";
 import {
   applyPlan,
@@ -144,6 +145,12 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
 
   if (refused) {
     return refused;
+  }
+
+  const badSql = await checkConfigSql(config);
+
+  if (badSql) {
+    return badSql;
   }
 
   const snapshot =

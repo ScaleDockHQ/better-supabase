@@ -6,13 +6,17 @@ import type { TableComment } from "./gen/table-tags.ts";
 
 import { tableTagComments } from "../sql/index.ts";
 import { withTableTags } from "./gen/table-tags.ts";
-import { readSupabaseToml, schemaPaths, sqlWorkflow } from "./supabase-toml.ts";
+import {
+  readSupabaseConfig,
+  schemaPaths,
+  sqlWorkflow,
+} from "./supabase-config.ts";
 
 /** The `@bsb` table comments in the project's declarative schema files. */
 export async function schemaTagComments(
   config: ResolvedConfig,
 ): Promise<TableComment[]> {
-  const toml = await readSupabaseToml(config.root);
+  const toml = await readSupabaseConfig(config.root);
 
   const { files } = await schemaPaths(
     config.root,

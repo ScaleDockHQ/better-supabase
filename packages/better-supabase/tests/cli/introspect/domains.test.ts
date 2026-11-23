@@ -7,7 +7,7 @@ import { introspect } from "../../../src/cli/introspect/index.ts";
 import { liteSource } from "../../../src/cli/introspect/lite.ts";
 import { tsTypeOf } from "../../../src/cli/introspect/typegen.ts";
 import { formatDomain } from "../../../src/cli/sql/format-domains.ts";
-import { readSupabaseToml } from "../../../src/cli/supabase-toml.ts";
+import { readSupabaseConfig } from "../../../src/cli/supabase-config.ts";
 
 /** Replaying into PGlite takes seconds, more under coverage. */
 describe("domain columns", { timeout: 60_000 }, () => {
@@ -31,7 +31,7 @@ describe("domain columns", { timeout: 60_000 }, () => {
 
     const source = await liteSource(
       root,
-      await readSupabaseToml(root),
+      await readSupabaseConfig(root),
       "sqlite-postgres",
     );
 

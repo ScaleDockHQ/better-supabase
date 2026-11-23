@@ -9,7 +9,16 @@ import {
   schemasDirOf,
   withoutOptionKeys,
 } from "../../src/cli/codemod-extra-columns.ts";
+import { primeSchemaFacts } from "../../src/cli/sql-facts.ts";
 import { resolveConfig } from "../../src/config/index.ts";
+
+const run = async (
+  input: Parameters<typeof extraColumnsFiles>[0],
+): Promise<ReturnType<typeof extraColumnsFiles>> => {
+  await primeSchemaFacts(input.sql, "/p");
+
+  return extraColumnsFiles(input);
+};
 
 const tableOf = (block: string, key: string): string | undefined => {
   if (block !== "tags") {
@@ -29,7 +38,7 @@ const options = {
 };
 
 describe("extraColumnsOptions", () => {
-  it("lists the extraColumns options with their columns", () => {
+  it("lists the extraColumns options with their columns", async () => {
     expect(
       extraColumnsOptions({
         tags: {
@@ -48,7 +57,7 @@ describe("extraColumnsOptions", () => {
 describe("withoutOptionKeys", () => {
   const keys = new Set(["extraColumns", "calendarExtraColumns"]);
 
-  it("drops the property, its comma and its line, and leaves strings alone", () => {
+  it("drops the property, its comma and its line, and leaves strings alone", async () => {
     const text = `export default {
   blocks: {
     tags: {
@@ -62,7 +71,7 @@ describe("withoutOptionKeys", () => {
 };
 `;
 
-    expect(withoutOptionKeys(text, keys)).toBe(`export default {
+    expect(withoutOptionKeys(text, keys).text).toBe(`export default {
   blocks: {
     tags: {
       options: {
@@ -75,32 +84,81 @@ describe("withoutOptionKeys", () => {
 `);
   });
 
-  it("drops several properties, last first", () => {
-    const text = `a: { extraColumns: { x: "text" }, calendarExtraColumns: { y: "text" }, keep: 1 }`;
+  it("drops several properties, last first", async () => {
+    const text = `export default { blocks: { a: { options: { extraColumns: { x: "text" }, calendarExtraColumns: { y: "text" }, keep: 1 } } } };`;
 
-    expect(withoutOptionKeys(text, keys)).toBe("a: { keep: 1 }");
+    expect(withoutOptionKeys(text, keys).text).toBe(
+      "export default { blocks: { a: { options: { keep: 1 } } } };",
+    );
   });
 
-  it("handles an only property and an inline one", () => {
+  it("handles an only property and an inline one", async () => {
     expect(
       withoutOptionKeys(
-        `a: { options: { extraColumns: { x: "text" } } }`,
+        `export default { blocks: { a: { options: { extraColumns: { x: "text" } } } } };`,
         keys,
-      ),
-    ).toBe("a: { options: { } }");
+      ).text,
+    ).toBe("export default { blocks: { a: { options: {} } } };");
+  });
+
+  it("keeps comments, follows a spread and a shorthand, and keeps CRLF", async () => {
+    const text = [
+      "const options = {",
+      "  // the region",
+      '  extraColumns: { region: "text" }, // moved',
+      "  keep: 1, // stays",
+      "};",
+      "const tags = { options };",
+      "export default {",
+      "  // blocks",
+      "  blocks: { tags },",
+      "};",
+      "",
+    ].join("\r\n");
+
+    const result = withoutOptionKeys(text, keys);
+
+    expect(result.review).toEqual([]);
+    expect(result.text).toContain("keep: 1, // stays");
+    expect(result.text).toContain("// blocks");
+    expect(result.text).not.toContain("extraColumns");
+    expect(result.text).not.toContain("moved");
+    expect(result.text).not.toMatch(/[^\r]\n/);
+  });
+
+  it("lists an option it cannot follow instead of skipping it", async () => {
+    const text = `import { options } from "./options.ts";
+export default { blocks: { tags: { options } } };
+`;
+
+    const result = extraColumnsFiles({
+      options: { tags: { extraColumns: { region: "text" } } },
+      tableOf: () => "better_supabase.tags",
+      sql: [],
+      schemasDir: "/p/supabase/schemas",
+      config: { path: "/p/better-supabase.config.ts", text },
+    });
+
+    expect(result.review[0]?.message).toContain(
+      "blocks.tags.options.extraColumns",
+    );
+    expect(result.review[0]?.message).toContain("remove it by hand");
+    expect(result.files.some((file) => file.path.endsWith(".config.ts"))).toBe(
+      false,
+    );
   });
 });
 
 describe("extraColumnsFiles", () => {
-  it("writes <table>.ext.sql when no app file alters the table", () => {
-    const { files, review } = extraColumnsFiles({
+  it("writes <table>.ext.sql when no app file alters the table", async () => {
+    const { files, review } = await run({
       options,
       tableOf,
       sql: [],
       schemasDir: "/p/supabase/schemas",
       config: {
         path: "/p/better-supabase.config.ts",
-        text: `tags: { options: { extraColumns: { region: "text not null default 'eu'" }, keep: 1 } },\n`,
+        text: `export default { blocks: { tags: { options: { extraColumns: { region: "text not null default 'eu'" }, keep: 1 } } } };\n`,
       },
     });
 
@@ -116,11 +174,11 @@ describe("extraColumnsFiles", () => {
 
     expect(
       files.find((file) => file.path.endsWith("config.ts"))?.contents,
-    ).toBe(`tags: { options: { keep: 1 } },\n`);
+    ).toBe(`export default { blocks: { tags: { options: { keep: 1 } } } };\n`);
   });
 
-  it("appends to the app file that already alters the table", () => {
-    const { files } = extraColumnsFiles({
+  it("appends to the app file that already alters the table", async () => {
+    const { files } = await run({
       options: {
         tags: {
           extraColumns: { region: "text" },
@@ -147,15 +205,15 @@ describe("extraColumnsFiles", () => {
     ).toContain('"better_supabase"."tag_links"');
   });
 
-  it("keeps an option whose column no block table adds", () => {
-    const { files, review } = extraColumnsFiles({
+  it("keeps an option whose column no block table adds", async () => {
+    const { files, review } = await run({
       options: { tags: { unknownExtraColumns: { missing: "text" } } },
       tableOf,
       sql: [],
       schemasDir: "/p/supabase/schemas",
       config: {
         path: "/p/c.ts",
-        text: `tags: { options: { unknownExtraColumns: { missing: "text" } } }\n`,
+        text: `export default { blocks: { tags: { options: { unknownExtraColumns: { missing: "text" } } } } };\n`,
       },
     });
 
@@ -165,7 +223,7 @@ describe("extraColumnsFiles", () => {
 });
 
 describe("schemasDirOf", () => {
-  it("steps out of the folder the block files go in", () => {
+  it("steps out of the folder the block files go in", async () => {
     expect(schemasDirOf("supabase/schemas/_better_supabase")).toBe(
       "supabase/schemas",
     );
@@ -174,8 +232,8 @@ describe("schemasDirOf", () => {
 });
 
 describe("extraColumnsFiles over a table the app creates", () => {
-  it("lists the columns in the table comment", () => {
-    const { files } = extraColumnsFiles({
+  it("lists the columns in the table comment", async () => {
+    const { files } = await run({
       options: { tags: { extraColumns: { region: "text" } } },
       tableOf,
       sql: [
@@ -191,8 +249,8 @@ describe("extraColumnsFiles over a table the app creates", () => {
     expect(files[0]?.contents).toContain("is 'Labels.\n@bsb fields region';");
   });
 
-  it("adds a comment when the table has none", () => {
-    const { files } = extraColumnsFiles({
+  it("adds a comment when the table has none", async () => {
+    const { files } = await run({
       options: { tags: { extraColumns: { region: "text", weight: "int" } } },
       tableOf,
       sql: [
@@ -244,7 +302,7 @@ describe("extra-columns codemod", () => {
       'alter table "better_supabase"."tags"\n  add column "region" text;',
     );
     expect(files[1]!.contents).toBe(
-      "export default { blocks: { tags: { options: { } } } };\n",
+      "export default { blocks: { tags: { options: {} } } };\n",
     );
   });
 

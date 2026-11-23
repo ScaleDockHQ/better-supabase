@@ -1029,6 +1029,49 @@ On tenant tables, one restrictive policy per command (`bsb_tenant_scope_select`,
 the caller's organizations for every role, anon included, so your own
 permissive policy can't widen access beyond them, unless `ownTablePolicies` is `app` (below).
 
+### Block names first, then your columns
+
+The simplest start is to let a block create its table under its own names and
+extend it in your schema files. Set `schema: "public"` on the block (it
+replaces a `tables` entry that only names that schema), then add what you need
+with `alter table` in your own files:
+
+```sql
+alter table public.organizations add column region text;
+alter table public.organizations add constraint organizations_region_check check (region <> '');
+```
+
+`better-supabase upgrade` never rewrites those statements, a declarative sync
+with `--strict-coverage` reports no change, and the columns you add show up in
+the block's `fields` in the generated types, for every block that has a main
+table (memberships included).
+
+### Keeping your table names with tags
+
+An app that keeps its own names maps a table with a comment instead of a
+`tables` entry. `@bsb block-table=<block>.<table>` on the table names the
+block's table it plays, and `@bsb column=<column>` on a column of that table
+names the block's column:
+
+```sql
+comment on table public.seats is '@bsb block-table=memberships.memberships';
+comment on column public.seats.organization_id is '@bsb column=tenant';
+```
+
+A `tables` or `columns` entry in the config wins over a tag for the same name.
+The tag names the logical table and column the way the config keys do.
+
+### Renaming a table to the block's names
+
+`better-supabase codemod adopt-names --table <block>.<table>` renames one
+table, and its mapped columns, to the block's own names. It writes a migration
+with the `alter table ... rename` statements, rewrites the statements of your
+schema files that name the table, removes the `tables` and `columns` entries,
+and lists the generated types that change. The block's schema must already be
+the table's schema; the codemod says so when it is not. A `values` entry stays,
+because the stored labels need a data migration. Run it once per table and
+review the migration before you apply it.
+
 ### Keeping your own policies
 
 When your tables already carry complete row level security, such as policies

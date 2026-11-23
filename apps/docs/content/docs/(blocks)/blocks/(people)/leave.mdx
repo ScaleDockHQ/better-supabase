@@ -215,7 +215,7 @@ leave: {
 
 ### The part of the day a request starts and ends in
 
-Over your own requests table, `columns.requests.startPart` and `endPart` map the part of the day a request starts and ends in: `full`, `morning`, `afternoon` or `hours`, which may be an enum. `request` takes `startPart` and `endPart`: a request that starts in the `afternoon` begins halfway through its first day, and one that ends in the `morning` stops halfway through its last. A day type books the working days less half a day for each, and an hours type books `hours` with any parts. Two requests overlap only when their half days do, so a morning and an afternoon on the same date fit. `partial` still works and fills both parts.
+Over your own requests table, the columns `start_part` and `end_part` hold the part of the day a request starts and ends in: `full`, `morning`, `afternoon` or `hours`, which may be an enum. Declaring both turns the feature on, and `columns.requests.startPart` and `endPart` are only for columns with other names. Declaring one without the other is an error. `request` takes `startPart` and `endPart`: a request that starts in the `afternoon` begins halfway through its first day, and one that ends in the `morning` stops halfway through its last. A day type books the working days less half a day for each, and an hours type books `hours` with any parts. Two requests overlap only when their half days do, so a morning and an afternoon on the same date fit. `partial` still works and fills both parts.
 
 ### Balances in your own table
 
@@ -260,7 +260,7 @@ await leave
 
 ### Confidential leave types
 
-Every member with `leave.read` reads everyone's leave, which is right for a team calendar but not for sick leave. Over your own types table, map `columns.types.confidential` to a boolean column, and leave of a confidential type stays with the people allowed to see it: the employee, their manager (with `options.owner: "employee"`) and members with `permissions.readConfidential` (`leave.manage` when unset). `list`, `balances`, `ledger` and the feeds leave the others out, and so does the read policy of the block's own requests table.
+Every member with `leave.read` reads everyone's leave, which is right for a team calendar but not for sick leave. Over your own types table, declare a boolean `confidential` column (map `columns.types.confidential` when yours has another name), and leave of a confidential type stays with the people allowed to see it: the employee, their manager (with `options.owner: "employee"`) and members with `permissions.readConfidential` (`leave.manage` when unset). `list`, `balances`, `ledger` and the feeds leave the others out, and so does the read policy of the block's own requests table.
 
 ```ts title="better-supabase.config.ts"
 blocks: {

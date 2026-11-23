@@ -1,6 +1,7 @@
 import type { ReviewLine } from "./codemod.ts";
 
-import { arrayEntries, PROMISE_ALL } from "./doctor/round-trips.ts";
+import { waves } from "./doctor/round-trips.ts";
+import { sourceModel } from "./doctor/source-scan.ts";
 
 const REPOSITORY_READ =
   /^\s*(?:await\s+)?((?:ctx\.)?db|bsb\.db\(\))\.(\w+)\.(list|page|get|count|aggregate)\(/;
@@ -16,10 +17,10 @@ export function reportReadMany(text: string): {
 } {
   const review: ReviewLine[] = [];
 
-  for (const match of text.matchAll(PROMISE_ALL)) {
-    const entries = arrayEntries(text, match.index + match[0].length);
+  for (const wave of waves(sourceModel(text))) {
+    const { entries } = wave;
 
-    if (entries === undefined || entries.length < 2) {
+    if (entries.length < 2) {
       continue;
     }
 
@@ -30,7 +31,7 @@ export function reportReadMany(text: string): {
       continue;
     }
 
-    const line = text.slice(0, match.index).split("\n").length;
+    const line = text.slice(0, wave.start).split("\n").length;
 
     if (reads.every((read) => read !== null && read[1] === first[1])) {
       review.push({

@@ -55,7 +55,7 @@ export function load(
   end if;`;
 }
 
-export function stageByKey(
+function stageByKey(
   ctx: BlockSqlContext,
   pipeline: string,
   key: string,

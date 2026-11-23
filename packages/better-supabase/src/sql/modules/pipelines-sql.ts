@@ -23,6 +23,7 @@ import {
 import { watchSql } from "../watch-sql.ts";
 import { brandSourceOf } from "./brand-source.ts";
 import { byType, outcomeCase } from "./pipelines-bindings.ts";
+import { declaredStageTable, stageSubject } from "./pipelines-declared.ts";
 import { seedableBindings } from "./pipelines-seeds.ts";
 
 /**
@@ -132,6 +133,14 @@ export function defaultPipeline(
         ),
     );
 
+    const declaredStages = (source: string): string => {
+      const seeded = seededFor(true);
+
+      return `insert into ${t("stages")} (${columnsOf(names, "stages", seeded)})
+      select ${valuesOf(seeded)}
+      from ${declaredStageTable(binding, source)};`;
+    };
+
     const insertStages = (list: PipelineBinding["stages"]): string => {
       const ranks = rankKeys(list.length);
       const seeded = seededFor(styled);
@@ -150,7 +159,7 @@ export function defaultPipeline(
       ) x(key, name, category, outcome, probability, rank${styled ? ", color, icon" : ""});`;
     };
 
-    const stages =
+    const literalStages =
       brand === undefined || brands.length === 0
         ? `      ${insertStages(binding.stages)}`
         : `      v_brand := (select b.${brand.column}::text from ${brand.table} b where b.${brand.tenant}::text = default_pipeline.tenant::text limit 1);
@@ -163,6 +172,26 @@ export function defaultPipeline(
         .join("\n      ")}
       else
       ${insertStages(binding.stages)}
+      end if;`;
+
+    // A tenant of a brand reads the rows of `<type>@<brand>` first (ADR 1197).
+    const declaredOf = (subject: string): string =>
+      `better_supabase.declared_defaults_of('pipeline_stage', ${subject})`;
+
+    const stages = `      ${
+      brand === undefined
+        ? ""
+        : `v_brand := (select b.${brand.column}::text from ${brand.table} b where b.${brand.tenant}::text = default_pipeline.tenant::text limit 1);
+      `
+    }v_declared := ${
+      brand === undefined
+        ? declaredOf(stageSubject(binding))
+        : `coalesce(${declaredOf(`${stageSubject(binding)} || '@' || coalesce(v_brand, '')`)}, ${declaredOf(stageSubject(binding))})`
+    };
+      if v_declared is not null then
+        ${declaredStages("v_declared")}
+      else
+${literalStages}
       end if;`;
 
     return `      insert into ${t("pipelines")} (${p("tenant")}, ${p("subjectType")}, ${p("scope")}, ${p("key")}, ${p("name")}, ${p("isDefault")})
@@ -186,6 +215,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid;${brand === undefined ? "" : "\n  v_brand text;"}
+  v_declared jsonb;
 begin
   select x.${p("id")} into v_id from ${t("pipelines")} x
   where x.${p("tenant")} = default_pipeline.tenant

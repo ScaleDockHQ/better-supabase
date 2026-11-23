@@ -14,8 +14,13 @@ const TABLE = /^[a-z_][a-z0-9_]{0,62}(\.[a-z_][a-z0-9_]{0,62})?$/;
 const CALL = /^[a-z_"][a-z0-9_".]*(\.[a-z_"][a-z0-9_"]*)+$/;
 
 /** One template type, from the app's `options.types` or a block contribution. */
-export interface TemplateType extends TemplateContribution {
+export interface TemplateType extends Omit<TemplateContribution, "children"> {
   readonly idColumn: string;
+  /** Each child with the column that references the root row. */
+  readonly children?: readonly {
+    readonly table: string;
+    readonly parent: string;
+  }[];
 }
 
 /**
@@ -33,7 +38,7 @@ export function templateTypes(ctx: BlockSqlContext): readonly TemplateType[] {
     (item) => item.type,
   )
     .filter((item) => !named.has(item.type))
-    .map((item) => normalize("contributes.templates", item));
+    .map((item) => normalize("contributes.templates", item, ctx));
 
   return [...configured, ...contributed];
 }
@@ -56,16 +61,18 @@ function configuredTypes(ctx: BlockSqlContext): readonly TemplateType[] {
       );
     }
 
-    return normalize(`blocks.templates.options.types.${type}`, {
-      type,
-      ...entry,
-    });
+    return normalize(
+      `blocks.templates.options.types.${type}`,
+      { type, ...entry },
+      ctx,
+    );
   });
 }
 
 function normalize(
   where: string,
   entry: { readonly type: string } & Partial<TemplateContribution>,
+  ctx: BlockSqlContext,
 ): TemplateType {
   if (!TYPE.test(entry.type)) {
     throw new TypeError(`${where}: "${entry.type}" is not a template type`);
@@ -102,16 +109,18 @@ function normalize(
     throw new TypeError(`${where}.extension must be "schema.table"`);
   }
 
+  const { children, ...rest } = entry;
+
   return {
-    ...entry,
+    ...rest,
     type: entry.type,
     storage: entry.storage,
     idColumn,
-    ...(entry.children === undefined
+    ...(children === undefined
       ? {}
       : {
-          children: entry.children.map((child, index) =>
-            childOf(where, index, child),
+          children: children.map((child, index) =>
+            childOf(where, index, child, entry.table, ctx),
           ),
         }),
     ...(entry.rules === undefined
@@ -124,14 +133,42 @@ function childOf(
   where: string,
   index: number,
   child: TemplateChildTable,
-): TemplateChildTable {
+  root: string | undefined,
+  ctx: BlockSqlContext,
+): { readonly table: string; readonly parent: string } {
   const at = `${where}.children[${String(index)}]`;
 
-  if (!TABLE.test(child.table) || !COLUMN.test(child.parent)) {
-    throw new TypeError(`${at} must be { table: "schema.table", parent }`);
+  if (
+    !TABLE.test(child.table) ||
+    (child.parent !== undefined && !COLUMN.test(child.parent))
+  ) {
+    throw new TypeError(`${at} must be { table: "schema.table", parent? }`);
   }
 
-  return child;
+  if (child.parent !== undefined) {
+    return { table: child.table, parent: child.parent };
+  }
+
+  const qualify = (table: string): string =>
+    table.includes(".") ? table : `public.${table}`;
+
+  const keys = ctx.foreignKeys.filter(
+    (key) =>
+      key.table === qualify(child.table) &&
+      root !== undefined &&
+      key.references === qualify(root) &&
+      key.columns.length === 1,
+  );
+
+  const [only] = keys;
+
+  if (keys.length !== 1 || only === undefined) {
+    throw new TypeError(
+      `${at}.parent: ${child.table} has ${String(keys.length)} foreign keys to ${root ?? "the root table"} in the schema files; name the column that references the root row`,
+    );
+  }
+
+  return { table: child.table, parent: only.columns[0] ?? "" };
 }
 
 function rulesOf(where: string, rules: TemplateRules): TemplateRules {

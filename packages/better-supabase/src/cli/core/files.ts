@@ -1,4 +1,4 @@
-import { chmod, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, link, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { Paint } from "../style.ts";
@@ -87,6 +87,23 @@ export interface PlannedFile {
    * line endings.
    */
   readonly same?: (current: string, contents: string) => boolean;
+  /**
+   * Create the file only if no other process has by the time it is written (a
+   * migration whose stamp another tool may take). A clash throws
+   * `ExclusiveClash` and writes nothing.
+   */
+  readonly exclusive?: boolean;
+}
+
+/** A file marked `exclusive` was created by someone else first. */
+export class ExclusiveClash extends Error {
+  readonly path: string;
+
+  constructor(path: string) {
+    super(`${path} was created by another process while this command ran.`);
+    this.name = "ExclusiveClash";
+    this.path = path;
+  }
 }
 
 /** The files a command creates, updates, skips or removes. The core applies it. */
@@ -238,6 +255,7 @@ interface Staged {
   readonly path: string;
   readonly contents: string;
   readonly mode: number | undefined;
+  readonly exclusive?: boolean;
 }
 
 /**
@@ -267,7 +285,28 @@ async function writeAll(files: readonly Staged[]): Promise<void> {
   }
 
   for (const [index, file] of files.entries()) {
-    await rename(temporary[index] ?? file.path, file.path);
+    const from = temporary[index] ?? file.path;
+
+    if (file.exclusive === true) {
+      // A hard link fails when the target exists, where a rename replaces it.
+      try {
+        await link(from, file.path);
+      } catch (error) {
+        await Promise.all(
+          temporary.slice(index).map((path) => rm(path, { force: true })),
+        );
+
+        throw error instanceof Error &&
+          "code" in error &&
+          error.code === "EEXIST"
+          ? new ExclusiveClash(file.path)
+          : error;
+      }
+
+      await rm(from, { force: true });
+    } else {
+      await rename(from, file.path);
+    }
 
     if (file.mode !== undefined) {
       await chmod(file.path, file.mode);
@@ -367,7 +406,12 @@ export async function applyPlan(
         diffs.push(`Backed up ${shown} to ${shown}.bak before overwriting.`);
       }
 
-      staged.push({ path, contents: file.contents, mode: file.mode });
+      staged.push({
+        path,
+        contents: file.contents,
+        mode: file.mode,
+        ...(file.exclusive === true ? { exclusive: true } : {}),
+      });
     } else if (outcome === "unchanged" && file.mode !== undefined) {
       modes.push({ path, mode: file.mode });
     }

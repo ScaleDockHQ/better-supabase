@@ -82,6 +82,11 @@ const config = createNextConfig({
         permanent: true,
       },
       {
+        source: "/docs/migration/0.81-to-0.82",
+        destination: "/docs/migration/0.82-to-0.83",
+        permanent: true,
+      },
+      {
         source: "/docs/cli/introspect",
         destination: "/docs/cli/gen",
         permanent: true,

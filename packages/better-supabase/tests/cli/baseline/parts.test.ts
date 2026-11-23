@@ -36,6 +36,7 @@ import {
   stepTimer,
 } from "../../../src/cli/baseline/stack.ts";
 import { parseEnv } from "../../../src/cli/env.ts";
+import { makeSupabaseConfig } from "../../../src/cli/supabase-config.ts";
 
 const env = parseEnv({});
 
@@ -217,21 +218,25 @@ describe("seedSources", () => {
     await mkdir(join(dir, "supabase"));
     await writeFile(join(dir, "supabase/seed.sql"), "select 1;\n");
 
-    const sources = await seedSources(dir, {
-      path: "supabase/config.toml",
-      dir: "supabase",
-      text: "",
-      parser: "smol-toml",
-      document: {
-        storage: {
-          buckets: {
-            absolute: { objects_path: join(dir, "missing") },
-            blank: { objects_path: "" },
-            odd: "value",
+    const sources = await seedSources(
+      dir,
+      makeSupabaseConfig({
+        path: "supabase/config.toml",
+        dir: "supabase",
+        format: "toml",
+        text: "",
+        parser: "smol-toml",
+        document: {
+          storage: {
+            buckets: {
+              absolute: { objects_path: join(dir, "missing") },
+              blank: { objects_path: "" },
+              odd: "value",
+            },
           },
         },
-      },
-    });
+      }),
+    );
 
     expect(sources).toEqual({
       sql: ["supabase/seed.sql"],

@@ -355,6 +355,13 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   readonly providerApprovals: Readonly<Record<string, AuthorizationApproval>>;
   /** The single-column foreign keys the app's schema files declare. */
   readonly foreignKeys: readonly DeclaredForeignKey[];
+  /**
+   * The columns each table the app's schema files declare has, by
+   * `schema.table`, or undefined when the layout did not read them.
+   */
+  readonly declaredColumns:
+    | Readonly<Record<string, readonly string[]>>
+    | undefined;
   /** The declared id-like column types of the app's tables, by `schema.table`. */
   readonly idTypes: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** The `provider` model's `can_user` answers only for the caller. */
@@ -429,6 +436,12 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   colName(table: string, column: string): string;
   /** Whether a logical column exists (adopted tables can map it to `null`). */
   has(table: string, column: string): boolean;
+  /**
+   * Whether the app's own table declares the logical column. Unlike `has`, a
+   * table whose columns are unknown declares none, and a block's own table
+   * declares none.
+   */
+  declares(table: string, column: string): boolean;
   /** Whether an optional logical table exists (it can be mapped to `null`). */
   hasTable(table: string): boolean;
   /** Whether the module renders its managed SQL (not adopt or custom mode). */
@@ -690,6 +703,8 @@ export interface BlockSqlContextSource {
   readonly providerManagedUsers?: string;
   readonly providerApprovals?: Readonly<Record<string, AuthorizationApproval>>;
   readonly foreignKeys?: readonly DeclaredForeignKey[];
+  /** `layout.declaredColumns`. */
+  readonly declaredColumns?: Readonly<Record<string, readonly string[]>>;
   readonly idTypes?: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** The layout applies statements in file order (`layout.rerunnable`). */
   readonly rerunnable?: boolean;
@@ -1040,6 +1055,16 @@ export function createModuleContext(
       : mapped;
   };
 
+  const ownDeclares = (table: string, physical: string): boolean => {
+    const parts = owned.tableName(table);
+
+    return (
+      source.ownColumns?.[`${parts.schema}.${parts.name}`]?.includes(
+        physical,
+      ) === true
+    );
+  };
+
   const requiredColumn = (table: string, logical: string): string => {
     const name = column(table, logical);
 
@@ -1386,6 +1411,7 @@ export function createModuleContext(
     providerManagedUsers: source.providerManagedUsers,
     providerApprovals: source.providerApprovals ?? {},
     foreignKeys: source.foreignKeys ?? [],
+    declaredColumns: source.declaredColumns,
     idTypes: source.idTypes ?? {},
     ...(source.providerCallerOnly === true ? { providerCallerOnly: true } : {}),
     appTables: new Set(source.appTables),
@@ -1472,6 +1498,16 @@ export function createModuleContext(
       const known = source.ownColumns?.[`${parts.schema}.${parts.name}`];
 
       return known === undefined || known.includes(physical);
+    },
+    declares(table, logical) {
+      const physical = column(table, logical);
+
+      return (
+        config.tables[table] !== null &&
+        physical !== null &&
+        owned.appOwned.includes(table) &&
+        ownDeclares(table, physical)
+      );
     },
     hasTable: (table) => {
       if (!names.tables[table]) {

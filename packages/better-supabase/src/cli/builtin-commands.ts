@@ -48,6 +48,7 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     "db partition",
     () => import("./commands/partition.ts").then((m) => m.dbPartitionCommand),
   ],
+  ["db rows", () => import("./commands/rows.ts").then((m) => m.dbRowsCommand)],
   [
     "db squash",
     () => import("./commands/squash.ts").then((m) => m.dbSquashCommand),
@@ -142,6 +143,20 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       ),
   ],
   [
+    "codemod adopt-names",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("adopt-names"),
+      ),
+  ],
+  [
+    "codemod declared-rows",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("declared-rows"),
+      ),
+  ],
+  [
     "codemod doctor-baseline",
     () =>
       import("./commands/codemod.ts").then((m) =>
@@ -218,6 +233,20 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/cache.ts").then((m) => m.cachePurgeCommand),
   ],
   ["config", () => import("./commands/config.ts").then((m) => m.configCommand)],
+  [
+    "config actions",
+    () =>
+      import("./commands/config-listings.ts").then(
+        (m) => m.configActionsCommand,
+      ),
+  ],
+  [
+    "config policies",
+    () =>
+      import("./commands/config-listings.ts").then(
+        (m) => m.configPoliciesCommand,
+      ),
+  ],
 ];
 
 /** The built-in commands, for `createCli`. */

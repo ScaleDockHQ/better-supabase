@@ -5,8 +5,9 @@ import { writtenByBlocks } from "../sql-layout.ts";
 import { moduleFiles } from "./module-files.ts";
 
 /**
- * Columns a block adds to a table the app creates, which the app's own files
- * don't declare (BS622).
+ * Required columns a block adds to a table the app creates, which the app's own
+ * files don't declare (BS622). Optional columns are never added to such a
+ * table, so the render here is the one `upgrade` writes.
  */
 export async function blockColumnsOnOwnedTables(
   context: DoctorContext,
@@ -18,7 +19,7 @@ export async function blockColumnsOnOwnedTables(
       !writtenByBlocks(file),
   );
 
-  const rendered = (await moduleFiles(context, { keepUndeclaredColumns: true }))
+  const rendered = (await moduleFiles(context))
     .filter(({ file }) => file.kind === "schema")
     .map(({ file }) => ({ contents: file.contents }));
 

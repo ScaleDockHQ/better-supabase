@@ -62,6 +62,8 @@ const rows = useTemplates({ limit: 50 });
 
 A type without `apply` stores templates you render yourself, such as emails. Applying one returns an `invalid_request` error.
 
+A `rows` type in `blocks.templates.options.types` lists the child tables a pack copies as `children: [{ table: "public.quote_lines" }]`. The `parent` column, the one that references the root row, comes from the foreign key your schema files declare from the child to the root table. Name it (`{ table, parent }`) when the child has none or more than one.
+
 ## Starters, forks and defaults
 
 ```ts

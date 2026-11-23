@@ -621,9 +621,9 @@ export function splitTopLevel(text: string): string[] {
       }
     } else if (char === "'" || char === '"') {
       quote = char;
-    } else if (char === "(") {
+    } else if (char === "(" || char === "[") {
       depth += 1;
-    } else if (char === ")") {
+    } else if (char === ")" || char === "]") {
       depth -= 1;
     } else if (char === "," && depth === 0) {
       parts.push(text.slice(start, i).trim());

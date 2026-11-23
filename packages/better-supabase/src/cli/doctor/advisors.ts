@@ -4,11 +4,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import type { Queryable } from "../introspect/source.ts";
-import type { TomlTable } from "../supabase-toml.ts";
+import type { TomlTable } from "../supabase-config.ts";
 
 import { CliError } from "../core/errors.ts";
 import { request } from "../core/http.ts";
-import { tomlGet } from "../supabase-toml.ts";
+import { tomlGet } from "../supabase-config.ts";
 
 /**
  * Splinter (https://github.com/supabase/splinter), the linter behind the
@@ -82,6 +82,7 @@ export function managementAdvisors(
 
       const text = await request(url, {
         what: `Management API ${category} advisors`,
+        needs: "read the project's advisors",
         headers: { authorization: `Bearer ${options.accessToken}` },
         ...(options.fetch ? { fetch: options.fetch } : {}),
       });

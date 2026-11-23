@@ -426,6 +426,15 @@ SUPABASE_ACCESS_TOKEN=sbp_... better-supabase gen --check
 
 `SUPABASE_API_URL` points it at another Management API host.
 
+## SQL in the config
+
+Before it reads the schema, `gen` parses the SQL expressions the config carries:
+the authorization provider's `functions` templates and the `{ sql }` payload
+columns of a block's `events.payload`. Placeholders such as `{user}` and `{row}`
+stand for a value. An expression that does not parse stops `gen` with the config
+key and the parser's message, for example `authorization.functions.canAssign is
+not valid SQL`, instead of failing later in a migration.
+
 ## What the metadata knows
 
 The generated `schema` carries what the runtime needs to stay correct without
@@ -837,7 +846,7 @@ full schema, without the [introspection cache](#introspection-cache).
 The snapshot stores postgrest-typegen's own metadata plus the extras
 better-supabase reads (policies, indexes, triggers, buckets, realtime), and
 follows
-[`snapshot-v2.json`](https://unpkg.com/better-supabase/schemas/snapshot-v2.json).
+[`snapshot-v3.json`](https://unpkg.com/better-supabase/schemas/snapshot-v3.json).
 Row counts are left out so the file stays stable; tables Postgres estimates
 at 10,000 rows or more only get `large: true`, which the
 [`unbounded-read`](/docs/repository/lint#unbounded-read) lint rule reads.

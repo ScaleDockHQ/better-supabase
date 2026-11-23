@@ -1,94 +1,46 @@
 /**
  * The edits `better-supabase remove` makes: blocks out of the config's
- * `blocks`, and their clients out of `lib/blocks.ts`. Textual, like
- * `config-edit.ts`, so comments and formatting survive.
+ * `blocks`, and their clients out of `lib/blocks.ts`. Through a
+ * `ConfigDocument`, like `config-edit.ts`, so comments and formatting survive.
  */
 
-import type { ConfigEdit, Property, WiredBlock } from "./config-edit.ts";
+import type { ConfigEdit, WiredBlock } from "./config-edit.ts";
 
-import {
-  closingIndex,
-  configObject,
-  cutRange,
-  listedBlocks,
-  mask,
-  properties,
-  tidyInline,
-  wiringBlocks,
-} from "./config-edit.ts";
-
-/** `source` with `props` whose key is in `keys` cut from the object at `open`. */
-function cutKeys(
-  source: string,
-  open: number,
-  props: readonly Property[],
-  keys: ReadonlySet<string>,
-): string {
-  const code = mask(source);
-  const multiline = code.slice(open, closingIndex(code, open)).includes("\n");
-  let text = source;
-
-  for (let index = props.length - 1; index >= 0; index -= 1) {
-    const key = props[index]?.key;
-
-    if (key !== undefined && keys.has(key)) {
-      const cut = cutRange(source, code, open, props, index, multiline);
-      text = text.slice(0, cut.start) + text.slice(cut.end);
-    }
-  }
-
-  return multiline ? text : tidyInline(text, open);
-}
+import { ConfigDocument } from "../config-document/index.ts";
+import { finish, openConfig, openWiring } from "./config-edit.ts";
 
 /** `source` with `names` taken out of `blocks`, keeping the form it has. */
 export function removeBlocksFromConfig(
   source: string,
   names: readonly string[],
 ): ConfigEdit {
-  const code = mask(source);
-  const root = configObject(code);
+  const document = openConfig(source);
 
-  if (root === undefined) {
-    return {
-      ok: false,
-      reason: "it doesn't pass an object literal to defineConfig()",
-    };
+  if (!(document instanceof ConfigDocument)) {
+    return document;
   }
 
-  const blocks = properties(source, code, root)?.find(
-    (prop) => prop.key === "blocks",
-  );
+  const blocks = document.locate(["blocks"]);
 
-  if (!blocks) {
+  if (blocks === undefined) {
     return { ok: true, text: source };
   }
 
-  const open = blocks.valueStart;
-
-  if (code[open] === "{") {
-    const listed = properties(source, code, open);
-
-    if (!listed) {
-      return { ok: false, reason: "its blocks object can't be read" };
-    }
-
-    return { ok: true, text: cutKeys(source, open, listed, new Set(names)) };
+  if (
+    blocks.value.type !== "ObjectExpression" &&
+    blocks.value.type !== "ArrayExpression"
+  ) {
+    return {
+      ok: false,
+      reason: "its blocks key isn't a literal object or list",
+    };
   }
 
-  if (code[open] === "[") {
-    // Each element is a property keyed by its instance name, so the object
-    // cut works on the list too.
-    const listed = listedBlocks(source, code, open).map((item): Property => ({
-      key: item.name,
-      start: item.span.start,
-      valueStart: item.span.start,
-      valueEnd: item.span.end,
-    }));
-
-    return { ok: true, text: cutKeys(source, open, listed, new Set(names)) };
+  for (const name of names) {
+    document.remove(["blocks", name]);
   }
 
-  return { ok: false, reason: "its blocks key isn't a literal object or list" };
+  return finish(document);
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -153,32 +105,15 @@ export function removeBlocksFromWiring(
   source: string,
   blocks: readonly WiredBlock[],
 ): ConfigEdit {
-  const found = wiringBlocks(source, mask(source));
+  const document = openWiring(source);
 
-  if (!found.ok) {
-    return found;
+  if (!(document instanceof ConfigDocument)) {
+    return document;
   }
-
-  let text = cutKeys(
-    source,
-    found.open,
-    found.listed,
-    new Set(blocks.map((block) => block.key)),
-  );
 
   for (const block of blocks) {
-    const line = new RegExp(
-      `^import \\{ ${block.export} \\} from ["']${block.subpath.replaceAll("/", "\\/")}["'];\\n`,
-      "m",
-    );
-
-    const without = text.replace(line, "");
-    const named = new RegExp(`\\b${block.export}\\b`);
-
-    if (without !== text && !named.test(mask(without))) {
-      text = without;
-    }
+    document.remove([block.key]);
   }
 
-  return { ok: true, text };
+  return finish(document);
 }

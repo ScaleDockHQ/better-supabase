@@ -54,4 +54,32 @@ describe("codemod server-imports", () => {
 
     expect(moveServerImports(text)).toEqual({ text, review: [] });
   });
+
+  it("splits a multi-line import, keeps an alias and skips a comment", () => {
+    const result = moveServerImports(
+      [
+        '// import { toCsv } from "better-supabase/server";',
+        "import {",
+        "  createServer,",
+        "  toCsv as csv,",
+        '} from "better-supabase/server";',
+        "",
+      ].join("\n"),
+    );
+
+    expect(result.text).toBe(
+      [
+        '// import { toCsv } from "better-supabase/server";',
+        'import { createServer } from "better-supabase/server";',
+        'import { toCsv as csv } from "better-supabase/server/csv";',
+        "",
+      ].join("\n"),
+    );
+    expect(result.review).toEqual([
+      {
+        line: 2,
+        message: "import split across better-supabase/server subpaths",
+      },
+    ]);
+  });
 });

@@ -38,6 +38,11 @@ export type SeedValue =
 
 export interface SeedRow {
   readonly values: Readonly<Record<string, SeedValue>>;
+  /**
+   * A SQL condition that, when true, skips the row. The pipelines module uses
+   * it to leave a template out once the app declared rows for it (ADR 1197).
+   */
+  readonly unless?: string;
 }
 
 /** The rows one table gets for each organization. */
@@ -54,6 +59,11 @@ export interface SeedTable {
    */
   readonly key: readonly string[];
   readonly rows: readonly SeedRow[];
+  /**
+   * Whole statements that run after the rows, under the same variant and locale
+   * guards. They read `p_tenant`, as the rows do.
+   */
+  readonly extra?: readonly string[];
   /** The named variant these rows belong to; rows without one are always seeded. */
   readonly variant?: string;
   /**
@@ -170,7 +180,7 @@ function tableSql(entry: SeedTable): string {
 
     return `  insert into ${entry.table} (${columns.map((column) => sqlIdent(column)).join(", ")})
   select ${expressions.join(", ")}
-  where not exists (select 1 from ${entry.table} x where x.${sqlIdent(entry.tenantColumn)} = p_tenant and ${same});`;
+  where not exists (select 1 from ${entry.table} x where x.${sqlIdent(entry.tenantColumn)} = p_tenant and ${same})${row.unless === undefined ? "" : ` and not (${row.unless})`};`;
   });
 
   const guards = [
@@ -184,7 +194,7 @@ function tableSql(entry: SeedTable): string {
       : `p_locale = any (array[${entry.locales.map((locale) => sqlString(locale)).join(", ")}])`,
   ].filter((guard) => guard !== undefined);
 
-  const body = statements.join("\n");
+  const body = [...statements, ...(entry.extra ?? [])].join("\n");
 
   return guards.length === 0
     ? body
@@ -213,7 +223,7 @@ set search_path = ''
 as $$
 begin
 ${tables
-  .filter((entry) => entry.rows.length > 0)
+  .filter((entry) => entry.rows.length > 0 || (entry.extra?.length ?? 0) > 0)
   .map((entry) => tableSql(entry))
   .join("\n")}
 end;

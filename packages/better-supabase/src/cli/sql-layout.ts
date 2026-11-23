@@ -18,38 +18,44 @@ import {
   adoptedColumnProblems,
   auditRegistrations,
   appColumnsOf,
-  declaredForeignKeys as appForeignKeys,
-  declaredIndexes,
-  declaredTableColumns,
-  declaredColumnTypes,
-  declaredTables,
-  declaredViews,
   declaredPolicies,
-  declaredUpdatedAtTriggers,
-  extensionSchema,
   moduleLayout,
-  policyGrants,
   resolveExposeColumns,
   resolveBlocks,
   sameTenantLayout,
+  mappingTagsOf,
   sameTenantTagsOf,
-  rlsTables,
+  withMappingTags,
 } from "../sql/index.ts";
 import { apiUsedNames } from "./api-used.ts";
 import { parseSnapshot } from "./commands/snapshot.ts";
 import { toCatalog } from "./introspect/catalog.ts";
 import { TypegenMissingError } from "./introspect/typegen.ts";
 import {
+  declaredForeignKeys as appForeignKeys,
+  declaredIndexes,
+  declaredTableColumns,
+  declaredColumnTypes,
+  declaredTables,
+  declaredViews,
+  declaredUpdatedAtTriggers,
+  extensionSchema,
+  policyGrants,
+  primeSchemaFacts,
+  rlsTables,
+} from "./sql-facts.ts";
+import {
+  configFileInDir,
   declarativeSchemasDir,
   pgFunctionHooks,
-  readSupabaseToml,
+  readSupabaseConfig,
   schemaPaths,
   sqlWorkflow,
-} from "./supabase-toml.ts";
+} from "./supabase-config.ts";
 
 /** The folder the module data files sit next to, for the project's workflow. */
 export async function schemasDirOf(config: ResolvedConfig): Promise<string> {
-  const toml = await readSupabaseToml(config.root);
+  const toml = await readSupabaseConfig(config.root);
 
   return declarativeSchemasDir(toml, sqlWorkflow(config, toml));
 }
@@ -128,7 +134,7 @@ const auditedTables = (
 async function readSchemaTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly path: string; readonly text: string }[]> {
-  const toml = await readSupabaseToml(config.root);
+  const toml = await readSupabaseConfig(config.root);
   const migrations = resolve(config.root, migrationsDir(config));
 
   const paths = [
@@ -141,18 +147,22 @@ async function readSchemaTexts(
     ...(await schemaPaths(config.root, toml, sqlWorkflow(config, toml))).files,
   ];
 
-  return Promise.all(
+  const texts = await Promise.all(
     paths.map(async (path) => ({
       path,
       text: await readFile(resolve(config.root, path), "utf-8"),
     })),
   );
+
+  await primeSchemaFacts(texts, config.root);
+
+  return texts;
 }
 
 async function readDeclarativeTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly path: string; readonly text: string }[]> {
-  const toml = await readSupabaseToml(config.root);
+  const toml = await readSupabaseConfig(config.root);
   const workflow = sqlWorkflow(config, toml);
   const { files } = await schemaPaths(config.root, toml, workflow);
 
@@ -163,12 +173,16 @@ async function readDeclarativeTexts(
     return schemaTexts(config);
   }
 
-  return Promise.all(
+  const texts = await Promise.all(
     files.map(async (path) => ({
       path,
       text: await readFile(resolve(config.root, path), "utf-8"),
     })),
   );
+
+  await primeSchemaFacts(texts, config.root);
+
+  return texts;
 }
 
 /**
@@ -186,7 +200,7 @@ async function readAuditedTables(
 async function accessTokenHookOf(
   config: ResolvedConfig,
 ): Promise<{ customAccessTokenHook?: string }> {
-  const toml = await readSupabaseToml(config.root);
+  const toml = await readSupabaseConfig(config.root);
 
   const hook = toml
     ? pgFunctionHooks(toml.document).find(
@@ -272,6 +286,15 @@ export async function moduleLayoutFor(
     input.permissionCatalog,
   );
 
+  const mapped = withMappingTags(
+    base.modules ?? {},
+    base.instances ?? {},
+    mappingTagsOf(
+      (await appSchemaTexts(config)).map((file) => file.text),
+      config.schemas,
+    ),
+  );
+
   const grants =
     base.grants === undefined
       ? undefined
@@ -284,10 +307,12 @@ export async function moduleLayoutFor(
   const apiUsed = await apiUsedNames(config);
 
   const rerunnable =
-    sqlWorkflow(config, await readSupabaseToml(config.root)) === "migrations";
+    sqlWorkflow(config, await readSupabaseConfig(config.root)) === "migrations";
 
   return {
     ...base,
+    modules: mapped.modules,
+    instances: mapped.instances,
     ...(rerunnable ? { rerunnable } : {}),
     ...(grants === undefined ? {} : { grants }),
     ...(apiUsed === undefined ? {} : { apiUsed }),
@@ -316,7 +341,16 @@ export async function moduleLayoutFor(
       : {}),
     ...(autoSameTenant
       ? sameTenantLayout(await declarativeTexts(config), config.schemas)
-      : {}),
+      : resolved.has("state-machine")
+        ? {
+            // An app history table's actor columns are read from its
+            // declaration.
+            declaredColumns: sameTenantLayout(
+              await declarativeTexts(config),
+              config.schemas,
+            ).declaredColumns,
+          }
+        : {}),
     ...(fromPolicies || sessionPolicies
       ? {
           declaredTables: declaredTables(
@@ -331,7 +365,11 @@ export async function moduleLayoutFor(
 
 type AppScans = Pick<
   BlockSqlLayout,
-  "uuidColumns" | "idTypes" | "foreignKeys" | "sameTenantTags"
+  | "uuidColumns"
+  | "idTypes"
+  | "foreignKeys"
+  | "sameTenantTags"
+  | "notNullColumns"
 >;
 
 /**
@@ -350,17 +388,26 @@ function appScans(
   if (lastScans?.key !== key) {
     const foreignKeys = appForeignKeys(files, schemas);
 
+    const sameTenantTags = sameTenantTagsOf(
+      files.map((file) => file.text),
+      schemas,
+      foreignKeys,
+    );
+
     lastScans = {
       key,
       scans: {
         uuidColumns: uuidColumnsOf(files, schemas),
         idTypes: idTypesOf(files, schemas),
         foreignKeys,
-        sameTenantTags: sameTenantTagsOf(
-          files.map((file) => file.text),
-          schemas,
-          foreignKeys,
-        ),
+        sameTenantTags,
+        // A tag that doesn't say `shared` follows the nullability of the
+        // referenced tenant column, which only the scan of the files knows.
+        ...(sameTenantTags.entries.length === 0
+          ? {}
+          : {
+              notNullColumns: sameTenantLayout(files, schemas).notNullColumns,
+            }),
       },
     };
   }
@@ -850,7 +897,7 @@ function notNullKeyPredicate(
 }
 
 /**
- * The migrations folder next to the `config.toml` found walking up from
+ * The migrations folder next to the config file found walking up from
  * `sql.dir`, relative to the root; `supabase/migrations` without one. The walk
  * stops where `sql.dir` and the root meet, so a `sql.dir` outside the project
  * (a shared stack in a monorepo) finds that stack's folder.
@@ -861,7 +908,7 @@ export function migrationsDir(config: ResolvedConfig): string {
   const stop = sqlRoot(config);
 
   for (;;) {
-    if (existsSync(join(dir, "config.toml"))) {
+    if (configFileInDir(dir) !== undefined) {
       return relative(root, join(dir, "migrations")).replaceAll("\\", "/");
     }
 

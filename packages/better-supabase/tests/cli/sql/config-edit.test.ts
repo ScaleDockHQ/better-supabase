@@ -4,16 +4,12 @@ import {
   addBlocksToConfig,
   addBlocksToJson,
   addBlocksToWiring,
-  cutRange,
-  mask,
-  properties,
   setBlockInConfig,
   setBlockInJson,
   setPresetInConfig,
   setPathInConfig,
   setPathInJson,
   setPresetInJson,
-  tidyInline,
 } from "../../../src/cli/sql/config-edit.ts";
 
 const edited = (source: string, names: readonly string[]): string => {
@@ -172,21 +168,24 @@ module.exports = {
     );
   });
 
-  it("refuses an object it can't read", () => {
+  it("reads numeric keys and refuses what it cannot parse", () => {
     expect(
       addBlocksToConfig("export default defineConfig({ 1: 2 });", ["tags"]),
-    ).toEqual({ ok: false, reason: "its config object can't be read" });
-    expect(
-      addBlocksToConfig("export default defineConfig({ blocks: { 1: 2 } });", [
-        "tags",
-      ]),
-    ).toEqual({ ok: false, reason: "its blocks object can't be read" });
-    expect(
-      addBlocksToConfig("export default defineConfig({ blocks: {", ["tags"]),
-    ).toEqual({ ok: false, reason: "its config object can't be read" });
-    expect(
-      addBlocksToConfig('export default defineConfig({ name: "open', ["tags"]),
-    ).toEqual({ ok: false, reason: "its config object can't be read" });
+    ).toEqual({
+      ok: true,
+      text: 'export default defineConfig({ 1: 2, blocks: ["tags"] });',
+    });
+
+    for (const source of [
+      "export default defineConfig({ blocks: {",
+      'export default defineConfig({ name: "open',
+    ]) {
+      const result = addBlocksToConfig(source, ["tags"]);
+
+      expect(result.ok).toBe(false);
+      expect(!result.ok && result.reason).toContain("config.ts:1:");
+    }
+
     expect(addBlocksToConfig("export default config;", ["tags"])).toEqual({
       ok: false,
       reason: "it doesn't pass an object literal to defineConfig()",
@@ -385,6 +384,43 @@ const setBlock = (source: string): string => {
 };
 
 describe("setBlockInConfig", () => {
+  it("does not take a comment or a regular expression for the config", () => {
+    const text = setBlock(`// export default { blocks: [] }
+const quote = /"/;
+export default defineConfig({
+  blocks: ["teams"],
+});
+`);
+
+    expect(text).toContain("// export default { blocks: [] }");
+    expect(text).toContain("block:");
+  });
+
+  it("writes `name: value` for a shorthand property, never a syntax error", () => {
+    const text = setBlock(`export default defineConfig({
+  blocks: {
+    teams,
+  },
+});
+`);
+
+    expect(text).toContain("teams: {");
+    expect(text).not.toMatch(/\{\s*\{/);
+  });
+
+  it("refuses a method property instead of dropping its body", () => {
+    const result = setBlockInConfig(
+      `export default defineConfig({ blocks: { teams() { return {}; } } });\n`,
+      "teams",
+      ADOPTED,
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "blocks.teams is a method, not a value",
+    });
+  });
+
   it("replaces an entry in a blocks object, or appends one", () => {
     const source = `import { defineConfig } from "better-supabase/config";
 
@@ -634,57 +670,6 @@ describe("setPathInConfig edges", () => {
       ok: false,
       reason: "its appTables key isn't a literal object",
     });
-  });
-});
-
-describe("cutRange", () => {
-  const range = (source: string, index: number, multiline: boolean) => {
-    const code = mask(source);
-    const open = source.indexOf("{");
-
-    return cutRange(
-      source,
-      code,
-      open,
-      properties(source, code, open)!,
-      index,
-      multiline,
-    );
-  };
-
-  it("cuts an inline property with its comma", () => {
-    const source = "{ a: 1, b: 2 }";
-    const cut = range(source, 0, false);
-
-    expect(cut.text).toBe("a: 1");
-    expect(source.slice(0, cut.start) + source.slice(cut.end)).toBe("{ b: 2 }");
-    expect(range(source, 1, false).text).toBe("b: 2");
-  });
-
-  it("cuts a whole line with its trailing comment", () => {
-    const source = "{\n  a: 1,\n  b: 2, // note\n  c: 3\n}";
-    const cut = range(source, 1, true);
-
-    expect(cut.text).toBe("  b: 2, // note");
-    expect(source.slice(0, cut.start) + source.slice(cut.end)).toBe(
-      "{\n  a: 1,\n  c: 3\n}",
-    );
-  });
-
-  it("stops at the comma when code follows on the line", () => {
-    const source = "{ a: 1, b: 2 }";
-    const cut = range(source, 0, true);
-
-    expect(cut.text).toBe(" a: 1,");
-    expect(cut.end).toBe(source.indexOf(",") + 1);
-  });
-});
-
-describe("tidyInline", () => {
-  it("empties a blank object and drops a dangling comma", () => {
-    expect(tidyInline("x = {  }", 4)).toBe("x = {}");
-    expect(tidyInline("x = { a: 1, }", 4)).toBe("x = { a: 1 }");
-    expect(tidyInline("x = [1, ]", 4)).toBe("x = [1]");
   });
 });
 

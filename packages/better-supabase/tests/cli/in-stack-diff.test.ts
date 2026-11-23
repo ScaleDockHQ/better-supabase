@@ -50,7 +50,7 @@ describe("in-stack diff helpers", () => {
     await pool.end();
   });
 
-  it("explains how to install pg-delta when it is missing", async () => {
+  it("says to reinstall better-supabase when pg-delta does not load", async () => {
     await expect(
       loadPgDelta(() => Promise.reject(new Error("Cannot find package"))),
     ).rejects.toMatchObject({ code: "dependency_missing" });
@@ -101,6 +101,12 @@ describe("inStackDiff", () => {
       candidates?: FakeCandidate[];
       destructive?: boolean;
       provisionFails?: boolean;
+      loadDiagnostics?: {
+        code: string;
+        severity: "error" | "warning";
+        message: string;
+      }[];
+      verdict?: Record<string, unknown>;
     } = {},
   ): {
     events: string[];
@@ -133,6 +139,26 @@ describe("inStackDiff", () => {
 
     const delta = {
       supabaseProfile: { id: "supabase" },
+      hasBlockingDiagnostics: (
+        items: { code: string; severity: string }[],
+        flags: { strictCoverage?: boolean },
+      ) =>
+        items.some(
+          (item) =>
+            item.severity === "error" ||
+            (flags.strictCoverage === true && item.code === "unmodeled_kind"),
+        ),
+      provePlan: () => {
+        events.push("prove");
+
+        return Promise.resolve({
+          ok: true,
+          driftDeltas: [],
+          dataViolations: [],
+          rewriteViolations: [],
+          ...options.verdict,
+        });
+      },
       encodeId: (id: { schema: string; name: string }) =>
         `table:${id.schema}.${id.name}`,
       provisionCoLocatedShadow: (url: string) => {
@@ -171,10 +197,12 @@ describe("inStackDiff", () => {
               },
             ],
           },
-          loadDiagnostics: [],
+          loadDiagnostics: options.loadDiagnostics ?? [],
           targetDiagnostics: [],
           driftDiagnostics: [],
           skipped: [],
+          profile: { proveOptions: {} },
+          extract: () => Promise.resolve({ factBase: {} }),
         });
       },
     };
@@ -212,6 +240,166 @@ describe("inStackDiff", () => {
     expect(events.at(-1)).toBe("cleanup");
     expect(events).toContain("end shadow");
     expect(events).toContain("end target");
+  });
+
+  it("reports _custom/ files that no migration delivers", async () => {
+    const custom = join(root, "supabase/schemas/_custom");
+
+    await mkdir(custom, { recursive: true });
+    await writeFile(join(custom, "bare.sql"), "create cast (a as b);");
+    await writeFile(join(custom, "none.sql"), "-- pgdelta-migration: none\n");
+    await writeFile(
+      join(custom, "gone.sql"),
+      "-- pgdelta-migration: ../../migrations/9_gone.sql\n",
+    );
+    await writeFile(
+      join(custom, "ok.sql"),
+      "-- pgdelta-migration: ../../migrations/20260101000000_init.sql\n",
+    );
+
+    const listed: string[] = [];
+
+    const result = await inStackDiff({
+      ...harness().base,
+      loadFrontends: () =>
+        Promise.resolve({
+          listCustomFiles: (base: string) => {
+            listed.push(base);
+
+            return [
+              {
+                path: "_custom/bare.sql",
+                sql: "",
+                migrations: [],
+                hasNone: false,
+                delivered: false,
+              },
+              {
+                path: "_custom/gone.sql",
+                sql: "",
+                migrations: ["../../migrations/9_gone.sql"],
+                hasNone: false,
+                delivered: true,
+              },
+              {
+                path: "_custom/none.sql",
+                sql: "",
+                migrations: [],
+                hasNone: true,
+                delivered: true,
+              },
+              {
+                path: "_custom/ok.sql",
+                sql: "",
+                migrations: ["../../migrations/20260101000000_init.sql"],
+                hasNone: false,
+                delivered: true,
+              },
+            ];
+          },
+        }),
+    });
+
+    expect(listed).toEqual([join(root, "supabase/schemas")]);
+    expect(result.custom).toEqual([
+      { path: "_custom/bare.sql", status: "undelivered" },
+      {
+        path: "_custom/gone.sql",
+        status: "dangling",
+        migration: "../../migrations/9_gone.sql",
+      },
+    ]);
+  });
+
+  it("does not load the frontends without a _custom/ folder", async () => {
+    const result = await inStackDiff({
+      ...harness().base,
+      loadFrontends: () => Promise.reject(new Error("must not load")),
+    });
+
+    expect(result.custom).toEqual([]);
+  });
+
+  const unmodeled = {
+    code: "unmodeled_kind",
+    severity: "warning" as const,
+    message: "a user object of a kind pg-delta does not model",
+  };
+
+  it("stops on an object pg-delta cannot manage unless coverage is relaxed", async () => {
+    const stopped = await inStackDiff(
+      harness({ loadDiagnostics: [unmodeled] }).base,
+    );
+
+    expect(stopped.sql).toBe("");
+    expect(stopped.blocking).toEqual([unmodeled]);
+
+    const relaxed = await inStackDiff({
+      ...harness({ loadDiagnostics: [unmodeled] }).base,
+      strictCoverage: false,
+    });
+
+    expect(relaxed.blocking).toEqual([]);
+    expect(relaxed.sql).toContain("create table a ()");
+  });
+
+  it("proves the plan on a clone and drops the clone", async () => {
+    const { base, events } = harness();
+    const cleaned: string[] = [];
+
+    const result = await inStackDiff({
+      ...base,
+      prove: true,
+      cloneStack: () =>
+        Promise.resolve({
+          url: "postgresql://clone",
+          cleanup: () => {
+            cleaned.push("clone");
+
+            return Promise.resolve();
+          },
+        }),
+    });
+
+    expect(events).toContain("prove");
+    expect(result.proof).toEqual({ status: "proved" });
+    expect(cleaned).toEqual(["clone"]);
+  });
+
+  it("refuses a plan the proof rejects", async () => {
+    const result = await inStackDiff({
+      ...harness({
+        verdict: {
+          ok: false,
+          dataViolations: [
+            { table: { schema: "public", name: "b" }, before: 3, after: 0 },
+          ],
+        },
+      }).base,
+      prove: true,
+      cloneStack: () =>
+        Promise.resolve({
+          url: "postgresql://clone",
+          cleanup: () => Promise.resolve(),
+        }),
+    });
+
+    expect(result.sql).toBe("");
+    expect(result.proof).toEqual({
+      status: "failed",
+      problems: ["public.b lost data (3 rows before, 0 after)"],
+    });
+  });
+
+  it("skips the proof when the stack cannot be cloned", async () => {
+    const result = await inStackDiff({
+      ...harness().base,
+      prove: true,
+      cloneStack: () => Promise.reject(new Error("permission denied")),
+    });
+
+    expect(result.sql).toContain("create table a ()");
+    expect(result.proof).toMatchObject({ status: "skipped" });
   });
 
   it("treats an unreadable migrations table as nothing applied", async () => {

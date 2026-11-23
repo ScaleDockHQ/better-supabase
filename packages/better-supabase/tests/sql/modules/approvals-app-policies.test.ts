@@ -307,7 +307,7 @@ $$;`),
     });
 
     expect(sql).toContain("f.value ->> 'subjectType' = v_type");
-    expect(sql).not.toContain("'*:' || approval_policy.action");
+    expect(sql).toContain("declared_defaults_of('approval_floor'");
   });
 });
 

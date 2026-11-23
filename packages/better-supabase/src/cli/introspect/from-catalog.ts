@@ -233,7 +233,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
   );
 
   return {
-    version: 2,
+    version: 3,
     schemas,
     generator: meta,
     extras: {

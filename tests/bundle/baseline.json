@@ -208,7 +208,7 @@
   "./cache-postgres/astro": 10608,
   "./chat-sdk": 45171,
   "./claims": 18421,
-  "./cli": 896639,
+  "./cli": 950989,
   "./client": 86553,
   "./client/native": 99802,
   "./commerce": 30639,
@@ -308,5 +308,5 @@
   "./workflow-sdk/world": 82761,
   "./yjs": 32083,
   "better-supabase CLI (startup)": 33956,
-  "content mapper (startup)": 172102
+  "content mapper (startup)": 198883
 }

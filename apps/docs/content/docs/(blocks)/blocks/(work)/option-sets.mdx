@@ -94,6 +94,26 @@ blocks: {
 
 The brand is read when the set is first created. Changing the column later does not rename existing items.
 
+## Declare items as rows
+
+Leave `items` out of a binding and declare them as `option_set_item` rows in
+`supabase/rows/option-sets.sql`. The subject is `<type>.<field>`, or
+`<type>.<field>@<brand>` for the items of one brand, and the value holds `key`, `label`, `level`,
+`color` and `icon`:
+
+```sql
+insert into better_supabase.declared_defaults (kind, subject, key, position, value)
+values
+  ('option_set_item', 'project.priority', 'low', 0, '{"key":"low","label":"Low","level":0}'::jsonb),
+  ('option_set_item', 'project.priority', 'high', 1, '{"key":"high","label":"High","level":2}'::jsonb)
+on conflict (kind, subject, key) do update
+  set position = excluded.position, value = excluded.value;
+```
+
+The seed reads the declared rows first and the config `items` second. A field with neither raises
+`OPTION_SET_DEFAULTS_MISSING`. Run `better-supabase db rows` to turn the file into a data
+migration, or `better-supabase codemod declared-rows` to move the items you already have.
+
 ## Events
 
 `option_set.created`, `option_set.updated`, `option_set_item.created`, `option_set_item.updated` and `option_set_item.archived`. The payloads are in [events](/docs/extending/events).

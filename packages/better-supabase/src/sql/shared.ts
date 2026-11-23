@@ -213,11 +213,15 @@ export function extraFieldsArg(
   };
 }
 
-/** Takes the default grants on later objects in a schema from every client role. */
+/**
+ * Takes the default grants on later objects in a schema from every client role.
+ * The role is named because default privileges without `for role` attach to
+ * whichever role loads the file (BS725).
+ */
 const revokeDefaults = (schema: string): string =>
-  `alter default privileges in schema ${schema} revoke all on tables from public, anon, authenticated;
-alter default privileges in schema ${schema} revoke all on sequences from public, anon, authenticated;
-alter default privileges in schema ${schema} revoke all on functions from public, anon, authenticated;`;
+  `alter default privileges for role postgres in schema ${schema} revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema ${schema} revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema ${schema} revoke all on functions from public, anon, authenticated;`;
 
 /**
  * A SQL condition true for the service role and for a direct admin connection

@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:f695d6ffcc6b25c3cf8da8dbc0f81d03def0c3b0c6e469dacd7310ce065f7c35
+-- @bsb-hash sha256:ac5ea1ac0e727655e37f6cae00ae7e027bc853ababe26b09c9a9e457f34029f3
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,14 +85,20 @@ create policy bsb_approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
--- The policy a new request snapshots, from options.policies.
+-- The policy a new request snapshots: the approval_floor rows the app declared
+-- (most specific first), else options.policies.
 create or replace function "better_supabase"."approval_policy"(subject_type text, action text)
 returns jsonb
 language sql
-immutable
+stable
 set search_path = ''
 as $$
-  select coalesce(case approval_policy.subject_type || ':' || approval_policy.action
+  select coalesce(
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', approval_policy.subject_type || ':*') -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:' || approval_policy.action) -> 0,
+    better_supabase.declared_defaults_of('approval_floor', '*:*') -> 0,
+    coalesce(case approval_policy.subject_type || ':' || approval_policy.action
     when '*:quote.send' then '{"steps":[],"selfApproval":false,"expiresIn":null,"run":null,"effects":["money-movement"]}'::jsonb
     when 'customer:discount' then '{"steps":[{"approvers":{"permission":"approvals.manage"},"required":1}],"selfApproval":true,"expiresIn":null,"run":null}'::jsonb
     when 'customer:refund' then '{"steps":[],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb
@@ -107,6 +113,7 @@ as $$
     when '*:quote.send' then '{"steps":[],"selfApproval":false,"expiresIn":null,"run":null,"effects":["money-movement"]}'::jsonb
     else null::jsonb
   end)
+  )
 $$;
 revoke execute on function "better_supabase"."approval_policy"(text, text) from public, anon;
 grant execute on function "better_supabase"."approval_policy"(text, text) to authenticated, service_role;
@@ -725,6 +732,12 @@ begin
       select 1 from jsonb_array_elements('[{"subjectType":"*","action":"quote.send","effects":["money-movement"]},{"subjectType":"customer","action":"discount","effects":[]},{"subjectType":"customer","action":"refund","effects":[]},{"subjectType":"customer","action":"export","effects":[]},{"subjectType":"case","action":"close","effects":[]},{"subjectType":"drive_node","action":"approve","effects":[]},{"subjectType":"drive_node","action":"release","effects":[]},{"subjectType":"eve_tool_call","action":"add_note","effects":[]},{"subjectType":"workflow_run","action":"approve","effects":[]}]'::jsonb) f
       where (v_type = '*' or f.value ->> 'subjectType' in (v_type, '*'))
         and (v_action = '*' or f.value ->> 'action' in (v_action, '*'))
+        and (v_effect is null or f.value -> 'effects' ? v_effect)
+    ) or exists (
+      select 1 from better_supabase.declared_defaults f
+      where f.kind = 'approval_floor'
+        and (v_type = '*' or split_part(f.subject, ':', 1) in (v_type, '*'))
+        and (v_action = '*' or split_part(f.subject, ':', 2) in (v_action, '*'))
         and (v_effect is null or f.value -> 'effects' ? v_effect)
     )) then
     raise exception 'a tenant policy tightens an options.policies entry, and there is none for this subject type, action and effect' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
@@ -3221,7 +3234,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 create or replace function "api"."approval_policy"(subject_type text, action text)
 returns jsonb
 language sql
-immutable
+stable
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."approval_policy"($1, $2) $$;

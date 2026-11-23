@@ -323,10 +323,10 @@ describe("loadSnapshot", () => {
 describe("parseSnapshot", () => {
   it("rejects documents that are not v2 snapshots", async () => {
     await expect(parseSnapshot(null, "s.json")).rejects.toThrow(
-      "s.json is not a version 2 snapshot.",
+      "s.json is not a version 2 or 3 snapshot.",
     );
     await expect(parseSnapshot({ version: 1 })).rejects.toThrow(
-      "snapshot is not a version 2 snapshot.",
+      "snapshot is not a version 2 or 3 snapshot.",
     );
     await expect(parseSnapshot({ version: 2, schemas: [] })).rejects.toThrow(
       'snapshot is missing "schemas" or "extras".',
@@ -358,11 +358,27 @@ describe("parseSnapshot", () => {
       extras: { tables: [] },
     });
 
+    expect(older.version).toBe(3);
     expect(older.extras).toEqual({ tables: [], buckets: [], realtime: [] });
+
+    const current = await parseSnapshot({
+      version: 3,
+      schemas: ["public"],
+      generator: fixture.generator,
+      extras: {
+        tables: [],
+        viewColumnComments: { "public.v": { id: "The id." } },
+      },
+    });
+
+    expect(current.extras.viewColumnComments).toEqual({
+      "public.v": { id: "The id." },
+    });
     const full = await parseSnapshot(fixture);
     expect(Object.keys(full.extras).toSorted()).toEqual(
       [
         "buckets",
+        "functionComments",
         "functions",
         "hooks",
         "realtime",
@@ -382,7 +398,7 @@ describe("serializeSnapshot", () => {
 
     expect(
       text.startsWith(
-        '{\n  "$schema": "https://unpkg.com/better-supabase/schemas/snapshot-v2.json",\n  "version": 2,',
+        '{\n  "$schema": "https://unpkg.com/better-supabase/schemas/snapshot-v3.json",\n  "version": 3,',
       ),
     ).toBe(true);
     expect(text.endsWith("}\n")).toBe(true);
