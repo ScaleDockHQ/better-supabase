@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
 -- @bsb-block inventory@6 managed
--- @bsb-hash sha256:6484dad1c8127e1fe59836a81c6574178bd8a52bf1fe94aac4ee165a8cd5285d
+-- @bsb-hash sha256:07b75e0af11fb9b486639dbbcffa202f93fb790fb3f62be07afd14ca7dfc874e
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1618,6 +1618,81 @@ $$;
 revoke execute on function "better_supabase"."import_stock_allocation"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_stock_allocation"(uuid, jsonb, text) to service_role;
 
+-- The batch form of import_stock_allocation (ADR 1217): new allocations that
+-- name their variant and location by id are written in one statement, and the
+-- location's reserved stock grows once per variant and location. Every other
+-- item goes through import_stock_allocation.
+create or replace function "better_supabase"."import_stock_allocation_batch"(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+  v_done jsonb[] := array_fill(null::jsonb, array[jsonb_array_length(items)]);
+  v_row record;
+  v_call jsonb;
+  v_message text;
+  v_hint text;
+begin
+  for v_row in
+    with i as (
+      select o::int as n, gen_random_uuid() as id, (e ->> 'tenant')::uuid as tenant, e -> 'data' as d,
+        case when pg_input_is_valid(coalesce(e -> 'data' ->> 'variantId', ''), 'uuid') then (e -> 'data' ->> 'variantId')::uuid end as variant,
+        case when pg_input_is_valid(coalesce(e -> 'data' ->> 'locationId', ''), 'uuid') then (e -> 'data' ->> 'locationId')::uuid end as location,
+        case when pg_input_is_valid(coalesce(e -> 'data' ->> 'quantity', ''), 'numeric') then (e -> 'data' ->> 'quantity')::numeric end as quantity,
+        case when pg_input_is_valid(coalesce(coalesce(e -> 'data' ->> 'allocated', '0'), ''), 'numeric') then (coalesce(e -> 'data' ->> 'allocated', '0'))::numeric end as allocated,
+        case when pg_input_is_valid(coalesce(coalesce(e -> 'data' ->> 'fulfilled', '0'), ''), 'numeric') then (coalesce(e -> 'data' ->> 'fulfilled', '0'))::numeric end as fulfilled,
+        coalesce(nullif(e -> 'data' ->> 'status', ''), 'open') as status
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where nullif(e ->> 'subjectId', '') is null
+    ), f as (
+      select i.n, i.id, i.tenant, i.variant, i.location, i.quantity, i.status,
+        i.d ->> 'documentType' as document_type, i.d ->> 'documentId' as document_id, nullif(i.d ->> 'lineId', '') as line,
+        case when i.status <> 'open' then 0 else i.allocated end as allocated,
+        case when i.status = 'fulfilled' then i.quantity else i.fulfilled end as fulfilled
+      from i
+      where (select y."id" from "better_supabase"."product_variants" y where y."id" = i.variant and y."tenant_id" = i.tenant) is not null
+        and (select x."id" from "better_supabase"."inventory_locations" x where x."id" = i.location and x."tenant_id" = i.tenant) is not null
+        and i.status in ('open', 'fulfilled', 'released')
+        and i.quantity > 0 and i.allocated >= 0 and i.fulfilled >= 0 and i.allocated + i.fulfilled <= i.quantity
+        and coalesce(i.d ->> 'documentType', '') ~ '^[a-z][a-z0-9_]{0,62}$'
+        and length(coalesce(i.d ->> 'documentId', '')) between 1 and 200
+    ), levels as (
+      insert into "better_supabase"."stock_levels" as x ("tenant_id", "variant_id", "location_id", "reserved")
+      select f.tenant, f.variant, f.location, sum(f.allocated) from f group by 1, 2, 3
+      on conflict ("variant_id", "location_id") do update
+        set "reserved" = x."reserved" + excluded."reserved", "updated_at" = now()
+    ), written as (
+      insert into "better_supabase"."stock_allocations" as x ("id", "tenant_id", "variant_id", "location_id", "document_type", "document_id", "line_id",
+        "quantity", "allocated", "fulfilled", "status")
+      select f.id, f.tenant, f.variant, f.location, f.document_type, f.document_id, f.line, f.quantity, f.allocated, f.fulfilled, f.status from f
+      returning x."id" as id, x."updated_at" as updated_at
+    )
+    select f.n, jsonb_build_object('subjectId', f.id::text, 'updatedAt', w.updated_at) as answer
+    from f join written w on w.id = f.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+  for v_i in 1 .. jsonb_array_length(items) loop
+    if v_done[v_i] is null then
+      v_call := items -> (v_i - 1);
+      begin
+        v_done[v_i] := "better_supabase"."import_stock_allocation"(run, v_call, nullif(v_call ->> 'subjectId', ''));
+      exception when others then
+        get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+        v_done[v_i] := jsonb_build_object('error', jsonb_build_object('code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+      end;
+    end if;
+  end loop;
+  return to_jsonb(v_done);
+end;
+$$;
+revoke execute on function "better_supabase"."import_stock_allocation_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_stock_allocation_batch"(uuid, jsonb) to service_role;
+
 create or replace function "better_supabase"."stock_allocation_updated_at"(subject_id text)
 returns timestamptz
 language sql
@@ -2339,6 +2414,80 @@ end;
 $$;
 revoke execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_stock_count"(uuid, jsonb, text) to service_role;
+
+-- The batch form of import_stock_count (ADR 1217): new counts that name their
+-- location by id, whose lines name a variant by id at most once each and no
+-- bin, lot or serial, are written in one statement, with the expected
+-- quantity count_expected gives such a line. Every other item goes through
+-- import_stock_count.
+create or replace function "better_supabase"."import_stock_count_batch"(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+  v_done jsonb[] := array_fill(null::jsonb, array[jsonb_array_length(items)]);
+  v_row record;
+  v_call jsonb;
+  v_message text;
+  v_hint text;
+begin
+  for v_row in
+    with i as (
+      select o::int as n, gen_random_uuid() as id, (e ->> 'tenant')::uuid as tenant, e -> 'data' as d,
+        case when pg_input_is_valid(coalesce(e -> 'data' ->> 'locationId', ''), 'uuid') then (e -> 'data' ->> 'locationId')::uuid end as location
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where nullif(e ->> 'subjectId', '') is null and jsonb_typeof(e -> 'data' -> 'lines') = 'array'
+    ), f as (
+      select i.n, i.id, i.tenant, i.location, i.d, nullif(btrim(i.d ->> 'note'), '') as note
+      from i
+      where (select x."id" from "better_supabase"."inventory_locations" x where x."id" = i.location and x."tenant_id" = i.tenant) is not null
+        and (select count(*) = count(distinct case when pg_input_is_valid(coalesce(e.entry ->> 'variantId', ''), 'uuid') then (e.entry ->> 'variantId')::uuid end)
+            and bool_and(jsonb_typeof(e.entry) = 'object'
+              and not e.entry ?| array['binId', 'bin', 'lotId', 'lot', 'serial', 'sku']
+              and pg_input_is_valid(coalesce(e.entry ->> 'counted', ''), 'numeric')
+              and pg_input_is_valid(coalesce(e.entry ->> 'expected', '0'), 'numeric')
+              and coalesce(case when pg_input_is_valid(coalesce(e.entry ->> 'counted', ''), 'numeric') then (e.entry ->> 'counted')::numeric end >= 0, false)
+              and (select y."id" from "better_supabase"."product_variants" y
+                where y."id" = case when pg_input_is_valid(coalesce(e.entry ->> 'variantId', ''), 'uuid') then (e.entry ->> 'variantId')::uuid end and y."tenant_id" = i.tenant) is not null)
+          from jsonb_array_elements(i.d -> 'lines') e(entry))
+    ), written as (
+      insert into "better_supabase"."stock_counts" as x ("id", "tenant_id", "location_id", "note")
+      select f.id, f.tenant, f.location, f.note from f
+      returning x."id" as id, x."updated_at" as updated_at
+    ), counted as (
+      insert into "better_supabase"."stock_count_lines" ("tenant_id", "count_id", "variant_id", "expected", "counted")
+      select f.tenant, f.id, (e.entry ->> 'variantId')::uuid,
+        coalesce((e.entry ->> 'expected')::numeric,
+          coalesce((select lv."on_hand" from "better_supabase"."stock_levels" lv where lv."variant_id" = (e.entry ->> 'variantId')::uuid and lv."location_id" = f.location), 0)
+            - coalesce((select sum(y."on_hand") from "better_supabase"."stock_buckets" y where y."variant_id" = (e.entry ->> 'variantId')::uuid and y."location_id" = f.location), 0)),
+        (e.entry ->> 'counted')::numeric
+      from f cross join lateral jsonb_array_elements(f.d -> 'lines') e(entry)
+    )
+    select f.n, jsonb_build_object('subjectId', f.id::text, 'updatedAt', w.updated_at) as answer
+    from f join written w on w.id = f.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+  for v_i in 1 .. jsonb_array_length(items) loop
+    if v_done[v_i] is null then
+      v_call := items -> (v_i - 1);
+      begin
+        v_done[v_i] := "better_supabase"."import_stock_count"(run, v_call, nullif(v_call ->> 'subjectId', ''));
+      exception when others then
+        get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+        v_done[v_i] := jsonb_build_object('error', jsonb_build_object('code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+      end;
+    end if;
+  end loop;
+  return to_jsonb(v_done);
+end;
+$$;
+revoke execute on function "better_supabase"."import_stock_count_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_stock_count_batch"(uuid, jsonb) to service_role;
 
 create or replace function "better_supabase"."stock_count_updated_at"(subject_id text)
 returns timestamptz
@@ -5692,6 +5841,15 @@ as $$ select "better_supabase"."import_stock_allocation"($1, $2, $3) $$;
 revoke execute on function "api"."import_stock_allocation"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "api"."import_stock_allocation"(uuid, jsonb, text) to service_role;
 
+create or replace function "api"."import_stock_allocation_batch"(run uuid, items jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_stock_allocation_batch"($1, $2) $$;
+revoke execute on function "api"."import_stock_allocation_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."import_stock_allocation_batch"(uuid, jsonb) to service_role;
+
 create or replace function "api"."stock_allocation_updated_at"(subject_id text)
 returns timestamptz
 language sql
@@ -5818,6 +5976,15 @@ set search_path = ''
 as $$ select "better_supabase"."import_stock_count"($1, $2, $3) $$;
 revoke execute on function "api"."import_stock_count"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "api"."import_stock_count"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."import_stock_count_batch"(run uuid, items jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_stock_count_batch"($1, $2) $$;
+revoke execute on function "api"."import_stock_count_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."import_stock_count_batch"(uuid, jsonb) to service_role;
 
 create or replace function "api"."stock_count_updated_at"(subject_id text)
 returns timestamptz

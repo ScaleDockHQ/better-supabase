@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:41d4fe39655971aac47dead55185cd7779bd927641ba758b13088a9746a5371e
+-- @bsb-hash sha256:cdc9c23425a5c21b3fe20ca1722ef53a147e6bd5bbc3476f87a28a341ff529ff
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2133,6 +2133,86 @@ $$;
 revoke execute on function "better_supabase"."import_party"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_party"(uuid, jsonb, text) to service_role;
 
+-- New parties without archivedAt or billTo, and for a person an email no
+-- other item of the batch and no stored person uses, are written in one
+-- statement per kind. Every other item goes through import_party.
+create or replace function "better_supabase"."import_party_batch"(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+  v_done jsonb[] := array_fill(null::jsonb, array[jsonb_array_length(items)]);
+  v_row record;
+  v_call jsonb;
+  v_message text;
+  v_hint text;
+begin
+  for v_row in
+    with src as (
+      select o::int as n, gen_random_uuid() as id, e as item, (e ->> 'tenant')::uuid as v_tenant, e -> 'data' as v_data
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where jsonb_typeof(e -> 'data') = 'object'
+    ), named as (
+      select src.*, nullif(btrim(src.v_data ->> 'displayName'), '') as v_display,
+        nullif(btrim(src.v_data ->> 'legalName'), '') as v_legal,
+        nullif(btrim(concat_ws(' ', src.v_data ->> 'givenName', src.v_data ->> 'infix', src.v_data ->> 'lastName')), '') as v_person,
+        nullif(btrim(src.v_data ->> 'number'), '') as v_number,
+        nullif(lower(btrim(src.v_data ->> 'email')), '') as email
+      from src
+    ), kinds as (
+      select named.*, coalesce(named.v_display, named.v_legal, named.v_person, named.v_number) as v_name,
+        count(*) over (partition by named.v_tenant, named.email) as emails
+      from named
+    ), f as (
+      select kinds.*, case coalesce(nullif(kinds.v_data ->> 'kind', ''), 'auto')
+          when 'auto' then case when kinds.v_name ~* '\m(b\.?v\.?|n\.?v\.?|gmbh|ltd\.?|llc|inc\.?|bvba|vof|stichting|holding)\M' then 'company' else 'person' end
+          else kinds.v_data ->> 'kind' end as kind
+      from kinds
+      where nullif(kinds.item ->> 'subjectId', '') is null and kinds.v_name is not null and length(kinds.v_name) <= 300
+        and nullif(kinds.v_data ->> 'archivedAt', '') is null and nullif(kinds.v_data ->> 'billToId', '') is null
+        and nullif(kinds.item -> 'resolved' ->> 'billTo', '') is null
+    ), companies as (
+      insert into "better_supabase"."companies" as x ("id", "tenant_id", "name", "legal_name", "vat_id", "registration_id", "phone", "billing_email", "bill_to_id", "lifecycle", "language", "roles", "customer_terms_id", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, coalesce(v_legal, v_name), nullif(btrim(v_data ->> 'vatId'), ''), nullif(btrim(v_data ->> 'registrationId'), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), nullif(lower(btrim(v_data ->> 'billingEmail')), ''), nullif(coalesce(import_party.item -> 'resolved' ->> 'billTo', v_data ->> 'billToId'), '')::uuid, coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, (select p."id" from "better_supabase"."payment_terms" p where p."tenant_id" = v_tenant and p."code" = nullif(btrim(v_data ->> 'termsCode'), '')), nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'company' and length(coalesce(import_party.v_legal, import_party.v_name)) <= 300 and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+      returning x."id" as id, x."updated_at" as updated_at
+    ), people as (
+      insert into "better_supabase"."people" as x ("id", "tenant_id", "name", "given_name", "last_name", "initials", "infix", "email", "phone", "lifecycle", "language", "roles", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, nullif(btrim(v_data ->> 'givenName'), ''), nullif(btrim(v_data ->> 'lastName'), ''), nullif(btrim(v_data ->> 'initials'), ''), nullif(btrim(v_data ->> 'infix'), ''), nullif(lower(btrim(v_data ->> 'email')), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'person' and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+        and (import_party.email is null or (import_party.emails = 1 and import_party.email ~ '^[^@[:space:]]+@[^@[:space:]]+$'
+          and (select y."id" from "better_supabase"."people" y where y."tenant_id" = import_party.v_tenant and y."email" = import_party.email and y."archived_at" is null limit 1) is null))
+      returning x."id" as id, x."updated_at" as updated_at
+    )
+    select import_party.n, jsonb_build_object('subjectId', import_party.id, 'updatedAt', w.updated_at, 'warnings',
+        case when import_party.v_display is null then jsonb_build_array(jsonb_build_object('code', 'IMPORT_NAME_FALLBACK', 'message', 'the party name came from a fallback')) else '[]'::jsonb end) as answer
+    from f import_party join (select * from companies union all select * from people) w on w.id = import_party.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+  for v_i in 1 .. jsonb_array_length(items) loop
+    if v_done[v_i] is null then
+      v_call := items -> (v_i - 1);
+      begin
+        v_done[v_i] := "better_supabase"."import_party"(run, v_call, nullif(v_call ->> 'subjectId', ''));
+      exception when others then
+        get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+        v_done[v_i] := jsonb_build_object('error', jsonb_build_object('code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+      end;
+    end if;
+  end loop;
+  return to_jsonb(v_done);
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_batch"(uuid, jsonb) to service_role;
+
 create or replace function "better_supabase"."party_updated_at"(subject_id text)
 returns timestamptz
 language sql
@@ -2531,7 +2611,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:03f5a2d196d5e33cf29a13ecdf4cd4b056fa2a806f09840d3f563fb4ab20cab0
+-- @bsb-hash sha256:a69b0869156cf8ad48b509d0f3ec8fc346b6788e19b0f2cdc89bbc31079ad5c3
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4819,6 +4899,86 @@ $$;
 revoke execute on function "better_supabase"."import_party"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_party"(uuid, jsonb, text) to service_role;
 
+-- New parties without archivedAt or billTo, and for a person an email no
+-- other item of the batch and no stored person uses, are written in one
+-- statement per kind. Every other item goes through import_party.
+create or replace function "better_supabase"."import_party_batch"(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+  v_done jsonb[] := array_fill(null::jsonb, array[jsonb_array_length(items)]);
+  v_row record;
+  v_call jsonb;
+  v_message text;
+  v_hint text;
+begin
+  for v_row in
+    with src as (
+      select o::int as n, gen_random_uuid() as id, e as item, (e ->> 'tenant')::uuid as v_tenant, e -> 'data' as v_data
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where jsonb_typeof(e -> 'data') = 'object'
+    ), named as (
+      select src.*, nullif(btrim(src.v_data ->> 'displayName'), '') as v_display,
+        nullif(btrim(src.v_data ->> 'legalName'), '') as v_legal,
+        nullif(btrim(concat_ws(' ', src.v_data ->> 'givenName', src.v_data ->> 'infix', src.v_data ->> 'lastName')), '') as v_person,
+        nullif(btrim(src.v_data ->> 'number'), '') as v_number,
+        nullif(lower(btrim(src.v_data ->> 'email')), '') as email
+      from src
+    ), kinds as (
+      select named.*, coalesce(named.v_display, named.v_legal, named.v_person, named.v_number) as v_name,
+        count(*) over (partition by named.v_tenant, named.email) as emails
+      from named
+    ), f as (
+      select kinds.*, case coalesce(nullif(kinds.v_data ->> 'kind', ''), 'auto')
+          when 'auto' then case when kinds.v_name ~* '\m(b\.?v\.?|n\.?v\.?|gmbh|ltd\.?|llc|inc\.?|bvba|vof|stichting|holding)\M' then 'company' else 'person' end
+          else kinds.v_data ->> 'kind' end as kind
+      from kinds
+      where nullif(kinds.item ->> 'subjectId', '') is null and kinds.v_name is not null and length(kinds.v_name) <= 300
+        and nullif(kinds.v_data ->> 'archivedAt', '') is null and nullif(kinds.v_data ->> 'billToId', '') is null
+        and nullif(kinds.item -> 'resolved' ->> 'billTo', '') is null
+    ), companies as (
+      insert into "better_supabase"."companies" as x ("id", "tenant_id", "name", "legal_name", "vat_id", "registration_id", "phone", "billing_email", "bill_to_id", "lifecycle", "language", "roles", "customer_terms_id", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, coalesce(v_legal, v_name), nullif(btrim(v_data ->> 'vatId'), ''), nullif(btrim(v_data ->> 'registrationId'), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), nullif(lower(btrim(v_data ->> 'billingEmail')), ''), nullif(coalesce(import_party.item -> 'resolved' ->> 'billTo', v_data ->> 'billToId'), '')::uuid, coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, (select p."id" from "better_supabase"."payment_terms" p where p."tenant_id" = v_tenant and p."code" = nullif(btrim(v_data ->> 'termsCode'), '')), nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'company' and length(coalesce(import_party.v_legal, import_party.v_name)) <= 300 and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+      returning x."id" as id, x."updated_at" as updated_at
+    ), people as (
+      insert into "better_supabase"."people" as x ("id", "tenant_id", "name", "given_name", "last_name", "initials", "infix", "email", "phone", "lifecycle", "language", "roles", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, nullif(btrim(v_data ->> 'givenName'), ''), nullif(btrim(v_data ->> 'lastName'), ''), nullif(btrim(v_data ->> 'initials'), ''), nullif(btrim(v_data ->> 'infix'), ''), nullif(lower(btrim(v_data ->> 'email')), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'person' and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+        and (import_party.email is null or (import_party.emails = 1 and import_party.email ~ '^[^@[:space:]]+@[^@[:space:]]+$'
+          and (select y."id" from "better_supabase"."people" y where y."tenant_id" = import_party.v_tenant and y."email" = import_party.email and y."archived_at" is null limit 1) is null))
+      returning x."id" as id, x."updated_at" as updated_at
+    )
+    select import_party.n, jsonb_build_object('subjectId', import_party.id, 'updatedAt', w.updated_at, 'warnings',
+        case when import_party.v_display is null then jsonb_build_array(jsonb_build_object('code', 'IMPORT_NAME_FALLBACK', 'message', 'the party name came from a fallback')) else '[]'::jsonb end) as answer
+    from f import_party join (select * from companies union all select * from people) w on w.id = import_party.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+  for v_i in 1 .. jsonb_array_length(items) loop
+    if v_done[v_i] is null then
+      v_call := items -> (v_i - 1);
+      begin
+        v_done[v_i] := "better_supabase"."import_party"(run, v_call, nullif(v_call ->> 'subjectId', ''));
+      exception when others then
+        get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+        v_done[v_i] := jsonb_build_object('error', jsonb_build_object('code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+      end;
+    end if;
+  end loop;
+  return to_jsonb(v_done);
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_batch"(uuid, jsonb) to service_role;
+
 create or replace function "better_supabase"."party_updated_at"(subject_id text)
 returns timestamptz
 language sql
@@ -5221,7 +5381,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:ec7a07bb69e7a0ae8ad59d5a037466e6a0b4961bc51f6a670c07f72a9f889342
+-- @bsb-hash sha256:cd894d60acfe63e1346310ac7aa7923edb21b8a3883d9a9a4596a5fbd453dbd2
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7358,6 +7518,86 @@ $$;
 revoke execute on function "app_private"."import_party"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "app_private"."import_party"(uuid, jsonb, text) to service_role;
 
+-- New parties without archivedAt or billTo, and for a person an email no
+-- other item of the batch and no stored person uses, are written in one
+-- statement per kind. Every other item goes through import_party.
+create or replace function "app_private"."import_party_batch"(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+  v_done jsonb[] := array_fill(null::jsonb, array[jsonb_array_length(items)]);
+  v_row record;
+  v_call jsonb;
+  v_message text;
+  v_hint text;
+begin
+  for v_row in
+    with src as (
+      select o::int as n, gen_random_uuid() as id, e as item, (e ->> 'tenant')::uuid as v_tenant, e -> 'data' as v_data
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where jsonb_typeof(e -> 'data') = 'object'
+    ), named as (
+      select src.*, nullif(btrim(src.v_data ->> 'displayName'), '') as v_display,
+        nullif(btrim(src.v_data ->> 'legalName'), '') as v_legal,
+        nullif(btrim(concat_ws(' ', src.v_data ->> 'givenName', src.v_data ->> 'infix', src.v_data ->> 'lastName')), '') as v_person,
+        nullif(btrim(src.v_data ->> 'number'), '') as v_number,
+        nullif(lower(btrim(src.v_data ->> 'email')), '') as email
+      from src
+    ), kinds as (
+      select named.*, coalesce(named.v_display, named.v_legal, named.v_person, named.v_number) as v_name,
+        count(*) over (partition by named.v_tenant, named.email) as emails
+      from named
+    ), f as (
+      select kinds.*, case coalesce(nullif(kinds.v_data ->> 'kind', ''), 'auto')
+          when 'auto' then case when kinds.v_name ~* '\m(b\.?v\.?|n\.?v\.?|gmbh|ltd\.?|llc|inc\.?|bvba|vof|stichting|holding)\M' then 'company' else 'person' end
+          else kinds.v_data ->> 'kind' end as kind
+      from kinds
+      where nullif(kinds.item ->> 'subjectId', '') is null and kinds.v_name is not null and length(kinds.v_name) <= 300
+        and nullif(kinds.v_data ->> 'archivedAt', '') is null and nullif(kinds.v_data ->> 'billToId', '') is null
+        and nullif(kinds.item -> 'resolved' ->> 'billTo', '') is null
+    ), companies as (
+      insert into "app_private"."companies" as x ("id", "tenant_id", "name", "legal_name", "vat_id", "registration_id", "phone", "billing_email", "bill_to_id", "lifecycle", "language", "roles", "customer_terms_id", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, coalesce(v_legal, v_name), nullif(btrim(v_data ->> 'vatId'), ''), nullif(btrim(v_data ->> 'registrationId'), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), nullif(lower(btrim(v_data ->> 'billingEmail')), ''), nullif(coalesce(import_party.item -> 'resolved' ->> 'billTo', v_data ->> 'billToId'), '')::uuid, coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, (select p."id" from "app_private"."payment_terms" p where p."tenant_id" = v_tenant and p."code" = nullif(btrim(v_data ->> 'termsCode'), '')), nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'company' and length(coalesce(import_party.v_legal, import_party.v_name)) <= 300 and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+      returning x."id" as id, x."updated_at" as updated_at
+    ), people as (
+      insert into "app_private"."people" as x ("id", "tenant_id", "name", "given_name", "last_name", "initials", "infix", "email", "phone", "lifecycle", "language", "roles", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, nullif(btrim(v_data ->> 'givenName'), ''), nullif(btrim(v_data ->> 'lastName'), ''), nullif(btrim(v_data ->> 'initials'), ''), nullif(btrim(v_data ->> 'infix'), ''), nullif(lower(btrim(v_data ->> 'email')), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'person' and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+        and (import_party.email is null or (import_party.emails = 1 and import_party.email ~ '^[^@[:space:]]+@[^@[:space:]]+$'
+          and (select y."id" from "app_private"."people" y where y."tenant_id" = import_party.v_tenant and y."email" = import_party.email and y."archived_at" is null limit 1) is null))
+      returning x."id" as id, x."updated_at" as updated_at
+    )
+    select import_party.n, jsonb_build_object('subjectId', import_party.id, 'updatedAt', w.updated_at, 'warnings',
+        case when import_party.v_display is null then jsonb_build_array(jsonb_build_object('code', 'IMPORT_NAME_FALLBACK', 'message', 'the party name came from a fallback')) else '[]'::jsonb end) as answer
+    from f import_party join (select * from companies union all select * from people) w on w.id = import_party.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+  for v_i in 1 .. jsonb_array_length(items) loop
+    if v_done[v_i] is null then
+      v_call := items -> (v_i - 1);
+      begin
+        v_done[v_i] := "app_private"."import_party"(run, v_call, nullif(v_call ->> 'subjectId', ''));
+      exception when others then
+        get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+        v_done[v_i] := jsonb_build_object('error', jsonb_build_object('code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+      end;
+    end if;
+  end loop;
+  return to_jsonb(v_done);
+end;
+$$;
+revoke execute on function "app_private"."import_party_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."import_party_batch"(uuid, jsonb) to service_role;
+
 create or replace function "app_private"."party_updated_at"(subject_id text)
 returns timestamptz
 language sql
@@ -7756,7 +7996,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:01700927649b264dd7f3bdc4b420e25cb269283fb0b287ff7c63ee5611a246cf
+-- @bsb-hash sha256:87c0e21f52304a484585671e1c4d811fc9b47ff8b92eabf82f46f09b794c3015
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9888,6 +10128,86 @@ $$;
 revoke execute on function "better_supabase"."import_party"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_party"(uuid, jsonb, text) to service_role;
 
+-- New parties without archivedAt or billTo, and for a person an email no
+-- other item of the batch and no stored person uses, are written in one
+-- statement per kind. Every other item goes through import_party.
+create or replace function "better_supabase"."import_party_batch"(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+  v_done jsonb[] := array_fill(null::jsonb, array[jsonb_array_length(items)]);
+  v_row record;
+  v_call jsonb;
+  v_message text;
+  v_hint text;
+begin
+  for v_row in
+    with src as (
+      select o::int as n, gen_random_uuid() as id, e as item, (e ->> 'tenant')::uuid as v_tenant, e -> 'data' as v_data
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where jsonb_typeof(e -> 'data') = 'object'
+    ), named as (
+      select src.*, nullif(btrim(src.v_data ->> 'displayName'), '') as v_display,
+        nullif(btrim(src.v_data ->> 'legalName'), '') as v_legal,
+        nullif(btrim(concat_ws(' ', src.v_data ->> 'givenName', src.v_data ->> 'infix', src.v_data ->> 'lastName')), '') as v_person,
+        nullif(btrim(src.v_data ->> 'number'), '') as v_number,
+        nullif(lower(btrim(src.v_data ->> 'email')), '') as email
+      from src
+    ), kinds as (
+      select named.*, coalesce(named.v_display, named.v_legal, named.v_person, named.v_number) as v_name,
+        count(*) over (partition by named.v_tenant, named.email) as emails
+      from named
+    ), f as (
+      select kinds.*, case coalesce(nullif(kinds.v_data ->> 'kind', ''), 'auto')
+          when 'auto' then case when kinds.v_name ~* '\m(b\.?v\.?|n\.?v\.?|gmbh|ltd\.?|llc|inc\.?|bvba|vof|stichting|holding)\M' then 'company' else 'person' end
+          else kinds.v_data ->> 'kind' end as kind
+      from kinds
+      where nullif(kinds.item ->> 'subjectId', '') is null and kinds.v_name is not null and length(kinds.v_name) <= 300
+        and nullif(kinds.v_data ->> 'archivedAt', '') is null and nullif(kinds.v_data ->> 'billToId', '') is null
+        and nullif(kinds.item -> 'resolved' ->> 'billTo', '') is null
+    ), companies as (
+      insert into "better_supabase"."companies" as x ("id", "tenant_id", "name", "legal_name", "vat_id", "registration_id", "phone", "billing_email", "bill_to_id", "lifecycle", "language", "roles", "customer_terms_id", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, coalesce(v_legal, v_name), nullif(btrim(v_data ->> 'vatId'), ''), nullif(btrim(v_data ->> 'registrationId'), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), nullif(lower(btrim(v_data ->> 'billingEmail')), ''), nullif(coalesce(import_party.item -> 'resolved' ->> 'billTo', v_data ->> 'billToId'), '')::uuid, coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, (select p."id" from "better_supabase"."payment_terms" p where p."tenant_id" = v_tenant and p."code" = nullif(btrim(v_data ->> 'termsCode'), '')), nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'company' and length(coalesce(import_party.v_legal, import_party.v_name)) <= 300 and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+      returning x."id" as id, x."updated_at" as updated_at
+    ), people as (
+      insert into "better_supabase"."people" as x ("id", "tenant_id", "name", "given_name", "last_name", "initials", "infix", "email", "phone", "lifecycle", "language", "roles", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, nullif(btrim(v_data ->> 'givenName'), ''), nullif(btrim(v_data ->> 'lastName'), ''), nullif(btrim(v_data ->> 'initials'), ''), nullif(btrim(v_data ->> 'infix'), ''), nullif(lower(btrim(v_data ->> 'email')), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'person' and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+        and (import_party.email is null or (import_party.emails = 1 and import_party.email ~ '^[^@[:space:]]+@[^@[:space:]]+$'
+          and (select y."id" from "better_supabase"."people" y where y."tenant_id" = import_party.v_tenant and y."email" = import_party.email and y."archived_at" is null limit 1) is null))
+      returning x."id" as id, x."updated_at" as updated_at
+    )
+    select import_party.n, jsonb_build_object('subjectId', import_party.id, 'updatedAt', w.updated_at, 'warnings',
+        case when import_party.v_display is null then jsonb_build_array(jsonb_build_object('code', 'IMPORT_NAME_FALLBACK', 'message', 'the party name came from a fallback')) else '[]'::jsonb end) as answer
+    from f import_party join (select * from companies union all select * from people) w on w.id = import_party.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+  for v_i in 1 .. jsonb_array_length(items) loop
+    if v_done[v_i] is null then
+      v_call := items -> (v_i - 1);
+      begin
+        v_done[v_i] := "better_supabase"."import_party"(run, v_call, nullif(v_call ->> 'subjectId', ''));
+      exception when others then
+        get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+        v_done[v_i] := jsonb_build_object('error', jsonb_build_object('code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+      end;
+    end if;
+  end loop;
+  return to_jsonb(v_done);
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_batch"(uuid, jsonb) to service_role;
+
 create or replace function "better_supabase"."party_updated_at"(subject_id text)
 returns timestamptz
 language sql
@@ -10568,6 +10888,15 @@ as $$ select "better_supabase"."import_party"($1, $2, $3) $$;
 revoke execute on function "api"."import_party"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "api"."import_party"(uuid, jsonb, text) to service_role;
 
+create or replace function "api"."import_party_batch"(run uuid, items jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_party_batch"($1, $2) $$;
+revoke execute on function "api"."import_party_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."import_party_batch"(uuid, jsonb) to service_role;
+
 create or replace function "api"."party_updated_at"(subject_id text)
 returns timestamptz
 language sql
@@ -10681,7 +11010,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:01769317b79fbdd67273c1567929c096a3fa7d9423ffa16370a3a6638b65cf4f
+-- @bsb-hash sha256:63e321a90b7f2fd539ab1d6b200319bbe2eee7ff195818480bd6399bfaa8974d
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12791,6 +13120,86 @@ $$;
 revoke execute on function "better_supabase"."import_party"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_party"(uuid, jsonb, text) to service_role;
 
+-- New parties without archivedAt or billTo, and for a person an email no
+-- other item of the batch and no stored person uses, are written in one
+-- statement per kind. Every other item goes through import_party.
+create or replace function "better_supabase"."import_party_batch"(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+  v_done jsonb[] := array_fill(null::jsonb, array[jsonb_array_length(items)]);
+  v_row record;
+  v_call jsonb;
+  v_message text;
+  v_hint text;
+begin
+  for v_row in
+    with src as (
+      select o::int as n, gen_random_uuid() as id, e as item, (e ->> 'tenant')::uuid as v_tenant, e -> 'data' as v_data
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where jsonb_typeof(e -> 'data') = 'object'
+    ), named as (
+      select src.*, nullif(btrim(src.v_data ->> 'displayName'), '') as v_display,
+        nullif(btrim(src.v_data ->> 'legalName'), '') as v_legal,
+        nullif(btrim(concat_ws(' ', src.v_data ->> 'givenName', src.v_data ->> 'infix', src.v_data ->> 'lastName')), '') as v_person,
+        nullif(btrim(src.v_data ->> 'number'), '') as v_number,
+        nullif(lower(btrim(src.v_data ->> 'email')), '') as email
+      from src
+    ), kinds as (
+      select named.*, coalesce(named.v_display, named.v_legal, named.v_person, named.v_number) as v_name,
+        count(*) over (partition by named.v_tenant, named.email) as emails
+      from named
+    ), f as (
+      select kinds.*, case coalesce(nullif(kinds.v_data ->> 'kind', ''), 'auto')
+          when 'auto' then case when kinds.v_name ~* '\m(b\.?v\.?|n\.?v\.?|gmbh|ltd\.?|llc|inc\.?|bvba|vof|stichting|holding)\M' then 'company' else 'person' end
+          else kinds.v_data ->> 'kind' end as kind
+      from kinds
+      where nullif(kinds.item ->> 'subjectId', '') is null and kinds.v_name is not null and length(kinds.v_name) <= 300
+        and nullif(kinds.v_data ->> 'archivedAt', '') is null and nullif(kinds.v_data ->> 'billToId', '') is null
+        and nullif(kinds.item -> 'resolved' ->> 'billTo', '') is null
+    ), companies as (
+      insert into "better_supabase"."companies" as x ("id", "tenant_id", "name", "legal_name", "vat_id", "registration_id", "phone", "billing_email", "bill_to_id", "lifecycle", "language", "roles", "customer_terms_id", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, coalesce(v_legal, v_name), nullif(btrim(v_data ->> 'vatId'), ''), nullif(btrim(v_data ->> 'registrationId'), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), nullif(lower(btrim(v_data ->> 'billingEmail')), ''), nullif(coalesce(import_party.item -> 'resolved' ->> 'billTo', v_data ->> 'billToId'), '')::uuid, better_supabase.as_column_type(coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,prospect,customer,churned}'::text[])[1]), (null::"better_supabase"."companies")."lifecycle"), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, (select p."id" from "better_supabase"."payment_terms" p where p."tenant_id" = v_tenant and p."code" = nullif(btrim(v_data ->> 'termsCode'), '')), nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'company' and length(coalesce(import_party.v_legal, import_party.v_name)) <= 300 and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+      returning x."id" as id, x."updated_at" as updated_at
+    ), people as (
+      insert into "better_supabase"."people" as x ("id", "tenant_id", "name", "given_name", "last_name", "initials", "infix", "email", "phone", "lifecycle", "language", "roles", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, nullif(btrim(v_data ->> 'givenName'), ''), nullif(btrim(v_data ->> 'lastName'), ''), nullif(btrim(v_data ->> 'initials'), ''), nullif(btrim(v_data ->> 'infix'), ''), nullif(lower(btrim(v_data ->> 'email')), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), better_supabase.as_column_type(coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), (null::"better_supabase"."people")."lifecycle"), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'person' and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+        and (import_party.email is null or (import_party.emails = 1 and import_party.email ~ '^[^@[:space:]]+@[^@[:space:]]+$'
+          and (select y."id" from "better_supabase"."people" y where y."tenant_id" = import_party.v_tenant and y."email" = import_party.email and y."archived_at" is null limit 1) is null))
+      returning x."id" as id, x."updated_at" as updated_at
+    )
+    select import_party.n, jsonb_build_object('subjectId', import_party.id, 'updatedAt', w.updated_at, 'warnings',
+        case when import_party.v_display is null then jsonb_build_array(jsonb_build_object('code', 'IMPORT_NAME_FALLBACK', 'message', 'the party name came from a fallback')) else '[]'::jsonb end) as answer
+    from f import_party join (select * from companies union all select * from people) w on w.id = import_party.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+  for v_i in 1 .. jsonb_array_length(items) loop
+    if v_done[v_i] is null then
+      v_call := items -> (v_i - 1);
+      begin
+        v_done[v_i] := "better_supabase"."import_party"(run, v_call, nullif(v_call ->> 'subjectId', ''));
+      exception when others then
+        get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+        v_done[v_i] := jsonb_build_object('error', jsonb_build_object('code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+      end;
+    end if;
+  end loop;
+  return to_jsonb(v_done);
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_batch"(uuid, jsonb) to service_role;
+
 create or replace function "better_supabase"."party_updated_at"(subject_id text)
 returns timestamptz
 language sql
@@ -13189,7 +13598,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:a7f223a69c19dab4bb79b1eeb05d7edc43b1fbc959f09a9aec52653aaa7e08a3
+-- @bsb-hash sha256:9ab9712904a7ec9a843b8fdfa795c237565acf0c172d6cd66c78900eaafc5030
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15320,6 +15729,86 @@ end;
 $$;
 revoke execute on function "better_supabase"."import_party"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_party"(uuid, jsonb, text) to service_role;
+
+-- New parties without archivedAt or billTo, and for a person an email no
+-- other item of the batch and no stored person uses, are written in one
+-- statement per kind. Every other item goes through import_party.
+create or replace function "better_supabase"."import_party_batch"(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+  v_done jsonb[] := array_fill(null::jsonb, array[jsonb_array_length(items)]);
+  v_row record;
+  v_call jsonb;
+  v_message text;
+  v_hint text;
+begin
+  for v_row in
+    with src as (
+      select o::int as n, gen_random_uuid() as id, e as item, (e ->> 'tenant')::uuid as v_tenant, e -> 'data' as v_data
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where jsonb_typeof(e -> 'data') = 'object'
+    ), named as (
+      select src.*, nullif(btrim(src.v_data ->> 'displayName'), '') as v_display,
+        nullif(btrim(src.v_data ->> 'legalName'), '') as v_legal,
+        nullif(btrim(concat_ws(' ', src.v_data ->> 'givenName', src.v_data ->> 'infix', src.v_data ->> 'lastName')), '') as v_person,
+        nullif(btrim(src.v_data ->> 'number'), '') as v_number,
+        nullif(lower(btrim(src.v_data ->> 'email')), '') as email
+      from src
+    ), kinds as (
+      select named.*, coalesce(named.v_display, named.v_legal, named.v_person, named.v_number) as v_name,
+        count(*) over (partition by named.v_tenant, named.email) as emails
+      from named
+    ), f as (
+      select kinds.*, case coalesce(nullif(kinds.v_data ->> 'kind', ''), 'auto')
+          when 'auto' then case when kinds.v_name ~* '\m(b\.?v\.?|n\.?v\.?|gmbh|ltd\.?|llc|inc\.?|bvba|vof|stichting|holding)\M' then 'company' else 'person' end
+          else kinds.v_data ->> 'kind' end as kind
+      from kinds
+      where nullif(kinds.item ->> 'subjectId', '') is null and kinds.v_name is not null and length(kinds.v_name) <= 300
+        and nullif(kinds.v_data ->> 'archivedAt', '') is null and nullif(kinds.v_data ->> 'billToId', '') is null
+        and nullif(kinds.item -> 'resolved' ->> 'billTo', '') is null
+    ), companies as (
+      insert into "better_supabase"."companies" as x ("id", "org_id", "name", "legal_name", "vat_id", "registration_id", "phone", "billing_email", "bill_to_id", "lifecycle", "language", "roles", "customer_terms_id", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, coalesce(v_legal, v_name), nullif(btrim(v_data ->> 'vatId'), ''), nullif(btrim(v_data ->> 'registrationId'), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), nullif(lower(btrim(v_data ->> 'billingEmail')), ''), nullif(coalesce(import_party.item -> 'resolved' ->> 'billTo', v_data ->> 'billToId'), '')::uuid, coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, (select p."id" from "better_supabase"."payment_terms" p where p."org_id" = v_tenant and p."code" = nullif(btrim(v_data ->> 'termsCode'), '')), nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'company' and length(coalesce(import_party.v_legal, import_party.v_name)) <= 300 and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+      returning x."id" as id, x."updated_at" as updated_at
+    ), people as (
+      insert into "better_supabase"."people" as x ("id", "org_id", "name", "given_name", "last_name", "initials", "infix", "email", "phone", "lifecycle", "language", "roles", "archived_at")
+      select import_party.id, import_party.v_tenant, v_name, nullif(btrim(v_data ->> 'givenName'), ''), nullif(btrim(v_data ->> 'lastName'), ''), nullif(btrim(v_data ->> 'initials'), ''), nullif(btrim(v_data ->> 'infix'), ''), nullif(lower(btrim(v_data ->> 'email')), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, nullif(v_data ->> 'archivedAt', '')::timestamptz
+      from f import_party
+      where import_party.kind = 'person' and jsonb_typeof(import_party.v_data -> 'roles') = 'array'
+        and (import_party.email is null or (import_party.emails = 1 and import_party.email ~ '^[^@[:space:]]+@[^@[:space:]]+$'
+          and (select y."id" from "better_supabase"."people" y where y."org_id" = import_party.v_tenant and y."email" = import_party.email and y."archived_at" is null limit 1) is null))
+      returning x."id" as id, x."updated_at" as updated_at
+    )
+    select import_party.n, jsonb_build_object('subjectId', import_party.id, 'updatedAt', w.updated_at, 'warnings',
+        case when import_party.v_display is null then jsonb_build_array(jsonb_build_object('code', 'IMPORT_NAME_FALLBACK', 'message', 'the party name came from a fallback')) else '[]'::jsonb end) as answer
+    from f import_party join (select * from companies union all select * from people) w on w.id = import_party.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+  for v_i in 1 .. jsonb_array_length(items) loop
+    if v_done[v_i] is null then
+      v_call := items -> (v_i - 1);
+      begin
+        v_done[v_i] := "better_supabase"."import_party"(run, v_call, nullif(v_call ->> 'subjectId', ''));
+      exception when others then
+        get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+        v_done[v_i] := jsonb_build_object('error', jsonb_build_object('code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+      end;
+    end if;
+  end loop;
+  return to_jsonb(v_done);
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_batch"(uuid, jsonb) to service_role;
 
 create or replace function "better_supabase"."party_updated_at"(subject_id text)
 returns timestamptz

@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:93bafae195575521ffa7590f6681c59ec359a2ba4858d5de495b02837b6eac6e
+-- @bsb-hash sha256:3291850a39cd552c62facaba814f6fb103524ad832f3e1a29377a0f56b36d1ef
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1093,7 +1093,19 @@ begin
       if cardinality(v_pending) > 0 then
           begin
             case v_entity
-          when 'customer' then
+          when 'product' then
+            v_subject_type := 'product';
+            v_raw := "better_supabase"."import_product_batch"(v_run_id, to_jsonb(v_calls));
+        when 'stock_count' then
+            v_subject_type := 'stock_count';
+            v_raw := "better_supabase"."import_stock_count_batch"(v_run_id, to_jsonb(v_calls));
+        when 'stock_allocation' then
+            v_subject_type := 'stock_allocation';
+            v_raw := "better_supabase"."import_stock_allocation_batch"(v_run_id, to_jsonb(v_calls));
+        when 'party' then
+            v_subject_type := 'party';
+            v_raw := "better_supabase"."import_party_batch"(v_run_id, to_jsonb(v_calls));
+        when 'customer' then
             v_subject_type := 'customer';
             v_raw := "public"."import_customer_batch"(v_run_id, to_jsonb(v_calls));
             else
@@ -1493,7 +1505,7 @@ begin
       and not (v_ref_map ? (ref.field || chr(31) || (v_item -> 'refs' ->> ref.field)))
   ), '[]'::jsonb);
   v_call := v_call || jsonb_build_object('resolved', v_resolved);
-        if v_entity = any (array['customer']::text[]) then
+        if v_entity = any (array['product', 'stock_count', 'stock_allocation', 'party', 'customer']::text[]) then
             v_pending := v_pending || jsonb_build_object('subjectId', v_subject_id, 'found', v_found, 'key', v_key, 'scope', v_scope, 'hash', v_hash);
             v_calls := v_calls || (v_call || jsonb_build_object('subjectId', v_subject_id));
             v_pending_keys := v_pending_keys || (v_scope || chr(31) || v_key);
@@ -1674,7 +1686,19 @@ begin
   if cardinality(v_pending) > 0 then
           begin
             case v_entity
-          when 'customer' then
+          when 'product' then
+            v_subject_type := 'product';
+            v_raw := "better_supabase"."import_product_batch"(v_run_id, to_jsonb(v_calls));
+        when 'stock_count' then
+            v_subject_type := 'stock_count';
+            v_raw := "better_supabase"."import_stock_count_batch"(v_run_id, to_jsonb(v_calls));
+        when 'stock_allocation' then
+            v_subject_type := 'stock_allocation';
+            v_raw := "better_supabase"."import_stock_allocation_batch"(v_run_id, to_jsonb(v_calls));
+        when 'party' then
+            v_subject_type := 'party';
+            v_raw := "better_supabase"."import_party_batch"(v_run_id, to_jsonb(v_calls));
+        when 'customer' then
             v_subject_type := 'customer';
             v_raw := "public"."import_customer_batch"(v_run_id, to_jsonb(v_calls));
             else

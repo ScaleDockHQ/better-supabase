@@ -1,6 +1,6 @@
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:11d1b6368fc0c2b8056a01bea5dda6d1c7ab67f7dcdba2bdbeec3a8293a5f3a7
+-- @bsb-hash sha256:3b68b23a159e689ba3164a71e222ea912d06a3197950895cfa0a105f99b95d1c
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -992,6 +992,88 @@ end;
 $$;
 revoke execute on function "better_supabase"."import_product"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_product"(uuid, jsonb, text) to service_role;
+
+-- The batch form of import_product (ADR 1217): new products without the price
+-- fallback, whose slug and sku no other item of the batch and no stored
+-- product uses, are written in one statement with their default variant.
+-- Every other item goes through import_product.
+create or replace function "better_supabase"."import_product_batch"(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+  v_done jsonb[] := array_fill(null::jsonb, array[jsonb_array_length(items)]);
+  v_row record;
+  v_call jsonb;
+  v_message text;
+  v_hint text;
+begin
+  for v_row in
+    with i as (
+      select o::int as n, gen_random_uuid() as id, e, (e ->> 'tenant')::uuid as tenant, e -> 'data' as d,
+        coalesce(e -> 'data' ->> 'name', e -> 'data' ->> 'title', '') as raw,
+        nullif(btrim(e -> 'data' ->> 'sku'), '') as sku
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where jsonb_typeof(e -> 'data') = 'object'
+    ), named as (
+      select i.*, btrim(regexp_replace(regexp_replace(i.raw, '[[:cntrl:]]', '', 'g'), U&'[\+00E000-\+00F8FF]', '', 'g')) as name
+      from i
+    ), slugged as (
+      select named.*, trim(both '-' from lower(regexp_replace(coalesce(nullif(named.d ->> 'slug', ''), named.name), '[^a-zA-Z0-9]+', '-', 'g'))) as slug
+      from named
+    ), counted as (
+      select s.*, count(*) over (partition by s.tenant, s.slug) as slugs,
+        count(*) over (partition by s.tenant, coalesce(s.sku, s.slug)) as skus,
+        count(*) over (partition by s.tenant, s.sku) as own_skus
+      from slugged s
+    ), f as (
+      select c.n, c.id, c.tenant, c.d, c.name, c.slug, c.sku, c.e,
+        coalesce(case when pg_input_is_valid(coalesce(nullif(c.d ->> 'price', ''), ''), 'bigint') then (nullif(c.d ->> 'price', ''))::bigint end, case when pg_input_is_valid(coalesce(nullif(c.d ->> 'listPrice', ''), ''), 'bigint') then (nullif(c.d ->> 'listPrice', ''))::bigint end) as price
+      from counted c
+      where nullif(c.e ->> 'subjectId', '') is null
+        and coalesce(c.e -> 'options' ->> 'priceFallback', 'false') = 'false'
+        and pg_input_is_valid(coalesce(nullif(c.d ->> 'price', ''), '0'), 'bigint')
+        and pg_input_is_valid(coalesce(nullif(c.d ->> 'listPrice', ''), '0'), 'bigint')
+        and length(regexp_replace(c.raw, '[[:cntrl:][:space:]]', '', 'g')) * 2 >= length(regexp_replace(c.raw, '[[:space:]]', '', 'g'))
+        and length(c.name) > 0
+        and c.slugs = 1 and c.skus = 1 and (c.sku is null or c.own_skus = 1)
+        and (select x."id" from "better_supabase"."products" x where x."tenant_id" = c.tenant and x."slug" = c.slug limit 1) is null
+        and (select y."id" from "better_supabase"."product_variants" y where y."tenant_id" = c.tenant and y."sku" = coalesce(c.sku, c.slug) limit 1) is null
+    ), written as (
+      insert into "better_supabase"."products" as x ("id", "tenant_id", "title", "slug", "manufacturer", "model", "tax_code")
+      select f.id, f.tenant, f.name, f.slug, nullif(btrim(f.d ->> 'manufacturer'), ''), nullif(btrim(f.d ->> 'model'), ''), nullif(coalesce(f.e -> 'resolved' ->> 'tax', f.d ->> 'taxCode'), '')
+      from f
+      returning x."id" as id, x."updated_at" as updated_at
+    ), variant as (
+      insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "barcode")
+      select f.tenant, f.id, coalesce(f.sku, f.slug), nullif(btrim(f.d ->> 'ean'), '')
+      from f
+    )
+    select f.n, jsonb_build_object('subjectId', f.id, 'updatedAt', w.updated_at) as answer
+    from f join written w on w.id = f.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+  for v_i in 1 .. jsonb_array_length(items) loop
+    if v_done[v_i] is null then
+      v_call := items -> (v_i - 1);
+      begin
+        v_done[v_i] := "better_supabase"."import_product"(run, v_call, nullif(v_call ->> 'subjectId', ''));
+      exception when others then
+        get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+        v_done[v_i] := jsonb_build_object('error', jsonb_build_object('code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+      end;
+    end if;
+  end loop;
+  return to_jsonb(v_done);
+end;
+$$;
+revoke execute on function "better_supabase"."import_product_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product_batch"(uuid, jsonb) to service_role;
 
 create or replace function "better_supabase"."product_updated_at"(subject_id text)
 returns timestamptz
@@ -4237,6 +4319,15 @@ set search_path = ''
 as $$ select "better_supabase"."import_product"($1, $2, $3) $$;
 revoke execute on function "api"."import_product"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "api"."import_product"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."import_product_batch"(run uuid, items jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_product_batch"($1, $2) $$;
+revoke execute on function "api"."import_product_batch"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."import_product_batch"(uuid, jsonb) to service_role;
 
 create or replace function "api"."product_updated_at"(subject_id text)
 returns timestamptz

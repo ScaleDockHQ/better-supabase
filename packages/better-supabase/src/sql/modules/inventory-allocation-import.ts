@@ -3,6 +3,11 @@ import type { ImportTargetContribution } from "../contributions.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
 import { fail, serviceGrant } from "../shared.ts";
+import {
+  BATCH_DECLARE,
+  batchRest,
+  castOrNull,
+} from "./imports-batch-targets.ts";
 import { columns, locationsOf } from "./inventory-stock.ts";
 
 /** An import target names its functions as `schema.function`, without quotes. */
@@ -134,6 +139,65 @@ end;
 $$;
 ${serviceGrant(`${fn("import_stock_allocation")}(uuid, jsonb, text)`)}
 
+-- The batch form of import_stock_allocation (ADR 1217): new allocations that
+-- name their variant and location by id are written in one statement, and the
+-- location's reserved stock grows once per variant and location. Every other
+-- item goes through import_stock_allocation.
+create or replace function ${fn("import_stock_allocation_batch")}(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+${BATCH_DECLARE}
+begin
+  for v_row in
+    with i as (
+      select o::int as n, gen_random_uuid() as id, (e ->> 'tenant')::${ctx.idType} as tenant, e -> 'data' as d,
+        ${castOrNull("e -> 'data' ->> 'variantId'", "uuid")} as variant,
+        ${castOrNull("e -> 'data' ->> 'locationId'", "uuid")} as location,
+        ${castOrNull("e -> 'data' ->> 'quantity'", "numeric")} as quantity,
+        ${castOrNull("coalesce(e -> 'data' ->> 'allocated', '0')", "numeric")} as allocated,
+        ${castOrNull("coalesce(e -> 'data' ->> 'fulfilled', '0')", "numeric")} as fulfilled,
+        coalesce(nullif(e -> 'data' ->> 'status', ''), 'open') as status
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where nullif(e ->> 'subjectId', '') is null
+    ), f as (
+      select i.n, i.id, i.tenant, i.variant, i.location, i.quantity, i.status,
+        i.d ->> 'documentType' as document_type, i.d ->> 'documentId' as document_id, nullif(i.d ->> 'lineId', '') as line,
+        case when i.status <> 'open' then 0 else i.allocated end as allocated,
+        case when i.status = 'fulfilled' then i.quantity else i.fulfilled end as fulfilled
+      from i
+      where (select y.${v("id")} from ${catalog.table("variants")} y where y.${v("id")} = i.variant and y.${v("tenant")} = i.tenant) is not null
+        and (select x.${l("id")} from ${loc.table} x where x.${l("id")} = i.location and x.${l("tenant")} = i.tenant) is not null
+        and i.status in ('open', 'fulfilled', 'released')
+        and i.quantity > 0 and i.allocated >= 0 and i.fulfilled >= 0 and i.allocated + i.fulfilled <= i.quantity
+        and coalesce(i.d ->> 'documentType', '') ~ '^[a-z][a-z0-9_]{0,62}$'
+        and length(coalesce(i.d ->> 'documentId', '')) between 1 and 200
+    ), levels as (
+      insert into ${levels} as x (${lv("tenant")}, ${lv("variant")}, ${lv("location")}, ${lv("reserved")})
+      select f.tenant, f.variant, f.location, sum(f.allocated) from f group by 1, 2, 3
+      on conflict (${lv("variant")}, ${lv("location")}) do update
+        set ${lv("reserved")} = x.${lv("reserved")} + excluded.${lv("reserved")}, ${lv("updatedAt")} = now()
+    ), written as (
+      insert into ${allocations} as x (${a("id")}, ${a("tenant")}, ${a("variant")}, ${a("location")}, ${a("documentType")}, ${a("documentId")}, ${a("line")},
+        ${a("quantity")}, ${a("allocated")}, ${a("fulfilled")}, ${a("status")})
+      select f.id, f.tenant, f.variant, f.location, f.document_type, f.document_id, f.line, f.quantity, f.allocated, f.fulfilled, f.status from f
+      returning x.${a("id")} as id, x.${a("updatedAt")} as updated_at
+    )
+    select f.n, jsonb_build_object('subjectId', f.id::text, 'updatedAt', w.updated_at) as answer
+    from f join written w on w.id = f.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+${batchRest(fn("import_stock_allocation"))}
+end;
+$$;
+${serviceGrant(`${fn("import_stock_allocation_batch")}(uuid, jsonb)`)}
+
 create or replace function ${fn("stock_allocation_updated_at")}(subject_id text)
 returns timestamptz
 language sql
@@ -160,6 +224,7 @@ export function allocationImportTargets(
       entity: "stock_allocation",
       subjectType: "stock_allocation",
       write: plain(own.fn("import_stock_allocation")),
+      batch: plain(own.fn("import_stock_allocation_batch")),
       updatedAt: plain(own.fn("stock_allocation_updated_at")),
     },
   ];

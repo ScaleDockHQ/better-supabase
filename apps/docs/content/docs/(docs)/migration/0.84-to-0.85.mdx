@@ -18,6 +18,7 @@ writes the trigger, function and table changes below.
 | [The authorizer context](#the-authorizer-context) | Treat an unset `context.enforcement` as `definer`                      |
 | [Search source views](#search-source-views)       | Add `search.columns` to every record type with `search.from`           |
 | [Import chunks](#import-chunks)                   | Finish a run only when every chunk is done; read `result`, not `items` |
+| [Import batches](#import-batches)                 | None; run `better-supabase upgrade`                                    |
 | [Open items](#open-items)                         | Filter `invoice_open_items` on `document_type` if you query it         |
 | [Audit retention](#audit-retention)               | Optional: set `retention` so `maintenance()` purges the log            |
 | [Doctor rules](#doctor-rules)                     | None; set `doctor.policies.max` to move the BS641 limit                |
@@ -88,6 +89,17 @@ attempt; `runImportWorker` passes it. A handler you call yourself without the
 job keeps the old behavior. The housekeeping block runs the new
 `import_chunks` job; without it, call `import_chunk_maintenance()` from your
 own schedule.
+
+## Import batches
+
+The `party`, `product`, `stock_allocation` and `stock_count` import entities
+write their new rows in one statement per table (ADR 1217). With 2,000 new
+items an import takes 39 to 55 percent less time. Results, counts, errors and
+the record map stay the same; an item the statement can't prove plain (an
+update, a shared email or sku, a lot or bin on a count line) still goes
+through the one-row write. `better-supabase upgrade` adds the four functions.
+The audit log of `stock_levels` gets one change per level a batch touches
+instead of one per item.
 
 ## Open items
 

@@ -3,6 +3,11 @@ import type { ImportTargetContribution } from "../contributions.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
 import { fail, serviceGrant, userGrant } from "../shared.ts";
+import {
+  BATCH_DECLARE,
+  batchRest,
+  castOrNull,
+} from "./imports-batch-targets.ts";
 import { columns, guard, locationsOf, moveStock } from "./inventory-stock.ts";
 import { QUANTITY } from "./inventory-tracking.ts";
 
@@ -420,6 +425,10 @@ function importFunctions(ctx: BlockSqlContext, names: InventoryNames): string {
   const lots = ctx.table("lots");
   const b = columns(ctx, "bins");
   const lt = columns(ctx, "lots");
+  const levels = ctx.table("levels");
+  const buckets = ctx.table("buckets");
+  const lvc = columns(ctx, "levels");
+  const k = columns(ctx, "buckets");
 
   return `
 -- The import target of the stock_count entity: item.data is { locationId or
@@ -530,6 +539,64 @@ end;
 $$;
 ${serviceGrant(`${fn("import_stock_count")}(uuid, jsonb, text)`)}
 
+-- The batch form of import_stock_count (ADR 1217): new counts that name their
+-- location by id, whose lines name a variant by id at most once each and no
+-- bin, lot or serial, are written in one statement, with the expected
+-- quantity count_expected gives such a line. Every other item goes through
+-- import_stock_count.
+create or replace function ${fn("import_stock_count_batch")}(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+${BATCH_DECLARE}
+begin
+  for v_row in
+    with i as (
+      select o::int as n, gen_random_uuid() as id, (e ->> 'tenant')::${ctx.idType} as tenant, e -> 'data' as d,
+        ${castOrNull("e -> 'data' ->> 'locationId'", "uuid")} as location
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where nullif(e ->> 'subjectId', '') is null and jsonb_typeof(e -> 'data' -> 'lines') = 'array'
+    ), f as (
+      select i.n, i.id, i.tenant, i.location, i.d, nullif(btrim(i.d ->> 'note'), '') as note
+      from i
+      where (select x.${l("id")} from ${loc.table} x where x.${l("id")} = i.location and x.${l("tenant")} = i.tenant) is not null
+        and (select count(*) = count(distinct ${castOrNull("e.entry ->> 'variantId'", "uuid")})
+            and bool_and(jsonb_typeof(e.entry) = 'object'
+              and not e.entry ?| array['binId', 'bin', 'lotId', 'lot', 'serial', 'sku']
+              and pg_input_is_valid(coalesce(e.entry ->> 'counted', ''), 'numeric')
+              and pg_input_is_valid(coalesce(e.entry ->> 'expected', '0'), 'numeric')
+              and coalesce(${castOrNull("e.entry ->> 'counted'", "numeric")} >= 0, false)
+              and (select y.${v("id")} from ${catalog.table("variants")} y
+                where y.${v("id")} = ${castOrNull("e.entry ->> 'variantId'", "uuid")} and y.${v("tenant")} = i.tenant) is not null)
+          from jsonb_array_elements(i.d -> 'lines') e(entry))
+    ), written as (
+      insert into ${counts} as x (${c("id")}, ${c("tenant")}, ${c("location")}, ${c("note")})
+      select f.id, f.tenant, f.location, f.note from f
+      returning x.${c("id")} as id, x.${c("updatedAt")} as updated_at
+    ), counted as (
+      insert into ${lines} (${n("tenant")}, ${n("count")}, ${n("variant")}, ${n("expected")}, ${n("counted")})
+      select f.tenant, f.id, (e.entry ->> 'variantId')::uuid,
+        coalesce((e.entry ->> 'expected')::numeric,
+          coalesce((select lv.${lvc("onHand")} from ${levels} lv where lv.${lvc("variant")} = (e.entry ->> 'variantId')::uuid and lv.${lvc("location")} = f.location), 0)
+            - coalesce((select sum(y.${k("onHand")}) from ${buckets} y where y.${k("variant")} = (e.entry ->> 'variantId')::uuid and y.${k("location")} = f.location), 0)),
+        (e.entry ->> 'counted')::numeric
+      from f cross join lateral jsonb_array_elements(f.d -> 'lines') e(entry)
+    )
+    select f.n, jsonb_build_object('subjectId', f.id::text, 'updatedAt', w.updated_at) as answer
+    from f join written w on w.id = f.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+${batchRest(fn("import_stock_count"))}
+end;
+$$;
+${serviceGrant(`${fn("import_stock_count_batch")}(uuid, jsonb)`)}
+
 create or replace function ${fn("stock_count_updated_at")}(subject_id text)
 returns timestamptz
 language sql
@@ -578,6 +645,7 @@ export function countImportTargets(
       entity: "stock_count",
       subjectType: "stock_count",
       write: plain(own.fn("import_stock_count")),
+      batch: plain(own.fn("import_stock_count_batch")),
       updatedAt: plain(own.fn("stock_count_updated_at")),
     },
   ];
