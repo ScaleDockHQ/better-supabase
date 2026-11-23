@@ -30,6 +30,7 @@ const {
   CONNECT_OUTLOOK_CONNECTOR,
   BSB_REMOTE_CACHE_DIR,
   BSB_REMOTE_CACHE_STORE,
+  BSB_TAG_PROBE_SECRET,
   STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET,
   STRIPE_PRICE_PRO,
@@ -87,6 +88,8 @@ export const env = createEnv({
       v.picklist(["file", "postgres"]),
       "file",
     ),
+    // Turns on /api/probe/vercel-tags; without it the route answers 404.
+    BSB_TAG_PROBE_SECRET: v.optional(v.pipe(v.string(), v.minLength(32))),
     // The billing block's Stripe calls and webhook; the billing screens read
     // without them, Checkout, the portal and seat sync need them.
     STRIPE_SECRET_KEY: v.optional(v.string()),
@@ -123,6 +126,7 @@ export const env = createEnv({
     CONNECT_OUTLOOK_CONNECTOR,
     BSB_REMOTE_CACHE_DIR,
     BSB_REMOTE_CACHE_STORE,
+    BSB_TAG_PROBE_SECRET,
     STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET,
     STRIPE_PRICE_PRO,

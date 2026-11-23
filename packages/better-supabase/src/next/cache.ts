@@ -124,6 +124,34 @@ export { sessionIdTag, sessionTag, tableTags } from "../server/cache-tags.ts";
 /** The next read waits for fresh data instead of serving the stale entry. */
 const EXPIRE_NOW = { expire: 0 } as const;
 
+const tagCallListeners = new Set<(calls: number) => void>();
+
+/**
+ * Calls `listener` with the number of `updateTag` and `revalidateTag` calls
+ * each `invalidateAll` made. Returns a function that removes it.
+ */
+export function onTagCalls(listener: (calls: number) => void): () => void {
+  tagCallListeners.add(listener);
+
+  return () => {
+    tagCallListeners.delete(listener);
+  };
+}
+
+function reportTagCalls(calls: number): void {
+  if (calls === 0) {
+    return;
+  }
+
+  for (const listener of tagCallListeners) {
+    try {
+      listener(calls);
+    } catch {
+      // A stats listener never fails an invalidation.
+    }
+  }
+}
+
 /**
  * Invalidates tags with `updateTag` (Server Actions), else `revalidateTag`
  * (Route Handlers), else not at all (jobs, scripts). The first tag decides for
@@ -140,6 +168,8 @@ export function invalidateAll(
       updateTag(tags[index]!);
     }
 
+    reportTagCalls(index);
+
     return;
   } catch {
     // Not in a Server Action: revalidate from the tag that failed.
@@ -152,6 +182,8 @@ export function invalidateAll(
   } catch {
     // Outside a Next.js request (jobs, scripts): nothing to invalidate.
   }
+
+  reportTagCalls(index);
 }
 
 /**
@@ -176,3 +208,6 @@ export function nextCache(options: NextCacheOptions = {}): CacheAdapter {
  * invalidated once per mutation.
  */
 export const nextCacheAttached: WeakSet<object> = new WeakSet<object>();
+
+/** Stats collectors that already count tag calls, so none counts twice. */
+export const tagCallCollectors: WeakSet<object> = new WeakSet<object>();

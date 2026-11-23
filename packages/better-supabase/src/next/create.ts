@@ -1,6 +1,6 @@
 import { cacheLife, io } from "next/cache.js";
 import { redirect } from "next/dist/client/components/redirect.js";
-import { cookies } from "next/headers.js";
+import { cookies, headers } from "next/headers.js";
 import { cache } from "react";
 
 import type { AuthResolution } from "../auth/resolve.ts";
@@ -80,8 +80,10 @@ import {
   invalidateAll,
   nextCache,
   nextCacheAttached,
+  onTagCalls,
   supportTag,
   tableTags,
+  tagCallCollectors,
 } from "./cache.ts";
 import { logActionStats, requestIdOf, formatStats } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
@@ -156,6 +158,35 @@ export function createNext<
 
   const statsFor = (request: Request): ContextOptions =>
     statsForId(collector && requestIdOf(request.headers));
+
+  const recordTagCalls = (calls: number): void => {
+    if (!collector) {
+      return;
+    }
+
+    headers()
+      .then((incoming) => {
+        const id = requestIdOf(incoming);
+
+        if (id) {
+          collector.recorderFor(id).tagCalls(calls);
+        }
+      })
+      .catch(() => {
+        // Outside a request there is no request to count the calls on.
+      });
+  };
+
+  if (collector && !tagCallCollectors.has(collector)) {
+    tagCallCollectors.add(collector);
+    onTagCalls(recordTagCalls);
+  }
+
+  /** Expires `tags` in Next.js and in the kept store. */
+  const invalidate = (tags: readonly string[]): void => {
+    invalidateAll(tags);
+    kept.expireTags(tags);
+  };
 
   /** Sets the context's cookies (the replica pin) through Next's cookie jar. */
   const writeCookies = async (
@@ -412,7 +443,7 @@ export function createNext<
     userId: string,
     evictOptions: { readonly tags?: readonly string[] } = {},
   ): Promise<void> => {
-    invalidateAll([...userTags(userId), ...(evictOptions.tags ?? [])]);
+    invalidate([...userTags(userId), ...(evictOptions.tags ?? [])]);
     await base.evictSession(userId);
   };
 
@@ -431,7 +462,7 @@ export function createNext<
       ...base[ACCOUNT_PARTS],
       // An account change drops the user's cached reads and session memo.
       after: (userId: string) => {
-        invalidateAll(userTags(userId));
+        invalidate(userTags(userId));
         forget(userId);
       },
     },
@@ -452,7 +483,7 @@ export function createNext<
       scope.generation += 1;
     },
     signedOut: (userId) => {
-      invalidateAll(userTags(userId));
+      invalidate(userTags(userId));
       forget(userId);
     },
   });
@@ -551,9 +582,10 @@ export function createNext<
   const bootstrapCalls = cache(() => new Map<string, Promise<BootstrapRow>>());
 
   const kept = keptBinding<ServerContext<M, F, E, C, P, B>, C, P>({
+    onTagCalls: recordTagCalls,
     events: betterSupabase.events,
-    attach: (keptCache) => {
-      betterSupabase.cache(keptCache.adapter);
+    attach: (adapter) => {
+      betterSupabase.cache(adapter);
     },
     options: options.kept,
     meta: betterSupabase.meta,
@@ -659,7 +691,7 @@ export function createNext<
       };
     },
 
-    kept,
+    kept: kept.kept,
 
     async bootstrap<T, S extends ReadSet = ReadSet>(
       bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,
@@ -1002,7 +1034,7 @@ export function createNext<
         }
 
         if (settled.ok && actionOptions.invalidates) {
-          invalidateAll(
+          invalidate(
             actionOptions.invalidates.flatMap((table) =>
               tableTags(table, { tenant: "*" }),
             ),
@@ -1063,7 +1095,7 @@ export function createNext<
       });
 
       if (resolution.auth.kind === "user") {
-        invalidateAll(userTags(resolution.auth.user.id));
+        invalidate(userTags(resolution.auth.user.id));
       }
 
       return {
@@ -1090,7 +1122,7 @@ export function createNext<
 
       const stopped = await base.support.stop(resolution.auth, id);
       flushAfter();
-      invalidateAll([
+      invalidate([
         supportTag(id),
         ...(resolution.auth.kind === "user"
           ? userTags(resolution.auth.user.id)

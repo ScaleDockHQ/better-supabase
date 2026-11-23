@@ -1,5 +1,6 @@
 import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
+import type { CacheAdapter } from "../core/cache.ts";
 import type { EventHub } from "../core/events.ts";
 import type { KeptCache, KeptStore } from "../core/kept-cache.ts";
 import type {
@@ -18,6 +19,7 @@ import {
   keptVersionOf,
   memoryKeptStore,
 } from "../core/kept-cache.ts";
+import { cacheTagsOf } from "../core/tags.ts";
 import { withReadSetTables } from "./action-bound.ts";
 import { tableTags } from "./cache.ts";
 import { applyCacheEntry } from "./entry.ts";
@@ -41,7 +43,7 @@ type KeptContext<C, P> = {
 /** What `bsb.kept()` needs from `createNext`. */
 export interface KeptDeps<Ctx extends KeptContext<C, P>, C, P> {
   readonly events: EventHub;
-  readonly attach: (cache: KeptCache) => void;
+  readonly attach: (adapter: CacheAdapter) => void;
   readonly options: NextKeptOptions | undefined;
   readonly meta: unknown;
   readonly scopeOf: (
@@ -50,7 +52,26 @@ export interface KeptDeps<Ctx extends KeptContext<C, P>, C, P> {
   ) => Promise<KeptScope<Ctx, C, P>>;
   readonly userTags: (userId: string) => readonly string[];
   readonly waitUntil: (work: Promise<unknown>) => void;
+  /** Records the store's tag calls on the current request. */
+  readonly onTagCalls?: (calls: number) => void;
 }
+
+export interface KeptBinding<Ctx> {
+  readonly kept: <A extends readonly unknown[], R>(
+    fn: (ctx: Ctx, ...args: A) => Promise<R>,
+    options: KeptOptions<string, A>,
+  ) => KeptFunction<A, R>;
+  /**
+   * Expires `tags` in the kept store, as `invalidateAll` does for Next.js. A
+   * store the app named is opened for it; the default memory store only when a
+   * kept function already ran. Failures are logged.
+   */
+  readonly expireTags: (tags: readonly string[]) => void;
+}
+
+/** The calls a store makes for `tags`: one per batch of 16. */
+const batches = (tags: readonly string[]): number =>
+  Math.ceil(tags.length / 16);
 
 /** The memory store of an app that names none, one per `betterSupabase`. */
 const defaultStores = new WeakMap<EventHub, KeptStore>();
@@ -61,10 +82,7 @@ const caches = new WeakMap<KeptStore, KeptCache>();
 /** `bsb.kept()`, bound to one `createNext`. */
 export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
   deps: KeptDeps<Ctx, C, P>,
-): <A extends readonly unknown[], R>(
-  fn: (ctx: Ctx, ...args: A) => Promise<R>,
-  options: KeptOptions<string, A>,
-) => KeptFunction<A, R> {
+): KeptBinding<Ctx> {
   let cache: KeptCache | undefined;
   let version: Promise<string> | undefined;
 
@@ -95,8 +113,18 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
       });
 
     if (!existing) {
-      caches.set(store, cache);
-      deps.attach(cache);
+      const attached = cache;
+
+      caches.set(store, attached);
+      deps.attach({
+        name: attached.adapter.name,
+        invalidate: async (target) => {
+          const tags = cacheTagsOf(target);
+
+          await attached.expireTags(tags);
+          deps.onTagCalls?.(batches(tags));
+        },
+      });
     }
 
     return cache;
@@ -108,7 +136,24 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
     return version;
   };
 
-  return <A extends readonly unknown[], R>(
+  const expireTags = (tags: readonly string[]): void => {
+    if (tags.length === 0 || (!cache && !deps.options?.store)) {
+      return;
+    }
+
+    cacheOf()
+      .expireTags(tags)
+      .then(() => {
+        deps.onTagCalls?.(batches(tags));
+      })
+      .catch((cause: unknown) => {
+        deps.events.logger.warn("bsb.kept() could not expire its tags", {
+          cause,
+        });
+      });
+  };
+
+  const kept = <A extends readonly unknown[], R>(
     fn: (ctx: Ctx, ...args: A) => Promise<R>,
     options: KeptOptions<string, A>,
   ): KeptFunction<A, R> => {
@@ -202,4 +247,6 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
           run(source, args),
     });
   };
+
+  return { kept, expireTags };
 }

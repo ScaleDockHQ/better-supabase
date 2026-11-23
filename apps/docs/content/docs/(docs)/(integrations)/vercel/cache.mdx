@@ -149,3 +149,44 @@ tag per row for a bulk write.
 
 Next.js apps put `nextCache()` in the route's `caches`. For `'use cache'` reads
 that anyone may see, use [`bsb.public()`](/docs/concepts/caching#cache-public-data-without-the-service-role).
+
+## What a write expires
+
+A repository write expires its tags in two places. The Next.js tags go
+through `updateTag` inside a Server Action and through
+`revalidateTag(tag, { expire: 0 })` everywhere else. The entries of
+[`bsb.kept()`](/docs/concepts/caching#keep-reads-across-requests-and-deploys)
+live in their own store, so the same tags also go to that store's
+`expireTags`, which the Runtime Cache store sends as one `expireTag` call per
+16 tags.
+
+Every call counts toward `tagCalls` in the request's
+[stats](/docs/concepts/caching), so a bulk write that sends many tags shows
+up there before it reaches the rate limit. A rejected store call reaches
+`onError` and the log. A rejected `updateTag` does not reject anything you
+can catch: Next.js reports it only in the Vercel function logs.
+
+### Check a preview
+
+The Next.js example ships a probe route that answers which of the four
+methods (`updateTag`, `revalidateTag`, `expireTag`, `invalidateByTag`)
+removes a Runtime Cache entry, how fast, and what one `expireTag` call
+accepts. Set `BSB_TAG_PROBE_SECRET` (32 characters or more) on a preview of
+`apps/examples/nextjs`, then run:
+
+```bash
+BSB_TAG_PROBE_SECRET=... node scripts/probe-vercel-tags.ts https://<preview>.vercel.app
+```
+
+The route answers 404 when the key is not set, so production never serves
+it.
+
+| Method            | Runtime Cache entry after the call |
+| ----------------- | ---------------------------------- |
+| `updateTag`       | pending maintainer run             |
+| `revalidateTag`   | pending maintainer run             |
+| `expireTag`       | pending maintainer run             |
+| `invalidateByTag` | pending maintainer run             |
+
+`updateTag` is expected to throw in a Route Handler, since Next.js allows it
+only in Server Actions; the probe records the error.

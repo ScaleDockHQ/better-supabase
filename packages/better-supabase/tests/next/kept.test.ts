@@ -111,6 +111,21 @@ describe("bsb.kept()", () => {
     expect(fill).toHaveBeenCalledTimes(2);
   });
 
+  it("fills again after the user's session is evicted", async () => {
+    await signIn(ALICE);
+    await read("c8");
+    await new Promise((resolve) => {
+      setTimeout(resolve, 2);
+    });
+    await bsb.evictSession(ALICE);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 2);
+    });
+    await read("c8");
+
+    expect(fill).toHaveBeenCalledTimes(2);
+  });
+
   it("applies its tags and life to an enclosing cache entry", async () => {
     await signIn(ALICE);
     await read("c5");
