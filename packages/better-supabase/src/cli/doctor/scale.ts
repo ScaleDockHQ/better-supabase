@@ -1,8 +1,8 @@
 import type { CatalogTable, CatalogTrigger } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { ownerOf } from "../../sql/index.ts";
 import { errorText } from "../core/errors.ts";
+import { ownerOf } from "../declaration-model.ts";
 import { statementsOf } from "../schema-reader/index.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
 import { EDGE_FUNCTION_RULES } from "./edge-functions.ts";

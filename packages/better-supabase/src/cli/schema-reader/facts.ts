@@ -282,6 +282,8 @@ export interface FileFacts {
   readonly calls: readonly CallFact[];
   /** The file starts a generated module (`-- @bsb-block` or `-- @bs-module`). */
   readonly module: boolean;
+  /** The module a marker comment names (`-- @bsb-block name@3`), if any. */
+  readonly moduleName?: string;
   /** Lines of `do` blocks. */
   readonly doBlocks: readonly number[];
   /** Lines of `do` blocks that create objects or `execute` at run time. */

@@ -16,7 +16,6 @@ import type { CatalogPolicy } from "./introspect/types.ts";
 
 import {
   auditRegistrations,
-  appColumnsOf,
   declaredPolicies,
   moduleLayout,
   resolveExposeColumns,
@@ -28,6 +27,7 @@ import {
 import { adoptedColumnProblems } from "./adopted-columns.ts";
 import { apiUsedNames } from "./api-used.ts";
 import { parseSnapshot } from "./commands/snapshot.ts";
+import { appColumnsOf } from "./declaration-model.ts";
 import { toCatalog } from "./introspect/catalog.ts";
 import { TypegenMissingError } from "./introspect/typegen.ts";
 import { sameTenantLayout } from "./same-tenant-layout.ts";
@@ -468,11 +468,13 @@ export async function appSchemaTexts(
 export async function appColumnsFor(
   config: ResolvedConfig,
 ): Promise<ReturnType<typeof appColumnsOf>> {
-  return appColumnsOf(
-    (await declarativeTexts(config)).filter(
-      (source) => !writtenByBlocks(source),
-    ),
+  const own = (await declarativeTexts(config)).filter(
+    (source) => !writtenByBlocks(source),
   );
+
+  await primeSchemaFacts(own, config.root);
+
+  return appColumnsOf(own);
 }
 
 /**

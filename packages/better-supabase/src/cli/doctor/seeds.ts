@@ -3,7 +3,8 @@ import { posix } from "node:path";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { PRESET_CATALOG } from "../../preset/index.ts";
-import { ownerOf, resolveBlocks } from "../../sql/index.ts";
+import { resolveBlocks } from "../../sql/index.ts";
+import { ownerOf } from "../declaration-model.ts";
 import { statementsOf } from "../schema-reader/index.ts";
 
 /** The first characters of a file `db seed --sample --out` wrote. */

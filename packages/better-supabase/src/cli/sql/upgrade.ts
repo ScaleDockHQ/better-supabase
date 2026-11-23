@@ -13,9 +13,6 @@ import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
 
 import {
-  buildModel,
-  conflicts,
-  duplicatePolicies,
   entityRenamePlan,
   moduleFileVersion,
   moduleTopics,
@@ -27,7 +24,14 @@ import {
 } from "../../sql/index.ts";
 import { changeLines } from "../core/files.ts";
 import { display } from "../core/io.ts";
+import {
+  buildModel,
+  conflicts,
+  duplicatePolicies,
+} from "../declaration-model.ts";
 import { fileDiff } from "../diff.ts";
+import { statementsOf } from "../schema-reader/index.ts";
+import { primeSchemaTexts } from "../sql-facts.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { readSupabaseConfig, sqlWorkflow } from "../supabase-config.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
@@ -113,7 +117,7 @@ export async function upgrade(
   const plan = upgradePlan(installed, sqlLayout);
   const renamed = [...new Set(renames.steps.map((step) => step.module))];
 
-  const problems = moduleFileProblems(
+  const problems = await moduleFileProblems(
     installedFiles,
     !migrations && sqlLayout.rerunnable !== true,
   );
@@ -375,10 +379,11 @@ async function installedFromMigration(
  * `transaction=false`, a top-level `insert`, and two policies that decide the
  * same way. Doctor reports the same findings as BS369 to BS375.
  */
-function moduleFileProblems(
+async function moduleFileProblems(
   files: readonly { readonly path: string; readonly text: string }[],
   declarative: boolean,
-): string[] {
+): Promise<string[]> {
+  await primeSchemaTexts(files.map((file) => file.text));
   const model = buildModel(files);
 
   const conflicting = conflicts(model).flatMap(({ declarations }) => {
@@ -423,15 +428,13 @@ function moduleFileProblems(
   ]);
 
   const drops = (declarative ? [...files] : []).flatMap(({ path, text }) =>
-    text
-      .split("\n")
-      .flatMap((line, index) =>
-        /^drop\s+event\s+trigger\b/iu.test(line)
-          ? [
-              `${path}:${String(index + 1)} drops an event trigger. A declarative file only declares it; run better-supabase upgrade to rewrite the file.`,
-            ]
-          : [],
-      ),
+    statementsOf(text).flatMap((statement) =>
+      /^drop\s+event\s+trigger\b/iu.test(statement.text)
+        ? [
+            `${path}:${String(statement.line)} drops an event trigger. A declarative file only declares it; run better-supabase upgrade to rewrite the file.`,
+          ]
+        : [],
+    ),
   );
 
   const policies = duplicatePolicies(model).map(

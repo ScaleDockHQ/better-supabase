@@ -4,12 +4,12 @@ import {
   appColumnsOf,
   buildModel,
   conflicts,
-  createParseCache,
   objectKey,
   ownerOf,
-  parseDeclared,
-} from "../../../src/sql/pipeline/model.ts";
-import { splitStatements } from "../../../src/sql/pipeline/split.ts";
+} from "../../src/cli/declaration-model.ts";
+import { factsOf, statementsOf } from "../../src/cli/schema-reader/index.ts";
+import { declarationsOf } from "../../src/cli/schema-reader/queries.ts";
+import { primeAll } from "../helpers/facts.ts";
 
 const SQL = `
 create table if not exists public.tasks (id uuid primary key);
@@ -33,18 +33,22 @@ do $$ begin perform 1; end $$;
 insert into public.tasks (id) values (gen_random_uuid());
 `;
 
-describe("splitStatements", () => {
-  it("splits at semicolons outside quotes, bodies and comments", () => {
-    const out = splitStatements(
-      "select 1; -- x;\nselect ';', $a$;$a$ /* ; */;",
-    );
+const parseDeclared = (text: string) => declarationsOf(factsOf(text));
+
+describe("statementsOf", () => {
+  it("splits at semicolons outside quotes, bodies and comments", async () => {
+    const text = "select 1; -- x;\nselect ';', $a$;$a$ /* ; */;";
+    await primeAll(text);
+    const out = statementsOf(text);
 
     expect(out.map((statement) => statement.line)).toStrictEqual([1, 2]);
     expect(out).toHaveLength(2);
   });
 });
 
-describe("parseDeclared", () => {
+describe("declarationsOf", async () => {
+  await primeAll(`-- pg-delta: transaction=false\n${SQL}`, "select 1;");
+
   const parsed = parseDeclared(`-- pg-delta: transaction=false\n${SQL}`);
   const names = parsed.objects.map((o) => `${o.kind}:${o.name}`);
 
@@ -107,22 +111,12 @@ describe("parseDeclared", () => {
   });
 });
 
-describe("parse cache", () => {
-  it("parses one text once", () => {
-    const cache = createParseCache();
-    const a = cache.get(SQL);
-    const b = cache.get(SQL);
-    cache.get("select 1;");
-
-    expect(a).toBe(b);
-    expect(cache.stats).toStrictEqual({ parsed: 2, hits: 1 });
-  });
-});
-
-describe("model", () => {
+describe("model", async () => {
   const module = `-- better-supabase module: tasks\n-- @bsb-block tasks@2 managed\n\ncreate table public.tasks (id uuid);\ncreate or replace function public.touch(a int) returns void language sql as 'select 1';\n`;
   const data = `-- @bsb-block-data tasks\ncreate or replace function public.touch(a int) returns void language sql as 'select 1';`;
   const app = `create or replace function public.touch(a int) returns void language sql as 'select 2';\nalter table public.tasks add column note text;`;
+
+  await primeAll(module, data, app);
 
   it("tells a module file from an app file", () => {
     expect(ownerOf("a.sql", module)).toStrictEqual({
@@ -172,10 +166,18 @@ describe("model", () => {
   });
 });
 
+const appColumns = async (
+  files: readonly { readonly path: string; readonly text: string }[],
+) => {
+  await primeAll(...files.map((file) => file.text));
+
+  return appColumnsOf(files);
+};
+
 describe("appColumnsOf", () => {
-  it("leaves out the columns the database fills", () => {
+  it("leaves out the columns the database fills", async () => {
     expect(
-      appColumnsOf([
+      await appColumns([
         {
           path: "supabase/schemas/tags.sql",
           text: `alter table public.tags
@@ -187,7 +189,7 @@ describe("appColumnsOf", () => {
     ).toStrictEqual({ "public.tags": [{ name: "region", type: "text" }] });
   });
 
-  it("reads an @bsb fields tag from a comment with line breaks, up to the next tag", () => {
+  it("reads an @bsb fields tag from a comment with line breaks, up to the next tag", async () => {
     const text = `create table public.deposit_lines (
   id uuid primary key,
   region text,
@@ -198,7 +200,7 @@ comment on table public.deposit_lines is 'Lines of a deposit.
 @bsb audit';`;
 
     expect(
-      appColumnsOf([{ path: "supabase/schemas/lines.sql", text }]),
+      await appColumns([{ path: "supabase/schemas/lines.sql", text }]),
     ).toEqual({
       "public.deposit_lines": [
         { name: "region", type: "text" },
@@ -210,9 +212,9 @@ comment on table public.deposit_lines is 'Lines of a deposit.
   const module =
     "-- @bsb-block tags@1 managed\nalter table public.tags add column region text;";
 
-  it("reads the columns app files add, with their types, and skips module files", () => {
+  it("reads the columns app files add, with their types, and skips module files", async () => {
     expect(
-      appColumnsOf([
+      await appColumns([
         {
           path: "supabase/schemas/tags.sql",
           text: `alter table public.tags

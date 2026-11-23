@@ -812,6 +812,21 @@ function markersOf(source: Source): readonly MarkerFact[] {
 const DO_CREATES =
   /\bcreate\s+(?:or\s+replace\s+)?(?:unique\s+)?(?:table|index|view|function|trigger|policy|type|schema)\b|\bexecute\b/i;
 
+const MODULE_NAME =
+  /^-- @(?:bsb-block|bs-module)(?:-data)? ([a-zA-Z0-9-]+)(?:@\d+)?\b/;
+
+function moduleNameOf(source: Source): string | undefined {
+  for (const comment of source.comments) {
+    const name = MODULE_NAME.exec(comment.text)?.[1];
+
+    if (name !== undefined) {
+      return name;
+    }
+  }
+
+  return undefined;
+}
+
 const MODULE_FILE = /^-- @(?:bsb-block|bs-module) /m;
 
 /** Each statement of a parsed file, with where it starts and ends. */
@@ -1187,6 +1202,8 @@ export function factsFrom(
 
   const markers = markersOf(source);
 
+  const moduleName = moduleNameOf(source);
+
   return {
     tables,
     alters,
@@ -1206,6 +1223,7 @@ export function factsFrom(
     module: source.comments.some((comment) =>
       MODULE_FILE.test(comment.text.startsWith("--") ? comment.text : ""),
     ),
+    ...(moduleName === undefined ? {} : { moduleName }),
     doBlocks,
     doCreates,
     inserts,

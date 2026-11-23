@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { ownerOf } from "../../sql/index.ts";
+import { ownerOf } from "../declaration-model.ts";
 import { statementsOf } from "../schema-reader/index.ts";
 
 const IDENT = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;

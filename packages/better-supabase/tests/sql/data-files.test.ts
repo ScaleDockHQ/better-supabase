@@ -1,20 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { splitStatements } from "../../src/sql/pipeline/split.ts";
+import { statementsOf } from "../../src/cli/schema-reader/index.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
+import { primeAll } from "../helpers/facts.ts";
 
 const files = renderBlocks(
   Object.keys(SQL_MODULES).filter((name) => name !== "pgtap"),
   { modules: { memberships: { options: { roles: { many: true } } } } },
 );
 
+await primeAll(...files.map((file) => file.contents));
+
 describe("module files and data files", () => {
   it("keeps every top-level insert out of the schema files", () => {
     const inserts = files
       .filter((file) => file.kind === "schema")
       .flatMap((file) =>
-        splitStatements(file.contents)
+        statementsOf(file.contents)
           .filter((statement) => /^insert\s/i.test(statement.text))
           .map((statement) => `${file.path}:${String(statement.line)}`),
       );
@@ -26,7 +29,7 @@ describe("module files and data files", () => {
     const unkeyed = files
       .filter((file) => file.kind === "data")
       .flatMap((file) =>
-        splitStatements(file.contents)
+        statementsOf(file.contents)
           .filter(
             (statement) =>
               /^insert\s/i.test(statement.text) &&

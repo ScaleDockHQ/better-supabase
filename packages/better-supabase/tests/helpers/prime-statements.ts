@@ -1,6 +1,9 @@
-import { primeStatements } from "../../src/cli/schema-reader/index.ts";
+import { primeSchemaTexts } from "../../src/cli/sql-facts.ts";
 
-/** Splits the texts of `files` so a doctor rule can read their statements. */
+/**
+ * Reads the texts of `files` so a doctor rule can read their facts and
+ * statements.
+ */
 export const primeFiles = (
   files: readonly { readonly text: string }[],
-): Promise<void> => primeStatements(files.map((file) => file.text));
+): Promise<void> => primeSchemaTexts(files.map((file) => file.text));

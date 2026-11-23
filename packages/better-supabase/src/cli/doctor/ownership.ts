@@ -1,13 +1,13 @@
-import type { Declaration } from "../../sql/index.ts";
+import type { Declaration } from "../declaration-model.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
+import { PRELUDE_FUNCTIONS } from "../../sql/index.ts";
 import {
   buildModel,
   conflicts,
   duplicatePolicies,
   ownerOf,
-  PRELUDE_FUNCTIONS,
-} from "../../sql/index.ts";
+} from "../declaration-model.ts";
 import { statementsOf } from "../schema-reader/index.ts";
 import { overridesIn } from "./overrides.ts";
 import { workflowOf } from "./shared.ts";

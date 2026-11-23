@@ -2,7 +2,8 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { splitStatements } from "../../src/sql/pipeline/split.ts";
+import { statementsOf } from "../../src/cli/schema-reader/index.ts";
+import { primeAll } from "../helpers/facts.ts";
 
 /**
  * The `do` blocks left in the schema files the library generates for this
@@ -53,7 +54,7 @@ const DO_BLOCK = /^do\s+(?:\$|language\b)/i;
  */
 const EXECUTES = /\bexecute\s+(?:(?:pg_catalog\.)?format\s*\(|')/i;
 
-function measure(): Record<string, Counts> {
+async function measure(): Promise<Record<string, Counts>> {
   const result: Record<string, Counts> = {};
 
   for (const folder of FOLDERS) {
@@ -69,9 +70,10 @@ function measure(): Record<string, Counts> {
     }
 
     for (const name of names.toSorted()) {
-      const blocks = splitStatements(
-        readFileSync(join(root, folder, name), "utf-8"),
-      )
+      const text = readFileSync(join(root, folder, name), "utf-8");
+      await primeAll(text);
+
+      const blocks = statementsOf(text)
         .map((statement) => statement.text.replaceAll(/\s+/g, " "))
         .filter((statement) => DO_BLOCK.test(statement));
 
@@ -87,8 +89,8 @@ function measure(): Record<string, Counts> {
   return result;
 }
 
-describe("static DDL in the generated schema files", () => {
-  const now = measure();
+describe("static DDL in the generated schema files", async () => {
+  const now = await measure();
 
   if (process.env["UPDATE_PRACTICES"] === "1") {
     writeFileSync(baselineFile, `${JSON.stringify(now, null, 2)}\n`);
