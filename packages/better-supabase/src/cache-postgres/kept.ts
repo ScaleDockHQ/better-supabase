@@ -1,10 +1,49 @@
-import type { KeptStore } from "../core/kept-cache.ts";
+import type { KeptLease, KeptStore } from "../core/kept-cache.ts";
 import type { PostgresCacheSource, PostgresCacheTables } from "./store.ts";
 
 import { storeOf } from "./store.ts";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+
+type Store = ReturnType<typeof storeOf>;
+
+const leaseOf = (store: Store): KeptLease => ({
+  async lease(key, holder, ttlMs) {
+    const leased = await store.lease(key, holder, ttlMs);
+
+    if (!leased.ok) {
+      throw new Error(leased.error.message);
+    }
+
+    return leased.data;
+  },
+  async release(key, holder) {
+    const released = await store.release(key, holder);
+
+    if (!released.ok) {
+      throw new Error(released.error.message);
+    }
+  },
+});
+
+/**
+ * The fill lease of `postgresKeptStore` without its entries, for a store that
+ * has no set-if-absent. Postgres takes the lease in one statement, so exactly
+ * one instance fills a missing key while the entries stay in the Runtime
+ * Cache:
+ *
+ * ```ts
+ * vercelRuntimeCacheAdapter(getCache, {
+ *   lease: postgresKeptLease({ client }),
+ * });
+ * ```
+ */
+export function postgresKeptLease(
+  options: PostgresCacheTables & PostgresCacheSource,
+): KeptLease {
+  return leaseOf(storeOf(options));
+}
 
 /**
  * A `KeptStore` for `bsb.kept()` in the tables of `postgresCacheSql()`, next to
@@ -62,21 +101,6 @@ export function postgresKeptStore(
         throw new Error(deleted.error.message);
       }
     },
-    async lease(key, holder, ttlMs) {
-      const leased = await store.lease(key, holder, ttlMs);
-
-      if (!leased.ok) {
-        throw new Error(leased.error.message);
-      }
-
-      return leased.data;
-    },
-    async release(key, holder) {
-      const released = await store.release(key, holder);
-
-      if (!released.ok) {
-        throw new Error(released.error.message);
-      }
-    },
+    ...leaseOf(store),
   };
 }

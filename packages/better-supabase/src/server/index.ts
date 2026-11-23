@@ -416,6 +416,7 @@ export { KEPT_LIMITS, memoryKeptStore } from "../core/kept-cache.ts";
 
 export type {
   KeptEnvelope,
+  KeptLease,
   KeptSetOptions,
   KeptSkip,
   KeptSkipReason,

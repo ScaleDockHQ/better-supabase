@@ -1582,6 +1582,7 @@
       "InvalidReason",
       "JwksStore",
       "KeptEnvelope",
+      "KeptLease",
       "KeptSetOptions",
       "KeptSkip",
       "KeptSkipReason",
@@ -5439,6 +5440,7 @@
       "postgresCacheHandler",
       "postgresCacheSql",
       "postgresCacheStore",
+      "postgresKeptLease",
       "postgresKeptStore"
     ],
     "types": [
@@ -5446,6 +5448,7 @@
       "AstroPostgresCacheConfig",
       "AstroPostgresCacheOptions",
       "CacheLookup",
+      "KeptLease",
       "NextCacheEntry",
       "NextCacheHandler",
       "PostgresCacheHandlerOptions",

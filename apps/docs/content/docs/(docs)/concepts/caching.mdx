@@ -173,7 +173,36 @@ the instance that takes the lease, while every instance serves the stale
 value. `postgresKeptStore` takes the lease in one statement, so exactly one
 instance wins. The Runtime Cache has no set-if-absent, so its lease is a lock
 entry that two instances reading at the same moment can both take: it narrows
-a stampede and does not prevent one.
+a stampede and does not prevent one. To keep the entries in the Runtime Cache
+and still fill once, take the lease in Postgres:
+
+```ts
+import { postgresKeptLease } from "better-supabase/cache-postgres";
+
+export const bsb = createNext(betterSupabase, {
+  kept: {
+    store: vercelRuntimeCacheAdapter(getCache, {
+      lease: postgresKeptLease({ client: cacheClient }),
+    }),
+  },
+});
+```
+
+It needs the leases table and function of
+[`postgresCacheSql()`](/docs/concepts/cache-postgres) and costs one statement
+per miss. In `tests/bench/kept-lease.ts` (`pnpm bench:lease`), four instances
+miss one key with 20 calls, a 50 ms fill and a Runtime Cache stand-in at 5 ms a
+call whose writes reach the other instances 25 ms later:
+
+| Lease               | Miss p50 | Miss p95 | Fills |
+| ------------------- | -------- | -------- | ----- |
+| none                | 64.1 ms  | 65.3 ms  | 4     |
+| Runtime Cache lock  | 82.8 ms  | 84.0 ms  | 4     |
+| `postgresKeptLease` | 103.0 ms | 106.5 ms | 1     |
+
+The waiting instances pay for the write to reach their replica; the database
+sees one fill instead of four. With consistent reads (propagation 0) the lock
+entry also fills once, at 87.2 ms p50 against 70.9 ms for the Postgres lease.
 
 An entry over 2 MB, with more than 128 tags or a tag over 256 bytes is not
 stored: the call still returns the value and `kept.onSkip` gets the reason. A

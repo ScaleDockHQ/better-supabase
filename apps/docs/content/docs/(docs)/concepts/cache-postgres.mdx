@@ -131,6 +131,12 @@ export const bsb = createNext(betterSupabase, {
 });
 ```
 
+`postgresKeptLease()` takes the same options and returns only the fill lease,
+for a store whose own lease is weaker: pass it as the `lease` option of
+`vercelRuntimeCacheAdapter` to keep the entries in the Runtime Cache while one
+instance fills a missing key. See
+[Keep reads across requests and deploys](/docs/concepts/caching#keep-reads-across-requests-and-deploys).
+
 ## Astro
 
 Astro loads a cache provider from a module whose default export is the
