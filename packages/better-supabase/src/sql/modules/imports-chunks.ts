@@ -283,7 +283,7 @@ export interface ChunkRetention {
   readonly staleAfter: string | null;
 }
 
-export function chunkRetentionOf(ctx: BlockSqlContext): ChunkRetention {
+function chunkRetentionOf(ctx: BlockSqlContext): ChunkRetention {
   const raw: unknown = ctx.option("chunks") ?? {};
   const record = typeof raw === "object" && raw !== null ? raw : {};
 
