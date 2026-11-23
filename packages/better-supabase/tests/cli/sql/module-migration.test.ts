@@ -139,7 +139,7 @@ describe("writeLatestMigration", () => {
     expect(first).toMatchObject({
       wrote: true,
       path: expect.stringMatching(
-        /^supabase\/migrations\/20260102030406_better_supabase_modules_[0-9a-f]{8}\.sql$/,
+        /^supabase\/migrations\/20260102030406_better_supabase_modules_v2-[0-9a-f]{8}\.sql$/,
       ),
     });
     expect((await write("select 1;\n")).wrote).toBe(false);

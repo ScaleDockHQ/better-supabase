@@ -1,6 +1,6 @@
 # 1185: The text scanners stay on the synchronous render path
 
-- Status: accepted
+- Status: accepted, amended by 1212
 - Date: 2026-11-22
 
 ## Context

@@ -63,7 +63,7 @@ describe("the migrations workflow", () => {
       expect(rest).toStrictEqual([]);
       expect(app).toBe(APP_MIGRATION);
       expect(written).toMatch(
-        /^\d{14}_better_supabase_modules_[0-9a-f]{8}\.sql$/,
+        /^\d{14}_better_supabase_modules_v2-[0-9a-f]{8}\.sql$/,
       );
       // The stamp follows the newest migration even when its date is ahead of now.
       expect((written ?? "") > APP_MIGRATION).toBe(true);
@@ -132,7 +132,7 @@ describe("the migrations workflow", () => {
 
       const [previous, next] = second.slice(-2);
 
-      expect(next).toMatch(/_better_supabase_modules_[0-9a-f]{8}\.sql$/);
+      expect(next).toMatch(/_better_supabase_modules_v2-[0-9a-f]{8}\.sql$/);
       expect((next ?? "") > (previous ?? "")).toBe(true);
       expect(next?.slice(-13)).not.toBe(previous?.slice(-13));
     },

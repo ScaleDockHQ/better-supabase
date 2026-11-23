@@ -9,7 +9,7 @@ import { moduleFileVersion } from "../../src/sql/markers.ts";
 import { maskComments, statementSpans } from "../../src/sql/over-app-tables.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
-import { indexSignature, indexStatements } from "../../src/sql/schema-scan.ts";
+import { indexSignature, indexStatements } from "../../src/sql/text-edit.ts";
 
 const invoices = (skip?: readonly string[]): string =>
   renderBlocks(["invoices"], {

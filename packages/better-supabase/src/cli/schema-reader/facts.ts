@@ -68,6 +68,8 @@ export interface AlterFact {
   readonly line: number;
   readonly index: number;
   readonly addedColumns: readonly ColumnFact[];
+  /** The added columns written `add column if not exists`, in order. */
+  readonly addedIfNotExists: readonly string[];
   readonly setNotNull: readonly string[];
   readonly dropNotNull: readonly string[];
   readonly droppedColumns: readonly string[];
@@ -204,6 +206,11 @@ export interface CommentFact {
   /** The decoded comment text, whichever quoting the file used. */
   readonly text: string;
   readonly line: number;
+  /**
+   * The string literal as written, quotes and prefix included, as character
+   * offsets.
+   */
+  readonly span?: readonly [number, number];
 }
 
 export interface GrantFact {
@@ -254,6 +261,32 @@ export interface CallFact {
   readonly index: number;
 }
 
+/**
+ * What a statement does to the audited tables, in file order: a
+ * `better_supabase.audit(...)` call or `bsb_audit` trigger registers a table,
+ * `unaudit(...)` or `drop table` removes it and `rename to` moves it.
+ */
+export type AuditFact =
+  | {
+      readonly kind: "register";
+      /** `schema.table`, unquoted. */
+      readonly target: string;
+      readonly ignore: readonly string[];
+      readonly redact: readonly string[];
+      readonly index: number;
+    }
+  | {
+      readonly kind: "unregister" | "drop";
+      readonly target: string;
+      readonly index: number;
+    }
+  | {
+      readonly kind: "rename";
+      readonly target: string;
+      readonly to: string;
+      readonly index: number;
+    };
+
 export interface MarkerFact {
   readonly kind: "bsb" | "pg-delta" | "rename";
   readonly text: string;
@@ -278,8 +311,11 @@ export interface FileFacts {
   /** Every created object in statement order. */
   readonly declared: readonly DeclaredFact[];
   readonly calls: readonly CallFact[];
+  readonly audits: readonly AuditFact[];
   /** The file starts a generated module (`-- @bsb-block` or `-- @bs-module`). */
   readonly module: boolean;
+  /** The module a marker comment names (`-- @bsb-block name@3`), if any. */
+  readonly moduleName?: string;
   /** Lines of `do` blocks. */
   readonly doBlocks: readonly number[];
   /** Lines of `do` blocks that create objects or `execute` at run time. */

@@ -1,19 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import { splitStatements } from "../../../src/sql/pipeline/split.ts";
+import { statementsOf } from "../../../src/cli/schema-reader/index.ts";
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { primeAll } from "../../helpers/facts.ts";
 
 const files = renderBlocks(Object.keys(SQL_MODULES), {}).filter(
   (file) => file.kind === "schema",
 );
+
+await primeAll(...files.map((file) => file.contents));
 
 const TARGET = /^(grant|revoke)\s+(.+?)\s+on\s+(.+?)\s+(?:to|from)\s/is;
 
 describe("grants in the block files", () => {
   it("never name every object of a kind with on all", () => {
     const found = files.flatMap((file) =>
-      splitStatements(file.contents)
+      statementsOf(file.contents)
         .filter((statement) =>
           /^(?:grant|revoke)\b[^;]*\bon\s+all\s/i.test(statement.text),
         )
@@ -28,7 +31,7 @@ describe("grants in the block files", () => {
       const granted = new Set<string>();
       const late: string[] = [];
 
-      for (const statement of splitStatements(file.contents)) {
+      for (const statement of statementsOf(file.contents)) {
         const match = TARGET.exec(statement.text.replaceAll(/\s+/g, " "));
 
         if (match === null) {

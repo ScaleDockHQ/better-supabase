@@ -3,6 +3,7 @@ import type { DeclarationSummary } from "./schema-reader/queries.ts";
 
 import {
   factsOf,
+  primeStatements,
   readSchemaFacts,
   readSchemaFactsLeniently,
 } from "./schema-reader/index.ts";
@@ -17,6 +18,7 @@ import {
   declaredUpdatedAtTriggers as declaredUpdatedAtTriggersOf,
   declaredViews as declaredViewsOf,
   extensionSchema as extensionSchemaOf,
+  declaredPolicies as declaredPoliciesOf,
   policyGrants as policyGrantsOf,
   rlsTables as rlsTablesOf,
 } from "./schema-reader/queries.ts";
@@ -54,6 +56,11 @@ export async function primeSchemaFacts(
     ...(typeof major === "number" ? { majorVersion: major } : {}),
   };
 
+  await primeStatements(
+    files.map((file) => file.text),
+    reader,
+  );
+
   if (options.lenient === true) {
     return readSchemaFactsLeniently(files, reader);
   }
@@ -61,6 +68,22 @@ export async function primeSchemaFacts(
   await readSchemaFacts(files, reader);
 
   return [];
+}
+
+/**
+ * Reads SQL the CLI generated itself (module bodies), so a scan or
+ * `withoutComments` can run on it synchronously. A text that does not parse
+ * keeps empty facts: generated text is checked where it is rendered.
+ *
+ * @param texts - The generated SQL texts.
+ */
+export async function primeSchemaTexts(
+  texts: readonly string[],
+): Promise<void> {
+  await primeStatements(texts);
+  await readSchemaFactsLeniently(
+    texts.map((text) => ({ path: "generated.sql", text })),
+  );
 }
 
 export const declaredTables = (
@@ -99,6 +122,12 @@ export const policyGrants = (
   schemas: readonly string[],
 ): ReturnType<typeof policyGrantsOf> => policyGrantsOf(facts(files), schemas);
 
+export const declaredPolicies = (
+  files: Texts,
+  schemas: readonly string[],
+): ReturnType<typeof declaredPoliciesOf> =>
+  declaredPoliciesOf(facts(files), schemas);
+
 export const extensionSchema = (
   files: Texts,
   extension: string,
@@ -125,3 +154,15 @@ export const declaredForeignKeys = (
 /** What one primed file declares, in the shape `parseDeclared` returns. */
 export const declarationsOfText = (text: string): DeclarationSummary =>
   declarationsOf(factsOf(text));
+
+/**
+ * The enum types the files create (`create type ... as enum`), as
+ * `schema.type`.
+ *
+ * @param files - The primed SQL texts.
+ * @returns The qualified enum names.
+ */
+export const declaredEnums = (files: Texts): ReadonlySet<string> =>
+  new Set(
+    facts(files).flatMap((file) => file.enums.map((entry) => entry.name)),
+  );

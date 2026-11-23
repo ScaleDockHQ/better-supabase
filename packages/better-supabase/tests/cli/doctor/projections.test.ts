@@ -12,6 +12,7 @@ import { PROJECTION_RULES } from "../../../src/cli/doctor/projections.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
+import { primeFiles } from "../../helpers/prime-statements.ts";
 import { snapshotFixture } from "../fixtures/library.ts";
 
 const base = await parseSnapshot(snapshotFixture);
@@ -35,10 +36,13 @@ const context = (
   ...extra,
 });
 
-const check = (code: string, ctx: DoctorContext) =>
-  PROJECTION_RULES.filter((rule) => rule.code === code).flatMap(
+const check = async (code: string, ctx: DoctorContext) => {
+  await primeFiles(ctx.sqlFiles ?? []);
+
+  return PROJECTION_RULES.filter((rule) => rule.code === code).flatMap(
     (rule) => rule.check(ctx) as { message: string }[],
   );
+};
 
 describe("BS381", () => {
   const sqlFiles = [
@@ -49,8 +53,8 @@ describe("BS381", () => {
 
   const sources = (text: string) => [{ path: "src/native.ts", text }];
 
-  it("flags a helper that names the block's table while a view projects it", () => {
-    const found = check(
+  it("flags a helper that names the block's table while a view projects it", async () => {
+    const found = await check(
       "BS381",
       context(config, {
         sqlFiles,
@@ -64,9 +68,9 @@ describe("BS381", () => {
     expect(found[0]?.message).toContain("public.job_attachments");
   });
 
-  it("flags the bare table name when the view has another name", () => {
+  it("flags the bare table name when the view has another name", async () => {
     expect(
-      check(
+      await check(
         "BS381",
         context(config, {
           sqlFiles,
@@ -78,9 +82,9 @@ describe("BS381", () => {
     ).toHaveLength(1);
   });
 
-  it("ignores a table name in a comment inside the call", () => {
+  it("ignores a table name in a comment inside the call", async () => {
     expect(
-      check(
+      await check(
         "BS381",
         context(config, {
           sqlFiles,
@@ -92,9 +96,9 @@ describe("BS381", () => {
     ).toStrictEqual([]);
   });
 
-  it("accepts a call that names the view, and a call with no projection", () => {
+  it("accepts a call that names the view, and a call with no projection", async () => {
     expect(
-      check(
+      await check(
         "BS381",
         context(config, {
           sqlFiles,
@@ -106,7 +110,7 @@ describe("BS381", () => {
     ).toStrictEqual([]);
 
     expect(
-      check(
+      await check(
         "BS381",
         context(config, {
           sqlFiles: [],
@@ -130,8 +134,8 @@ describe("BS382", () => {
     return fromCatalog(copy);
   };
 
-  it("flags an option the tag and the config give differently", () => {
-    const found = check(
+  it("flags an option the tag and the config give differently", async () => {
+    const found = await check(
       "BS382",
       context(
         { recordTypes: { notes: { table: "notes", title: "subject" } } },
@@ -146,11 +150,11 @@ describe("BS382", () => {
     expect(found[0]?.message).toContain('"subject"');
   });
 
-  it("accepts a tag the config repeats or does not set", () => {
+  it("accepts a tag the config repeats or does not set", async () => {
     const snapshot = tagged("@bsb subject title=name");
 
     expect(
-      check(
+      await check(
         "BS382",
         context(
           { recordTypes: { notes: { table: "notes", title: "name" } } },
@@ -160,6 +164,6 @@ describe("BS382", () => {
       ),
     ).toStrictEqual([]);
 
-    expect(check("BS382", context({}, {}, snapshot))).toStrictEqual([]);
+    expect(await check("BS382", context({}, {}, snapshot))).toStrictEqual([]);
   });
 });

@@ -2,13 +2,13 @@ import type { BlockSqlContext } from "./context.ts";
 import type { Policy, PolicyCommand } from "./policy.ts";
 
 import { sqlString } from "../core/template.ts";
-import { withoutComments } from "./audit-registrations.ts";
 import {
   policy as buildPolicy,
   readGrants,
   readPolicies,
   renderPolicy,
 } from "./policy.ts";
+import { withoutComments } from "./text-edit.ts";
 
 /**
  * The restrictive policy that keeps each organization's rows apart (ADR 0099).

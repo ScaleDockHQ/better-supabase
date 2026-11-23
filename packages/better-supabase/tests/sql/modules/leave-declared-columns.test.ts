@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { redundantNulls } from "../../../src/sql/index.ts";
-import { declaredTableColumns } from "../../../src/sql/schema-scan.ts";
+import { declaredTableColumnsOf } from "../../helpers/facts.ts";
 import { renderBlocks } from "../app-columns.ts";
 
 const app = (extra: string): string => `
@@ -44,44 +44,46 @@ const BLOCKS: AnyBlocksConfig = {
   },
 };
 
-const layout = (text: string, modules: AnyBlocksConfig = BLOCKS) => ({
+const layout = async (text: string, modules: AnyBlocksConfig = BLOCKS) => ({
   modules,
   ownTables: {
     "public.absence_kinds": "app.sql",
     "public.absences": "app.sql",
   },
   ownColumns: Object.fromEntries(
-    [...declaredTableColumns([{ text }], ["public"])].map(([table, names]) => [
-      table,
-      [...names],
-    ]),
+    [...(await declaredTableColumnsOf([{ text }], ["public"]))].map(
+      ([table, names]) => [table, [...names]],
+    ),
   ),
 });
 
-const sql = (extra: string, modules: AnyBlocksConfig = BLOCKS): string =>
-  renderBlocks(["leave"], layout(app(extra), modules))
+const sql = async (
+  extra: string,
+  modules: AnyBlocksConfig = BLOCKS,
+): Promise<string> =>
+  renderBlocks(["leave"], await layout(app(extra), modules))
     .map((file) => file.contents)
     .join("\n");
 
 describe("leave features follow the columns the app's tables declare", () => {
-  it("turns the parts of the day on when the table declares both columns", () => {
-    expect(sql("start_part")).toContain('"start_part"');
-    expect(sql("")).not.toContain('"start_part"');
+  it("turns the parts of the day on when the table declares both columns", async () => {
+    expect(await sql("start_part")).toContain('"start_part"');
+    expect(await sql("")).not.toContain('"start_part"');
   });
 
-  it("refuses a table that declares only one part column", () => {
-    expect(() => sql("end_part_only")).toThrow(/startPart and endPart/);
+  it("refuses a table that declares only one part column", async () => {
+    await expect(sql("end_part_only")).rejects.toThrow(/startPart and endPart/);
   });
 
-  it("filters confidential types only over a table that declares the column", () => {
-    expect(sql("confidential")).toContain("lc.");
-    expect(sql("")).not.toContain("lc.");
+  it("filters confidential types only over a table that declares the column", async () => {
+    expect(await sql("confidential")).toContain("lc.");
+    expect(await sql("")).not.toContain("lc.");
   });
 });
 
 describe("a null for a column the table lacks", () => {
-  it("is redundant, and a null for a column the table has is not", () => {
-    const found = redundantNulls(layout(app("")));
+  it("is redundant, and a null for a column the table has is not", async () => {
+    const found = redundantNulls(await layout(app("")));
 
     expect(found.map((entry) => `${entry.logical}.${entry.column}`)).toEqual([
       "types.allowance",
@@ -92,7 +94,7 @@ describe("a null for a column the table lacks", () => {
     ]);
     expect(
       redundantNulls(
-        layout(
+        await layout(
           app("").replace("approval_id uuid,", "approval_id uuid, note text,"),
         ),
       ).map((entry) => entry.column),

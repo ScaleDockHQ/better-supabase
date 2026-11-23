@@ -1,10 +1,7 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import {
-  appColumnsOf,
-  expiredFlagsQuery,
-  moduleLayout,
-} from "../../sql/index.ts";
+import { expiredFlagsQuery, moduleLayout } from "../../sql/index.ts";
+import { appColumnsOf } from "../declaration-model.ts";
 
 /** Flags past their `expires_at` column that aren't archived. */
 async function expiredFlags(context: DoctorContext): Promise<FindingInput[]> {

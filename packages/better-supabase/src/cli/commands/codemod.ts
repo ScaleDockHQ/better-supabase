@@ -520,7 +520,18 @@ async function runWithSymbols(
 
   if (codemod.sql !== undefined) {
     for (const file of ownSql) {
-      const text = codemod.sql(file.text, context);
+      // A text the scanner rejects (an unterminated quote) is reported, not skipped.
+      const text = await Promise.resolve(codemod.sql(file.text, context)).catch(
+        (error: unknown) => {
+          review.push({
+            file: relative(config.root, file.path),
+            line: 1,
+            message: `Not rewritten: ${error instanceof Error ? error.message : String(error)}`,
+          });
+
+          return file.text;
+        },
+      );
 
       if (text !== file.text) {
         edits.push({ path: file.path, contents: text, policy: "edit" });
@@ -547,11 +558,13 @@ async function runWithSymbols(
       path: resolve(
         config.root,
         dir,
-        migrationFile(
-          existing,
-          new Date(),
-          `_better_supabase_${codemod.name}.sql`,
-          sql,
+        (
+          await migrationFile(
+            existing,
+            new Date(),
+            `_better_supabase_${codemod.name}.sql`,
+            sql,
+          )
         ).name,
       ),
       contents: sql,

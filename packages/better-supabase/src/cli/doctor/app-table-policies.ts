@@ -2,12 +2,12 @@ import type { BlockSqlDeprecation } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
 import {
-  adoptedTables,
   appTablePolicyNotes,
   moduleDeprecations,
   SQL_MODULES,
   widenedCommands,
 } from "../../sql/index.ts";
+import { adoptedTables } from "../adopted-columns.ts";
 import { adoptionContext, appTablesOf } from "./app-tables.ts";
 import { BLOCK_PREFIX } from "./block-policies.ts";
 import { moduleFiles } from "./module-files.ts";

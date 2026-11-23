@@ -9,6 +9,7 @@ import {
 import { OWNERSHIP_RULES } from "../../../src/cli/doctor/ownership.ts";
 import { RULES } from "../../../src/cli/doctor/rules.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
+import { primeFiles } from "../../helpers/prime-statements.ts";
 
 type Files = readonly { path: string; text: string }[];
 
@@ -46,11 +47,14 @@ const context = (
 
 const current = overrideHash([moduleFunction]);
 
-const bs394 = (files: Files) =>
-  RULES.find((rule) => rule.code === "BS394")!.check(
+const bs394 = async (files: Files) => {
+  await primeFiles(files);
+
+  return RULES.find((rule) => rule.code === "BS394")!.check(
     // SAFETY: BS394 reads only `sqlFiles`.
     context(files) as unknown as DoctorContext,
   );
+};
 
 describe("BS394 override drift", () => {
   it("hashes whitespace-insensitively", () => {
@@ -105,12 +109,16 @@ describe("BS394 override drift", () => {
     // SAFETY: BS369 reads only `sqlFiles` and `configToml`.
     const ctx = (files: Files) => context(files) as unknown as DoctorContext;
 
+    await primeFiles([moduleFile, copy(current)]);
+
     expect(await bs369.check(ctx([moduleFile, copy(current)]))).toEqual([]);
 
     const untagged = {
       path: "supabase/schemas/app/overrides.sql",
       text: copy(current).text.replace(/^-- @bsb-override-of.*\n/mu, ""),
     };
+
+    await primeFiles([untagged]);
 
     expect(await bs369.check(ctx([moduleFile, untagged]))).toHaveLength(1);
   });

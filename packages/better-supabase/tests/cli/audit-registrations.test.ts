@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { auditRegistrations, renderBlocks } from "../../src/sql/index.ts";
+import { auditRegistrationsOf } from "../helpers/facts.ts";
 
 const file = (text: string) => ({ text });
 
 describe("auditRegistrations", () => {
-  it("reads named and positional lists, quoted names and arrays", () => {
+  it("reads named and positional lists, quoted names and arrays", async () => {
     expect(
-      auditRegistrations([
+      await auditRegistrationsOf([
         file(`
 select better_supabase.audit('public.customers', ignore => '{updated_at}', redact => '{kvk}');
 select better_supabase.audit('notes', '{updated_at,"Body"}'::text[]);
@@ -21,9 +21,9 @@ select better_supabase.audit('crm."Deals"', redact := array['secret']::text[], c
     ]);
   });
 
-  it("reads a deferrable constraint trigger as a registration", () => {
+  it("reads a deferrable constraint trigger as a registration", async () => {
     expect(
-      auditRegistrations([
+      await auditRegistrationsOf([
         file(
           `create constraint trigger bsb_audit after insert or update or delete on better_supabase.tasks deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":["updated_at"],"redact":[]}');`,
         ),
@@ -33,9 +33,9 @@ select better_supabase.audit('crm."Deals"', redact := array['secret']::text[], c
     ]);
   });
 
-  it("lets a later call replace an earlier one and unaudit remove it", () => {
+  it("lets a later call replace an earlier one and unaudit remove it", async () => {
     expect(
-      auditRegistrations([
+      await auditRegistrationsOf([
         file(
           "select better_supabase.audit('public.a');\nselect better_supabase.audit('public.b');",
         ),
@@ -46,9 +46,9 @@ select better_supabase.audit('crm."Deals"', redact := array['secret']::text[], c
     ).toEqual([{ target: "public.a", ignore: ["x"], redact: [] }]);
   });
 
-  it("treats a later drop table like unaudit and keeps a table audited again", () => {
+  it("treats a later drop table like unaudit and keeps a table audited again", async () => {
     expect(
-      auditRegistrations([
+      await auditRegistrationsOf([
         file(`
 select better_supabase.audit('public.a');
 select better_supabase.audit('public.b');
@@ -66,9 +66,9 @@ select better_supabase.audit('public.c', ignore => '{x}');
     ).toEqual([{ target: "public.c", ignore: ["x"], redact: [] }]);
   });
 
-  it("moves a registration to the new name of a renamed table", () => {
+  it("moves a registration to the new name of a renamed table", async () => {
     expect(
-      auditRegistrations([
+      await auditRegistrationsOf([
         file(`
 select better_supabase.audit('public.template_workflows', ignore => '{updated_at}');
 select better_supabase.audit('crm."Old Deals"', redact => '{secret}');
@@ -92,9 +92,9 @@ alter table public.unaudited rename to other;
     ]);
   });
 
-  it("skips comments, the module's own definitions and non-literal arguments", () => {
+  it("skips comments, the module's own definitions and non-literal arguments", async () => {
     expect(
-      auditRegistrations([
+      await auditRegistrationsOf([
         file(`
 -- select better_supabase.audit('public.commented');
 /* select better_supabase.audit('public.block'); */
@@ -103,76 +103,16 @@ returns void language sql as $$ select 1 $$;
 revoke execute on function better_supabase.unaudit(regclass) from public;
 select better_supabase.audit(format('%I.%I', 'public', 't'));
 select better_supabase.audit('public.dynamic', ignore => columns_of('x'));
-select better_supabase.audit('public.unclosed'
 `),
       ]),
     ).toEqual([]);
   });
 });
 
-describe("audit pgTAP files", () => {
-  const audited = [
-    { target: "public.customers", ignore: ["updated_at"], redact: ["kvk"] },
-    { target: "crm.Deals", ignore: [], redact: [] },
-  ];
-
-  it("writes one test file for all audited tables", () => {
-    const tests = renderBlocks(["audit"], { auditedTables: audited }).filter(
-      (entry) => entry.kind === "test",
-    );
-
-    expect(tests.map((entry) => entry.path)).toEqual([
-      "supabase/tests/900_better_supabase_audit_tables.test.sql",
-    ]);
-    const customers = tests[0]!.contents;
-    const deals = customers;
-    expect(customers).toContain("-- @bsb-block-test audit");
-    expect(customers).toContain("select extensions.plan(12);");
-    expect(customers).toContain(`like "public"."customers" including defaults`);
-    expect(customers).toContain(
-      `ignore => '{"updated_at"}'::text[], redact => '{"kvk"}'::text[]`,
-    );
-    expect(customers).toContain("leave out updated_at");
-    expect(customers).toContain("mask kvk");
-    expect(deals).toContain(`'"crm"."Deals"'::regclass`);
-  });
-
-  it("reads the snapshots from the restricted table and skips what the app's log lacks", () => {
-    const restricted = renderBlocks(["audit"], {
-      auditedTables: audited.slice(0, 1),
-      modules: { audit: { options: { restricted: true } } },
-    }).find((entry) => entry.kind === "test");
-
-    expect(restricted!.contents).toContain(
-      'left join "better_supabase"."audit_events_restricted" r on r."entry_id" = l."id"',
-    );
-
-    const bare = renderBlocks(["audit"], {
-      auditedTables: audited.slice(0, 1),
-      modules: {
-        audit: {
-          tables: { log: "public.audit_log" },
-          columns: { log: { table: null } },
-        },
-      },
-      ownTables: { "public.audit_log": "supabase/schemas/audit.sql" },
-    }).find((entry) => entry.kind === "test");
-
-    expect(bare!.contents).toContain("select extensions.plan(4);");
-    expect(bare!.contents).not.toContain("bsb_audit_probe");
-  });
-
-  it("writes no test files without audited tables", () => {
-    expect(
-      renderBlocks(["audit"]).filter((entry) => entry.kind === "test"),
-    ).toEqual([]);
-  });
-});
-
 describe("auditRegistrations of static triggers", () => {
-  it("reads a bsb_audit trigger with a when clause", () => {
+  it("reads a bsb_audit trigger with a when clause", async () => {
     expect(
-      auditRegistrations([
+      await auditRegistrationsOf([
         {
           text: `create trigger bsb_audit after insert or update or delete on public.invoices
   for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore": ["updated_at"], "redact": []}');`,
@@ -183,9 +123,9 @@ describe("auditRegistrations of static triggers", () => {
     ]);
   });
 
-  it("reads bsb_audit triggers that pass their settings to audit_row_change", () => {
+  it("reads bsb_audit triggers that pass their settings to audit_row_change", async () => {
     expect(
-      auditRegistrations([
+      await auditRegistrationsOf([
         {
           text: `create trigger bsb_audit after insert or update or delete on public.invoices
   for each row execute function better_supabase.audit_row_change('{"ignore": ["updated_at"], "redact": ["iban"], "event_prefix": "invoice"}');

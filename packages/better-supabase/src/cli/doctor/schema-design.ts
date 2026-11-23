@@ -6,8 +6,8 @@ import type {
 } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { sameTenantLayout } from "../../sql/index.ts";
 import { configFor } from "../gen/shared.ts";
+import { sameTenantLayout } from "../same-tenant-layout.ts";
 import { splinterTables } from "./advisor-rules.ts";
 import { enrichedAppTables } from "./app-table-scope.ts";
 import { receiverIsNotClient } from "./receiver-types.ts";

@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { buildModel, conflicts } from "../../../src/sql/pipeline/model.ts";
+import { buildModel, conflicts } from "../../../src/cli/declaration-model.ts";
 import { PRELUDE_FUNCTIONS } from "../../../src/sql/pipeline/prelude.ts";
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { primeAll } from "../../helpers/facts.ts";
 
 const files = renderBlocks(Object.keys(SQL_MODULES), {}).filter(
   (file) => file.kind === "schema",
 );
+
+await primeAll(...files.map((file) => file.contents));
 
 const model = buildModel(
   files.map((file) => ({ path: file.path, text: file.contents })),

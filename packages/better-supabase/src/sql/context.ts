@@ -15,7 +15,7 @@ import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { BlockSqlAction, BlockSqlEmit } from "./audit-actions.ts";
 import type { BlockContributions } from "./contributions.ts";
-import type { DeclaredForeignKey } from "./foreign-keys.ts";
+import type { DeclaredForeignKey } from "./layout-types.ts";
 import type { BlockSqlAppTable, OwnView } from "./module-types.ts";
 import type { BlockSqlComposition } from "./reads.ts";
 import type { ResolvedNames } from "./resolved-names.ts";

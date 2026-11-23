@@ -1,19 +1,21 @@
-import type { AnyBlocksConfig } from "../config/blocks.ts";
-import type { BlockSqlContext } from "./context.ts";
-import type { BlockSqlLayout } from "./module-types.ts";
+import type { AnyBlocksConfig } from "../config/index.ts";
+import type { BlockSqlContext, BlockSqlLayout } from "../sql/index.ts";
 
-import { moduleContext } from "./module-context.ts";
-import { SQL_MODULES } from "./registry.ts";
-import { moduleBody } from "./render.ts";
-import { memoized } from "./result-memo.ts";
+import {
+  memoized,
+  moduleBody,
+  moduleContext,
+  SQL_MODULES,
+} from "../sql/index.ts";
+import { qualified } from "../sql/text-edit.ts";
+import { hasValueEntry } from "../sql/value-maps.ts";
+import { computedWrites } from "./plpgsql-text-writes.ts";
 import {
   declaredColumnTypes,
   declaredEnums,
   declaredTableColumns,
-  qualified,
-} from "./schema-scan.ts";
-import { computedWrites } from "./text-writes.ts";
-import { hasValueEntry } from "./value-maps.ts";
+  primeSchemaTexts,
+} from "./sql-facts.ts";
 
 /**
  * A table of the app's that a module reads and writes (one `ownTables` lists,
@@ -63,18 +65,52 @@ const writesOf = (
 ): ReadonlyMap<string, ReadonlySet<string>> =>
   new Map(entries.map(([key, members]) => [key, new Set(members)]));
 
+/** The default render of every module, the text the managed columns come from. */
+const defaultTexts = (): string[] =>
+  Object.values(SQL_MODULES).map((module) => rendered(() => module.sql));
+
+/** Every configured module's body, the text the writes on app tables come from. */
+const configuredTexts = (
+  modules: AnyBlocksConfig,
+  ownTables: Readonly<Record<string, string>> | undefined,
+  subjects: BlockSqlLayout["subjects"],
+): string[] =>
+  Object.keys(modules).map((name) =>
+    rendered(() =>
+      moduleBody(name, {
+        modules,
+        ...(ownTables === undefined ? {} : { ownTables }),
+        ...(subjects === undefined ? {} : { subjects }),
+      }),
+    ),
+  );
+
+/**
+ * Reads the module SQL the adoption functions below look at, so they can run
+ * synchronously. Await it once before `adoptedTables`, `adoptedViews`,
+ * `adoptedColumnProblems` or `moduleWritesText`, with the same arguments.
+ *
+ * @param modules - The configured blocks.
+ * @param ownTables - `blocks.<name>.on` tables.
+ * @param subjects - The subject layout, when the config has one.
+ */
+export async function primeAdoption(
+  modules: AnyBlocksConfig,
+  ownTables?: Readonly<Record<string, string>>,
+  subjects?: BlockSqlLayout["subjects"],
+): Promise<void> {
+  await primeSchemaTexts([
+    ...defaultTexts(),
+    ...configuredTexts(modules, ownTables, subjects),
+  ]);
+}
+
 let defaults: ReadonlyMap<string, ReadonlySet<string>> | undefined;
 
 function defaultWrites(): ReadonlyMap<string, ReadonlySet<string>> {
   defaults ??= writesOf(
     memoized("default-writes", [], isWriteEntries, () =>
-      entriesOf(
-        computedWrites(
-          Object.values(SQL_MODULES)
-            .map((module) => rendered(() => module.sql))
-            .join("\n"),
-        ),
-      ),
+      entriesOf(computedWrites(defaultTexts())),
     ),
   );
 
@@ -93,19 +129,7 @@ function configuredWrites(
       isWriteEntries,
       () =>
         entriesOf(
-          computedWrites(
-            Object.keys(modules)
-              .map((name) =>
-                rendered(() =>
-                  moduleBody(name, {
-                    modules,
-                    ...(ownTables === undefined ? {} : { ownTables }),
-                    ...(subjects === undefined ? {} : { subjects }),
-                  }),
-                ),
-              )
-              .join("\n"),
-          ),
+          computedWrites(configuredTexts(modules, ownTables, subjects)),
         ),
     ),
   );
@@ -356,14 +380,17 @@ export function adoptedTables(
  * write as text. `upgrade` refuses those configs. A column missing from a
  * block's own logical table isn't one: the block adds it.
  */
-export function adoptedColumnProblems(
+export async function adoptedColumnProblems(
   modules: AnyBlocksConfig,
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
   ownTables?: Readonly<Record<string, string>>,
   subjects?: BlockSqlLayout["subjects"],
   accessProvider?: BlockSqlLayout["accessProvider"],
-): readonly string[] {
+): Promise<readonly string[]> {
+  await primeAdoption(modules, ownTables, subjects);
+  await primeSchemaTexts(files.map((file) => file.text));
+
   const declared = declaredTableColumns(files, schemas);
 
   const context = {

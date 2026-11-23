@@ -1,4 +1,4 @@
-import type { OwnIndex } from "./schema-scan.ts";
+import type { OwnIndex } from "./layout-types.ts";
 
 import {
   closingParen,
@@ -9,7 +9,7 @@ import {
   qualified,
   splitTopLevel,
   TABLE,
-} from "./schema-scan.ts";
+} from "./text-edit.ts";
 
 const TABLE_NAME = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
 

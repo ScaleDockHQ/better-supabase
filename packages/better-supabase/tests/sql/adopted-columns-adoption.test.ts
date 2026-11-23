@@ -2,21 +2,21 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
 
-import { adoptedTables } from "../../src/sql/adopted-columns.ts";
+import { adoptedTablesOf } from "../helpers/facts.ts";
 
-const columnsOf = (
+const columnsOf = async (
   modules: AnyBlocksConfig,
   ownTables: Readonly<Record<string, string>>,
   table: string,
-): readonly string[] =>
+): Promise<readonly string[]> =>
   Object.keys(
-    adoptedTables(modules, ownTables).find(
+    (await adoptedTablesOf(modules, ownTables)).find(
       (entry) => `${entry.schema}.${entry.table}` === table,
     )?.columns ?? {},
   );
 
 describe("adopted columns of the opt-in modes", () => {
-  it("checks the employee, name and flat detail columns only in their modes", () => {
+  it("checks the employee, name and flat detail columns only in their modes", async () => {
     const own = {
       "public.staff": "app.sql",
       "public.staff_private": "app.sql",
@@ -41,14 +41,16 @@ describe("adopted columns of the opt-in modes", () => {
       },
     } satisfies AnyBlocksConfig;
 
-    expect(columnsOf(tables, own, "public.staff")).not.toContain("firstName");
-    expect(columnsOf(tables, own, "public.staff_private")).not.toContain(
+    expect(await columnsOf(tables, own, "public.staff")).not.toContain(
+      "firstName",
+    );
+    expect(await columnsOf(tables, own, "public.staff_private")).not.toContain(
       "city",
     );
-    expect(columnsOf(tables, own, "public.work_entries")).not.toContain(
+    expect(await columnsOf(tables, own, "public.work_entries")).not.toContain(
       "employee",
     );
-    expect(columnsOf(tables, own, "public.week_sheets")).not.toContain(
+    expect(await columnsOf(tables, own, "public.week_sheets")).not.toContain(
       "employee",
     );
 
@@ -63,13 +65,19 @@ describe("adopted columns of the opt-in modes", () => {
       },
     };
 
-    expect(columnsOf(opted, own, "public.staff")).toContain("firstName");
-    expect(columnsOf(opted, own, "public.staff_private")).toContain("city");
-    expect(columnsOf(opted, own, "public.work_entries")).toContain("employee");
-    expect(columnsOf(opted, own, "public.week_sheets")).toContain("employee");
+    expect(await columnsOf(opted, own, "public.staff")).toContain("firstName");
+    expect(await columnsOf(opted, own, "public.staff_private")).toContain(
+      "city",
+    );
+    expect(await columnsOf(opted, own, "public.work_entries")).toContain(
+      "employee",
+    );
+    expect(await columnsOf(opted, own, "public.week_sheets")).toContain(
+      "employee",
+    );
   });
 
-  it("checks the calendar access, detail and attendee columns only in their modes", () => {
+  it("checks the calendar access, detail and attendee columns only in their modes", async () => {
     const own = {
       "public.calendars": "app.sql",
       "public.events": "app.sql",
@@ -86,10 +94,12 @@ describe("adopted columns of the opt-in modes", () => {
       },
     };
 
-    expect(columnsOf(base, own, "public.calendars")).not.toContain(
+    expect(await columnsOf(base, own, "public.calendars")).not.toContain(
       "visibility",
     );
-    expect(columnsOf(base, own, "public.attendees")).not.toContain("organizer");
+    expect(await columnsOf(base, own, "public.attendees")).not.toContain(
+      "organizer",
+    );
 
     const opted: AnyBlocksConfig = {
       calendar: {
@@ -98,9 +108,13 @@ describe("adopted columns of the opt-in modes", () => {
       },
     };
 
-    expect(columnsOf(opted, own, "public.calendars")).toContain("visibility");
-    expect(columnsOf(opted, own, "public.calendars")).toContain("rank");
-    expect(columnsOf(opted, own, "public.events")).toContain("owner");
-    expect(columnsOf(opted, own, "public.attendees")).toContain("organizer");
+    expect(await columnsOf(opted, own, "public.calendars")).toContain(
+      "visibility",
+    );
+    expect(await columnsOf(opted, own, "public.calendars")).toContain("rank");
+    expect(await columnsOf(opted, own, "public.events")).toContain("owner");
+    expect(await columnsOf(opted, own, "public.attendees")).toContain(
+      "organizer",
+    );
   });
 });

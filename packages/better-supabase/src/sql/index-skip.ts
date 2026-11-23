@@ -6,7 +6,7 @@ import {
   maskComments,
   statementSpans,
 } from "./over-app-tables.ts";
-import { indexSignature, indexStatements } from "./schema-scan.ts";
+import { indexSignature, indexStatements } from "./text-edit.ts";
 
 const INDEX_NAME = /^[a-z_][a-z0-9_]*$/;
 

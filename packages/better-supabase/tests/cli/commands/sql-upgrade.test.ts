@@ -58,7 +58,7 @@ describe("sql upgrade with forward steps", () => {
     const dry = await sql(["upgrade", "--dry-run"]);
 
     const path =
-      /supabase\/migrations\/20261003080910_better_supabase_reviewed_upgrade_[0-9a-f]{8}\.sql/.exec(
+      /supabase\/migrations\/20261003080910_better_supabase_reviewed_upgrade_v2-[0-9a-f]{8}\.sql/.exec(
         dry.output ?? "",
       )?.[0];
 

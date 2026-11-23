@@ -1,5 +1,6 @@
-import { parseBsbComment } from "./bsb-tags.ts";
-import { columnTagComments } from "./table-facts.ts";
+import { parseBsbComment } from "../sql/bsb-tags.ts";
+import { factsOf } from "./schema-reader/index.ts";
+import { columnTagComments } from "./tag-comments.ts";
 
 /**
  * The `tables` and `columns` entries that `@bsb` tags in the app's files give
@@ -14,9 +15,6 @@ export interface MappingTags {
   >;
 }
 
-const TABLE_COMMENT =
-  /comment\s+on\s+table\s+(?:"?([a-z_][a-z0-9_]*)"?\.)?"?([a-z_][a-z0-9_]*)"?\s+is\s+'((?:[^']|'')*)'\s*;/giu;
-
 /**
  * The value of a `name=value` tag, which `@bsb block-table=memberships.members`
  * writes as the tag name.
@@ -29,7 +27,8 @@ const tagValue = (comment: string, name: string): string | undefined =>
 /**
  * `@bsb block-table=<block>.<table>` on a table comment maps the logical table
  * to the app's table; `@bsb column=<logical>` on a column of that table maps
- * the logical column. Config entries win over a tag.
+ * the logical column. Config entries win over a tag. The texts are read first
+ * with `primeSchemaFacts`.
  */
 export function mappingTagsOf(
   texts: readonly string[],
@@ -40,14 +39,13 @@ export function mappingTagsOf(
   const owner = new Map<string, readonly [string, string]>();
 
   for (const text of texts) {
-    for (const match of text.matchAll(TABLE_COMMENT)) {
-      const schema = match[1] ?? "public";
+    for (const comment of factsOf(text).comments) {
+      if (comment.target !== "table") {
+        continue;
+      }
 
-      const value = tagValue(
-        (match[3] ?? "").replaceAll("''", "'"),
-        "block-table",
-      );
-
+      const [schema = "public", name = ""] = comment.name.split(".");
+      const value = tagValue(comment.text, "block-table");
       const [block, logical, ...rest] = value?.split(".") ?? [];
 
       if (
@@ -59,7 +57,7 @@ export function mappingTagsOf(
         continue;
       }
 
-      const table = `${schema}.${match[2] ?? ""}`;
+      const table = `${schema}.${name}`;
 
       owner.set(table, [block, logical]);
       (tables[block] ??= {})[logical] = table;

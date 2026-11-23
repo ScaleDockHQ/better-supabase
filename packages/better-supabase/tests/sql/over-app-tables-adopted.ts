@@ -6,7 +6,7 @@ import { canBeAppTable } from "../../src/sql/app-owned.ts";
 import { moduleContext } from "../../src/sql/module-context.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
-import { declaredTables } from "../../src/sql/schema-scan.ts";
+import { declaredTablesOf } from "../helpers/facts.ts";
 
 /** Options a module needs once one of its tables is the app's. */
 const OVER_APP_OPTIONS: AnyBlocksConfig = {
@@ -28,9 +28,13 @@ export const ALONE: readonly string[] = Object.keys(SQL_MODULES).filter(
 );
 
 /** `[module, table]` for each table a module creates on its own. */
-const TABLES = ALONE.flatMap((name) =>
-  createdAlone(name).map((table) => [name, table] as const),
-);
+const TABLES = (
+  await Promise.all(
+    ALONE.map(async (name) =>
+      (await createdAlone(name)).map((table) => [name, table] as const),
+    ),
+  )
+).flat();
 
 function specOf(module: string, table: string) {
   const ctx = moduleContext(module, {}, [module]);
@@ -69,20 +73,23 @@ function tablesOf(module: string): string[] {
     });
 }
 
-function created(module: string, ownTables: Record<string, string>): string[] {
+async function created(
+  module: string,
+  ownTables: Record<string, string>,
+): Promise<string[]> {
   const files = renderBlocks([module], {
     ownTables,
     modules: OVER_APP_OPTIONS,
   }).filter((file) => file.module === module);
 
-  return declaredTables(
+  return declaredTablesOf(
     files.map((file) => ({ text: file.contents })),
     ["public", "better_supabase"],
   );
 }
 
-function createdAlone(module: string): string[] {
-  const alone = created(module, {});
+async function createdAlone(module: string): Promise<string[]> {
+  const alone = await created(module, {});
 
   return tablesOf(module).filter((table) => alone.includes(table));
 }
@@ -109,20 +116,22 @@ export function registerAdoptedTables(part: 0 | 1): void {
   describe("blocks over the app's tables", () => {
     it.each(over)(
       "%s leaves %s to the app and creates its other tables",
-      (module, table) => {
-        const made = created(module, { [table]: "app.sql" });
+      async (module, table) => {
+        const made = await created(module, { [table]: "app.sql" });
 
         expect(made).not.toContain(table);
         expect(
           tablesOf(module).filter((other) => made.includes(other)),
-        ).toEqual(createdAlone(module).filter((other) => other !== table));
+        ).toEqual(
+          (await createdAlone(module)).filter((other) => other !== table),
+        );
       },
     );
 
     it.each(creating)(
       "%s refuses to create %s the app has",
-      (module, table) => {
-        expect(() => created(module, { [table]: "app.sql" })).toThrow(
+      async (module, table) => {
+        await expect(created(module, { [table]: "app.sql" })).rejects.toThrow(
           `creates ${table}, which is already in app.sql`,
         );
       },

@@ -60,8 +60,8 @@ const MEMBERS = table("team_members", {
 });
 
 describe("proposeAdoption", () => {
-  it("maps a block onto tables under its default names, guessing renamed columns", () => {
-    const proposal = proposeAdoption("teams", [TEAMS, MEMBERS]);
+  it("maps a block onto tables under its default names, guessing renamed columns", async () => {
+    const proposal = await proposeAdoption("teams", [TEAMS, MEMBERS]);
     expect(proposal.errors).toEqual([]);
     expect(proposal.entry).toEqual({
       tables: { teams: "public.teams", members: "public.team_members" },
@@ -77,10 +77,10 @@ describe("proposeAdoption", () => {
     });
   });
 
-  it("assigns the tables in --from to the logical tables they match best", () => {
+  it("assigns the tables in --from to the logical tables they match best", async () => {
     const squads = { ...TEAMS, schema: "app", name: "squads" };
 
-    const proposal = proposeAdoption("teams", [squads, MEMBERS], {
+    const proposal = await proposeAdoption("teams", [squads, MEMBERS], {
       from: ["app.squads"],
     });
 
@@ -90,7 +90,7 @@ describe("proposeAdoption", () => {
     });
   });
 
-  it("maps optional columns the table lacks to null, and warns that the block adds required ones", () => {
+  it("maps optional columns the table lacks to null, and warns that the block adds required ones", async () => {
     const organizations = table("organizations", {
       id: "uuid",
       name: "text",
@@ -98,14 +98,14 @@ describe("proposeAdoption", () => {
       updated_at: "timestamptz",
     });
 
-    const proposal = proposeAdoption("organizations", [organizations]);
+    const proposal = await proposeAdoption("organizations", [organizations]);
     expect(proposal.errors).toEqual([]);
     expect(proposal.entry.columns?.["organizations"]).toMatchObject({
       createdBy: null,
       deletedAt: null,
     });
 
-    const missing = proposeAdoption("teams", [
+    const missing = await proposeAdoption("teams", [
       table("teams", { id: "uuid", organization_id: "uuid" }),
       MEMBERS,
     ]);
@@ -117,7 +117,7 @@ describe("proposeAdoption", () => {
     expect(missing.entry.columns?.["teams"]).not.toHaveProperty("name");
   });
 
-  it("suggests ownTablePolicies app when an adopted table has permissive policies of its own", () => {
+  it("suggests ownTablePolicies app when an adopted table has permissive policies of its own", async () => {
     const organizations = (
       policies: NonNullable<ExistingTable["policies"]>,
     ): ExistingTable => ({
@@ -130,7 +130,7 @@ describe("proposeAdoption", () => {
       policies,
     });
 
-    const own = proposeAdoption("organizations", [
+    const own = await proposeAdoption("organizations", [
       organizations([
         { name: "organizations_member_select", permissive: true },
         { name: "bsb_tenant_scope", permissive: false },
@@ -145,10 +145,10 @@ describe("proposeAdoption", () => {
     );
 
     for (const proposal of [
-      proposeAdoption("organizations", [
+      await proposeAdoption("organizations", [
         organizations([{ name: "bsb_organizations_select", permissive: true }]),
       ]),
-      proposeAdoption(
+      await proposeAdoption(
         "organizations",
         [organizations([{ name: "mine", permissive: true }])],
         { blocks: { organizations: { ownTablePolicies: "block" } } },
@@ -158,7 +158,7 @@ describe("proposeAdoption", () => {
     }
   });
 
-  it("reports an enum column the block computes text for, and takes one it casts or writes literals to", () => {
+  it("reports an enum column the block computes text for, and takes one it casts or writes literals to", async () => {
     const enumColumn = (
       existing: ExistingTable,
       name: string,
@@ -182,27 +182,33 @@ describe("proposeAdoption", () => {
     });
 
     expect(
-      proposeAdoption("numbering", [
-        enumColumn(sequences, "period", "fiscal_period"),
-      ]).errors,
+      (
+        await proposeAdoption("numbering", [
+          enumColumn(sequences, "period", "fiscal_period"),
+        ])
+      ).errors,
     ).toEqual([
       expect.stringContaining(
         "public.number_sequences.period (sequences.period), which is the enum public.fiscal_period",
       ),
     ]);
     expect(
-      proposeAdoption("numbering", [
-        enumColumn(sequences, "entity", "subject_type"),
-      ]).errors,
+      (
+        await proposeAdoption("numbering", [
+          enumColumn(sequences, "entity", "subject_type"),
+        ])
+      ).errors,
     ).toEqual([]);
     expect(
-      proposeAdoption("teams", [
-        enumColumn(TEAMS, "status", "team_status"),
-        MEMBERS,
-      ]).errors,
+      (
+        await proposeAdoption("teams", [
+          enumColumn(TEAMS, "status", "team_status"),
+          MEMBERS,
+        ])
+      ).errors,
     ).toEqual([]);
 
-    const profiles = proposeAdoption("profiles", [
+    const profiles = await proposeAdoption("profiles", [
       enumColumn(
         enumColumn(
           table("profiles", {
@@ -232,8 +238,8 @@ describe("proposeAdoption", () => {
     );
   });
 
-  it("takes the id type from the tenant column", () => {
-    const proposal = proposeAdoption("teams", [
+  it("takes the id type from the tenant column", async () => {
+    const proposal = await proposeAdoption("teams", [
       {
         ...TEAMS,
         columns: TEAMS.columns.map((c) =>
@@ -250,42 +256,45 @@ describe("proposeAdoption", () => {
 
     expect(proposal.entry.idType).toBe("bigint");
 
-    const set = proposeAdoption("teams", [TEAMS, MEMBERS], {
+    const set = await proposeAdoption("teams", [TEAMS, MEMBERS], {
       blocks: { teams: { idType: "uuid", options: {} } },
     });
 
     expect(set.entry.idType).toBe("uuid");
   });
 
-  it("reports tables it can't find or match", () => {
+  it("reports tables it can't find or match", async () => {
     expect(
-      proposeAdoption("teams", [MEMBERS], { from: ["public.nope"] }).errors,
+      (await proposeAdoption("teams", [MEMBERS], { from: ["public.nope"] }))
+        .errors,
     ).toEqual(["public.nope is not a table or view in the database."]);
-    expect(proposeAdoption("teams", []).errors).toEqual([
+    expect((await proposeAdoption("teams", [])).errors).toEqual([
       "None of the teams tables (teams, team_members) is in the database. Pass yours with --tables.",
     ]);
     const unrelated = table("invoices", { total: "numeric" });
     expect(
-      proposeAdoption("teams", [unrelated, TEAMS, MEMBERS], {
-        from: ["invoices"],
-      }).errors,
+      (
+        await proposeAdoption("teams", [unrelated, TEAMS, MEMBERS], {
+          from: ["invoices"],
+        })
+      ).errors,
     ).toEqual([
       "public.invoices matches none of the teams tables (teams, members).",
     ]);
   });
 
-  it("refuses blocks that create all their tables", () => {
-    expect(proposeAdoption("workflow-sdk", []).errors[0]).toContain(
+  it("refuses blocks that create all their tables", async () => {
+    expect((await proposeAdoption("workflow-sdk", [])).errors[0]).toContain(
       "workflow-sdk creates all its tables. Blocks that can run over yours: ",
     );
-    expect(proposeAdoption("nope", []).errors).toEqual([
+    expect((await proposeAdoption("nope", [])).errors).toEqual([
       "nope is not a block. See `better-supabase blocks list`.",
     ]);
     expect(adoptableBlocks()).toContain("teams");
   });
 
-  it("reports what the module refuses in the merged entry", () => {
-    const proposal = proposeAdoption("teams", [TEAMS, MEMBERS], {
+  it("reports what the module refuses in the merged entry", async () => {
+    const proposal = await proposeAdoption("teams", [TEAMS, MEMBERS], {
       blocks: { teams: { options: { nope: true } } },
     });
 
@@ -294,8 +303,8 @@ describe("proposeAdoption", () => {
     ]);
   });
 
-  it("warns about migration-only options the entry keeps", () => {
-    const proposal = proposeAdoption("outbox", defaults("outbox"), {
+  it("warns about migration-only options the entry keeps", async () => {
+    const proposal = await proposeAdoption("outbox", defaults("outbox"), {
       blocks: { outbox: { options: { defaultSource: "crm" } } },
     });
 
@@ -342,8 +351,8 @@ describe("proposeAdoption over a view", () => {
     created_at: "timestamptz",
   });
 
-  it("maps a block table to a view at its name", () => {
-    const proposal = proposeAdoption("memberships", [MEMBERSHIPS_VIEW], {
+  it("maps a block table to a view at its name", async () => {
+    const proposal = await proposeAdoption("memberships", [MEMBERSHIPS_VIEW], {
       from: ["public.organization_memberships"],
     });
 
@@ -355,8 +364,8 @@ describe("proposeAdoption over a view", () => {
     expect(proposal.entry.columns?.["memberships"]).toBeUndefined();
   });
 
-  it("refuses a view without a required column", () => {
-    const proposal = proposeAdoption(
+  it("refuses a view without a required column", async () => {
+    const proposal = await proposeAdoption(
       "memberships",
       [
         view({
@@ -377,9 +386,9 @@ describe("proposeAdoption over a view", () => {
 });
 
 describe("describeProposal", () => {
-  it("lists each table and column, then the report", () => {
+  it("lists each table and column, then the report", async () => {
     const lines = describeProposal(
-      proposeAdoption("teams", [
+      await proposeAdoption("teams", [
         table("teams", { id: "uuid", organization_id: "uuid" }),
         MEMBERS,
       ]),

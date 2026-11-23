@@ -22,19 +22,6 @@ export { isBlockSqlIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
 export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
 
 export {
-  appColumnsOf,
-  buildModel,
-  conflicts,
-  duplicatePolicies,
-  ownerOf,
-  parseDeclared,
-  setParseStore,
-  type Declaration,
-  type ParseStore,
-  type SchemaModel,
-} from "./pipeline/model.ts";
-
-export {
   moduleRenderStats,
   setModuleRenderStore,
   type ModuleRenderEntry,
@@ -42,8 +29,6 @@ export {
 } from "./pipeline/module-cache.ts";
 
 export { renderKey } from "./pipeline/render-key.ts";
-
-export { splitStatements, type SqlStatement } from "./pipeline/split.ts";
 
 export { entityRenamePlan } from "./entity-upgrade.ts";
 
@@ -64,8 +49,6 @@ export {
 } from "./introspect.ts";
 
 export { blockSqlVersion } from "./module-types.ts";
-
-export { mappingTagsOf, withMappingTags } from "./mapping-tags.ts";
 
 export { moduleSource, resolveBlocks, SQL_MODULES } from "./registry.ts";
 
@@ -127,15 +110,6 @@ export type { BlockSqlIdType } from "./context.ts";
 export type { BlockSqlTopic } from "./render.ts";
 
 export {
-  adoptedColumnProblems,
-  type AdoptedTable,
-  adoptedTables,
-  type AdoptedView,
-  adoptedViews,
-  moduleWritesText,
-} from "./adopted-columns.ts";
-
-export {
   clearMemo,
   memoStats,
   memoized,
@@ -144,34 +118,27 @@ export {
 
 export type { MemoBackend } from "./result-memo.ts";
 
-export { auditRegistrations } from "./audit-registrations.ts";
-
 export { excludedColumns, resolveExposeColumns } from "./expose-columns.ts";
 
 export {
   auditExemptTag,
-  columnTagComments,
   grantExpose,
   grantTag,
   lifecycleTag,
   sameTenantTag,
-  sameTenantTagsOf,
-  type SameTenantTags,
   splitList,
   TABLE_FACT_TAGS,
-  type ColumnTagComment,
   type GrantFact,
   type LifecycleFact,
   type SameTenantFact,
 } from "./table-facts.ts";
 
-export {
-  type DeclaredForeignKey,
-  declaredForeignKeys,
-  sameTenantLayout,
-} from "./foreign-keys.ts";
-
-export { type OwnedColumn, ownedColumns } from "./owned-columns.ts";
+export type {
+  DeclaredForeignKey,
+  DeclaredView,
+  OwnIndex,
+  PolicyGrant,
+} from "./layout-types.ts";
 
 export {
   type DataExportPlan,
@@ -187,18 +154,11 @@ export { tenantsQuery, type TenantQuery } from "./tenant-query.ts";
 
 export { subjectColumns } from "./subject-registry.ts";
 
-export type { AuditedTable } from "./audit-registrations.ts";
+export type { AuditedTable } from "./layout-types.ts";
 
 export { blockReadRoles } from "./read-roles.ts";
 
 export type { ReadRolesModule } from "./read-roles.ts";
-
-export {
-  type CheckValues,
-  checkValues,
-  declaredCheckValues,
-  type TableCheckValues,
-} from "./check-values.ts";
 
 export {
   appValues,
@@ -206,26 +166,6 @@ export {
   type ValueMap,
   type ValueMaps,
 } from "./value-maps.ts";
-
-export { writtenValues } from "./written-values.ts";
-
-export { duplicateObjects, type DuplicateObject } from "./duplicate-objects.ts";
-
-export {
-  addedColumnTypes,
-  declaredColumnTypes,
-  declaredIndexes,
-  type OwnIndex,
-  declaredTableColumns,
-  declaredTables,
-  declaredUpdatedAtTriggers,
-  declaredViews,
-  type DeclaredView,
-  rlsTables,
-  extensionSchema,
-  policyGrants,
-  type PolicyGrant,
-} from "./schema-scan.ts";
 
 export {
   approverForNamesRequest,
@@ -275,11 +215,7 @@ export { notNullCheckName } from "./shared.ts";
 
 export { TENANT_SCOPE_NAMES, TENANT_SCOPE_POLICY } from "./tenant-scope.ts";
 
-export {
-  appTablePolicyNotes,
-  declaredPolicies,
-  widenedCommands,
-} from "./policy-cover.ts";
+export { appTablePolicyNotes, widenedCommands } from "./policy-cover.ts";
 
 export { bsbPolicyName } from "./policy-names.ts";
 

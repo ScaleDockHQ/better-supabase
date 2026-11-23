@@ -1,6 +1,7 @@
 import type { SupabaseConfig } from "../supabase-config.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { partsOf, withoutComments } from "../schema-reader/index.ts";
 import { declarativeSchemasDir } from "../supabase-config.ts";
 import { workflowOf } from "./shared.ts";
 
@@ -13,18 +14,6 @@ export function pgdeltaToml(
   return toml !== undefined && workflowOf(context) === "pg-delta"
     ? toml
     : undefined;
-}
-
-/**
- * Comments blanked out, so a commented-out statement never matches and line
- * numbers stay.
- */
-export function withoutComments(text: string): string {
-  return text
-    .replaceAll(/\/\*[\s\S]*?\*\//g, (comment) =>
-      comment.replaceAll(/[^\n]/g, " "),
-    )
-    .replaceAll(/--[^\n]*/g, (comment) => " ".repeat(comment.length));
 }
 
 export const lineAt = (text: string, index: number): number =>
@@ -104,15 +93,42 @@ function catalogLoops(context: DoctorContext): FindingInput[] {
 const CREATE_EXTENSION =
   /\bcreate\s+extension\s+(?:if\s+not\s+exists\s+)?"?([\w-]+)"?/gi;
 
+const blank = (text: string): string => text.replaceAll(/[^\n]/g, " ");
+
+const blankLiterals = (text: string): string =>
+  text.replaceAll(/'(?:[^']|'')*'/g, blank);
+
 /**
  * `text` without comments and with string literals blanked, keeping every
  * offset, so an error message that tells the reader to `create extension`
- * doesn't count as one.
+ * doesn't count as one. A dollar-quoted body is plpgsql text the reader keeps
+ * whole, so its line comments go here before its literals are read.
  */
 const statements = (text: string): string =>
-  withoutComments(text).replaceAll(/'(?:[^']|'')*'/g, (literal) =>
-    literal.replaceAll(/[^\n]/g, " "),
-  );
+  partsOf(text)
+    .map((part) => {
+      switch (part.kind) {
+        case "code": {
+          return part.text;
+        }
+
+        case "comment":
+        case "string": {
+          return blank(part.text);
+        }
+
+        case "dollar": {
+          return blankLiterals(part.text.replaceAll(/--[^\n]*/g, blank));
+        }
+
+        default: {
+          const unreachable: never = part.kind;
+
+          return unreachable;
+        }
+      }
+    })
+    .join("");
 
 /**
  * Extensions a pg-delta schema file creates, SQL module files included, that no

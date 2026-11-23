@@ -2,7 +2,8 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { splitStatements } from "../../src/sql/pipeline/split.ts";
+import { statementsOf } from "../../src/cli/schema-reader/index.ts";
+import { primeAll } from "../helpers/facts.ts";
 
 /**
  * The Supabase and Postgres practices the generated SQL is held to (plan Part
@@ -197,10 +198,11 @@ function aloneSchemaSections(text: string): string {
   return text
     .split(/^-- ==== /m)
     .filter((section) => /^(?:alone|with every module): schema /.test(section))
+    .map((section) => `-- ==== ${section}`)
     .join("\n");
 }
 
-function measure(): Record<string, Counts> {
+async function measure(): Promise<Record<string, Counts>> {
   const result: Record<string, Counts> = {};
 
   for (const file of readdirSync(golden)
@@ -208,9 +210,11 @@ function measure(): Record<string, Counts> {
     .toSorted()) {
     const text = readFileSync(join(golden, file), "utf-8");
 
-    const statements = splitStatements(text).map((statement) => statement.text);
+    await primeAll(text, aloneSchemaSections(text));
 
-    const schemaStatements = splitStatements(aloneSchemaSections(text)).map(
+    const statements = statementsOf(text).map((statement) => statement.text);
+
+    const schemaStatements = statementsOf(aloneSchemaSections(text)).map(
       (statement) => statement.text,
     );
 
@@ -234,8 +238,8 @@ function measure(): Record<string, Counts> {
   return result;
 }
 
-describe("generated SQL practices", () => {
-  const now = measure();
+describe("generated SQL practices", async () => {
+  const now = await measure();
 
   if (process.env["UPDATE_PRACTICES"] === "1") {
     writeFileSync(baselineFile, `${JSON.stringify(now, null, 2)}\n`);

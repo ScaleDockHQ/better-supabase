@@ -23,7 +23,11 @@ export const escape = (name: string): string =>
 export const withoutStrings = (text: string): string =>
   text.replaceAll(/'(?:[^']|'')*'/g, "''");
 
-/** SQL text without comments, which can name a call without making it. */
+/**
+ * A catalog expression or function body without comments. These texts come from
+ * the database snapshot, not from files the reader scanned, and a plpgsql body
+ * is not SQL the parser reads (ADR 1212), so this stays a text strip.
+ */
 export const withoutComments = (text: string): string =>
   text.replaceAll(/--[^\n]*|\/\*[\s\S]*?\*\//g, " ");
 

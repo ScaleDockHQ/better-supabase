@@ -116,7 +116,10 @@ export interface Codemod {
    * A rewrite of each of the project's own `.sql` files (schema files, seeds),
    * except migrations, which are never rewritten, and files the blocks wrote.
    */
-  readonly sql?: (text: string, context: MigrationContext) => string;
+  readonly sql?: (
+    text: string,
+    context: MigrationContext,
+  ) => Promise<string> | string;
   /**
    * SQL for a hand migration the codemod writes next to the app's own, or
    * `undefined` when nothing needs renaming. `sql` is the text of the project's

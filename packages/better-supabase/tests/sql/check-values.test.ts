@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  checkValues,
-  declaredCheckValues,
-} from "../../src/sql/check-values.ts";
+import { checkValues } from "../../src/cli/check-values.ts";
+import { declaredCheckValuesOf } from "../helpers/facts.ts";
 
 describe("checkValues", () => {
   it("reads an in list as a schema file writes it", () => {
@@ -67,7 +65,7 @@ describe("checkValues", () => {
 });
 
 describe("declaredCheckValues", () => {
-  it("reads the inline and table checks of a create table", () => {
+  it("reads the inline and table checks of a create table", async () => {
     const sql = `
 create table public.jobs (
   id uuid primary key,
@@ -77,7 +75,7 @@ create table public.jobs (
 );
 `;
 
-    expect(declaredCheckValues([{ text: sql }])).toEqual([
+    expect(await declaredCheckValuesOf([{ text: sql }])).toEqual([
       {
         table: "public.jobs",
         column: "status",
@@ -87,13 +85,13 @@ create table public.jobs (
     ]);
   });
 
-  it("keeps the tables in the schemas it is given", () => {
+  it("keeps the tables in the schemas it is given", async () => {
     const sql = `
 create table public.jobs (status text check (status in ('pending')));
 create table other.jobs (status text check (status in ('pending')));
 `;
 
-    expect(declaredCheckValues([{ text: sql }], ["public"])).toEqual([
+    expect(await declaredCheckValuesOf([{ text: sql }], ["public"])).toEqual([
       { table: "public.jobs", column: "status", values: ["pending"] },
     ]);
   });

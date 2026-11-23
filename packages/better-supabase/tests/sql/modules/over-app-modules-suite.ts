@@ -6,7 +6,7 @@ import { moduleContext } from "../../../src/sql/module-context.ts";
 import { runsOverAppTables } from "../../../src/sql/module-types.ts";
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
-import { declaredTables } from "../../../src/sql/schema-scan.ts";
+import { declaredTablesOf } from "../../helpers/facts.ts";
 
 /** The domain modules that run over tables the app already has. */
 export const MODULES = [
@@ -189,11 +189,14 @@ const unquote = (text: string): string => text.replaceAll('"', "");
  * `schema.table` of each logical table that can be the app's and that the
  * module creates in its setup.
  */
-function tablesOf(module: string): Record<string, string> {
+async function tablesOf(module: string): Promise<Record<string, string>> {
   const config = configOf(module);
   const ctx = moduleContext(module, { modules: config.modules }, config.names);
 
-  const created = declaredTables([{ text: render(module, {}) }], SCHEMAS);
+  const created = await declaredTablesOf(
+    [{ text: render(module, {}) }],
+    SCHEMAS,
+  );
 
   return Object.fromEntries(
     Object.entries(SQL_MODULES[module]?.names?.tables ?? {}).flatMap(
@@ -295,8 +298,8 @@ function nullOptional(module: string): AnyBlocksConfig {
 export function registerOverAppModules(
   modules: readonly (typeof MODULES)[number][],
 ): void {
-  describe.each(modules)("%s over the app's tables", (module) => {
-    const tables = tablesOf(module);
+  describe.each(modules)("%s over the app's tables", async (module) => {
+    const tables = await tablesOf(module);
 
     const all = Object.fromEntries(
       Object.values(tables).map((table) => [table, "app.sql"]),
@@ -316,9 +319,9 @@ export function registerOverAppModules(
       expect(runsOverAppTables(SQL_MODULES[module]!)).toBe(true);
     });
 
-    it.each(cases)("creates no table the app has (%s)", (_name, own) => {
+    it.each(cases)("creates no table the app has (%s)", async (_name, own) => {
       const sql = render(module, own);
-      const created = declaredTables([{ text: sql }], SCHEMAS);
+      const created = await declaredTablesOf([{ text: sql }], SCHEMAS);
 
       expect(created.filter((table) => Object.hasOwn(own, table))).toEqual([]);
       expect(
@@ -391,8 +394,8 @@ export function registerNeighborCases(): void {
           .join("\n"),
       );
 
-    it("casts the conversation access channels write to the app's column type", () => {
-      const conversations = tablesOf("messaging")["conversations"]!;
+    it("casts the conversation access channels write to the app's column type", async () => {
+      const conversations = (await tablesOf("messaging"))["conversations"]!;
 
       const sql = files(["messaging", "channels"], {
         [conversations]: "app.sql",
@@ -405,8 +408,8 @@ export function registerNeighborCases(): void {
       expect(update).toMatch(/access = better_supabase\.as_column_type\(/);
     });
 
-    it("binds pipelines to the tenant column the app's applications table names", () => {
-      const applications = tablesOf("hiring")["applications"]!;
+    it("binds pipelines to the tenant column the app's applications table names", async () => {
+      const applications = (await tablesOf("hiring"))["applications"]!;
 
       const sql = files(
         ["hiring", "pipelines"],
@@ -418,8 +421,8 @@ export function registerNeighborCases(): void {
       expect(sql).not.toContain("new.tenant_id");
     });
 
-    it("binds pipelines to the tenant column the app's work items table names", () => {
-      const items = tablesOf("tasks")["items"]!;
+    it("binds pipelines to the tenant column the app's work items table names", async () => {
+      const items = (await tablesOf("tasks"))["items"]!;
 
       const sql = files(
         ["tasks", "pipelines"],

@@ -1,14 +1,14 @@
-import type { Declaration } from "../../sql/index.ts";
+import type { Declaration } from "../declaration-model.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
+import { PRELUDE_FUNCTIONS } from "../../sql/index.ts";
 import {
   buildModel,
   conflicts,
   duplicatePolicies,
   ownerOf,
-  PRELUDE_FUNCTIONS,
-  splitStatements,
-} from "../../sql/index.ts";
+} from "../declaration-model.ts";
+import { statementsOf } from "../schema-reader/index.ts";
 import { overridesIn } from "./overrides.ts";
 import { workflowOf } from "./shared.ts";
 
@@ -140,7 +140,7 @@ function migratedObjects(
       }
     }
 
-    for (const statement of splitStatements(file.text)) {
+    for (const statement of statementsOf(file.text)) {
       const flat = statement.text.replaceAll(/\s+/g, " ");
       const object = created.get(statement.line);
 
@@ -199,9 +199,7 @@ function coverage(context: DoctorContext): {
   // A `do` block can rename or create an object by name, which this reading
   // can't follow, so a history that has one reports nothing.
   const dynamic = migrations.some((file) =>
-    splitStatements(file.text).some((statement) =>
-      /^do\b/i.test(statement.text),
-    ),
+    statementsOf(file.text).some((statement) => /^do\b/i.test(statement.text)),
   );
 
   if (dynamic) {
@@ -469,7 +467,7 @@ export const OWNERSHIP_RULES: readonly Rule[] = [
       );
 
       return files.flatMap((file) =>
-        splitStatements(file.text).flatMap((statement): FindingInput[] => {
+        statementsOf(file.text).flatMap((statement): FindingInput[] => {
           const match = TRIGGER.exec(statement.text.replaceAll(/\s+/g, " "));
 
           return match !== null &&
@@ -496,7 +494,7 @@ export const OWNERSHIP_RULES: readonly Rule[] = [
     check: (context) =>
       schemaFiles(context).flatMap((file) =>
         ownerOf(file.path, file.text).kind === "app"
-          ? splitStatements(file.text).flatMap((statement): FindingInput[] =>
+          ? statementsOf(file.text).flatMap((statement): FindingInput[] =>
               checkBodies(statement.text)
                 .filter(mixesBetween)
                 .map(() => ({

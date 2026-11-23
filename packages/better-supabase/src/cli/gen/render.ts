@@ -226,7 +226,7 @@ export async function render(
   const projected =
     config.blockNames.length === 0
       ? NO_PROJECTED_READS
-      : projectedReads(config, model.meta, await appSchemaTexts(config));
+      : await projectedReads(config, model.meta, await appSchemaTexts(config));
 
   const blockOptions = {
     ...runtime,

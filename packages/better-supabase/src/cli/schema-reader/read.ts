@@ -3,11 +3,11 @@ import type { ScanToken } from "@supabase/pg-parser";
 import type { Obj } from "./ast.ts";
 import type {
   AlterFact,
+  AuditFact,
   CallFact,
   CheckFact,
   ColumnFact,
   CommentFact,
-  CommentTarget,
   DeclaredFact,
   DropFact,
   DropKind,
@@ -28,6 +28,8 @@ import type {
 import type { Source } from "./source.ts";
 
 import { bodyOf, columnRefs, list, obj, str, strings, unwrap } from "./ast.ts";
+import { auditCalls, auditTrigger } from "./audit-facts.ts";
+import { commentOf } from "./comment-facts.ts";
 import { parenthesized, topLevelParts } from "./source.ts";
 import { TRIGGER_EVENTS, callsOf, hasBit, timingOf } from "./trigger-facts.ts";
 import { blocksWrites, selectNames } from "./view-shape.ts";
@@ -419,6 +421,7 @@ function dropsOf(context: Context, drop: Obj): readonly DropFact[] {
 
 function alterOf(context: Context, alter: Obj, line: number): AlterFact {
   const added: ColumnFact[] = [];
+  const addedIfNotExists: string[] = [];
   const setNotNull: string[] = [];
   const dropNotNull: string[] = [];
   const dropped: string[] = [];
@@ -440,7 +443,13 @@ function alterOf(context: Context, alter: Obj, line: number): AlterFact {
         const definition = bodyOf(command["def"], "ColumnDef");
 
         if (definition !== undefined) {
-          added.push(columnOf(context.source, definition));
+          const column = columnOf(context.source, definition);
+
+          added.push(column);
+
+          if (command["missing_ok"] === true) {
+            addedIfNotExists.push(column.name);
+          }
         }
 
         break;
@@ -497,6 +506,7 @@ function alterOf(context: Context, alter: Obj, line: number): AlterFact {
     line,
     index: context.index,
     addedColumns: added,
+    addedIfNotExists,
     setNotNull,
     dropNotNull,
     droppedColumns: dropped,
@@ -678,64 +688,6 @@ function functionOf(
   };
 }
 
-const COMMENT_TARGETS: Readonly<Record<string, CommentTarget>> = {
-  OBJECT_TABLE: "table",
-  OBJECT_COLUMN: "column",
-  OBJECT_VIEW: "view",
-  OBJECT_MATVIEW: "view",
-  OBJECT_FUNCTION: "function",
-  OBJECT_PROCEDURE: "function",
-  OBJECT_TYPE: "type",
-  OBJECT_DOMAIN: "type",
-  OBJECT_SCHEMA: "schema",
-};
-
-function commentOf(
-  context: Context,
-  comment: Obj,
-  line: number,
-): CommentFact | undefined {
-  const target = COMMENT_TARGETS[str(comment["objtype"]) ?? ""] ?? "other";
-  const text = str(comment["comment"]);
-
-  if (text === undefined) {
-    return undefined;
-  }
-
-  const unwrapped = unwrap(comment["object"]);
-
-  if (unwrapped?.[0] === "ObjectWithArgs") {
-    return {
-      target,
-      name: qualifiedNames(context, strings(unwrapped[1]["objname"])),
-      signature: signatureOf(
-        context.source,
-        list(unwrapped[1]["objargs"]).map((arg) => bodyOf(arg, "TypeName")),
-      ),
-      text,
-      line,
-    };
-  }
-
-  const names =
-    unwrapped?.[0] === "List"
-      ? strings(unwrapped[1]["items"])
-      : unwrapped?.[0] === "TypeName"
-        ? strings(unwrapped[1]["names"])
-        : unwrapped?.[0] === "String"
-          ? [str(unwrapped[1]["sval"]) ?? ""]
-          : [];
-
-  const name =
-    target === "column"
-      ? `${qualifiedNames(context, names.slice(0, -1))}.${names.at(-1) ?? ""}`
-      : target === "schema"
-        ? (names[0] ?? "")
-        : qualifiedNames(context, names);
-
-  return { target, name, signature: undefined, text, line };
-}
-
 function grantOf(context: Context, grant: Obj): GrantFact {
   return {
     grant: grant["is_grant"] === true,
@@ -804,6 +756,21 @@ function markersOf(source: Source): readonly MarkerFact[] {
 const DO_CREATES =
   /\bcreate\s+(?:or\s+replace\s+)?(?:unique\s+)?(?:table|index|view|function|trigger|policy|type|schema)\b|\bexecute\b/i;
 
+const MODULE_NAME =
+  /^-- @(?:bsb-block|bs-module)(?:-data)? ([a-zA-Z0-9-]+)(?:@\d+)?\b/;
+
+function moduleNameOf(source: Source): string | undefined {
+  for (const comment of source.comments) {
+    const name = MODULE_NAME.exec(comment.text)?.[1];
+
+    if (name !== undefined) {
+      return name;
+    }
+  }
+
+  return undefined;
+}
+
 const MODULE_FILE = /^-- @(?:bsb-block|bs-module) /m;
 
 /** Each statement of a parsed file, with where it starts and ends. */
@@ -836,6 +803,7 @@ export function factsFrom(
   const inserts: number[] = [];
   const declared: DeclaredFact[] = [];
   const calls: CallFact[] = [];
+  const audits: AuditFact[] = [];
   const lines: { line: number; kind: string }[] = [];
 
   for (const [index, raw] of statements.entries()) {
@@ -922,7 +890,17 @@ export function factsFrom(
       }
 
       case "DropStmt": {
-        drops.push(...dropsOf(context, body));
+        const dropped = dropsOf(context, body);
+
+        drops.push(...dropped);
+
+        audits.push(
+          ...dropped.flatMap((drop): AuditFact[] =>
+            drop.kind === "table"
+              ? [{ kind: "drop", target: drop.name, index }]
+              : [],
+          ),
+        );
 
         break;
       }
@@ -1028,6 +1006,13 @@ export function factsFrom(
         };
 
         triggers.push(trigger);
+
+        const audit = auditTrigger(body, trigger.table, index);
+
+        if (audit !== undefined) {
+          audits.push(audit);
+        }
+
         declared.push({
           kind: "trigger",
           name: `${trigger.table}.${trigger.name}`,
@@ -1055,15 +1040,53 @@ export function factsFrom(
 
       case "SelectStmt": {
         calls.push(...callsOf(body, index));
+        audits.push(...auditCalls(body, index));
+
+        break;
+      }
+
+      case "RenameStmt": {
+        if (body["renameType"] === "OBJECT_TABLE") {
+          const relation = obj(body["relation"]);
+          const target = qualify(context, relation);
+
+          audits.push({
+            kind: "rename",
+            target,
+            to: `${target.slice(0, target.indexOf("."))}.${str(body["newname"]) ?? ""}`,
+            index,
+          });
+        }
 
         break;
       }
 
       case "CommentStmt": {
-        const comment = commentOf(context, body, line);
+        const comment = commentOf(
+          {
+            names: (parts) => qualifiedNames(context, parts),
+            signature: (types) => signatureOf(source, types),
+          },
+          body,
+          line,
+        );
 
         if (comment !== undefined) {
-          comments.push(comment);
+          const literal = tokens.findLast((token) =>
+            token.kind.endsWith("SCONST"),
+          );
+
+          comments.push(
+            literal === undefined
+              ? comment
+              : {
+                  ...comment,
+                  span: [
+                    source.slice(0, literal.start).length,
+                    source.slice(0, literal.end).length,
+                  ],
+                },
+          );
         }
 
         break;
@@ -1179,6 +1202,8 @@ export function factsFrom(
 
   const markers = markersOf(source);
 
+  const moduleName = moduleNameOf(source);
+
   return {
     tables,
     alters,
@@ -1195,9 +1220,11 @@ export function factsFrom(
     markers,
     declared,
     calls,
+    audits,
     module: source.comments.some((comment) =>
       MODULE_FILE.test(comment.text.startsWith("--") ? comment.text : ""),
     ),
+    ...(moduleName === undefined ? {} : { moduleName }),
     doBlocks,
     doCreates,
     inserts,

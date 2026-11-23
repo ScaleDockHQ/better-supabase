@@ -35,6 +35,16 @@ const BUNDLED = new Set([
   resolve(SRC, "../api/naming.json"),
 ]);
 
+// Pure helpers and types with no module state, which the facts readers share
+// with the library's own text rewriters (ADR 1212).
+const PURE = new Set([
+  join(SRC, "sql/text-edit.ts"),
+  join(SRC, "sql/layout-types.ts"),
+  join(SRC, "sql/bsb-tags.ts"),
+  join(SRC, "sql/table-facts.ts"),
+  join(SRC, "sql/value-maps.ts"),
+]);
+
 describe("the CLI's library imports", () => {
   // The CLI build loads these from the package's own entries, so a deeper
   // import would put a second copy of that module in the CLI bundle.
@@ -47,7 +57,8 @@ describe("the CLI's library imports", () => {
           if (
             target.startsWith(`${CLI}/`) ||
             entries.has(target) ||
-            BUNDLED.has(target)
+            BUNDLED.has(target) ||
+            PURE.has(target)
           ) {
             return [];
           }

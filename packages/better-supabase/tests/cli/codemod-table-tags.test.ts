@@ -141,19 +141,47 @@ describe("the render check", () => {
 
 describe("withTableTag", () => {
   it("adds a tag to the block a comment has and starts one otherwise", async () => {
-    const created = withTableTag(
+    const created = await withTableTag(
       "create table a.b (id int);",
+      "/p",
       "a.b",
       "@bsb x=1",
     );
 
-    const added = withTableTag(created, "a.b", "@bsb y=2");
+    const added = await withTableTag(created, "/p", "a.b", "@bsb y=2");
 
     expect(created).toContain(`comment on table "a"."b" is '@bsb x=1';`);
     expect(added).toContain(`is '@bsb x=1; y=2';`);
     expect(
-      withTableTag("comment on table a.b is 'Text.';", "a.b", "@bsb y=2"),
+      await withTableTag(
+        "comment on table a.b is 'Text.';",
+        "/p",
+        "a.b",
+        "@bsb y=2",
+      ),
     ).toContain("'Text.\n@bsb y=2'");
+  });
+});
+
+describe("withTableTag by facts", () => {
+  it("ignores a commented-out comment and keeps an escape string's text", async () => {
+    const ignored = await withTableTag(
+      "-- comment on table a.b is 'Old.';\ncreate table a.b (id int);",
+      "/p",
+      "a.b",
+      "@bsb x=1",
+    );
+
+    expect(ignored).toContain(`comment on table "a"."b" is '@bsb x=1';`);
+
+    expect(
+      await withTableTag(
+        "comment on table a.b is E'It''s\\nhere';",
+        "/p",
+        "a.b",
+        "@bsb x=1",
+      ),
+    ).toBe("comment on table a.b is 'It''s\nhere\n@bsb x=1';");
   });
 });
 
@@ -356,8 +384,8 @@ describe("tableTagFiles edges", () => {
     ]);
   });
 
-  it("names entries it cannot find in the config text", () => {
-    const { files, review } = tableTagFiles({
+  it("names entries it cannot find in the config text", async () => {
+    const { files, review } = await tableTagFiles({
       config: resolveConfig(
         {
           ...exemptOnly,

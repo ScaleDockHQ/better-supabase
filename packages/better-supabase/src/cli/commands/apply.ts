@@ -109,13 +109,13 @@ interface Adoption {
  * table under one of its default names. A block in custom mode is left as it
  * is.
  */
-function adoptBlocks(
+async function adoptBlocks(
   config: ResolvedConfig,
   file: string,
   text: string,
   blocks: readonly string[],
   tables: readonly ExistingTable[],
-): Adoption {
+): Promise<Adoption> {
   const schemas = adoptSchemas(config);
   const adoptable = new Set(adoptableBlocks());
   const adopted: AdoptProposal[] = [];
@@ -132,7 +132,7 @@ function adoptBlocks(
       continue;
     }
 
-    const proposal = proposeAdoption(block, tables, {
+    const proposal = await proposeAdoption(block, tables, {
       blocks: config.blocks,
       ...adoptionContext({ config }),
       schemas,
@@ -370,7 +370,7 @@ export async function runApply(
       );
     }
 
-    const adoption = adoptBlocks(
+    const adoption = await adoptBlocks(
       config,
       file,
       text,

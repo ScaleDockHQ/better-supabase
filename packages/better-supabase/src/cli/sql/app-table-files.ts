@@ -6,6 +6,7 @@ import type { FormatDomain } from "./format-domains.ts";
 
 import { APP_TABLES_MODULE } from "../../sql/index.ts";
 import { CliError } from "../core/errors.ts";
+import { primeStatements } from "../schema-reader/index.ts";
 import {
   declarativeSchemasDir,
   readSupabaseConfig,
@@ -94,6 +95,8 @@ export async function appTablePlan(
     config.root,
     declarativeSchemasDir(await readSupabaseConfig(config.root)),
   );
+
+  await primeStatements([source.contents]);
 
   const split = [
     ...splitAppTables(config, source.contents, tables),

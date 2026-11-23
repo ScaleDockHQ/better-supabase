@@ -13,11 +13,11 @@ import { primeSchemaFacts } from "../../src/cli/sql-facts.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 
 const run = async (
-  input: Parameters<typeof extraColumnsFiles>[0],
+  input: Omit<Parameters<typeof extraColumnsFiles>[0], "root">,
 ): Promise<ReturnType<typeof extraColumnsFiles>> => {
   await primeSchemaFacts(input.sql, "/p");
 
-  return extraColumnsFiles(input);
+  return extraColumnsFiles({ root: "/p", ...input });
 };
 
 const tableOf = (block: string, key: string): string | undefined => {
@@ -131,7 +131,8 @@ describe("withoutOptionKeys", () => {
 export default { blocks: { tags: { options } } };
 `;
 
-    const result = extraColumnsFiles({
+    const result = await extraColumnsFiles({
+      root: "/p",
       options: { tags: { extraColumns: { region: "text" } } },
       tableOf: () => "better_supabase.tags",
       sql: [],

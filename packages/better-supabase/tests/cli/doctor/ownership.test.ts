@@ -4,6 +4,7 @@ import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 
 import { OWNERSHIP_RULES } from "../../../src/cli/doctor/ownership.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
+import { primeFiles } from "../../helpers/prime-statements.ts";
 
 const MODULE = `-- better-supabase module: tasks
 -- @bsb-block tasks@1 managed
@@ -14,10 +15,12 @@ create or replace function public.touch() returns void language sql as 'select 1
 
 const MIGRATIONS = { database: { sql: { workflow: "migrations" as const } } };
 
-const run = (
+const run = async (
   files: readonly { path: string; text: string }[],
   config: Parameters<typeof resolveConfig>[0] = MIGRATIONS,
-): { code: string; message: string }[] => {
+): Promise<{ code: string; message: string }[]> => {
+  await primeFiles(files);
+
   // SAFETY: the rules read only `sqlFiles`, `config` and `configToml`.
   const context = {
     sqlFiles: files,
@@ -34,8 +37,8 @@ const run = (
 };
 
 describe("BS369", () => {
-  it("flags an app file that creates a table a module creates", () => {
-    const found = run([
+  it("flags an app file that creates a table a module creates", async () => {
+    const found = await run([
       { path: "supabase/schemas/010_tasks.sql", text: MODULE },
       {
         path: "supabase/schemas/app.sql",
@@ -49,9 +52,9 @@ describe("BS369", () => {
     expect(found[0]?.message).toContain("tasks module");
   });
 
-  it("accepts an app file that alters the module's table", () => {
+  it("accepts an app file that alters the module's table", async () => {
     expect(
-      run([
+      await run([
         { path: "supabase/schemas/010_tasks.sql", text: MODULE },
         {
           path: "supabase/schemas/app.sql",
@@ -61,26 +64,28 @@ describe("BS369", () => {
     ).toStrictEqual([]);
   });
 
-  it("ignores migrations, data files and modules that share a helper", () => {
+  it("ignores migrations, data files and modules that share a helper", async () => {
     const other = MODULE.replace("@bsb-block tasks", "@bsb-block files");
 
     expect(
-      run([
-        { path: "supabase/schemas/010_tasks.sql", text: MODULE },
-        { path: "supabase/schemas/011_files.sql", text: other },
-        {
-          path: "supabase/migrations/1_x.sql",
-          text: "create table public.tasks (id uuid);",
-        },
-        {
-          path: "better-supabase-data/x.sql",
-          text: "create table public.tasks (id uuid);",
-        },
-      ]).filter((finding) => finding.code === "BS369"),
+      (
+        await run([
+          { path: "supabase/schemas/010_tasks.sql", text: MODULE },
+          { path: "supabase/schemas/011_files.sql", text: other },
+          {
+            path: "supabase/migrations/1_x.sql",
+            text: "create table public.tasks (id uuid);",
+          },
+          {
+            path: "better-supabase-data/x.sql",
+            text: "create table public.tasks (id uuid);",
+          },
+        ])
+      ).filter((finding) => finding.code === "BS369"),
     ).toStrictEqual([]);
   });
 
-  it("works without schema files", () => {
+  it("works without schema files", async () => {
     // SAFETY: the rules read only `sqlFiles`.
     const context = {} as unknown as DoctorContext;
 
@@ -89,9 +94,9 @@ describe("BS369", () => {
 });
 
 describe("BS370", () => {
-  it("flags transaction=false", () => {
+  it("flags transaction=false", async () => {
     expect(
-      run([
+      await run([
         {
           path: "supabase/schemas/app.sql",
           text: "-- pg-delta: transaction=false\ncreate index concurrently i on t (a);",
@@ -100,9 +105,9 @@ describe("BS370", () => {
     ).toMatchObject([{ code: "BS370" }]);
   });
 
-  it("accepts a file without it", () => {
+  it("accepts a file without it", async () => {
     expect(
-      run([{ path: "supabase/schemas/app.sql", text: "select 1;" }]),
+      await run([{ path: "supabase/schemas/app.sql", text: "select 1;" }]),
     ).toStrictEqual([]);
   });
 });
@@ -114,8 +119,8 @@ describe("BS371", () => {
 create or replace function better_supabase.actor_may_write() returns boolean language sql as 'select true';
 `;
 
-  it("names the prelude when a module file pastes one of its functions", () => {
-    const found = run([
+  it("names the prelude when a module file pastes one of its functions", async () => {
+    const found = await run([
       { path: "supabase/schemas/000_prelude.sql", text: prelude },
       {
         path: "supabase/schemas/010_tasks.sql",
@@ -130,11 +135,11 @@ create or replace function better_supabase.actor_may_write() returns boolean lan
     expect(found[0]?.message).toContain("belongs to the prelude");
   });
 
-  it("flags a policy two app files both create", () => {
+  it("flags a policy two app files both create", async () => {
     const policy =
       "create policy p on public.notes for select to authenticated using (true);";
 
-    const found = run([
+    const found = await run([
       { path: "supabase/schemas/a.sql", text: policy },
       { path: "supabase/schemas/b.sql", text: policy },
     ]);
@@ -143,32 +148,39 @@ create or replace function better_supabase.actor_may_write() returns boolean lan
     expect(found[0]?.message).toContain("policy public.notes.p");
   });
 
-  it("leaves one file's repeated create or replace, extensions and BS369's cases", () => {
+  it("leaves one file's repeated create or replace, extensions and BS369's cases", async () => {
     expect(
-      run([
-        {
-          path: "supabase/schemas/a.sql",
-          text: "create extension pgcrypto;\ncreate or replace function public.f() returns int language sql as 'select 1';\ncreate or replace function public.f() returns int language sql as 'select 2';",
-        },
-        { path: "supabase/schemas/b.sql", text: "create extension pgcrypto;" },
-        { path: "supabase/schemas/010_tasks.sql", text: MODULE },
-        {
-          path: "supabase/schemas/app.sql",
-          text: "create table public.tasks (id uuid primary key);",
-        },
-      ]).filter((finding) => finding.code === "BS371"),
+      (
+        await run([
+          {
+            path: "supabase/schemas/a.sql",
+            text: "create extension pgcrypto;\ncreate or replace function public.f() returns int language sql as 'select 1';\ncreate or replace function public.f() returns int language sql as 'select 2';",
+          },
+          {
+            path: "supabase/schemas/b.sql",
+            text: "create extension pgcrypto;",
+          },
+          { path: "supabase/schemas/010_tasks.sql", text: MODULE },
+          {
+            path: "supabase/schemas/app.sql",
+            text: "create table public.tasks (id uuid primary key);",
+          },
+        ])
+      ).filter((finding) => finding.code === "BS371"),
     ).toStrictEqual([]);
   });
 
-  it("reports an object two block modules declare", () => {
+  it("reports an object two block modules declare", async () => {
     const share = (name: string) =>
       `-- @bsb-block ${name}@1 managed\n\ncreate or replace function better_supabase.drive_node_json(node uuid) returns jsonb language sql as 'select 1';`;
 
     expect(
-      run([
-        { path: "supabase/schemas/a.sql", text: share("drive-core") },
-        { path: "supabase/schemas/b.sql", text: share("drive-files") },
-      ]).filter((finding) => finding.code === "BS371"),
+      (
+        await run([
+          { path: "supabase/schemas/a.sql", text: share("drive-core") },
+          { path: "supabase/schemas/b.sql", text: share("drive-files") },
+        ])
+      ).filter((finding) => finding.code === "BS371"),
     ).toMatchObject([{ code: "BS371" }]);
   });
 });
@@ -176,8 +188,8 @@ create or replace function better_supabase.actor_may_write() returns boolean lan
 describe("BS372 and BS373", () => {
   const app = (text: string) => [{ path: "supabase/schemas/app.sql", text }];
 
-  it("flags a do block that creates objects, with its line", () => {
-    const found = run(
+  it("flags a do block that creates objects, with its line", async () => {
+    const found = await run(
       app("select 1;\ndo $$ begin create table x (id int); end $$;"),
     );
 
@@ -185,14 +197,14 @@ describe("BS372 and BS373", () => {
     expect(found[0]?.message).toContain("app.sql:2");
   });
 
-  it("accepts a do block that only raises", () => {
-    expect(run(app("do $$ begin raise notice 'hi'; end $$;"))).toStrictEqual(
-      [],
-    );
+  it("accepts a do block that only raises", async () => {
+    expect(
+      await run(app("do $$ begin raise notice 'hi'; end $$;")),
+    ).toStrictEqual([]);
   });
 
-  it("flags if not exists on a table and an index", () => {
-    const found = run(
+  it("flags if not exists on a table and an index", async () => {
+    const found = await run(
       app(
         "create table if not exists public.a (id int);\ncreate index if not exists a_idx on public.a (id);\ncreate schema if not exists s;",
       ),
@@ -201,9 +213,9 @@ describe("BS372 and BS373", () => {
     expect(found.map((finding) => finding.code)).toEqual(["BS373", "BS373"]);
   });
 
-  it("leaves the block modules to the generator", () => {
+  it("leaves the block modules to the generator", async () => {
     expect(
-      run([
+      await run([
         {
           path: "supabase/schemas/010_tasks.sql",
           text: `${MODULE}\ncreate table if not exists public.x (id int);\ndo $$ begin create table y (id int); end $$;`,
@@ -214,8 +226,8 @@ describe("BS372 and BS373", () => {
 });
 
 describe("BS374", () => {
-  it("flags a top-level insert in a block module file only", () => {
-    const found = run([
+  it("flags a top-level insert in a block module file only", async () => {
+    const found = await run([
       {
         path: "supabase/schemas/010_tasks.sql",
         text: `${MODULE}\ninsert into public.tasks (id) values (gen_random_uuid());`,
@@ -235,26 +247,30 @@ describe("BS375", () => {
   const policy = (name: string, using = "(select auth.uid()) = user_id") =>
     `create policy ${name} on public.notes for select to authenticated using (${using});`;
 
-  it("flags two policies that decide the same way", () => {
-    const found = run([
-      {
-        path: "supabase/schemas/notes.sql",
-        text: `${policy("notes_read")}\n${policy("notes_select_own")}`,
-      },
-    ]).filter((entry) => entry.code === "BS375");
+  it("flags two policies that decide the same way", async () => {
+    const found = (
+      await run([
+        {
+          path: "supabase/schemas/notes.sql",
+          text: `${policy("notes_read")}\n${policy("notes_select_own")}`,
+        },
+      ])
+    ).filter((entry) => entry.code === "BS375");
 
     expect(found).toHaveLength(1);
     expect(found[0]?.message).toContain("notes_read and notes_select_own");
   });
 
-  it("accepts policies that differ in command, roles or expression", () => {
+  it("accepts policies that differ in command, roles or expression", async () => {
     expect(
-      run([
-        {
-          path: "supabase/schemas/notes.sql",
-          text: `${policy("a")}\n${policy("b", "true")}\ncreate policy c on public.notes for select to anon using ((select auth.uid()) = user_id);`,
-        },
-      ]).filter((entry) => entry.code === "BS375"),
+      (
+        await run([
+          {
+            path: "supabase/schemas/notes.sql",
+            text: `${policy("a")}\n${policy("b", "true")}\ncreate policy c on public.notes for select to anon using ((select auth.uid()) = user_id);`,
+          },
+        ])
+      ).filter((entry) => entry.code === "BS375"),
     ).toEqual([]);
   });
 });
@@ -267,11 +283,11 @@ describe("BS376 and BS377", () => {
     text,
   });
 
-  const only = (files: Parameters<typeof run>[0], code: string) =>
-    run(files, pgDelta).filter((entry) => entry.code === code);
+  const only = async (files: Parameters<typeof run>[0], code: string) =>
+    (await run(files, pgDelta)).filter((entry) => entry.code === code);
 
-  it("flags a migration object that no schema file declares", () => {
-    const found = only(
+  it("flags a migration object that no schema file declares", async () => {
+    const found = await only(
       [
         migration(
           'create table "public"."legacy" (id int);\ncreate table "public"."kept" (id int);',
@@ -288,9 +304,9 @@ describe("BS376 and BS377", () => {
     expect(found[0]?.message).toContain("public.legacy");
   });
 
-  it("lets a dropped table and a managed schema through", () => {
+  it("lets a dropped table and a managed schema through", async () => {
     expect(
-      only(
+      await only(
         [
           migration(
             'create table "public"."old" (id int);\ndrop table "public"."old";\ncreate table "auth"."extra" (id int);',
@@ -301,8 +317,8 @@ describe("BS376 and BS377", () => {
     ).toEqual([]);
   });
 
-  it("flags a schema object that no migration creates", () => {
-    const found = only(
+  it("flags a schema object that no migration creates", async () => {
+    const found = await only(
       [
         migration('create table "public"."kept" (id int);'),
         {
@@ -317,7 +333,7 @@ describe("BS376 and BS377", () => {
     expect(found[0]?.message).toContain("public.fresh");
   });
 
-  it("follows a rename and reports nothing when a migration has a do block", () => {
+  it("follows a rename and reports nothing when a migration has a do block", async () => {
     const renamed = [
       migration(
         'create table "public"."old" (id int);\nalter table "public"."old" rename to "fresh";',
@@ -328,11 +344,11 @@ describe("BS376 and BS377", () => {
       },
     ];
 
-    expect(only(renamed, "BS376")).toEqual([]);
-    expect(only(renamed, "BS377")).toEqual([]);
+    expect(await only(renamed, "BS376")).toEqual([]);
+    expect(await only(renamed, "BS377")).toEqual([]);
 
     expect(
-      only(
+      await only(
         [
           migration(
             "create table public.legacy (id int);\ndo $$ begin perform 1; end; $$;",
@@ -343,11 +359,11 @@ describe("BS376 and BS377", () => {
     ).toEqual([]);
   });
 
-  it("reads nothing under the migrations workflow", () => {
+  it("reads nothing under the migrations workflow", async () => {
     expect(
-      run([migration('create table "public"."legacy" (id int);')]).filter(
-        (entry) => ["BS376", "BS377"].includes(entry.code),
-      ),
+      (
+        await run([migration('create table "public"."legacy" (id int);')])
+      ).filter((entry) => ["BS376", "BS377"].includes(entry.code)),
     ).toEqual([]);
   });
 });
@@ -355,48 +371,54 @@ describe("BS376 and BS377", () => {
 describe("BS378", () => {
   const view = "create view public.v as select id from public.tasks;";
 
-  it("flags a before or after trigger on a view", () => {
-    const found = run([
-      { path: "supabase/schemas/app.sql", text: MODULE },
-      {
-        path: "supabase/schemas/views.sql",
-        text: `${view}\ncreate trigger t before insert on public.v for each row execute function public.touch();`,
-      },
-    ]).filter((finding) => finding.code === "BS378");
+  it("flags a before or after trigger on a view", async () => {
+    const found = (
+      await run([
+        { path: "supabase/schemas/app.sql", text: MODULE },
+        {
+          path: "supabase/schemas/views.sql",
+          text: `${view}\ncreate trigger t before insert on public.v for each row execute function public.touch();`,
+        },
+      ])
+    ).filter((finding) => finding.code === "BS378");
 
     expect(found).toHaveLength(1);
     expect(found[0]?.message).toContain("public.v");
   });
 
-  it("accepts an instead of trigger and a trigger on a table", () => {
+  it("accepts an instead of trigger and a trigger on a table", async () => {
     expect(
-      run([
-        { path: "supabase/schemas/app.sql", text: MODULE },
-        {
-          path: "supabase/schemas/views.sql",
-          text: `${view}\ncreate trigger a instead of insert on public.v for each row execute function public.touch();\ncreate trigger b before insert on public.tasks for each row execute function public.touch();`,
-        },
-      ]).filter((finding) => finding.code === "BS378"),
+      (
+        await run([
+          { path: "supabase/schemas/app.sql", text: MODULE },
+          {
+            path: "supabase/schemas/views.sql",
+            text: `${view}\ncreate trigger a instead of insert on public.v for each row execute function public.touch();\ncreate trigger b before insert on public.tasks for each row execute function public.touch();`,
+          },
+        ])
+      ).filter((finding) => finding.code === "BS378"),
     ).toStrictEqual([]);
   });
 });
 
 describe("BS380", () => {
-  const check = (expression: string) =>
-    run([
-      {
-        path: "supabase/schemas/app.sql",
-        text: `create table public.t (a int, b int, constraint c check (${expression}));`,
-      },
-    ]).filter((finding) => finding.code === "BS380");
+  const check = async (expression: string) =>
+    (
+      await run([
+        {
+          path: "supabase/schemas/app.sql",
+          text: `create table public.t (a int, b int, constraint c check (${expression}));`,
+        },
+      ])
+    ).filter((finding) => finding.code === "BS380");
 
-  it("flags a between joined to another condition", () => {
-    expect(check("a between 1 and 5 and b > 0")).toHaveLength(1);
-    expect(check("b > 0 or a between 1 and 5")).toHaveLength(1);
+  it("flags a between joined to another condition", async () => {
+    expect(await check("a between 1 and 5 and b > 0")).toHaveLength(1);
+    expect(await check("b > 0 or a between 1 and 5")).toHaveLength(1);
   });
 
-  it("accepts a lone between and plain comparisons", () => {
-    expect(check("a between 1 and 5")).toStrictEqual([]);
-    expect(check("a >= 1 and a <= 5 and b > 0")).toStrictEqual([]);
+  it("accepts a lone between and plain comparisons", async () => {
+    expect(await check("a between 1 and 5")).toStrictEqual([]);
+    expect(await check("a >= 1 and a <= 5 and b > 0")).toStrictEqual([]);
   });
 });

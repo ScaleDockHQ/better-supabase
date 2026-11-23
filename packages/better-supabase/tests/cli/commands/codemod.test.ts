@@ -159,7 +159,7 @@ describe("runCodemod", () => {
 
     expect(names).toHaveLength(1);
     expect(names[0]).toMatch(
-      /^\d{14}_better_supabase_with-sql_[0-9a-f]{8}\.sql$/u,
+      /^\d{14}_better_supabase_with-sql_v2-[0-9a-f]{8}\.sql$/u,
     );
     expect(
       await readFile(join(root, "supabase/migrations", names[0]!), "utf-8"),

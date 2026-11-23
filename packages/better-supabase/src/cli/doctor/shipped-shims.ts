@@ -1,8 +1,9 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { approverForNamesRequest } from "../../sql/index.ts";
+import { withoutComments } from "../schema-reader/index.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
-import { withoutComments, withoutStrings } from "./rls.ts";
+import { withoutStrings } from "./rls.ts";
 
 const CREATE_FUNCTION =
   /create\s+(?:or\s+replace\s+)?function\s+"?better_supabase"?\s*\.\s*"?(\w+)"?\s*\(/gi;

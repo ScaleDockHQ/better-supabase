@@ -1,6 +1,7 @@
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
-import { duplicateObjects, ownedColumns } from "../../sql/index.ts";
+import { duplicateObjects, ownedColumns } from "../block-objects.ts";
+import { primeSchemaFacts } from "../sql-facts.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
 import { moduleFiles } from "./module-files.ts";
 
@@ -22,6 +23,11 @@ export async function blockColumnsOnOwnedTables(
   const rendered = (await moduleFiles(context))
     .filter(({ file }) => file.kind === "schema")
     .map(({ file }) => ({ contents: file.contents }));
+
+  await primeSchemaFacts(
+    rendered.map(({ contents }) => ({ path: "block.sql", text: contents })),
+    context.config.root,
+  );
 
   return ownedColumns(rendered, app, context.config.schemas).map(
     (entry): FindingInput => ({
@@ -49,6 +55,17 @@ export async function duplicatedBlockObjects(
   const rendered = (await moduleFiles(context))
     .filter(({ file }) => file.kind === "schema")
     .map(({ file }) => ({ contents: file.contents }));
+
+  await primeSchemaFacts(
+    [
+      ...rendered.map(({ contents }) => ({
+        path: "block.sql",
+        text: contents,
+      })),
+      ...app.map((file) => ({ path: file.path, text: file.text })),
+    ],
+    context.config.root,
+  );
 
   return duplicateObjects(rendered, app, context.config.schemas)
     .filter((entry) => entry.kind === kind)

@@ -2,7 +2,7 @@ import type { CatalogPolicy } from "../config/snapshot.ts";
 
 import { maskComments, statementSpans } from "./over-app-tables.ts";
 import { catalogPolicy, readPolicy } from "./policy.ts";
-import { qualified, unquote, NAME } from "./schema-scan.ts";
+import { qualified, unquote, NAME } from "./text-edit.ts";
 
 export type PolicyCommand = "select" | "insert" | "update" | "delete";
 
@@ -426,55 +426,5 @@ export function withoutAppTablePolicies(
         : `${APP_POLICIES_NOTE} restrictive ${policy.name}.`;
     },
     true,
-  );
-}
-
-const DROP_POLICY = new RegExp(
-  String.raw`^\s*drop\s+policy\s+(?:if\s+exists\s+)?(${NAME})\s+on\s+(${NAME}(?:\s*\.\s*${NAME})?)`,
-  "i",
-);
-
-/**
- * The policies `sources` leave on each `schema.table` in `schemas`, in order: a
- * later `drop policy` removes one, and a later `create policy` of the same name
- * replaces it.
- */
-export function declaredPolicies(
-  sources: readonly { readonly text: string }[],
-  schemas: readonly string[],
-): Record<string, CatalogPolicy[]> {
-  const found = new Map<string, Map<string, CatalogPolicy>>();
-
-  for (const source of sources) {
-    const masked = maskComments(source.text);
-
-    for (const [from, to] of statementSpans(masked)) {
-      const statement = masked.slice(from, to);
-      const parsed = parsePolicy(statement);
-
-      if (parsed !== undefined) {
-        if (
-          schemas.includes(parsed.table.slice(0, parsed.table.indexOf(".")))
-        ) {
-          const named =
-            found.get(parsed.table) ?? new Map<string, CatalogPolicy>();
-
-          named.set(parsed.policy.name, parsed.policy);
-          found.set(parsed.table, named);
-        }
-
-        continue;
-      }
-
-      const drop = DROP_POLICY.exec(statement);
-
-      if (drop !== null) {
-        found.get(qualified(drop[2]!))?.delete(unquote(drop[1]!));
-      }
-    }
-  }
-
-  return Object.fromEntries(
-    [...found].map(([table, named]) => [table, [...named.values()]]),
   );
 }

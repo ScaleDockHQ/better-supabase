@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
 import type { BlockSqlContext } from "../../src/sql/context.ts";
-import type { DeclaredForeignKey } from "../../src/sql/foreign-keys.ts";
+import type { DeclaredForeignKey } from "../../src/sql/layout-types.ts";
 
 import {
   inferredColumn,

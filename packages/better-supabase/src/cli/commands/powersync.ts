@@ -173,7 +173,7 @@ async function publicationMigration(
     : {
         path: join(
           dir,
-          migrationFile(names, now(), PUBLICATION_SUFFIX, sql).name,
+          (await migrationFile(names, now(), PUBLICATION_SUFFIX, sql)).name,
         ),
         contents: sql,
         policy: "create",
@@ -346,7 +346,7 @@ export async function runPowerSync(
       instances,
       own,
       readRoles: readRolesOf(config, layout, instances),
-      projections: projectionsOf(app),
+      projections: await projectionsOf(app),
       subjects: subjectsOf(config, app),
       children,
       importFrom: settings?.import ?? "@powersync/common",

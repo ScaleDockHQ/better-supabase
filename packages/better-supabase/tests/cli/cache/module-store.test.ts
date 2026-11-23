@@ -10,7 +10,6 @@ import {
   moduleRenderStats,
   renderBlocks,
   setModuleRenderStore,
-  setParseStore,
   SQL_MODULES,
 } from "../../../src/sql/index.ts";
 
@@ -23,7 +22,6 @@ beforeEach(async () => {
 
 afterEach(async () => {
   setModuleRenderStore(undefined);
-  setParseStore(undefined);
   await rm(folder, { recursive: true, force: true });
 });
 

@@ -1,9 +1,11 @@
 import type { ResolvedConfig } from "../config/index.ts";
 import type { NamingRename } from "./codemod-naming.ts";
+import type { SqlPart } from "./schema-reader/index.ts";
 
 import { LEGACY_OPTION, moduleContext, SQL_MODULES } from "../sql/index.ts";
 import { ConfigDocument } from "./config-document/index.ts";
 import { isRecord } from "./guards.ts";
+import { partsOf, primeStatements } from "./schema-reader/index.ts";
 
 /** One `blocks.<block>.columns.<table>.<column>` entry that keeps an old name. */
 export interface ColumnPin {
@@ -426,75 +428,38 @@ function columnSkipped(rename: NamingRename, skip: ColumnSkip): boolean {
   );
 }
 
-function sqlSegments(
-  sql: string,
-): { readonly dollar: boolean; readonly text: string }[] {
-  const out: { dollar: boolean; text: string }[] = [];
-  let start = 0;
-  let index = 0;
+/** A part of the text the renames never touch, as a private-use placeholder. */
+const hole = (index: number): string => `\uE000${String(index)}\uE000`;
 
-  while (index < sql.length) {
-    if (sql[index] !== "$") {
-      index += 1;
-      continue;
-    }
+const HOLE = /\uE000(\d+)\uE000/g;
 
-    const match = /^\$[A-Za-z0-9_]*\$/.exec(sql.slice(index));
-
-    if (match === null) {
-      index += 1;
-      continue;
-    }
-
-    const tag = match[0];
-    const end = sql.indexOf(tag, index + tag.length);
-
-    if (end === -1) {
-      index += 1;
-      continue;
-    }
-
-    if (index > start) {
-      out.push({ dollar: false, text: sql.slice(start, index) });
-    }
-
-    const close = end + tag.length;
-
-    out.push({ dollar: true, text: sql.slice(index, close) });
-    index = close;
-    start = close;
-  }
-
-  if (start < sql.length) {
-    out.push({ dollar: false, text: sql.slice(start) });
-  }
-
-  return out;
-}
-
-function maskSqlStrings(sql: string): {
+/**
+ * A run of parts between dollar bodies with each string and comment replaced by
+ * a placeholder, so the rewrites match on code and leave their text alone.
+ */
+function maskedRun(parts: readonly SqlPart[]): {
   readonly text: string;
-  readonly strings: readonly string[];
+  readonly holes: string[];
 } {
-  const strings: string[] = [];
+  const holes: string[] = [];
 
-  const text = sql.replaceAll(/'(?:[^']|'')*'/g, (whole) => {
-    const token = `«${String(strings.length)}»`;
+  const text = parts
+    .map((part) => {
+      if (part.kind === "code") {
+        return part.text;
+      }
 
-    strings.push(whole);
+      holes.push(part.text);
 
-    return token;
-  });
+      return hole(holes.length - 1);
+    })
+    .join("");
 
-  return { text, strings };
+  return { text, holes };
 }
 
-function unmaskSqlStrings(text: string, strings: readonly string[]): string {
-  return text.replaceAll(
-    /«(\d+)»/g,
-    (_whole, index: string) => strings[Number(index)] ?? "",
-  );
-}
+const unmasked = (text: string, holes: readonly string[]): string =>
+  text.replaceAll(HOLE, (_whole, index: string) => holes[Number(index)] ?? "");
 
 function tableParts(
   rename: NamingRename,
@@ -508,49 +473,51 @@ function tableParts(
   return { schema, name };
 }
 
-/** Rewrites `'{...}'` arguments of `better_supabase.audit` for `rename`. */
-function renameAuditCalls(sql: string, rename: NamingRename): string {
+/**
+ * Rewrites `'{...}'` arguments of `better_supabase.audit` for `rename` in the
+ * string holes of a masked run.
+ */
+function renameAuditCalls(
+  text: string,
+  holes: string[],
+  rename: NamingRename,
+): void {
   const parts = tableParts(rename);
 
   if (parts === undefined) {
-    return sql;
+    return;
   }
 
   const wanted = `${parts.schema}.${parts.name}`;
-  let out = "";
-  let from = 0;
-  const calls = sql.matchAll(/better_supabase\.audit\s*\(\s*'([^']*)'/gi);
+  const call = /better_supabase\.audit\s*\(\s*\uE000(\d+)\uE000/gi;
 
-  for (const match of calls) {
-    const normalized = match[1]?.replaceAll('"', "") ?? "";
+  for (const match of text.matchAll(call)) {
+    const table = (holes[Number(match[1])] ?? "").replaceAll(/^'|'$/g, "");
+    const normalized = table.replaceAll('"', "");
 
     if (normalized !== wanted && normalized !== parts.name) {
       continue;
     }
 
     const argsAt = match.index + match[0].length;
-    const close = sql.indexOf(")", argsAt);
+    const close = text.indexOf(")", argsAt);
 
     if (close === -1) {
       continue;
     }
 
-    const args = sql.slice(argsAt, close);
+    for (const each of text.slice(argsAt, close).matchAll(HOLE)) {
+      const index = Number(each[1]);
+      const array = /^'\{([^}]*)\}'$/.exec(holes[index] ?? "");
 
-    const renamed = args.replaceAll(
-      /'\{([^}]*)\}'/g,
-      (_array, inner: string) => {
-        const names = inner.split(",").map((part) => part.trim());
+      if (array !== null) {
+        const names = (array[1] ?? "").split(",").map((part) => part.trim());
 
-        return `'{${names.map((part) => (part === rename.from ? rename.to : part)).join(", ")}}'`;
-      },
-    );
-
-    out += sql.slice(from, argsAt) + renamed;
-    from = close;
+        holes[index] =
+          `'{${names.map((part) => (part === rename.from ? rename.to : part)).join(", ")}}'`;
+      }
+    }
   }
-
-  return out + sql.slice(from);
 }
 
 function aliasesOf(
@@ -659,20 +626,18 @@ function renameSetTargets(
 }
 
 function renameSegment(
-  sql: string,
+  parts: readonly SqlPart[],
   columns: readonly NamingRename[],
   skip: ColumnSkip,
 ): string {
-  let audited = sql;
+  const masked = maskedRun(parts);
+  let body = masked.text;
 
   for (const rename of columns) {
     if (!columnSkipped(rename, skip)) {
-      audited = renameAuditCalls(audited, rename);
+      renameAuditCalls(body, masked.holes, rename);
     }
   }
-
-  const masked = maskSqlStrings(audited);
-  let body = masked.text;
 
   for (const rename of columns) {
     if (columnSkipped(rename, skip)) {
@@ -711,21 +676,22 @@ function renameSegment(
     );
   }
 
-  return unmaskSqlStrings(body, masked.strings);
+  return unmasked(body, masked.holes);
 }
 
 /**
  * `sql` with the column names of the `column` rows renamed where a statement
  * names the block table (`better_supabase.x`) or its alias, in that table's
  * insert column list or update `set` targets, and inside `'{...}'` arguments of
- * `better_supabase.audit` for that table. A `$$` body is left as it is, and so
- * is a string literal. Statements about the app's own tables keep their names.
+ * `better_supabase.audit` for that table. A `$$` body, a string literal and a
+ * comment are left as they are. Statements about the app's own tables keep
+ * their names.
  */
-export function renameSqlColumns(
+export async function renameSqlColumns(
   sql: string,
   renames: readonly NamingRename[],
   skip: ColumnSkip = new Set(),
-): string {
+): Promise<string> {
   const columns = renames.filter(
     (rename) =>
       rename.kind === "column" &&
@@ -737,11 +703,28 @@ export function renameSqlColumns(
     return sql;
   }
 
-  return sqlSegments(sql)
-    .map((segment) =>
-      segment.dollar
-        ? segment.text
-        : renameSegment(segment.text, columns, skip),
-    )
-    .join("");
+  await primeStatements([sql]);
+
+  const out: string[] = [];
+  let run: SqlPart[] = [];
+
+  const flush = (): void => {
+    if (run.length > 0) {
+      out.push(renameSegment(run, columns, skip));
+      run = [];
+    }
+  };
+
+  for (const part of partsOf(sql)) {
+    if (part.kind === "dollar") {
+      flush();
+      out.push(part.text);
+    } else {
+      run.push(part);
+    }
+  }
+
+  flush();
+
+  return out.join("");
 }

@@ -10,18 +10,6 @@ const CORPUS = [
   "tests/validation-centrakit/supabase/schemas",
 ];
 
-export const SCHEMAS: readonly string[] = [
-  "public",
-  "better_supabase",
-  "auth",
-  "storage",
-  "api",
-  "_better_supabase",
-  "rbac",
-  "extensions",
-  "workflow",
-];
-
 function walk(directory: string, found: string[] = []): string[] {
   for (const entry of readdirSync(directory)) {
     const path = join(directory, entry);

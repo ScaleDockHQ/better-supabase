@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  adoptedColumnProblems,
-  adoptedTables,
-} from "../../src/sql/adopted-columns.ts";
+import { adoptedColumnProblems } from "../../src/cli/adopted-columns.ts";
+import { adoptedTablesOf } from "../helpers/facts.ts";
 
 describe("adoptedColumnProblems", () => {
-  it("leaves the columns the app's organizations table lacks to the block, which adds them", () => {
+  it("leaves the columns the app's organizations table lacks to the block, which adds them", async () => {
     const files = [
       {
         text: `create table public.organizations (
@@ -18,7 +16,7 @@ describe("adoptedColumnProblems", () => {
     ];
 
     expect(
-      adoptedColumnProblems(
+      await adoptedColumnProblems(
         {
           organizations: { tables: { organizations: "public.organizations" } },
         },
@@ -28,7 +26,7 @@ describe("adoptedColumnProblems", () => {
       ),
     ).toEqual([]);
     expect(
-      adoptedColumnProblems(
+      await adoptedColumnProblems(
         {
           organizations: {
             tables: { organizations: "public.organizations" },
@@ -51,32 +49,34 @@ describe("adoptedColumnProblems", () => {
     ).toEqual([]);
   });
 
-  it("finds nothing without the app's tables", () => {
+  it("finds nothing without the app's tables", async () => {
     expect(
-      adoptedTables({
+      await adoptedTablesOf({
         organizations: { tables: { organizations: "public.organizations" } },
       }),
     ).toEqual([]);
   });
 
-  it("skips the columns a module maps to null or does not read under its options", () => {
-    const events = adoptedTables(
-      {
-        outbox: {
-          tables: { events: "public.app_events" },
-          columns: {
-            events: {
-              position: "id",
-              source: null,
-              subject: null,
-              tenant: null,
-              key: null,
-              actor: null,
+  it("skips the columns a module maps to null or does not read under its options", async () => {
+    const events = (
+      await adoptedTablesOf(
+        {
+          outbox: {
+            tables: { events: "public.app_events" },
+            columns: {
+              events: {
+                position: "id",
+                source: null,
+                subject: null,
+                tenant: null,
+                key: null,
+                actor: null,
+              },
             },
           },
         },
-      },
-      { "public.app_events": "supabase/schemas/events.sql" },
+        { "public.app_events": "supabase/schemas/events.sql" },
+      )
     ).find((table) => table.logical === "events");
 
     expect(events?.columns).toEqual({
@@ -87,26 +87,28 @@ describe("adoptedColumnProblems", () => {
       createdAt: "created_at",
     });
 
-    const secrets = (secretStorage: string) =>
+    const secrets = async (secretStorage: string) =>
       Object.keys(
-        adoptedTables(
-          {
-            webhooks: {
-              tables: { secrets: "public.hook_secrets" },
-              options: { secretStorage },
+        (
+          await adoptedTablesOf(
+            {
+              webhooks: {
+                tables: { secrets: "public.hook_secrets" },
+                options: { secretStorage },
+              },
             },
-          },
-          { "public.hook_secrets": "supabase/schemas/hooks.sql" },
+            { "public.hook_secrets": "supabase/schemas/hooks.sql" },
+          )
         ).find((table) => table.logical === "secrets")?.columns ?? {},
       );
 
-    expect(secrets("vault")).toContain("vaultId");
-    expect(secrets("vault")).not.toContain("secret");
-    expect(secrets("column")).toContain("secret");
-    expect(secrets("column")).not.toContain("vaultId");
+    expect(await secrets("vault")).toContain("vaultId");
+    expect(await secrets("vault")).not.toContain("secret");
+    expect(await secrets("column")).toContain("secret");
+    expect(await secrets("column")).not.toContain("vaultId");
   });
 
-  it("passes an enum locale on the app's profiles table, which the module casts", () => {
+  it("passes an enum locale on the app's profiles table, which the module casts", async () => {
     const files = [
       {
         text: `create type public.app_locale as enum ('en', 'nl', 'de');
@@ -122,7 +124,7 @@ create table public.profiles (
     ];
 
     expect(
-      adoptedColumnProblems(
+      await adoptedColumnProblems(
         {
           profiles: {
             tables: { profiles: "public.profiles" },
@@ -136,7 +138,7 @@ create table public.profiles (
     ).toEqual([]);
   });
 
-  it("passes a domain locale on the app's profiles table, which the module casts", () => {
+  it("passes a domain locale on the app's profiles table, which the module casts", async () => {
     const files = [
       {
         text: `create type public.app_locale as enum ('en', 'nl', 'de');
@@ -153,7 +155,7 @@ create table public.profiles (
     ];
 
     expect(
-      adoptedColumnProblems(
+      await adoptedColumnProblems(
         {
           profiles: {
             tables: { profiles: "public.profiles" },
@@ -167,7 +169,7 @@ create table public.profiles (
     ).toEqual([]);
   });
 
-  it("refuses an enum column the module writes as text, and passes one it casts", () => {
+  it("refuses an enum column the module writes as text, and passes one it casts", async () => {
     const files = [
       {
         text: `create type public.tag_kind as enum ('task', 'customer');
@@ -206,13 +208,13 @@ create table public.app_events (
     };
 
     expect(
-      adoptedColumnProblems(tags, files, ["public"], {
+      await adoptedColumnProblems(tags, files, ["public"], {
         "public.org_tags": "supabase/schemas/tags.sql",
       }),
     ).toEqual([]);
 
     expect(
-      adoptedColumnProblems(
+      await adoptedColumnProblems(
         { outbox: { tables: { events: "public.app_events" } } },
         files,
         ["public"],
@@ -223,7 +225,7 @@ create table public.app_events (
     ]);
 
     expect(
-      adoptedColumnProblems(
+      await adoptedColumnProblems(
         { tags: { tables: { tags: "public.org_tags" } } },
         files,
         ["public"],
@@ -232,8 +234,8 @@ create table public.app_events (
     ).toEqual([]);
   });
 
-  it("names the tenant column from sql.tenantColumn without a columns entry", () => {
-    const [table] = adoptedTables(
+  it("names the tenant column from sql.tenantColumn without a columns entry", async () => {
+    const [table] = await adoptedTablesOf(
       { tags: { tables: { tags: "public.org_tags" } } },
       { "public.org_tags": "supabase/schemas/tags.sql" },
       { blockTenantColumn: "organization_id" },
@@ -242,8 +244,8 @@ create table public.app_events (
     expect(table?.columns["tenant"]).toBe("organization_id");
   });
 
-  it("lists the text columns each app table takes without a cast", () => {
-    const [table] = adoptedTables(
+  it("lists the text columns each app table takes without a cast", async () => {
+    const [table] = await adoptedTablesOf(
       { numbering: { tables: { sequences: "public.org_sequences" } } },
       { "public.org_sequences": "supabase/schemas/sequences.sql" },
     );
@@ -251,31 +253,33 @@ create table public.app_events (
     expect(table?.textColumns).toEqual(["scope", "period"]);
   });
 
-  it("leaves out a mappable column the app gives a values entry", () => {
-    const employees = (
+  it("leaves out a mappable column the app gives a values entry", async () => {
+    const employees = async (
       values?: Record<string, Record<string, Record<string, string>>>,
     ) =>
-      adoptedTables(
-        {
-          memberships: {},
-          employees: {
-            tables: { employees: "public.staff" },
-            ...(values ? { values } : {}),
+      (
+        await adoptedTablesOf(
+          {
+            memberships: {},
+            employees: {
+              tables: { employees: "public.staff" },
+              ...(values ? { values } : {}),
+            },
           },
-        },
-        { "public.staff": "supabase/schemas/staff.sql" },
+          { "public.staff": "supabase/schemas/staff.sql" },
+        )
       ).find((table) => table.logical === "employees")?.textColumns;
 
-    expect(employees()).toContain("employmentType");
-    expect(employees({ employees: { employmentType: {} } })).not.toContain(
-      "employmentType",
-    );
+    expect(await employees()).toContain("employmentType");
     expect(
-      employees({ employees: { employmentType: { intern: "trainee" } } }),
+      await employees({ employees: { employmentType: {} } }),
+    ).not.toContain("employmentType");
+    expect(
+      await employees({ employees: { employmentType: { intern: "trainee" } } }),
     ).not.toContain("employmentType");
   });
 
-  it("reads the writes the module's options add", () => {
+  it("reads the writes the module's options add", async () => {
     const tables = { history: "public.status_history" };
 
     const machines = {
@@ -287,14 +291,16 @@ create table public.app_events (
       },
     };
 
-    const history = (options?: Record<string, unknown>) =>
-      adoptedTables(
-        { "state-machine": { tables, ...(options ? { options } : {}) } },
-        { "public.status_history": "supabase/schemas/history.sql" },
+    const history = async (options?: Record<string, unknown>) =>
+      (
+        await adoptedTablesOf(
+          { "state-machine": { tables, ...(options ? { options } : {}) } },
+          { "public.status_history": "supabase/schemas/history.sql" },
+        )
       ).find((table) => table.logical === "history")?.textColumns;
 
-    expect(history()).toEqual([]);
-    expect(history({ machines })).toEqual([
+    expect(await history()).toEqual([]);
+    expect(await history({ machines })).toEqual([
       "subjectId",
       "actorName",
       "actorEmail",

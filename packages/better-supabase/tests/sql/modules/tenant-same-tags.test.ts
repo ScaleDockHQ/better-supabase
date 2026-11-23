@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { sameTenantLayout } from "../../../src/sql/foreign-keys.ts";
 import { moduleBody } from "../../../src/sql/render.ts";
-import { sameTenantTagsOf } from "../../../src/sql/table-facts.ts";
+import { sameTenantLayoutOf, sameTenantTagsFrom } from "../../helpers/facts.ts";
 
 const SCHEMA = `
 create table public.projects (id uuid primary key, organization_id uuid not null, region text);
@@ -15,27 +14,31 @@ create table public.tasks (
 );
 `;
 
-function render(comments: string): string {
-  const layout = sameTenantLayout([{ text: SCHEMA }], ["public"]);
+async function render(comments: string): Promise<string> {
+  const layout = await sameTenantLayoutOf([{ text: SCHEMA }], ["public"]);
   const texts = [SCHEMA, comments];
 
   return moduleBody("memberships", {
     modules: { memberships: { options: { sameTenant: { auto: true } } } },
     ...layout,
-    sameTenantTags: sameTenantTagsOf(texts, ["public"], layout.foreignKeys),
+    sameTenantTags: await sameTenantTagsFrom(
+      texts,
+      ["public"],
+      layout.foreignKeys,
+    ),
   })!;
 }
 
 describe("same-tenant column tags", () => {
-  it("checks both foreign keys by default", () => {
-    const sql = render("");
+  it("checks both foreign keys by default", async () => {
+    const sql = await render("");
 
     expect(sql).toContain("bsb_same_tenant_project_id");
     expect(sql).toContain("bsb_same_tenant_parent_id");
   });
 
-  it("drops the check of a column tagged same-tenant=false", () => {
-    const sql = render(
+  it("drops the check of a column tagged same-tenant=false", async () => {
+    const sql = await render(
       "comment on column public.tasks.parent_id is '@bsb same-tenant=false';",
     );
 
@@ -43,10 +46,10 @@ describe("same-tenant column tags", () => {
     expect(sql).not.toContain("bsb_same_tenant_parent_id");
   });
 
-  it("adds the match columns of a tagged column to its check", () => {
-    const plain = render("");
+  it("adds the match columns of a tagged column to its check", async () => {
+    const plain = await render("");
 
-    const sql = render(
+    const sql = await render(
       "comment on column public.tasks.project_id is '@bsb same-tenant match=region=region';",
     );
 
@@ -72,13 +75,13 @@ create table public.tasks (
 );
 `;
 
-  const renderWith = (comments: string): string => {
-    const layout = sameTenantLayout([{ text: schema }], ["public"]);
+  const renderWith = async (comments: string): Promise<string> => {
+    const layout = await sameTenantLayoutOf([{ text: schema }], ["public"]);
 
     return moduleBody("memberships", {
       modules: { memberships: { options: { sameTenant: { auto: true } } } },
       ...layout,
-      sameTenantTags: sameTenantTagsOf(
+      sameTenantTags: await sameTenantTagsFrom(
         [schema, comments],
         ["public"],
         layout.foreignKeys,
@@ -86,10 +89,10 @@ create table public.tasks (
     })!;
   };
 
-  it("lets a tagged column share rows when the parent tenant column is nullable", () => {
-    const plain = renderWith("");
+  it("lets a tagged column share rows when the parent tenant column is nullable", async () => {
+    const plain = await renderWith("");
 
-    const tagged = renderWith(
+    const tagged = await renderWith(
       "comment on column public.members.role_id is '@bsb same-tenant';",
     );
 
@@ -97,16 +100,16 @@ create table public.tasks (
     expect(tagged).toMatch(/same_tenant\([^)]*'shared'/u);
   });
 
-  it("refuses rows with no tenant when the parent tenant column is not null", () => {
-    const tagged = renderWith(
+  it("refuses rows with no tenant when the parent tenant column is not null", async () => {
+    const tagged = await renderWith(
       "comment on column public.tasks.project_id is '@bsb same-tenant';",
     );
 
     expect(tagged).not.toMatch(/bsb_same_tenant_project_id[^;]*'shared'/u);
   });
 
-  it("honours shared=false on a nullable parent", () => {
-    const tagged = renderWith(
+  it("honours shared=false on a nullable parent", async () => {
+    const tagged = await renderWith(
       "comment on column public.members.role_id is '@bsb same-tenant shared=false';",
     );
 
@@ -133,8 +136,8 @@ create table public.notes (
 );
 `;
 
-  it("checks a composite key with its other columns as match pairs", () => {
-    const layout = sameTenantLayout([{ text: schema }], ["public"]);
+  it("checks a composite key with its other columns as match pairs", async () => {
+    const layout = await sameTenantLayoutOf([{ text: schema }], ["public"]);
 
     const sql = moduleBody("memberships", {
       modules: { memberships: {} },
@@ -145,8 +148,8 @@ create table public.notes (
     expect(sql).toMatch(/bsb_same_tenant_project_id[^;]*'region', 'region'/u);
   });
 
-  it("leaves a composite key with a nullable column to the database", () => {
-    const layout = sameTenantLayout([{ text: schema }], ["public"]);
+  it("leaves a composite key with a nullable column to the database", async () => {
+    const layout = await sameTenantLayoutOf([{ text: schema }], ["public"]);
 
     const sql = moduleBody("memberships", {
       modules: { memberships: {} },

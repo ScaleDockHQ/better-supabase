@@ -1,10 +1,10 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { SqlStatement } from "../../sql/index.ts";
+import type { SqlStatement } from "../schema-reader/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { splitStatements } from "../../sql/index.ts";
+import { statementsOf } from "../schema-reader/index.ts";
 
 const NAME = String.raw`(?:"[^"]+"|[\w$]+)`;
 const TABLE = String.raw`(${NAME}(?:\s*\.\s*${NAME})?)`;
@@ -127,7 +127,7 @@ function parse(file: TextFile): Statements {
   let parsed = statementsCache.get(file);
 
   if (parsed === undefined) {
-    const statements = splitStatements(file.text);
+    const statements = statementsOf(file.text);
 
     const created = new Set(
       statements.flatMap((statement) => {

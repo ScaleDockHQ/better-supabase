@@ -12,6 +12,7 @@ import {
 import { withoutConfigPaths } from "./codemod-prune.ts";
 import { projectSameTenantMoves } from "./codemod-same-tenant.ts";
 import { withTableTags } from "./gen/table-tags.ts";
+import { factsOf } from "./schema-reader/index.ts";
 import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 
 /** One table fact the config holds, as the tag line that replaces it. */
@@ -261,12 +262,12 @@ export function withoutExemptEntry(
  * The files that move the config's audit exemptions, `data-lifecycle` tables
  * and `expose` entries into `comment on table` tags, and drop the entries.
  */
-export function tableTagFiles(project: CodemodProject): {
+export async function tableTagFiles(project: CodemodProject): Promise<{
   readonly files: readonly PlannedFile[];
   readonly review: readonly { readonly message: string }[];
   /** One line per entry that moves: the tag, and where it reaches. */
   readonly explain: readonly string[];
-} {
+}> {
   const facts = tableFactMoves(project.config);
   const features = featureMoves(project.config, project.configText);
   const moves = [...facts.moves, ...features.moves];
@@ -306,14 +307,32 @@ export function tableTagFiles(project: CodemodProject): {
 
     const current = edited.get(creator.path) ?? creator.text;
 
-    if (new RegExp(String.raw`@bsb[^']*\b${move.tag}\b`, "u").test(current)) {
+    await primeSchemaFacts(
+      [{ path: creator.path, text: current }],
+      project.config.root,
+      { lenient: true },
+    );
+
+    if (
+      factsOf(current).comments.some(
+        (comment) =>
+          comment.target === "table" &&
+          comment.name === move.table &&
+          new RegExp(String.raw`@bsb[\s\S]*\b${move.tag}\b`, "u").test(
+            comment.text,
+          ),
+      )
+    ) {
       out.push({
         message: `${move.table}: a comment already holds ${move.tag}; remove the config entry by hand.`,
       });
       continue;
     }
 
-    edited.set(creator.path, withTableTag(current, move.table, move.line));
+    edited.set(
+      creator.path,
+      await withTableTag(current, project.config.root, move.table, move.line),
+    );
     moved.push(move);
   }
 
@@ -422,7 +441,7 @@ export function tableTagsCodemod(): Codemod {
         lenient: true,
       });
 
-      const result = tableTagFiles(project);
+      const result = await tableTagFiles(project);
 
       // The same-tenant step reads the files and the config the first step
       // wrote, so a table tag and a column tag land in the same text.

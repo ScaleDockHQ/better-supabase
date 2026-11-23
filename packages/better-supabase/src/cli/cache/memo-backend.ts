@@ -2,18 +2,15 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 import type { DiskModuleStore } from "./module-store.ts";
-import type { DiskParseStore } from "./parse-store.ts";
 
 import {
   clearMemo,
   setMemoBackend,
   setModuleRenderStore,
-  setParseStore,
 } from "../../sql/index.ts";
 import { generatorHash } from "../sql/generator-hash.ts";
 import { VERSION } from "../version.ts";
 import { createDiskModuleStore } from "./module-store.ts";
-import { createDiskParseStore } from "./parse-store.ts";
 import { cacheEnabled, cacheRoot } from "./store.ts";
 
 /** Results kept per namespace, newest last, so the file stays small. */
@@ -102,7 +99,7 @@ function diskBackend(folder: string, salt: string) {
   };
 }
 
-let active: { parse: DiskParseStore; modules: DiskModuleStore } | undefined;
+let active: { modules: DiskModuleStore } | undefined;
 let registered = false;
 
 /**
@@ -111,12 +108,10 @@ let registered = false;
  */
 export async function installMemo(root: string): Promise<void> {
   clearMemo();
-  active?.parse.flush();
   active?.modules.flush();
 
   if (!cacheEnabled()) {
     setMemoBackend(undefined);
-    setParseStore(undefined);
     setModuleRenderStore(undefined);
     active = undefined;
 
@@ -125,17 +120,14 @@ export async function installMemo(root: string): Promise<void> {
 
   const salt = `${VERSION}:${await generatorHash()}`;
   setMemoBackend(diskBackend(cacheRoot(root), salt));
-  const parse = createDiskParseStore(cacheRoot(root), salt);
-  setParseStore(parse);
   const modules = createDiskModuleStore(cacheRoot(root), salt);
   setModuleRenderStore(modules);
-  active = { parse, modules };
+  active = { modules };
 
   // The stores write once, when the process ends, instead of once per entry.
   if (!registered) {
     registered = true;
     process.once("exit", () => {
-      active?.parse.flush();
       active?.modules.flush();
     });
   }

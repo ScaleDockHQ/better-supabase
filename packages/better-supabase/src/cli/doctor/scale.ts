@@ -1,8 +1,9 @@
 import type { CatalogTable, CatalogTrigger } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { ownerOf, splitStatements } from "../../sql/index.ts";
 import { errorText } from "../core/errors.ts";
+import { ownerOf } from "../declaration-model.ts";
+import { statementsOf } from "../schema-reader/index.ts";
 import { writtenByBlocks } from "../sql-layout.ts";
 import { EDGE_FUNCTION_RULES } from "./edge-functions.ts";
 import { statementsView } from "./live.ts";
@@ -119,7 +120,7 @@ function functionSource(
   );
 
   for (const file of files) {
-    for (const statement of splitStatements(file.text)) {
+    for (const statement of statementsOf(file.text)) {
       if (pattern.test(statement.text.replaceAll(/\s+/g, " "))) {
         return statement.text;
       }
@@ -514,7 +515,7 @@ const SCALE_CHECKS: readonly Rule[] = [
             ownerOf(file.path, file.text).kind === "app",
         )
         .flatMap((file) =>
-          splitStatements(file.text)
+          statementsOf(file.text)
             .filter(
               (statement) =>
                 /^create\s+(?:or\s+replace\s+)?function\b/i.test(
@@ -659,7 +660,7 @@ const SCALE_CHECKS: readonly Rule[] = [
         const indexes = file.text.toLowerCase();
         const findings: FindingInput[] = [];
 
-        for (const statement of splitStatements(file.text)) {
+        for (const statement of statementsOf(file.text)) {
           const flat = statement.text.replaceAll(/\s+/g, " ");
 
           const name =

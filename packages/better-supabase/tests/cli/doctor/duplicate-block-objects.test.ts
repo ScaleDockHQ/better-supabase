@@ -25,7 +25,7 @@ vi.mock(import("../../../src/cli/doctor/module-files.ts"), () => ({
 const context = (): DoctorContext =>
   // SAFETY: the check reads only config.schemas and sqlFiles.
   ({
-    config: { schemas: ["public"] },
+    config: { root: "/nonexistent", schemas: ["public"] },
     sqlFiles: [
       {
         path: "supabase/schemas/app.sql",

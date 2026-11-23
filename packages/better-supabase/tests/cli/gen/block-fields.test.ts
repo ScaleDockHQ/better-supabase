@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { generatedOptions } from "../../../src/blocks/block-config.ts";
+import { appColumnsOf } from "../../../src/cli/declaration-model.ts";
 import { blockConfigEntries } from "../../../src/cli/gen/blocks.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { appColumnsOf } from "../../../src/sql/index.ts";
+import { primeAll } from "../../helpers/facts.ts";
 
 const TABLES = {
   expenses: "expense_reports",
@@ -23,6 +24,8 @@ alter table better_supabase.${table} add column ledger_ref text not null;
 alter table better_supabase.${table} add column hint_text text;
 `,
 }));
+
+await primeAll(...files.map((file) => file.text));
 
 const config = resolveConfig(
   // SAFETY: the test passes only block keys the config accepts.

@@ -1,11 +1,11 @@
-import { withoutComments } from "./audit-registrations.ts";
 import {
   closingParen,
   NAME,
   qualified,
   splitTopLevel,
   unquote,
-} from "./schema-scan.ts";
+} from "../sql/text-edit.ts";
+import { withoutComments } from "./schema-reader/index.ts";
 
 const INSERT = /* @__PURE__ */ new RegExp(
   String.raw`\binsert\s+into\s+(${NAME}(?:\s*\.\s*${NAME})?)(?:\s+as\s+${NAME})?\s*\(`,

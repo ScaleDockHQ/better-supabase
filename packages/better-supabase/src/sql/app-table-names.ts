@@ -1,7 +1,7 @@
 import { sqlIdent } from "../core/template.ts";
 import { maskComments, statementSpans } from "./over-app-tables.ts";
-import { NAME, qualified, unquote } from "./schema-scan.ts";
 import { shortHash } from "./shared.ts";
+import { NAME, qualified, unquote } from "./text-edit.ts";
 
 const TABLE_NAME = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
 

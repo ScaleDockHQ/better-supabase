@@ -18,7 +18,6 @@ import type { CatalogPolicy } from "../config/snapshot.ts";
 import type { AppTablesConfig } from "../config/types/app-tables.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
-import type { AuditedTable } from "./audit-registrations.ts";
 import type {
   BlockSqlContext,
   BlockSqlContractFunction,
@@ -26,11 +25,14 @@ import type {
   BlockSqlNames,
 } from "./context.ts";
 import type { BlockContributes } from "./contributions.ts";
-import type { DeclaredForeignKey } from "./foreign-keys.ts";
+import type {
+  AuditedTable,
+  DeclaredForeignKey,
+  OwnIndex,
+} from "./layout-types.ts";
 import type { EntitlementsSource } from "./modules/entitlements-source.ts";
 import type { FunctionGrant, TableGrant } from "./modules/grants.ts";
 import type { VectorSearchTable } from "./modules/vector-search.ts";
-import type { OwnIndex } from "./schema-scan.ts";
 import type { BlockSeeds } from "./seeds.ts";
 import type { JsonSchemaCheck } from "./shared.ts";
 

@@ -1,10 +1,10 @@
 import type {
-  AdoptedTable,
   BlockSqlNames,
   DataExportPlan,
-  TableCheckValues,
   ValueMaps,
 } from "../../sql/index.ts";
+import type { AdoptedTable } from "../adopted-columns.ts";
+import type { TableCheckValues } from "../check-values.ts";
 import type {
   CatalogColumn,
   CatalogEnum,
@@ -13,13 +13,9 @@ import type {
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import {
-  adoptedTables,
-  adoptedViews,
   appValues,
   checkedValueMaps,
-  checkValues,
   dataExportPlan,
-  declaredCheckValues,
   excludedColumns,
   moduleLayout,
   moduleSource,
@@ -29,12 +25,19 @@ import {
   sameTenantTrigger,
   SQL_MODULES,
   unusedDeclaredColumns,
-  writtenValues,
 } from "../../sql/index.ts";
+import {
+  adoptedTables,
+  adoptedViews,
+  primeAdoption,
+} from "../adopted-columns.ts";
+import { checkValues, declaredCheckValues } from "../check-values.ts";
 import { tenantEntries } from "../codemod-config.ts";
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
 import { isRecord } from "../guards.ts";
+import { primeSchemaTexts } from "../sql-facts.ts";
+import { writtenValues } from "../written-values.ts";
 import { appTablesWithoutPolicies } from "./app-table-policies.ts";
 import { adoptionContext, appTablesOf, appViewsOf } from "./app-tables.ts";
 import { shadowedBlockColumns, staleRenameKeys } from "./column-renames.ts";
@@ -241,13 +244,20 @@ export const ADOPTION_RULES: readonly Rule[] = [
     title: "Enum column of the app's that a module writes as text",
     description:
       "A module writes a text parameter or computed text value into a column of the app's table that the snapshot declares as an enum; string literals are fine. Postgres has no implicit cast from text to an enum, so the module's functions fail when they run. Columns the module casts to their declared type, such as the tags `kind`, the numbering `entity` and the profiles `locale`, may be enums.",
-    check: (context) => {
+    check: async (context) => {
       const { tables } = catalogOf(context);
 
       // Every table the database has may be the app's; a table a block
       // created has text columns, so it never reports here.
       const ownTables = Object.fromEntries(
         tables.map((table) => [qualified(table), "database"]),
+      );
+
+      // This table set differs from the one the doctor primed, so read its module text too.
+      await primeAdoption(
+        context.config.blocks,
+        ownTables,
+        adoptionContext(context).subjects,
       );
 
       return adoptedTables(
@@ -659,10 +669,10 @@ interface ManagedTables {
   readonly sql: string;
 }
 
-function managedTables(
+async function managedTables(
   name: string,
   context: DoctorContext,
-): ManagedTables | Error | undefined {
+): Promise<ManagedTables | Error | undefined> {
   const module = SQL_MODULES[name];
   const tables = module?.names?.tables;
 
@@ -685,6 +695,11 @@ function managedTables(
       ...appViewsOf(context),
     };
 
+    const sql =
+      moduleSource(name, layout, context.config.blockNames) ?? module.sql;
+
+    await primeSchemaTexts([module.sql, sql]);
+
     return {
       checks: declaredCheckValues([{ text: module.sql }]),
       tables,
@@ -693,7 +708,7 @@ function managedTables(
         context.config.blocks[name]?.values,
         tables,
       ),
-      sql: moduleSource(name, layout, context.config.blockNames) ?? module.sql,
+      sql,
     };
   } catch (error) {
     return error instanceof Error ? error : new Error(String(error));
@@ -737,7 +752,9 @@ function checkRejectsMessage(
 }
 
 /** Checks of the app's tables that reject a value the module writes (BS361). */
-function checkValuesOverAdoptedTables(context: DoctorContext): FindingInput[] {
+async function checkValuesOverAdoptedTables(
+  context: DoctorContext,
+): Promise<FindingInput[]> {
   const adopted = adoptedTables(
     context.config.blocks,
     appTablesOf(context),
@@ -763,7 +780,7 @@ function checkValuesOverAdoptedTables(context: DoctorContext): FindingInput[] {
     let managed = rendered.get(adoptedTable.module);
 
     if (!rendered.has(adoptedTable.module)) {
-      managed = managedTables(adoptedTable.module, context);
+      managed = await managedTables(adoptedTable.module, context);
       rendered.set(adoptedTable.module, managed);
 
       if (managed instanceof Error) {

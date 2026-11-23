@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
+import { adoptedColumnProblems } from "../../../src/cli/adopted-columns.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
@@ -77,7 +77,7 @@ describe("membership suspension", () => {
     );
   });
 
-  it("leaves the app's table alone until the column is mapped", () => {
+  it("leaves the app's table alone until the column is mapped", async () => {
     const sql = render(APP_OWNED);
     expect(sql("memberships")).not.toContain('"disabled_at"');
     expect(sql("permissions")).not.toContain('"disabled_at"');
@@ -88,7 +88,7 @@ describe("membership suspension", () => {
       "returns table (user_id uuid, role text)",
     );
     expect(
-      adoptedColumnProblems(
+      await adoptedColumnProblems(
         APP_OWNED,
         [
           {

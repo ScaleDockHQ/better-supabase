@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
-import { declaredTableColumns } from "../../../src/sql/schema-scan.ts";
+import { adoptedColumnProblems } from "../../../src/cli/adopted-columns.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import { declaredTableColumnsOf } from "../../helpers/facts.ts";
 import { renderBlocks } from "../app-columns.ts";
 
 const contentsOf = (
@@ -112,9 +112,9 @@ const AS_ALICE = `perform set_config('request.jwt.claims', '{"sub":"${ALICE}","r
 
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
 /** The columns the app's schema declares, as the CLI passes them. */
-const ownColumnsOf = (app: string): Record<string, string[]> =>
+const ownColumnsOf = async (app: string): Promise<Record<string, string[]>> =>
   Object.fromEntries(
-    [...declaredTableColumns([{ text: app }], ["public"])].map(
+    [...(await declaredTableColumnsOf([{ text: app }], ["public"]))].map(
       ([table, columns]) => [table, [...columns]],
     ),
   );
@@ -135,7 +135,7 @@ async function run(
   const files = renderBlocks(names, {
     modules,
     ownTables: OWN_TABLES,
-    ownColumns: ownColumnsOf(app),
+    ownColumns: await ownColumnsOf(app),
   });
 
   await using stack = await liteStack({
@@ -627,7 +627,7 @@ language sql immutable as $$ select sha256(data) $$;
     ).toThrow(/typeKey/);
   });
 
-  it("checks the readConfidential key when the config names one", () => {
+  it("checks the readConfidential key when the config names one", async () => {
     const leave = BLOCKS["leave"];
 
     const sql = renderBlocks(["leave"], {
@@ -645,7 +645,7 @@ language sql immutable as $$ select sha256(data) $$;
         },
       },
       ownTables: OWN_TABLES,
-      ownColumns: ownColumnsOf(CONFIDENTIAL_APP),
+      ownColumns: await ownColumnsOf(CONFIDENTIAL_APP),
     })
       .map((file) => file.contents)
       .join("\n");
@@ -793,7 +793,7 @@ async function runEmployees(
   const files = renderBlocks(["employees", "leave"], {
     modules,
     ownTables,
-    ownColumns: ownColumnsOf(app),
+    ownColumns: await ownColumnsOf(app),
   });
 
   await using stack = await liteStack({
@@ -806,9 +806,9 @@ async function runEmployees(
 }
 
 describe("leave by employee over the app's requests and balances", BOOT, () => {
-  it("adopts the tables without problems", () => {
+  it("adopts the tables without problems", async () => {
     expect(
-      adoptedColumnProblems(
+      await adoptedColumnProblems(
         EMPLOYEE_BLOCKS,
         [{ text: EMPLOYEE_APP }],
         ["public"],
@@ -1108,7 +1108,7 @@ $$;`,
         },
       },
       ownTables: EMPLOYEE_OWN,
-      ownColumns: ownColumnsOf(EMPLOYEE_APP),
+      ownColumns: await ownColumnsOf(EMPLOYEE_APP),
     })
       .map((file) => file.contents)
       .join("\n");
@@ -1158,7 +1158,7 @@ $$;`,
         },
       },
       ownTables: EMPLOYEE_OWN,
-      ownColumns: ownColumnsOf(EMPLOYEE_CONFIDENTIAL_APP),
+      ownColumns: await ownColumnsOf(EMPLOYEE_CONFIDENTIAL_APP),
     });
 
     await using stack = await liteStack({

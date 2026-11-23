@@ -1,5 +1,5 @@
-import type { AuditedTable } from "../audit-registrations.ts";
 import type { BlockSqlContext } from "../context.ts";
+import type { AuditedTable } from "../layout-types.ts";
 import type { BlockSqlTestFile } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";

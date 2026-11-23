@@ -1,10 +1,7 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import {
-  moduleLayout,
-  sameTenantColumn,
-  sameTenantLayout,
-} from "../../sql/index.ts";
+import { moduleLayout, sameTenantColumn } from "../../sql/index.ts";
+import { sameTenantLayout } from "../same-tenant-layout.ts";
 import { catalogOf, qualified, tableObject } from "./shared.ts";
 
 /** The schema files the app's own triggers are declared in. */

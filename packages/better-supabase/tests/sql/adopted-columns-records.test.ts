@@ -2,11 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
 
-import {
-  adoptedColumnProblems,
-  adoptedTables,
-} from "../../src/sql/adopted-columns.ts";
+import { adoptedColumnProblems } from "../../src/cli/adopted-columns.ts";
 import { modulePermissionKeys } from "../../src/sql/introspect.ts";
+import { adoptedTablesOf } from "../helpers/facts.ts";
 
 const SUBJECTS = { product: { table: "public.products", idType: "uuid" } };
 
@@ -36,8 +34,10 @@ const FILES = [
 ];
 
 describe("blocks.<name>.on entries that inherit from config.recordTypes", () => {
-  it("takes the table and id type of a registered record", () => {
-    const tables = adoptedTables(MODULES, undefined, { subjects: SUBJECTS });
+  it("takes the table and id type of a registered record", async () => {
+    const tables = await adoptedTablesOf(MODULES, undefined, {
+      subjects: SUBJECTS,
+    });
 
     expect(
       tables.some(
@@ -45,7 +45,13 @@ describe("blocks.<name>.on entries that inherit from config.recordTypes", () => 
       ),
     ).toBe(true);
     expect(
-      adoptedColumnProblems(MODULES, FILES, ["public"], undefined, SUBJECTS),
+      await adoptedColumnProblems(
+        MODULES,
+        FILES,
+        ["public"],
+        undefined,
+        SUBJECTS,
+      ),
     ).toEqual([]);
     expect(
       modulePermissionKeys(MODULES, ["tags"], SUBJECTS).map(
@@ -54,7 +60,7 @@ describe("blocks.<name>.on entries that inherit from config.recordTypes", () => 
     ).toContain("apply");
   });
 
-  it("still needs a table for a type config.recordTypes doesn't register", () => {
-    expect(() => adoptedTables(MODULES)).toThrow(/needs a table/u);
+  it("still needs a table for a type config.recordTypes doesn't register", async () => {
+    await expect(adoptedTablesOf(MODULES)).rejects.toThrow(/needs a table/u);
   });
 });
