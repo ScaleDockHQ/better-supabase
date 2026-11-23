@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:bbc9b36e211170980c1faee919bb3bb570887646d9739c9d7364ca2868cb748e
+-- @bsb-hash sha256:739b4d309606ea4700a08520315f1bbca563f5874706715e7c5ddf403e108cf5
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -136,7 +136,9 @@ grant execute on function "better_supabase"."emit_event"(text, jsonb, text, text
 -- first with from_start. Registering again changes only its types. The start
 -- never passes the snapshot's xmax: an event stamped with a transaction id the
 -- database has not reached (rows restored from another database) would
--- otherwise hide every new event until the counter caught up.
+-- otherwise hide every new event until the counter caught up. It never starts
+-- before the caller's own events either: their id passes xmax while an older
+-- transaction is open.
 create or replace function "better_supabase"."outbox_register"(consumer text, types text[] default null, from_start boolean default false)
 returns bigint
 language sql
@@ -144,7 +146,7 @@ security definer
 set search_path = ''
 as $$
   insert into "better_supabase"."outbox_consumers" ("name", "cursor_xid", "cursor_position", "types")
-  select consumer, least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0), types
+  select consumer, start.xid, start.position, types
   from (select 1) one
   left join lateral (
     select e."xid" as xid, e."position" as position from "better_supabase"."outbox_events" e
@@ -152,6 +154,18 @@ as $$
     order by e."xid" desc, e."position" desc
     limit 1
   ) latest on true
+  left join lateral (
+    select e."xid" as xid, e."position" as position from "better_supabase"."outbox_events" e
+    where not from_start and e."xid" = pg_current_xact_id_if_assigned()
+    order by e."position" desc
+    limit 1
+  ) mine on true
+  cross join lateral (
+    select v.xid, v.position from (values (least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0)), (mine.xid, mine.position)) v (xid, position)
+    where v.xid is not null
+    order by v.xid desc, v.position desc
+    limit 1
+  ) start
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
 $$;
@@ -551,7 +565,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:3d444fd49da58020ae41ec78287303a936d0c3a742279bba454dc2476c23637a
+-- @bsb-hash sha256:32c89f45228964e4ff06f71d80339ed6662dac20a378402a6ae5da59e4b948d1
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -686,7 +700,9 @@ grant execute on function "better_supabase"."emit_event"(text, jsonb, text, text
 -- first with from_start. Registering again changes only its types. The start
 -- never passes the snapshot's xmax: an event stamped with a transaction id the
 -- database has not reached (rows restored from another database) would
--- otherwise hide every new event until the counter caught up.
+-- otherwise hide every new event until the counter caught up. It never starts
+-- before the caller's own events either: their id passes xmax while an older
+-- transaction is open.
 create or replace function "better_supabase"."outbox_register"(consumer text, types text[] default null, from_start boolean default false)
 returns bigint
 language sql
@@ -694,7 +710,7 @@ security definer
 set search_path = ''
 as $$
   insert into "better_supabase"."outbox_consumers" ("name", "cursor_xid", "cursor_position", "types")
-  select consumer, least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0), types
+  select consumer, start.xid, start.position, types
   from (select 1) one
   left join lateral (
     select e."xid" as xid, e."position" as position from "better_supabase"."outbox_events" e
@@ -702,6 +718,18 @@ as $$
     order by e."xid" desc, e."position" desc
     limit 1
   ) latest on true
+  left join lateral (
+    select e."xid" as xid, e."position" as position from "better_supabase"."outbox_events" e
+    where not from_start and e."xid" = pg_current_xact_id_if_assigned()
+    order by e."position" desc
+    limit 1
+  ) mine on true
+  cross join lateral (
+    select v.xid, v.position from (values (least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0)), (mine.xid, mine.position)) v (xid, position)
+    where v.xid is not null
+    order by v.xid desc, v.position desc
+    limit 1
+  ) start
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
 $$;
@@ -1105,7 +1133,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:1d07e9ad2e683d6251c179d5dc892996c5e4c11329daa01488b27dde3a5c0cc9
+-- @bsb-hash sha256:0f1f0dafb6007efdc9fc744263a2200645422752ba40511f51c0413da6036d79
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1245,7 +1273,9 @@ grant execute on function "app_private"."emit_event"(text, jsonb, text, text, te
 -- first with from_start. Registering again changes only its types. The start
 -- never passes the snapshot's xmax: an event stamped with a transaction id the
 -- database has not reached (rows restored from another database) would
--- otherwise hide every new event until the counter caught up.
+-- otherwise hide every new event until the counter caught up. It never starts
+-- before the caller's own events either: their id passes xmax while an older
+-- transaction is open.
 create or replace function "app_private"."outbox_register"(consumer text, types text[] default null, from_start boolean default false)
 returns bigint
 language sql
@@ -1253,7 +1283,7 @@ security definer
 set search_path = ''
 as $$
   insert into "app_private"."outbox_consumers" ("name", "cursor_xid", "cursor_position", "types")
-  select consumer, least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0), types
+  select consumer, start.xid, start.position, types
   from (select 1) one
   left join lateral (
     select e."xid" as xid, e."position" as position from "app_private"."outbox_events" e
@@ -1261,6 +1291,18 @@ as $$
     order by e."xid" desc, e."position" desc
     limit 1
   ) latest on true
+  left join lateral (
+    select e."xid" as xid, e."position" as position from "app_private"."outbox_events" e
+    where not from_start and e."xid" = pg_current_xact_id_if_assigned()
+    order by e."position" desc
+    limit 1
+  ) mine on true
+  cross join lateral (
+    select v.xid, v.position from (values (least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0)), (mine.xid, mine.position)) v (xid, position)
+    where v.xid is not null
+    order by v.xid desc, v.position desc
+    limit 1
+  ) start
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
 $$;
@@ -1660,7 +1702,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:fb14f0b4283980ee6fb3b529df002ee8c3125fcffddc3050865439a4329554d8
+-- @bsb-hash sha256:0dfefb1490b870ec0a6438087edbc8934953da1c0cf1fd4fa160bf3768cf392f
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1795,7 +1837,9 @@ grant execute on function "better_supabase"."emit_event"(text, jsonb, text, text
 -- first with from_start. Registering again changes only its types. The start
 -- never passes the snapshot's xmax: an event stamped with a transaction id the
 -- database has not reached (rows restored from another database) would
--- otherwise hide every new event until the counter caught up.
+-- otherwise hide every new event until the counter caught up. It never starts
+-- before the caller's own events either: their id passes xmax while an older
+-- transaction is open.
 create or replace function "better_supabase"."outbox_register"(consumer text, types text[] default null, from_start boolean default false)
 returns bigint
 language sql
@@ -1803,7 +1847,7 @@ security definer
 set search_path = ''
 as $$
   insert into "better_supabase"."outbox_consumers" ("name", "cursor_xid", "cursor_position", "types")
-  select consumer, least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0), types
+  select consumer, start.xid, start.position, types
   from (select 1) one
   left join lateral (
     select e."xid" as xid, e."position" as position from "better_supabase"."outbox_events" e
@@ -1811,6 +1855,18 @@ as $$
     order by e."xid" desc, e."position" desc
     limit 1
   ) latest on true
+  left join lateral (
+    select e."xid" as xid, e."position" as position from "better_supabase"."outbox_events" e
+    where not from_start and e."xid" = pg_current_xact_id_if_assigned()
+    order by e."position" desc
+    limit 1
+  ) mine on true
+  cross join lateral (
+    select v.xid, v.position from (values (least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0)), (mine.xid, mine.position)) v (xid, position)
+    where v.xid is not null
+    order by v.xid desc, v.position desc
+    limit 1
+  ) start
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
 $$;
@@ -2307,7 +2363,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:e5b9f9394d95fb8d203c483d879bef95513df705502845587fcaffa31cdd2b01
+-- @bsb-hash sha256:bcf600d27c5199e478fe4dfdc02579600c18a98c7c61808eba9d6ff02ef50c41
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2416,7 +2472,9 @@ grant execute on function "better_supabase"."emit_event"(text, jsonb, text, text
 -- first with from_start. Registering again changes only its types. The start
 -- never passes the snapshot's xmax: an event stamped with a transaction id the
 -- database has not reached (rows restored from another database) would
--- otherwise hide every new event until the counter caught up.
+-- otherwise hide every new event until the counter caught up. It never starts
+-- before the caller's own events either: their id passes xmax while an older
+-- transaction is open.
 create or replace function "better_supabase"."outbox_register"(consumer text, types text[] default null, from_start boolean default false)
 returns bigint
 language sql
@@ -2424,7 +2482,7 @@ security definer
 set search_path = ''
 as $$
   insert into "better_supabase"."outbox_consumers" ("name", "cursor_xid", "cursor_position", "types")
-  select consumer, least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0), types
+  select consumer, start.xid, start.position, types
   from (select 1) one
   left join lateral (
     select e."xid" as xid, e."position" as position from "better_supabase"."outbox_events" e
@@ -2432,6 +2490,18 @@ as $$
     order by e."xid" desc, e."position" desc
     limit 1
   ) latest on true
+  left join lateral (
+    select e."xid" as xid, e."position" as position from "better_supabase"."outbox_events" e
+    where not from_start and e."xid" = pg_current_xact_id_if_assigned()
+    order by e."position" desc
+    limit 1
+  ) mine on true
+  cross join lateral (
+    select v.xid, v.position from (values (least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0)), (mine.xid, mine.position)) v (xid, position)
+    where v.xid is not null
+    order by v.xid desc, v.position desc
+    limit 1
+  ) start
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
 $$;
@@ -2831,7 +2901,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:553d706d0c80debb1a3f4bb700c4d0949889de99d0387f3e74905895add0538b
+-- @bsb-hash sha256:8548482957bd8effb7b27e783349274a62d8b3cf0072ca1a5498a3c2705d832b
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2966,7 +3036,9 @@ grant execute on function "better_supabase"."emit_event"(text, jsonb, text, text
 -- first with from_start. Registering again changes only its types. The start
 -- never passes the snapshot's xmax: an event stamped with a transaction id the
 -- database has not reached (rows restored from another database) would
--- otherwise hide every new event until the counter caught up.
+-- otherwise hide every new event until the counter caught up. It never starts
+-- before the caller's own events either: their id passes xmax while an older
+-- transaction is open.
 create or replace function "better_supabase"."outbox_register"(consumer text, types text[] default null, from_start boolean default false)
 returns bigint
 language sql
@@ -2974,7 +3046,7 @@ security definer
 set search_path = ''
 as $$
   insert into "better_supabase"."outbox_consumers" ("name", "cursor_xid", "cursor_position", "types")
-  select consumer, least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0), types
+  select consumer, start.xid, start.position, types
   from (select 1) one
   left join lateral (
     select e."xid" as xid, e."position" as position from "better_supabase"."outbox_events" e
@@ -2982,6 +3054,18 @@ as $$
     order by e."xid" desc, e."position" desc
     limit 1
   ) latest on true
+  left join lateral (
+    select e."xid" as xid, e."position" as position from "better_supabase"."outbox_events" e
+    where not from_start and e."xid" = pg_current_xact_id_if_assigned()
+    order by e."position" desc
+    limit 1
+  ) mine on true
+  cross join lateral (
+    select v.xid, v.position from (values (least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0)), (mine.xid, mine.position)) v (xid, position)
+    where v.xid is not null
+    order by v.xid desc, v.position desc
+    limit 1
+  ) start
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
 $$;

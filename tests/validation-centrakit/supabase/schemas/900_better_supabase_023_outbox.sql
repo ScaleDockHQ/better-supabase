@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:0acb699df52f2d79c1e84bd8d6af83ae2380be3a3d61a0b371d9e4ad5728212a
+-- @bsb-hash sha256:df3f737a9015e8e9e0880b4fec713ceed1ce30a9b398146b9307b44ca5c21e91
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -113,7 +113,9 @@ grant execute on function "better_supabase"."emit_event"(text, jsonb, text, text
 -- first with from_start. Registering again changes only its types. The start
 -- never passes the snapshot's xmax: an event stamped with a transaction id the
 -- database has not reached (rows restored from another database) would
--- otherwise hide every new event until the counter caught up.
+-- otherwise hide every new event until the counter caught up. It never starts
+-- before the caller's own events either: their id passes xmax while an older
+-- transaction is open.
 create or replace function "better_supabase"."outbox_register"(consumer text, types text[] default null, from_start boolean default false)
 returns bigint
 language sql
@@ -121,7 +123,7 @@ security definer
 set search_path = ''
 as $$
   insert into "better_supabase"."outbox_consumers" ("name", "cursor_xid", "cursor_position", "types")
-  select consumer, least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0), types
+  select consumer, start.xid, start.position, types
   from (select 1) one
   left join lateral (
     select '0'::xid8 as xid, e."position" as position from "centrakit"."workflow_events" e
@@ -129,6 +131,12 @@ as $$
     order by e."position" desc
     limit 1
   ) latest on true
+  cross join lateral (
+    select v.xid, v.position from (values (least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0))) v (xid, position)
+    where v.xid is not null
+    order by v.xid desc, v.position desc
+    limit 1
+  ) start
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
 $$;

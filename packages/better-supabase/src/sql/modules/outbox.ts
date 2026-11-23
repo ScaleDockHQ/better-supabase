@@ -451,7 +451,9 @@ drop function if exists ${ctx.fn("purge_outbox")}(interval, integer);
 -- first with from_start. Registering again changes only its types. The start
 -- never passes the snapshot's xmax: an event stamped with a transaction id the
 -- database has not reached (rows restored from another database) would
--- otherwise hide every new event until the counter caught up.
+-- otherwise hide every new event until the counter caught up. It never starts
+-- before the caller's own events either: their id passes xmax while an older
+-- transaction is open.
 create or replace function ${ctx.fn("outbox_register")}(consumer text, types text[] default null, from_start boolean default false)
 returns bigint
 language sql
@@ -459,14 +461,30 @@ security definer
 set search_path = ''
 as $$
   insert into ${n.c} (${n.k("name")}, ${n.k("cursorXid")}, ${n.k("cursor")}, ${n.k("types")})
-  select consumer, least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0), types
+  select consumer, start.xid, start.position, types
   from (select 1) one
   left join lateral (
     select ${xidOf("e")} as xid, ${pos("e")} as position from ${n.t} e
     where not from_start
     order by ${order("e", " desc")}
     limit 1
-  ) latest on true
+  ) latest on true${
+    byXid
+      ? `
+  left join lateral (
+    select e.${n.e("xid")} as xid, ${pos("e")} as position from ${n.t} e
+    where not from_start and e.${n.e("xid")} = pg_current_xact_id_if_assigned()
+    order by ${pos("e")} desc
+    limit 1
+  ) mine on true`
+      : ""
+  }
+  cross join lateral (
+    select v.xid, v.position from (values (least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0))${byXid ? ", (mine.xid, mine.position)" : ""}) v (xid, position)
+    where v.xid is not null
+    order by v.xid desc, v.position desc
+    limit 1
+  ) start
   on conflict (${n.k("name")}) do update set ${n.k("types")} = excluded.${n.k("types")}, ${n.k("updatedAt")} = now()
   returning ${n.k("cursor")}
 $$;

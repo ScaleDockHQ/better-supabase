@@ -1020,7 +1020,7 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
   ["update_member_roles", `${id}, uuid[], text`],
   ["remove_member", `${id}, uuid`],
   ["leave_organization", id],
-  ["sole_owned_organizations", "uuid"],
+  ["sole_owned_organizations", `uuid, ${id}`],
   ["transfer_ownership", `${id}, uuid, text`],
   ["mark_used", id],
   ["switch_organization", id],

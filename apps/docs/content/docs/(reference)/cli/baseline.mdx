@@ -32,7 +32,9 @@ better-supabase, Supabase CLI and Postgres versions. It holds:
   version as applied. A restore moves every `xid8` or `xid` value of these
   rows that is ahead of the new database's transaction counter back to the
   restoring transaction, so an outbox consumer registered afterwards still
-  sees the next event.
+  sees the next event. Those rows then share one transaction id, so the outbox
+  orders them by position alone. A baseline built before 0.83 has no such
+  step: rebuild it with `baseline build`.
 - `catalog.snapshot` and `manifest.json`, which `verify` compares against.
 - With `--with-seed`, the same three files for the seeded state under `seed/`,
   plus `seed/storage.tar.gz` with the bucket objects.
