@@ -95,7 +95,10 @@ Four groups of text scanning remain, internal and not exported from `./sql`.
    and the allowance is deleted. It still reads block output as text, which
    falls under group 1.
 
-Groups 1 and 2 end when a synchronous parser or a plpgsql parser exists.
+Groups 1 and 2 end when a synchronous parser or a plpgsql parser exists. Both
+are asked upstream: [a synchronous API](https://github.com/supabase-community/pg-parser/issues/38)
+and [PL/pgSQL bodies](https://github.com/supabase-community/pg-parser/issues/37)
+([ADR 1226](1226-borrow-from-pgsql-parser-without-the-dependency.md)).
 
 ## Consequences
 

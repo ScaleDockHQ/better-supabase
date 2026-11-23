@@ -41,9 +41,11 @@ reads the file from disk.
 - `plain-secrets` and the plpgsql source checks in `hooks`
   (the marker files and the grant source). They read a function body that
   pg-parser returns as one string; there is no plpgsql parser (ADR 1212,
-  group 2).
+  group 2, asked upstream in
+  [pg-parser issue 37](https://github.com/supabase-community/pg-parser/issues/37)).
 - The render-path rewriters (ADR 1212, group 1): invariant 6 forbids the
-  parser in the synchronous render.
+  parser in the synchronous render, until pg-parser has a
+  [synchronous API](https://github.com/supabase-community/pg-parser/issues/38).
 - `codemod-server-imports` and `codemod-same-tenant` already parse with
   oxc-parser; they had no text import handling to move.
 

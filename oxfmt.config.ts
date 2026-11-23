@@ -49,6 +49,8 @@ const config: OxfmtConfig = defineConfig({
     "packages/better-supabase/src/blocks/name-registry.generated.ts",
     "packages/better-supabase/src/blocks/hint-codes.generated.ts",
     "packages/better-supabase/src/blocks/messages/hint-messages.generated.ts",
+    // `gen-pg-node-fields.ts --check` compares it with its output byte for byte.
+    "packages/better-supabase/src/cli/schema-reader/node-fields.generated.ts",
     // `recipes:check` compares it with the example sources, whose Tailwind
     // classes sort against the app's stylesheet, which this path can't see.
     "packages/better-supabase/skills/better-supabase/references/ui-recipes.md",

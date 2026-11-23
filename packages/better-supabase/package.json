@@ -2834,6 +2834,7 @@
     "gen:check": "node scripts/gen-fixtures.ts --check",
     "gen:config-schema": "node scripts/gen-config-schema.ts",
     "gen:fixtures": "node scripts/gen-fixtures.ts",
+    "gen:pg-node-fields": "node scripts/gen-pg-node-fields.ts",
     "lint": "oxlint",
     "test": "vitest run --project unit",
     "test:coverage": "vitest run --project unit --coverage",

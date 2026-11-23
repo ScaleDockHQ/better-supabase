@@ -1,4 +1,5 @@
-import { bodyOf, list, obj, str, strings } from "./ast.ts";
+import { bodyOf, list, str, strings } from "./ast.ts";
+import { walk } from "./walk.ts";
 
 const AGGREGATES = new Set([
   "count",
@@ -16,49 +17,34 @@ const AGGREGATES = new Set([
 
 /** Whether anything in `query` keeps Postgres from writing through the view. */
 export function blocksWrites(node: unknown): boolean {
-  if (Array.isArray(node)) {
-    return node.some((item) => blocksWrites(item));
-  }
+  let blocked = false;
 
-  if (typeof node !== "object" || node === null) {
-    return false;
-  }
+  const block = (reason: boolean): boolean => {
+    blocked ||= reason;
 
-  return Object.entries(node).some(([key, value]) => {
-    switch (key) {
-      case "distinctClause":
-      case "groupClause":
-      case "windowClause": {
-        return list(value).length > 0;
-      }
+    return !blocked;
+  };
 
-      case "havingClause":
-      case "limitCount":
-      case "limitOffset":
-      case "JoinExpr": {
-        return true;
-      }
-
-      case "op": {
-        return value !== "SETOP_NONE";
-      }
-
-      case "FuncCall": {
-        const call = obj(value);
-        const name = strings(call["funcname"]).at(-1)?.toLowerCase() ?? "";
-
-        return (
-          call["over"] !== undefined ||
-          AGGREGATES.has(name) ||
-          blocksWrites(call["args"])
-        );
-      }
-
-      default: {
-        return blocksWrites(value);
-      }
-    }
+  walk(node, {
+    SelectStmt: (select) =>
+      block(
+        list(select.distinctClause).length > 0 ||
+          list(select.groupClause).length > 0 ||
+          list(select.windowClause).length > 0 ||
+          select.havingClause !== undefined ||
+          select.limitCount !== undefined ||
+          select.limitOffset !== undefined ||
+          (select.op !== undefined && select.op !== "SETOP_NONE"),
+      ),
+    JoinExpr: () => block(true),
+    FuncCall: (call) =>
+      block(
+        call.over !== undefined ||
+          AGGREGATES.has(strings(call.funcname).at(-1)?.toLowerCase() ?? ""),
+      ),
   });
+
+  return blocked;
 }
 
 /** The names of the select list, or `undefined` when one is `*` or unnamed. */

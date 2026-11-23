@@ -1,11 +1,13 @@
+import { PgParser } from "@supabase/pg-parser";
 import { describe, expect, it } from "vitest";
 
 import {
+  canonicalSql,
   primeStatements,
   readFileFacts,
   statementsOf,
 } from "../../../src/cli/schema-reader/index.ts";
-import { files } from "./corpus.ts";
+import { cleanTree, files, regressFiles } from "./corpus.ts";
 
 const facts = readFileFacts;
 
@@ -191,4 +193,33 @@ describe("the schema reader over the repository's own SQL", () => {
 
     expect(mismatched).toEqual([]);
   }, 120_000);
+});
+
+describe("the schema reader over Postgres regression scripts", () => {
+  const parser = new PgParser({ version: 17 });
+
+  async function treeOf(text: string): Promise<unknown> {
+    const parsed = await parser.parse(text);
+
+    if (parsed.error !== undefined) {
+      throw new Error(parsed.error.message);
+    }
+
+    return cleanTree(parsed.tree.stmts);
+  }
+
+  it.each(regressFiles.map((file) => [file.name, file.text]))(
+    "reads, splits and deparses %s",
+    async (_, text) => {
+      await primeStatements([text]);
+
+      const read = await readFileFacts(text);
+      const canonical = await canonicalSql(text);
+
+      expect(read.statements.length).toBeGreaterThan(0);
+      expect(statementsOf(text)).toHaveLength(read.statements.length);
+      expect(canonical).toBeDefined();
+      expect(await treeOf(canonical ?? "")).toStrictEqual(await treeOf(text));
+    },
+  );
 });

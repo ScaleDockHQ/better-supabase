@@ -2,6 +2,8 @@ import type { ScanToken } from "@supabase/pg-parser";
 
 import type { Source } from "./source.ts";
 
+import { scanWord, statementEnds } from "./statement-ends.ts";
+
 /** One SQL statement and the line (1-based) it starts on. */
 export interface SqlStatement {
   /** The statement without its comments and the closing semicolon. */
@@ -40,9 +42,15 @@ function textOf(
   return { text: text.trim(), line: source.lineAt(first.start) };
 }
 
+/** The scanner tokens of `source` that end a statement (see `statementEnds`). */
+function endsOf(source: Source): ReadonlySet<number> {
+  return statementEnds(source.tokens.map(scanWord));
+}
+
 /**
  * The statements of a scanned text, split at the semicolons the scanner reports
- * outside quotes, dollar quotes and comments.
+ * outside quotes, dollar quotes and comments, and outside parentheses and
+ * `begin atomic` bodies.
  *
  * @param source - The scanned text.
  * @returns The statements in source order, empty ones left out.
@@ -51,9 +59,10 @@ export function statementsFrom(source: Source): SqlStatement[] {
   const statements: SqlStatement[] = [];
   let first: ScanToken | undefined;
   let last: ScanToken | undefined;
+  const ends = endsOf(source);
 
-  for (const token of source.tokens) {
-    if (token.text === ";" && token.kind !== "SCONST") {
+  for (const [at, token] of source.tokens.entries()) {
+    if (ends.has(at)) {
       if (first !== undefined && last !== undefined) {
         statements.push(textOf(source, first, last));
       }
@@ -85,9 +94,10 @@ export function statementsFrom(source: Source): SqlStatement[] {
 export function rawStatementsFrom(source: Source): string[] {
   const found: string[] = [];
   let start = 0;
+  const ends = endsOf(source);
 
-  for (const token of source.tokens) {
-    if (token.text === ";" && token.kind !== "SCONST") {
+  for (const [at, token] of source.tokens.entries()) {
+    if (ends.has(at)) {
       found.push(source.slice(start, token.end));
       start = token.end;
     }

@@ -27,12 +27,13 @@ import type {
 } from "./facts.ts";
 import type { Source } from "./source.ts";
 
-import { bodyOf, columnRefs, list, obj, str, strings, unwrap } from "./ast.ts";
+import { bodyOf, list, obj, str, strings, unwrap } from "./ast.ts";
 import { auditCalls, auditTrigger } from "./audit-facts.ts";
 import { commentOf } from "./comment-facts.ts";
 import { parenthesized, topLevelParts } from "./source.ts";
 import { TRIGGER_EVENTS, callsOf, hasBit, timingOf } from "./trigger-facts.ts";
 import { blocksWrites, selectNames } from "./view-shape.ts";
+import { columnRefs } from "./walk.ts";
 
 /** Tokens that end a column's type: the first option, or the end of the part. */
 const TYPE_END = new Set([
