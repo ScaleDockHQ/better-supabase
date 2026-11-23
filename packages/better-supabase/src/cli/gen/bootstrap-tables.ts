@@ -26,14 +26,20 @@ function entriesOf(config: ResolvedConfig): [string, unknown][] {
 }
 
 /**
- * The functions the sessions block's `bootstrap` entries call, as
- * `schema.name`, so introspection can read their bodies.
+ * The functions the sessions block's `bootstrap` entries call and the
+ * authorization provider's `sharedFunctions`, as `schema.name`, so
+ * introspection can read their bodies.
  */
 export function bootstrapFunctionNames(config: ResolvedConfig): string[] {
+  const shared = Object.keys(config.authorization?.sharedFunctions ?? {}).map(
+    (name) => (name.includes(".") ? name : `public.${name}`),
+  );
+
   return [
-    ...new Set(
-      entriesOf(config).flatMap(([, entry]) => entryFunction(entry) ?? []),
-    ),
+    ...new Set([
+      ...entriesOf(config).flatMap(([, entry]) => entryFunction(entry) ?? []),
+      ...shared,
+    ]),
   ];
 }
 

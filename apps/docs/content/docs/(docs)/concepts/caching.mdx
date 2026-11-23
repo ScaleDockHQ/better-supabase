@@ -212,9 +212,24 @@ export const customerList = bsb.kept(
 );
 ```
 
+A page that loads in one RPC lists the function in `functions` instead. The
+provider declares it in `sharedFunctions` with the tables it reads, which
+join the entry's tables and tags, and inside the fill `$rpc` passes only the
+listed functions (doctor BS430 checks that the function is security invoker
+and reads only those tables):
+
+```ts
+export const customerPage = bsb.kept(
+  (ctx, id: string) =>
+    ctx.db.$rpc("customer_payload", { id }, { schema: "api" }),
+  { name: "customer-page", functions: ["customer_payload"], share: "tenant" },
+);
+```
+
 When any of the three doesn't hold, the entry falls back to one per user,
 `kept.onSkip` gets the reason `"share"`, and the logger warns once.
-`bsb.remote()` takes the same `share: "tenant"` with its `tables`.
+`bsb.remote()` takes the same `share: "tenant"` with its `tables` and
+`functions`.
 `expectTenantShare` from `better-supabase/testing` checks a provider's hooks:
 two holders get one key and read the same rows, and a caller without the
 grant gets another key.

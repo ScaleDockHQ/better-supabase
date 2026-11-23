@@ -24,6 +24,8 @@ export interface TenantShareInput {
   readonly meta: SchemaMeta | undefined;
   /** App keys of the tables the entry reads. */
   readonly tables: readonly string[];
+  /** Database names of the functions the entry calls. */
+  readonly functions?: readonly string[];
   readonly tenant: string | undefined;
   readonly hooks: AuthorizationHooks | undefined;
   readonly authorizer: AnyAuthorizer | undefined;
@@ -44,7 +46,9 @@ const refusal = (table: string, why: string): DbError =>
 export async function tenantShareOf(
   input: TenantShareInput,
 ): Promise<TenantShare> {
-  if (input.tables.length === 0) {
+  const functions = input.functions ?? [];
+
+  if (input.tables.length === 0 && functions.length === 0) {
     return {
       kind: "refused",
       error: refusal("the entry", "it declares no tables"),
@@ -53,7 +57,29 @@ export async function tenantShareOf(
 
   const permissions = new Set<string>();
 
-  for (const table of input.tables) {
+  for (const name of functions) {
+    const declared = input.meta?.functionShares?.[name];
+
+    if (!declared) {
+      return {
+        kind: "refused",
+        error: refusal(
+          name,
+          "the authorization provider's sharedFunctions don't list it",
+        ),
+      };
+    }
+
+    for (const key of declared.permissions) {
+      permissions.add(key);
+    }
+  }
+
+  for (const table of tablesWithFunctions(
+    input.meta,
+    input.tables,
+    functions,
+  )) {
     const share = input.meta?.tables[table]?.share;
 
     if (!share) {
@@ -104,6 +130,65 @@ export async function tenantShareOf(
   return typeof key === "string"
     ? { kind: "shared", key: `${input.tenant}:${key}` }
     : { kind: "user" };
+}
+
+/** What `tenantShareFor` keys a context's entries with. */
+export interface TenantShareSource {
+  readonly meta: SchemaMeta | undefined;
+  readonly hooks: AuthorizationHooks | undefined;
+  readonly authorizer: AnyAuthorizer | undefined;
+  readonly versions?: AuthorizerRuntime["versions"];
+}
+
+/** `tenantShareOf` for a server context, as `bsb.kept` and `bsb.remote` call it. */
+export function tenantShareFor(
+  source: TenantShareSource,
+): (
+  ctx: {
+    readonly db: { readonly $context: RequestContext };
+    readonly memo?: AuthorizerRuntime["memo"];
+  },
+  tables: readonly string[],
+  tenant: string | undefined,
+  functions?: readonly string[],
+) => Promise<TenantShare> {
+  return (ctx, tables, tenant, functions) =>
+    tenantShareOf({
+      meta: source.meta,
+      tables,
+      ...(functions ? { functions } : {}),
+      tenant,
+      hooks: source.hooks,
+      authorizer: source.authorizer,
+      context: ctx.db.$context,
+      runtime: {
+        ...(source.versions ? { versions: source.versions } : {}),
+        ...(ctx.memo ? { memo: ctx.memo } : {}),
+      },
+    });
+}
+
+/**
+ * The entry's tables and the tables its shared functions read, deduplicated:
+ * what the fill may read and what its entry is tagged with.
+ */
+export function tablesWithFunctions(
+  meta: SchemaMeta | undefined,
+  tables: readonly string[],
+  functions: readonly string[] | undefined,
+): readonly string[] {
+  if (!functions || functions.length === 0) {
+    return tables;
+  }
+
+  return [
+    ...new Set([
+      ...tables,
+      ...functions.flatMap(
+        (name) => meta?.functionShares?.[name]?.tables ?? [],
+      ),
+    ]),
+  ];
 }
 
 function selectionTables(
@@ -204,16 +289,41 @@ function operationTables(op: Operation): readonly string[] {
 export interface ShareGuard {
   /** The first refused read, or `undefined`. */
   refused(): DbError | undefined;
+  /**
+   * `db` reading only the entry's tables and functions, reporting to this
+   * guard: for a db the app builds itself, such as one over its own pool.
+   */
+  wrap<T extends object>(db: T): T;
+}
+
+/** A function a shared fill may call: its database name and schema. */
+export interface SharedFunction {
+  readonly name: string;
+  readonly schema: string;
+}
+
+/** The declared functions among `names`, with their schema. */
+export function sharedFunctionsOf(
+  meta: SchemaMeta | undefined,
+  names: readonly string[] | undefined,
+): readonly SharedFunction[] {
+  return (names ?? []).flatMap((name) => {
+    const declared = meta?.functionShares?.[name];
+
+    return declared ? [{ name, schema: declared.schema }] : [];
+  });
 }
 
 /**
  * An executor that answers a `forbidden` `DbError` for an operation that
- * touches a table outside `tables`, a set-returning source, or a function call,
- * since none of those is known to read the same rows for every caller.
+ * touches a table outside `tables`, a set-returning source, or a call to a
+ * function outside `functions`, since none of those is known to read the same
+ * rows for every caller.
  */
 function gate(
   executor: Executor,
   tables: ReadonlySet<string>,
+  functions: readonly SharedFunction[],
   record: (error: DbError) => void,
 ): Executor {
   const refuse = (error: DbError) => {
@@ -249,10 +359,24 @@ function gate(
         ? Promise.resolve(refuse(error))
         : executor.execute(op, context);
     },
-    rpc: (name) =>
-      Promise.resolve(
-        refuse(refusal(name, "a function call isn't in the entry's tables")),
-      ),
+    rpc: (name, args, context) => {
+      const declared = functions.some(
+        (fn) => fn.name === name && fn.schema === context.schema,
+      );
+
+      if (!declared || !executor.rpc) {
+        return Promise.resolve(
+          refuse(
+            refusal(
+              `${context.schema}.${name}`,
+              "the entry's functions don't list it",
+            ),
+          ),
+        );
+      }
+
+      return executor.rpc(name, args, context);
+    },
     batch: async (ops, context) => {
       const errors = ops.map(check);
       const first = errors.find((error) => error !== undefined);
@@ -296,13 +420,21 @@ const PASS = new Set([
   "$table",
 ]);
 
+const WITH_RPC = new Set([...PASS, "$rpc"]);
+
 /** `db` reading only `tables`, with the escape hatches refused. */
 function sharedDb<T extends object>(
   db: T,
   tables: ReadonlySet<string>,
+  functions: readonly SharedFunction[],
   record: (error: DbError) => void,
 ): T {
-  const gated = rewrapDb(db, (executor) => gate(executor, tables, record));
+  const gated = rewrapDb(db, (executor) =>
+    gate(executor, tables, functions, record),
+  );
+
+  // `$rpc` reaches the gate, which passes only the declared functions.
+  const pass = functions.length > 0 ? WITH_RPC : PASS;
 
   const hatch = (name: string): unknown =>
     refusingValue(
@@ -318,7 +450,7 @@ function sharedDb<T extends object>(
     // The db's getters and methods look their state up by `this`, so they read
     // from the target, never the proxy.
     get: (target, prop) => {
-      if (typeof prop === "string" && prop.startsWith("$") && !PASS.has(prop)) {
+      if (typeof prop === "string" && prop.startsWith("$") && !pass.has(prop)) {
         return hatch(prop);
       }
 
@@ -345,6 +477,7 @@ function sharedDb<T extends object>(
 export function sharedReader<Ctx extends object>(
   ctx: Ctx,
   tables: readonly string[],
+  functions: readonly SharedFunction[] = [],
 ): { readonly ctx: Ctx; readonly guard: ShareGuard } {
   let first: DbError | undefined;
 
@@ -364,10 +497,15 @@ export function sharedReader<Ctx extends object>(
       return existing;
     }
 
-    const shared = sharedDb(db, allowed, record);
+    const shared = sharedDb(db, allowed, functions, record);
     dbs.set(name, shared);
 
     return shared;
+  };
+
+  const guard: ShareGuard = {
+    refused: () => first,
+    wrap: (db) => wrapAs(ctx, db, allowed, functions, record),
   };
 
   const wrapped = new Proxy(ctx, {
@@ -392,7 +530,76 @@ export function sharedReader<Ctx extends object>(
     },
   });
 
-  return { ctx: wrapped, guard: { refused: () => first } };
+  guards.set(wrapped, guard);
+
+  return { ctx: wrapped, guard };
+}
+
+/** The guard of each context `sharedReader` built, for `shareGuard`. */
+const guards = new WeakMap<object, ShareGuard>();
+
+/** The user id a context or a db's request context acts for, if any. */
+function callerOf(source: object): string | undefined {
+  // SAFETY: a server context carries `auth`; a db carries `$context`.
+  const value = source as {
+    readonly auth?: {
+      readonly kind?: string;
+      readonly claims?: { readonly sub?: unknown };
+    };
+    readonly $context?: { readonly claims?: { readonly sub?: unknown } };
+  };
+
+  const id = value.auth
+    ? value.auth.kind === "user"
+      ? value.auth.claims?.sub
+      : undefined
+    : value.$context?.claims?.sub;
+
+  return typeof id === "string" ? id : undefined;
+}
+
+function wrapAs<T extends object>(
+  ctx: object,
+  db: T,
+  tables: ReadonlySet<string>,
+  functions: readonly SharedFunction[],
+  record: (error: DbError) => void,
+): T {
+  const caller = callerOf(ctx);
+
+  const refuse = (why: string): T => {
+    const error = refusal("the db", why);
+    record(error);
+
+    // SAFETY: every read of the refused db answers `error`, whatever its type.
+    return refusingValue(error, record) as T;
+  };
+
+  // A db that runs as someone else, or as no one (the admin role), would read
+  // rows the caller's RLS doesn't show, and the entry would hand them out.
+  if (caller === undefined || callerOf(db) !== caller) {
+    return refuse(
+      "it doesn't run as the caller (its request context names another user, or none)",
+    );
+  }
+
+  const shared = sharedDb(db, tables, functions, record);
+
+  // Only a better-supabase db can be gated; anything else reads unchecked.
+  return shared === db ? refuse("it isn't a better-supabase db") : shared;
+}
+
+/**
+ * `db` for an app-built service inside a `bsb.kept()` or `bsb.remote()` fill:
+ * in a `share: "tenant"` fill it reads only the entry's tables and functions,
+ * and a refusal keeps the entry from being stored, like `ctx.db`. The db must
+ * run as the caller (its `$context.claims.sub` is the caller's id), so RLS
+ * still decides the rows. In any other fill it returns `db` unchanged.
+ */
+export function shareGuard<T extends object>(ctx: object, db: T): T {
+  const guard = guards.get(ctx);
+
+  return guard ? guard.wrap(db) : db;
 }
 
 /**

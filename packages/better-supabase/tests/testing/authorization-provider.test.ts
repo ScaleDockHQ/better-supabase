@@ -633,6 +633,21 @@ describe("testAuthorizationProvider", () => {
     ]);
   });
 
+  it("refuses a shared function over a table it doesn't share per tenant", async () => {
+    expect(
+      await failures(
+        withProvider({
+          tables: { notes: { share: "row", permissions: [] } },
+          sharedFunctions: {
+            "api.note_payload": { tables: ["notes"], permissions: [] },
+          },
+        }),
+      ),
+    ).toEqual([
+      'shares functions only over tables it shares per tenant: sharedFunctions.api.note_payload reads "notes", which tables doesn\'t share per tenant',
+    ]);
+  });
+
   it("accepts any action key when permissions are unlisted", async () => {
     const report = await testAuthorizationProvider(
       withProvider({

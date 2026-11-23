@@ -566,6 +566,41 @@ export function testAuthorizationProvider(
         }
       },
     ],
+    provider.sharedFunctions && [
+      "shares functions only over tables it shares per tenant",
+      () => {
+        const listed = new Set(
+          (provider.permissions ?? []).map((entry) => entry.key),
+        );
+
+        for (const [name, entry] of Object.entries(
+          provider.sharedFunctions ?? {},
+        )) {
+          expect(
+            /^(?:[a-z_][a-z0-9_$]*\.)?[a-z_][a-z0-9_$]*$/.test(name),
+            `sharedFunctions key "${name}" is not a function or schema.function name`,
+          );
+          expect(
+            entry.tables.length > 0,
+            `sharedFunctions.${name} lists no tables: a shared fill can't tell what it reads`,
+          );
+
+          for (const table of entry.tables) {
+            expect(
+              provider.tables?.[table]?.share === "tenant",
+              `sharedFunctions.${name} reads "${table}", which tables doesn't share per tenant`,
+            );
+          }
+
+          for (const key of entry.permissions) {
+            expect(
+              listed.size === 0 || listed.has(key),
+              `sharedFunctions.${name} names "${key}", which permissions doesn't list`,
+            );
+          }
+        }
+      },
+    ],
     ...versionChecks(provider, options.postgres),
   ]);
 }

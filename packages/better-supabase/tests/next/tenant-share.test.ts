@@ -75,6 +75,18 @@ const shared = defineSchema({
       share: { kind: "row", permissions: ["customer.read"] },
     },
   },
+  functionShares: {
+    customer_payload: {
+      schema: "public",
+      tables: ["customers"],
+      permissions: ["customer.read"],
+    },
+    note_payload: {
+      schema: "public",
+      tables: ["notes"],
+      permissions: ["customer.read"],
+    },
+  },
 }) as unknown as typeof schema;
 
 const hooks = defineAuthorizationHooks({
@@ -235,6 +247,102 @@ describe('bsb.kept({ share: "tenant" })', () => {
     await signIn(ALICE);
 
     expect(await raw()).toBe(false);
+    expect(requests).toHaveLength(0);
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it("shares a function the provider declares and the entry lists", async () => {
+    const payload = bsb.kept(
+      async (ctx) => {
+        const call = await ctx.db.$rpc(
+          "customer_payload" as never,
+          {} as never,
+        );
+
+        return call.ok ? call.data : call.error.code;
+      },
+      {
+        name: "payload",
+        functions: ["customer_payload"],
+        share: "tenant",
+        tenant: () => ORG,
+      },
+    );
+
+    await signIn(ALICE);
+    const first = await payload();
+    await signIn(BOB);
+    const second = await payload();
+
+    expect(first).toEqual([{ id: "c1", name: "Acme" }]);
+    expect(second).toEqual(first);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.path).toBe("/rest/v1/rpc/customer_payload");
+    expect(skips).toHaveLength(0);
+  });
+
+  it("refuses a listed function the provider doesn't declare", async () => {
+    const stats = bsb.kept(
+      async (ctx) =>
+        (await ctx.db.$rpc("customer_stats" as never, {} as never)).ok,
+      {
+        name: "stats",
+        functions: ["customer_stats"],
+        share: "tenant",
+        tenant: () => ORG,
+      },
+    );
+
+    await signIn(ALICE);
+    await stats();
+    await signIn(BOB);
+    await stats();
+
+    expect(requests).toHaveLength(2);
+    expect(skips[0]).toMatchObject({ name: "stats", reason: "share" });
+    expect(skips[0]?.detail).toContain("sharedFunctions");
+  });
+
+  it("refuses a function that reads a row table", async () => {
+    const notes = bsb.kept(
+      async (ctx) =>
+        (await ctx.db.$rpc("note_payload" as never, {} as never)).ok,
+      {
+        name: "note-payload",
+        functions: ["note_payload"],
+        share: "tenant",
+        tenant: () => ORG,
+      },
+    );
+
+    await signIn(ALICE);
+    await notes();
+
+    expect(skips[0]).toMatchObject({ name: "note-payload", reason: "share" });
+    expect(skips[0]?.detail).toContain("notes");
+  });
+
+  it("refuses a declared function the entry doesn't list", async () => {
+    const unlisted = bsb.kept(
+      async (ctx) => {
+        const call = await ctx.db.$rpc(
+          "customer_payload" as never,
+          {} as never,
+        );
+
+        return call.ok ? "read" : call.error.message;
+      },
+      {
+        name: "unlisted",
+        tables: ["customers"],
+        share: "tenant",
+        tenant: () => ORG,
+      },
+    );
+
+    await signIn(ALICE);
+
+    expect(await unlisted()).toContain("$rpc");
     expect(requests).toHaveLength(0);
     expect(set).not.toHaveBeenCalled();
   });

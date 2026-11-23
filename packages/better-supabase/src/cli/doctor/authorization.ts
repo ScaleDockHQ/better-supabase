@@ -35,6 +35,7 @@ import {
 } from "../authorization.ts";
 import { mergeRestated, probeRestated } from "../restated-probe.ts";
 import { accessModule, adoptionContext, appViewsOf } from "./app-tables.ts";
+import { functionShares } from "./function-shares.ts";
 import { providerCalls } from "./provider-calls.ts";
 import { withoutStrings } from "./rls.ts";
 import { catalogOf, policyObject, qualified } from "./shared.ts";
@@ -473,6 +474,14 @@ function providerKeyCount(context: DoctorContext): FindingInput[] {
 }
 
 export const AUTHORIZATION_RULES: readonly Rule[] = [
+  {
+    code: "BS430",
+    severity: "error",
+    title: "A function the provider shares per tenant reads past its tables",
+    description:
+      "An authorization provider's `sharedFunctions` names the functions a `share: \"tenant\"` fill of `bsb.kept` or `bsb.remote` may call, with the tables each reads and the permissions those reads check. One entry then serves every caller with the grant, so the function must return the same rows to each of them. Doctor reads each function from the catalog and reports one that is security definer, isn't `language sql` (doctor can't read a PL/pgSQL body), is volatile, reads the caller (`auth.*`, `current_setting`, `current_user`), calls a function in the read schemas that `sharedFunctions` doesn't list, or reads a table its `tables` don't list. It also reports a listed table that the provider's `tables` doesn't share per tenant, and a function or table the database lacks.",
+    check: functionShares,
+  },
   {
     code: "BS428",
     severity: "error",

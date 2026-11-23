@@ -1128,6 +1128,8 @@ export interface RemoteCacheKey {
   readonly support: string | null;
   /** The tables a `share: "tenant"` entry may read. */
   readonly tables?: readonly string[];
+  /** The functions a `share: "tenant"` entry may call. */
+  readonly functions?: readonly string[];
 }
 
 /** The serializable handle of a parked session; see `bsb.sessionHandle()`. */
@@ -1147,6 +1149,8 @@ export interface RemoteOptions<
   readonly share?: CacheShare<C> | "tenant";
   /** The tables a `share: "tenant"` function reads. */
   readonly tables?: readonly string[];
+  /** The functions it calls, as for `bsb.kept()`. */
+  readonly functions?: readonly string[];
   /**
    * The active tenant from the function's arguments, as for `bsb.context({
    * tenant })`.
@@ -1196,6 +1200,12 @@ export interface KeptOptions<
    * table, the entry stays per user.
    */
   readonly share?: "user" | "tenant";
+  /**
+   * Functions the function calls with `$rpc`, by database name. Each needs an
+   * entry in the authorization provider's `sharedFunctions`: the tables it
+   * reads are added to `tables`, and a `share: "tenant"` fill may call it.
+   */
+  readonly functions?: readonly string[];
 }
 
 /** What `bsb.kept()` returns. */
