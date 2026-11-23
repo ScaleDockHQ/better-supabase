@@ -1,4 +1,4 @@
-# 1320: Codemods and doctor source rules read the syntax tree, and never skip a file in silence
+# 1207: Codemods and doctor source rules read the syntax tree, and never skip a file in silence
 
 - Status: accepted
 - Date: 2026-11-23

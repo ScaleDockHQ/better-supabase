@@ -1,4 +1,4 @@
-# 1322: The symbol tier follows imports in the config codemods
+# 1209: The symbol tier follows imports in the config codemods
 
 - Status: accepted
 - Date: 2026-11-23

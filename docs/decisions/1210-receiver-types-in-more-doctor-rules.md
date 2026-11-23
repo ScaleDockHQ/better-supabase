@@ -1,4 +1,4 @@
-# 1323: More doctor source rules check receiver types
+# 1210: More doctor source rules check receiver types
 
 - Status: accepted
 - Date: 2026-11-23

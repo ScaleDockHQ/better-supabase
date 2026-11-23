@@ -1,11 +1,11 @@
-# 1324: The doctor source rules read the syntax tree
+# 1211: The doctor source rules read the syntax tree
 
 - Status: accepted
 - Date: 2026-11-23
 
 ## Context
 
-ADR 1320 moved the cookie and cache rules to the tree. About thirty other
+ADR 1207 moved the cookie and cache rules to the tree. About thirty other
 source rules still ran regular expressions over `file.text`, so a comment or a
 string that named a call produced a finding.
 

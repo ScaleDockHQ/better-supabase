@@ -41,7 +41,7 @@ blocks-list, record-types and config-key codemods rewrite through the document
 or `rewriteSource`. Of the doctor source checks, only `source-scan.ts` and
 `n-plus-one.ts` read the tree when this ADR was accepted; the other source rules
 and the naming codemod's environment, hint and event renames still matched text.
-ADR 1320 moves part of them and lists the rest.
+ADR 1207 moves part of them and lists the rest.
 
 ## Alternatives considered
 

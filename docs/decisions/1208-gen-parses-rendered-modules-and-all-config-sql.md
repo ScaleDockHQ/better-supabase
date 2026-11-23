@@ -1,4 +1,4 @@
-# 1321: `gen` parses the rendered modules and every config SQL key
+# 1208: `gen` parses the rendered modules and every config SQL key
 
 - Status: accepted
 - Date: 2026-11-23
