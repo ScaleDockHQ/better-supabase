@@ -14,6 +14,8 @@ export type {
   AstroPostgresCacheOptions,
 } from "./astro/index.ts";
 
+export { postgresKeptStore } from "./kept.ts";
+
 export { postgresCacheSql } from "./sql.ts";
 
 export type { PostgresCacheSqlOptions } from "./sql.ts";

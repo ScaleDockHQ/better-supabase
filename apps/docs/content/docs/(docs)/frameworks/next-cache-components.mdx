@@ -445,6 +445,14 @@ const { db } = await bsb.cached({ tables: ["customers"], stage: "navigation" });
 Prefetching has none. In both cases `stage` is skipped, the read still runs,
 and development logs it once.
 
+### Entries that outlive a deploy
+
+Next.js keys every cache entry by build, so a deploy starts every entry
+again. `bsb.kept()` keeps a read in a store of your choice, keyed by name,
+arguments, user and schema version instead, and expires it on a write. It
+works inside and outside `'use cache: private'`; see
+[Keep reads across requests and deploys](/docs/concepts/caching#keep-reads-across-requests-and-deploys).
+
 ### Remote scope
 
 `'use cache: remote'` keeps an entry on the server, shared across instances,

@@ -92,6 +92,8 @@ export interface VercelRuntimeCacheAdapter extends CacheAdapter {
   ): Promise<void>;
   /** Removes the entry under `key`; a cache without `delete` keeps it. */
   delete(key: string): Promise<void>;
+  /** Expires `bsb:` tags, encoded, in calls of 16 tags. */
+  expireTags(tags: readonly string[]): Promise<void>;
 }
 
 /**
@@ -131,11 +133,16 @@ export function vercelRuntimeCacheAdapter(
     delete: async (key) => {
       await open().delete?.(key);
     },
-    invalidate: async (target) => {
-      const tags = encodedTags(cacheTagsOf(target));
-
+    expireTags: async (tags) => {
       await Promise.all(
-        inBatches(tags).map((batch) => open().expireTag(batch)),
+        inBatches(encodedTags(tags)).map((batch) => open().expireTag(batch)),
+      );
+    },
+    invalidate: async (target) => {
+      await Promise.all(
+        inBatches(encodedTags(cacheTagsOf(target))).map((batch) =>
+          open().expireTag(batch),
+        ),
       );
     },
   };

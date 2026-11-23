@@ -78,6 +78,22 @@ describe("vercelRuntimeCacheAdapter", () => {
     expect(sizes).toEqual([16, 16, 10]);
   });
 
+  it("expires kept tags encoded, in calls of 16", async () => {
+    const cache = fakeCache();
+    const adapter = vercelRuntimeCacheAdapter(() => cache);
+
+    const tags = Array.from(
+      { length: 20 },
+      (_, index) => `bsb:t:a,${String(index)}`,
+    );
+
+    await adapter.expireTags(tags);
+
+    const calls = cache.expireTag.mock.calls.map(([batch]) => batch);
+    expect(calls.map((batch) => batch.length)).toEqual([16, 4]);
+    expect(calls[0]?.[0]).toBe("bsb:t:a~2c0");
+  });
+
   it("opens the cache on first use, in its namespace", async () => {
     const cache = fakeCache();
 

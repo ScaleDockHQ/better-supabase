@@ -115,6 +115,64 @@ tags automatically (`cacheTags: false` turns it off).
 [read set](/docs/repository/read-sets), and tags the union of the tables
 they read.
 
+## Keep reads across requests and deploys
+
+`bsb.kept(fn, options)` keeps a read in a store that outlives one render and
+one deploy. The function runs with the caller's own context, under RLS: no
+admin client is reachable from it, and each user (with their tenant and
+authorization version) gets their own entry. A write through `db` to one of
+`tables` expires the entry on every instance.
+
+```ts
+export const openInvoices = bsb.kept(
+  (ctx, customerId: string) =>
+    ctx.db.invoices.list({ where: { customerId, status: "open" } }),
+  { name: "open-invoices", tables: ["invoices"], life: { revalidate: 60 } },
+);
+
+const invoices = await openInvoices(customerId);
+```
+
+| Option              | Default                        | What it does                                                                                                                      |
+| ------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `name`              | required                       | Part of the key and the name in reports.                                                                                          |
+| `tables`, `readSet` | none                           | A write to one of these tables expires the entry.                                                                                 |
+| `tags`              | none                           | More tags, or a function of the arguments that returns them.                                                                      |
+| `life.revalidate`   | 300                            | Seconds the entry is fresh. After that a call serves it once more and refreshes it in the background.                             |
+| `life.expire`       | 86400                          | Seconds the store keeps the entry.                                                                                                |
+| `version`           | a hash of the generated schema | Part of the key. Change it when the result changes shape; a migration changes the default. The build id is never part of the key. |
+| `tenant`            | the request's                  | The active tenant from the arguments.                                                                                             |
+
+The value goes through JSON, so a `Date` comes back as a string on a miss and
+on a hit alike. A support session and a token that fails to verify read
+through without the store, and so does a failed `Result`.
+
+Pick the store in `createNext`:
+
+```ts
+import { vercelRuntimeCacheAdapter } from "better-supabase/server";
+import { getCache } from "@vercel/functions";
+
+export const bsb = createNext(betterSupabase, {
+  kept: { store: vercelRuntimeCacheAdapter(getCache) },
+});
+```
+
+| Store                                 | From                                  | Shared between instances                                  |
+| ------------------------------------- | ------------------------------------- | --------------------------------------------------------- |
+| `memoryKeptStore()`                   | `better-supabase/server`, the default | No                                                        |
+| `vercelRuntimeCacheAdapter(getCache)` | `better-supabase/server`              | Yes, per region                                           |
+| `postgresKeptStore({ client })`       | `better-supabase/cache-postgres`      | Yes, in the [cache tables](/docs/concepts/cache-postgres) |
+
+An entry over 2 MB, with more than 128 tags or a tag over 256 bytes is not
+stored: the call still returns the value and `kept.onSkip` gets the reason. A
+store that fails never fails the call; it reads through and logs a warning.
+
+Inside `"use cache: private"` the entry's tags and life also apply to the
+enclosing entry, so a write expires both. In a scope that can't read the
+request, pass the handle from `bsb.sessionHandle()`:
+`openInvoices.as(session)(customerId)`.
+
 ## Query specs
 
 A `QuerySpec` is a read described as plain JSON:

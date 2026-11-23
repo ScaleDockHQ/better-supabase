@@ -87,6 +87,7 @@ import { logActionStats, requestIdOf, formatStats } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
 import { applyCacheEntry, awaitStage } from "./entry.ts";
 import { incomingRequest } from "./incoming-request.ts";
+import { keptBinding } from "./kept.ts";
 import { proxyHandler } from "./proxy-handler.ts";
 import { proxyRuntime } from "./proxy-runtime.ts";
 import { recordAtServer, recordServer } from "./record.ts";
@@ -549,6 +550,22 @@ export function createNext<
   /** The bootstrap calls of one request, by session key, schema, rpc and args. */
   const bootstrapCalls = cache(() => new Map<string, Promise<BootstrapRow>>());
 
+  const kept = keptBinding<ServerContext<M, F, E, C, P, B>, C, P>({
+    events: betterSupabase.events,
+    attach: (keptCache) => {
+      betterSupabase.cache(keptCache.adapter);
+    },
+    options: options.kept,
+    meta: betterSupabase.meta,
+    scopeOf: (source, tenant) =>
+      scopeOf({
+        ...(source ? { session: source } : {}),
+        ...(tenant === undefined ? {} : { tenant }),
+      }),
+    userTags,
+    waitUntil,
+  });
+
   const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B, V> = extendServer<
     BetterNext<M, F, E, C, P, PermissionRef<A>, B, V>
   >(withAccounts, {
@@ -641,6 +658,8 @@ export function createNext<
         }
       };
     },
+
+    kept,
 
     async bootstrap<T, S extends ReadSet = ReadSet>(
       bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,

@@ -105,6 +105,21 @@ export default postgresCacheHandler({
 `deletePath(path)` removes the entries of a path. Use them when you know the
 entry, and a tag when you know what changed.
 
+## Kept reads
+
+`postgresKeptStore()` stores the entries of
+[`bsb.kept()`](/docs/concepts/caching#keep-reads-across-requests-and-deploys)
+in the same tables, under keys that start with `kept:`. It takes the same
+`client`, transport and table options as `postgresCacheStore()`.
+
+```ts title="src/lib/supabase/server.ts"
+import { postgresKeptStore } from "better-supabase/cache-postgres";
+
+export const bsb = createNext(betterSupabase, {
+  kept: { store: postgresKeptStore({ client: cacheClient }) },
+});
+```
+
 ## Astro
 
 Astro loads a cache provider from a module whose default export is the

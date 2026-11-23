@@ -57,7 +57,7 @@ export default defineConfig({
     {
       // These suites replace React, Next.js, Workflow and SDK modules with
       // partial, loosely typed fakes. `vi.mock(import(...))` checks each fake
-      // against the real module's generic signatures; 49 type errors in 27
+      // against the real module's generic signatures; 51 type errors in 28
       // files when measured.
       files: [
         "tests/ai-sdk/react/use-assistant.test.ts",
@@ -69,7 +69,7 @@ export default defineConfig({
         "tests/cli/prompts.test.ts",
         "tests/client/index.test.ts",
         "tests/expo/expo.test.ts",
-        "tests/next/{bearer,client,next,resources,scopes,support}.test.ts",
+        "tests/next/{bearer,client,kept,next,resources,scopes,support}.test.ts",
         "tests/react/{block-hooks,hooks,record,record-form,record-list}.test.ts",
         "tests/standards/w3c-server-timing.test.ts",
         "tests/stripe/stripe.test.ts",
