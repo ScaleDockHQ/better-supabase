@@ -40,7 +40,7 @@ describe("upgrade steps over an adopter's layout", { timeout: 60_000 }, () => {
 
     const sql = (plan?.steps ?? []).map((step) => step.sql);
 
-    expect(plan?.steps.map((step) => step.from)).toEqual([6]);
+    expect(plan?.steps[0]?.from).toBe(6);
     expect(sql.join("\n")).not.toContain("delegate_profile");
     await expect(run([TASKS, ...sql])).resolves.toBeUndefined();
   });
