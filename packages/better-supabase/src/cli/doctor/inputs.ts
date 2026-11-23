@@ -9,8 +9,6 @@ import type { SupabaseConfig, TomlValue } from "../supabase-config.ts";
 import { CONFIG_DEFAULTS } from "../../config/index.ts";
 import { byCodePoint } from "../compare.ts";
 import { detectWorkspace } from "../project/workspace.ts";
-import { primeStatements } from "../schema-reader/index.ts";
-import { primeSchemaFacts } from "../sql-facts.ts";
 import { schemaPaths, tomlGet } from "../supabase-config.ts";
 
 export const ENV_FILES: readonly string[] = [
@@ -205,25 +203,6 @@ export async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
   }
 
   return files.toSorted((a, b) => byCodePoint(a.path, b.path));
-}
-
-/**
- * Reads the context's SQL files with the parser so the rules can scan them. A
- * file that does not parse keeps empty facts: a check must still run on it.
- */
-export async function primeDoctorFacts(context: DoctorContext): Promise<void> {
-  await primeSchemaFacts(context.sqlFiles ?? [], context.config.root, {
-    lenient: true,
-  });
-
-  // The seed and data rules split these files too, but read no facts from them.
-  await primeStatements(
-    [
-      ...(context.seedFiles ?? []),
-      ...(context.dataFiles ?? []),
-      ...(context.functionFiles ?? []),
-    ].map((file) => file.text),
-  );
 }
 
 export function authSetting(

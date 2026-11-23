@@ -149,7 +149,7 @@ export async function runAdopt(
     );
   }
 
-  const proposal = proposeAdoption(block, await deps.tables(), {
+  const proposal = await proposeAdoption(block, await deps.tables(), {
     from: list(args.tables),
     blocks: config.blocks,
     ...adoptionContext({ config }),

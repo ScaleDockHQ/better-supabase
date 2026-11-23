@@ -419,6 +419,7 @@ function dropsOf(context: Context, drop: Obj): readonly DropFact[] {
 
 function alterOf(context: Context, alter: Obj, line: number): AlterFact {
   const added: ColumnFact[] = [];
+  const addedIfNotExists: string[] = [];
   const setNotNull: string[] = [];
   const dropNotNull: string[] = [];
   const dropped: string[] = [];
@@ -440,7 +441,13 @@ function alterOf(context: Context, alter: Obj, line: number): AlterFact {
         const definition = bodyOf(command["def"], "ColumnDef");
 
         if (definition !== undefined) {
-          added.push(columnOf(context.source, definition));
+          const column = columnOf(context.source, definition);
+
+          added.push(column);
+
+          if (command["missing_ok"] === true) {
+            addedIfNotExists.push(column.name);
+          }
         }
 
         break;
@@ -497,6 +504,7 @@ function alterOf(context: Context, alter: Obj, line: number): AlterFact {
     line,
     index: context.index,
     addedColumns: added,
+    addedIfNotExists,
     setNotNull,
     dropNotNull,
     droppedColumns: dropped,

@@ -1,7 +1,5 @@
 import type { TableGrant } from "./modules/grants.ts";
 
-import { declaredTableColumns } from "./schema-scan.ts";
-
 const keyOf = (name: string): string =>
   name.includes(".") ? name : `public.${name}`;
 
@@ -28,19 +26,17 @@ export function excludedColumns(privilege: string): readonly string[] {
 
 /**
  * `grants` with every `privilege(*, -col)` turned into the explicit column list
- * the `create table` in `files` declares, in declaration order. Throws for a
- * table no file declares, or when the exclusions leave no column.
+ * the `create table` the app's schema files declare (`declared`: `schema.table`
+ * to its columns, in declaration order). Throws for a table no file declares,
+ * or when the exclusions leave no column.
  */
 export function resolveExposeColumns(
   grants: readonly TableGrant[],
-  files: readonly { readonly text: string }[],
-  schemas: readonly string[],
+  declared: ReadonlyMap<string, ReadonlySet<string>>,
 ): readonly TableGrant[] {
   if (!grants.some((grant) => grant.privileges.some(hasColumnExclusions))) {
     return grants;
   }
-
-  const declared = declaredTableColumns(files, schemas);
 
   return grants.map((grant) => {
     if (!grant.privileges.some(hasColumnExclusions)) {

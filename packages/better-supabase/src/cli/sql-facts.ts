@@ -69,6 +69,22 @@ export async function primeSchemaFacts(
   return [];
 }
 
+/**
+ * Reads SQL the CLI generated itself (module bodies), so a scan or
+ * `withoutComments` can run on it synchronously. A text that does not parse
+ * keeps empty facts: generated text is checked where it is rendered.
+ *
+ * @param texts - The generated SQL texts.
+ */
+export async function primeSchemaTexts(
+  texts: readonly string[],
+): Promise<void> {
+  await primeStatements(texts);
+  await readSchemaFactsLeniently(
+    texts.map((text) => ({ path: "generated.sql", text })),
+  );
+}
+
 export const declaredTables = (
   files: Texts,
   schemas: readonly string[],
@@ -131,3 +147,15 @@ export const declaredForeignKeys = (
 /** What one primed file declares, in the shape `parseDeclared` returns. */
 export const declarationsOfText = (text: string): DeclarationSummary =>
   declarationsOf(factsOf(text));
+
+/**
+ * The enum types the files create (`create type ... as enum`), as
+ * `schema.type`.
+ *
+ * @param files - The primed SQL texts.
+ * @returns The qualified enum names.
+ */
+export const declaredEnums = (files: Texts): ReadonlySet<string> =>
+  new Set(
+    facts(files).flatMap((file) => file.enums.map((entry) => entry.name)),
+  );

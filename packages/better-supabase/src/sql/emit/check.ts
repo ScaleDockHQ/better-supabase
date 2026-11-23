@@ -1,4 +1,4 @@
-import { closingParen } from "../schema-scan.ts";
+import { closingParen } from "../text-edit.ts";
 
 const CHECK = /\bcheck\s*\(/gi;
 

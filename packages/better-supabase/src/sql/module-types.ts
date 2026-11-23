@@ -26,11 +26,10 @@ import type {
   BlockSqlNames,
 } from "./context.ts";
 import type { BlockContributes } from "./contributions.ts";
-import type { DeclaredForeignKey } from "./foreign-keys.ts";
+import type { DeclaredForeignKey, OwnIndex } from "./layout-types.ts";
 import type { EntitlementsSource } from "./modules/entitlements-source.ts";
 import type { FunctionGrant, TableGrant } from "./modules/grants.ts";
 import type { VectorSearchTable } from "./modules/vector-search.ts";
-import type { OwnIndex } from "./schema-scan.ts";
 import type { BlockSeeds } from "./seeds.ts";
 import type { JsonSchemaCheck } from "./shared.ts";
 

@@ -4,7 +4,7 @@ import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
 import { AUTHZ_EVENT, AUTHZ_TOPIC } from "../../core/authz-topic.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { tableGlobs } from "../schema-scan.ts";
+import { tableGlobs } from "../text-edit.ts";
 import { qualifiedTable } from "./grants.ts";
 import { roleAuthzBumps } from "./sessions-authz.ts";
 import { SESSIONS_OVERVIEW_SQL, SESSIONS_READS } from "./sessions-reads.ts";

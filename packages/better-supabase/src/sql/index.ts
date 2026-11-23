@@ -125,15 +125,6 @@ export type { BlockSqlIdType } from "./context.ts";
 export type { BlockSqlTopic } from "./render.ts";
 
 export {
-  adoptedColumnProblems,
-  type AdoptedTable,
-  adoptedTables,
-  type AdoptedView,
-  adoptedViews,
-  moduleWritesText,
-} from "./adopted-columns.ts";
-
-export {
   clearMemo,
   memoStats,
   memoized,
@@ -163,13 +154,12 @@ export {
   type SameTenantFact,
 } from "./table-facts.ts";
 
-export {
-  type DeclaredForeignKey,
-  declaredForeignKeys,
-  sameTenantLayout,
-} from "./foreign-keys.ts";
-
-export { type OwnedColumn, ownedColumns } from "./owned-columns.ts";
+export type {
+  DeclaredForeignKey,
+  DeclaredView,
+  OwnIndex,
+  PolicyGrant,
+} from "./layout-types.ts";
 
 export {
   type DataExportPlan,
@@ -192,38 +182,11 @@ export { blockReadRoles } from "./read-roles.ts";
 export type { ReadRolesModule } from "./read-roles.ts";
 
 export {
-  type CheckValues,
-  checkValues,
-  declaredCheckValues,
-  type TableCheckValues,
-} from "./check-values.ts";
-
-export {
   appValues,
   checkedValueMaps,
   type ValueMap,
   type ValueMaps,
 } from "./value-maps.ts";
-
-export { writtenValues } from "./written-values.ts";
-
-export { duplicateObjects, type DuplicateObject } from "./duplicate-objects.ts";
-
-export {
-  addedColumnTypes,
-  declaredColumnTypes,
-  declaredIndexes,
-  type OwnIndex,
-  declaredTableColumns,
-  declaredTables,
-  declaredUpdatedAtTriggers,
-  declaredViews,
-  type DeclaredView,
-  rlsTables,
-  extensionSchema,
-  policyGrants,
-  type PolicyGrant,
-} from "./schema-scan.ts";
 
 export {
   approverForNamesRequest,

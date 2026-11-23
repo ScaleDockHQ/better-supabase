@@ -8,11 +8,7 @@ import {
   resolveExposeColumns,
 } from "../../src/sql/index.ts";
 
-const files = [
-  {
-    text: "create table app.keys (id int, label text, token text, check (id > 0));",
-  },
-];
+const declared = new Map([["app.keys", new Set(["id", "label", "token"])]]);
 
 describe("resolveExposeColumns", () => {
   it("reads the excluded columns of the star form only", () => {
@@ -41,8 +37,7 @@ describe("resolveExposeColumns", () => {
             privileges: ["select(*, -token)", "update(label)"],
           },
         ],
-        files,
-        ["app"],
+        declared,
       ),
     ).toEqual([
       plain,
@@ -64,8 +59,7 @@ describe("resolveExposeColumns", () => {
             privileges: ["select(*, -id, -label, -token)"],
           },
         ],
-        files,
-        ["app"],
+        declared,
       ),
     ).toThrow("excludes every column of app.keys");
   });

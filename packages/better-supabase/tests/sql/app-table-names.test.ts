@@ -4,7 +4,7 @@ import {
   blockNamesOnAppTables,
   blockPolicyNames,
 } from "../../src/sql/app-table-names.ts";
-import { declaredUpdatedAtTriggers } from "../../src/sql/schema-scan.ts";
+import { declaredUpdatedAtTriggersOf } from "../helpers/facts.ts";
 
 const APP = new Set(["public.organizations"]);
 
@@ -102,9 +102,9 @@ create trigger bsb_updated_at before update on public.organizations
 });
 
 describe("declaredUpdatedAtTriggers", () => {
-  it("finds a table the app tracks with track_updated_at", () => {
+  it("finds a table the app tracks with track_updated_at", async () => {
     expect(
-      declaredUpdatedAtTriggers(
+      await declaredUpdatedAtTriggersOf(
         [
           {
             text: `select better_supabase.track_updated_at('public.notes');
@@ -116,9 +116,9 @@ select better_supabase.track_updated_at('other.skipped');`,
     ).toEqual({ "public.notes": "bsb_updated_at" });
   });
 
-  it("finds the update trigger by its function's name or body", () => {
+  it("finds the update trigger by its function's name or body", async () => {
     expect(
-      declaredUpdatedAtTriggers(
+      await declaredUpdatedAtTriggersOf(
         [
           {
             text: `create function public.stamp() returns trigger language plpgsql as $$

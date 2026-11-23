@@ -11,11 +11,11 @@ import { readIfExists } from "../../../src/cli/core/io.ts";
 import { moduleLayoutFor } from "../../../src/cli/sql-layout.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { declaredTables } from "../../../src/sql/schema-scan.ts";
 import {
   MIXED_SCHEMAS_BLOCKS,
   MIXED_SCHEMAS_CONFIG,
 } from "../../fixtures/mixed-schemas/config.ts";
+import { declaredTablesOf } from "../../helpers/facts.ts";
 import { moduleSnapshotFixture } from "../fixtures/library.ts";
 
 const FIXTURE = join(import.meta.dirname, "../../fixtures/mixed-schemas");
@@ -214,7 +214,10 @@ create index if not exists customers_block_idx on public.customers (organization
       })),
     );
 
-    const created = declaredTables(files, ["public", "better_supabase"]);
+    const created = await declaredTablesOf(files, [
+      "public",
+      "better_supabase",
+    ]);
 
     expect(created.filter((table) => table in APP)).toEqual([]);
     expect(created).toEqual(

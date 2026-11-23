@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
+import { adoptedColumnProblems } from "../../../src/cli/adopted-columns.ts";
 import { withBlockSubjects } from "../../../src/config/block-subjects.ts";
-import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 import { renderBlocks } from "../app-columns.ts";
 
@@ -402,9 +402,9 @@ async function runStandalone(
 }
 
 describe("expenses without reports", BOOT, () => {
-  it("adopts the app's expenses table without problems", () => {
+  it("adopts the app's expenses table without problems", async () => {
     expect(
-      adoptedColumnProblems(
+      await adoptedColumnProblems(
         STANDALONE,
         [{ text: STANDALONE_APP }],
         ["public"],

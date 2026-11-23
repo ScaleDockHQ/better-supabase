@@ -16,13 +16,16 @@ import type { CatalogTable } from "../introspect/types.ts";
 
 import { toSnake } from "../../index.ts";
 import {
-  adoptedColumnProblems,
   migrationOptionUses,
   moduleBody,
   moduleIdType,
-  moduleWritesText,
   SQL_MODULES,
 } from "../../sql/index.ts";
+import {
+  adoptedColumnProblems,
+  moduleWritesText,
+  primeAdoption,
+} from "../adopted-columns.ts";
 
 /** The part of an introspected table a proposal reads. */
 export interface ExistingTable {
@@ -319,11 +322,14 @@ export interface ProposeOptions {
 }
 
 /** The entry for `block` over the app's `tables`, and what can't map. */
-export function proposeAdoption(
+export async function proposeAdoption(
   block: string,
   tables: readonly ExistingTable[],
   options: ProposeOptions = {},
-): AdoptProposal {
+): Promise<AdoptProposal> {
+  // The default module texts `moduleWritesText` reads.
+  await primeAdoption({});
+
   const module = SQL_MODULES[block];
 
   if (module === undefined || !overAppTables(block)) {
@@ -510,14 +516,14 @@ export function proposeAdoption(
       });
 
       errors.push(
-        ...adoptedColumnProblems(
+        ...(await adoptedColumnProblems(
           blocks,
           adopted.map((table) => ({ text: declaration(table) })),
           [...new Set(adopted.map((table) => table.schema))],
           ownTables,
           options.subjects,
           options.accessProvider,
-        ),
+        )),
       );
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error));

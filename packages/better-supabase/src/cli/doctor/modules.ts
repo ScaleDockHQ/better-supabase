@@ -7,7 +7,6 @@ import {
   DEFAULT_ACTIVE_TENANT,
 } from "../../config/index.ts";
 import {
-  adoptedTables,
   SQL_MODULES,
   contractSignature,
   customContracts,
@@ -19,6 +18,7 @@ import {
   sharedRolesProblems,
   subjectColumns,
 } from "../../sql/index.ts";
+import { adoptedTables } from "../adopted-columns.ts";
 import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import { tomlGet } from "../supabase-config.ts";

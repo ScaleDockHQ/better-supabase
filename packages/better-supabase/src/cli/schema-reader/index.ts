@@ -12,7 +12,7 @@ import type { SqlStatement } from "./statements.ts";
 
 import { factsFrom } from "./read.ts";
 import { Source } from "./source.ts";
-import { statementsFrom } from "./statements.ts";
+import { blankedFrom, statementsFrom } from "./statements.ts";
 
 export type * from "./facts.ts";
 
@@ -234,6 +234,7 @@ export async function parseStatements(
 
 /** Statements split ahead of time, by file text. */
 const split = new Map<string, readonly SqlStatement[]>();
+const blanked = new Map<string, string>();
 
 /**
  * Splits every text into statements with the scanner, so `statementsOf` can
@@ -255,7 +256,10 @@ export async function primeStatements(
 
       const scanned = await scanSql(text, options);
 
-      split.set(text, statementsFrom(new Source(text, scanned)));
+      const source = new Source(text, scanned);
+
+      split.set(text, statementsFrom(source));
+      blanked.set(text, blankedFrom(source));
     }),
   );
 }
@@ -272,6 +276,26 @@ export function statementsOf(text: string): readonly SqlStatement[] {
   if (known === undefined) {
     throw new Error(
       "The SQL reader has not split this text yet; await primeStatements first.",
+    );
+  }
+
+  return known;
+}
+
+/**
+ * A text without its comments, for a reader that matches on the code only.
+ * Strings, quoted names and dollar quotes keep their comment-like text.
+ *
+ * @param text - A SQL text that `primeStatements` scanned before.
+ * @returns The text without comments, line comments gone and block comments one
+ *   space.
+ */
+export function withoutComments(text: string): string {
+  const known = blanked.get(text);
+
+  if (known === undefined) {
+    throw new Error(
+      "The SQL reader has not scanned this text yet; await primeStatements first.",
     );
   }
 

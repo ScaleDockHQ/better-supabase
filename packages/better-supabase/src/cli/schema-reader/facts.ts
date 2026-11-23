@@ -68,6 +68,8 @@ export interface AlterFact {
   readonly line: number;
   readonly index: number;
   readonly addedColumns: readonly ColumnFact[];
+  /** The added columns written `add column if not exists`, in order. */
+  readonly addedIfNotExists: readonly string[];
   readonly setNotNull: readonly string[];
   readonly dropNotNull: readonly string[];
   readonly droppedColumns: readonly string[];

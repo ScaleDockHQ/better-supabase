@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { duplicateObjects } from "../../src/sql/duplicate-objects.ts";
+import { duplicateObjectsOf } from "../helpers/facts.ts";
 
 describe("duplicateObjects", () => {
   const block = (contents: string) => [{ contents }];
   const app = (text: string) => [{ text }];
 
-  it("reports a block unique index an app unique index covers", () => {
-    const found = duplicateObjects(
+  it("reports a block unique index an app unique index covers", async () => {
+    const found = await duplicateObjectsOf(
       block(
         `create unique index inventory_locations_id_organization_id_key on public.inventory_locations (id, organization_id);
 create unique index invoices_key on public.invoices (organization_id, direction, kind, number);`,
@@ -35,8 +35,8 @@ create unique index invoices_number on public.invoices (organization_id, number)
     ]);
   });
 
-  it("counts a not-null partial unique index and ignores an expression key", () => {
-    const found = duplicateObjects(
+  it("counts a not-null partial unique index and ignores an expression key", async () => {
+    const found = await duplicateObjectsOf(
       block(
         `create unique index invoices_key on public.invoices (organization_id, direction, kind, number);
 create unique index present on public.t (z);`,
@@ -58,9 +58,9 @@ create unique index present on public.t (z) where z is not null;`,
     ]);
   });
 
-  it("leaves partial indexes, other tables and other columns alone", () => {
+  it("leaves partial indexes, other tables and other columns alone", async () => {
     expect(
-      duplicateObjects(
+      await duplicateObjectsOf(
         block(
           `create unique index a on public.t (x, y);
 create unique index b on public.u (x);
@@ -75,8 +75,8 @@ create unique index mine2 on public.t (z) where z > 0;`,
     ).toEqual([]);
   });
 
-  it("reports a block updated_at trigger next to the app's track_updated_at", () => {
-    const found = duplicateObjects(
+  it("reports a block updated_at trigger next to the app's track_updated_at", async () => {
+    const found = await duplicateObjectsOf(
       block(
         `create trigger notes_touch before update on public.notes for each row execute function better_supabase.set_updated_at();`,
       ),

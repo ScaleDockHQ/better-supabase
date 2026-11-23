@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { sameTenantLayout } from "../../../src/sql/foreign-keys.ts";
 import { moduleBody } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
+import { sameTenantLayoutOf } from "../../helpers/facts.ts";
 
 const body = (
   sameTenant: unknown,
@@ -208,7 +208,7 @@ describe("tenant module sameTenant", () => {
   });
 });
 
-describe("tenant module sameTenant auto", () => {
+describe("tenant module sameTenant auto", async () => {
   const schema = `
 create table public.customers (
   id uuid primary key,
@@ -237,7 +237,7 @@ create table public.notes (
 alter table public.notes add constraint notes_task_fk foreign key (task_id) references public.tasks (id);
 `;
 
-  const inputs = sameTenantLayout([{ text: schema }], ["public"]);
+  const inputs = await sameTenantLayoutOf([{ text: schema }], ["public"]);
 
   const autoBody = (sameTenant: unknown) =>
     moduleBody("memberships", {
@@ -305,7 +305,7 @@ alter table public.notes add constraint notes_task_fk foreign key (task_id) refe
     expect(body(undefined)).not.toContain("bsb_same_tenant");
   });
 
-  it("passes shared rows when the referenced tenant column may be null", () => {
+  it("passes shared rows when the referenced tenant column may be null", async () => {
     const text = `
 create table public.roles (id uuid primary key, organization_id uuid);
 create table public.stages (id uuid primary key, organization_id uuid);
@@ -319,7 +319,7 @@ create table public.invitations (
 
     const sql = moduleBody("memberships", {
       modules: { memberships: {} },
-      ...sameTenantLayout([{ text }], ["public"]),
+      ...(await sameTenantLayoutOf([{ text }], ["public"])),
     })!;
 
     expect(sql).toBe(
@@ -340,7 +340,7 @@ create table public.invitations (
     expect(sql).toContain("'shared'");
   });
 
-  it("skips a key a composite pair on the tenant column already covers", () => {
+  it("skips a key a composite pair on the tenant column already covers", async () => {
     const text = `
 create table public.parents (id uuid, organization_id uuid not null, unique (organization_id, id));
 create table public.kids (
@@ -352,7 +352,7 @@ create table public.kids (
 
     const sql = moduleBody("memberships", {
       modules: { memberships: {} },
-      ...sameTenantLayout([{ text }], ["public"]),
+      ...(await sameTenantLayoutOf([{ text }], ["public"])),
     })!;
 
     expect(sql).not.toContain("bsb_same_tenant");
@@ -424,28 +424,29 @@ create trigger bsb_same_tenant_team_id before update on public.jobs
   for each row execute function public.jobs_organization_fixed();
 `;
 
-  const render = (text: string) =>
+  const render = async (text: string) =>
     moduleBody("memberships", {
       modules: { memberships: { options: { sameTenant: { auto: true } } } },
-      ...sameTenantLayout([{ text }], ["public"]),
+      ...(await sameTenantLayoutOf([{ text }], ["public"])),
     })!;
 
-  it("reads the columns of app triggers and ignores bsb_* triggers", () => {
+  it("reads the columns of app triggers and ignores bsb_* triggers", async () => {
     expect(
-      sameTenantLayout([{ text: schema }], ["public"]).appTriggerColumns,
+      (await sameTenantLayoutOf([{ text: schema }], ["public"]))
+        .appTriggerColumns,
     ).toStrictEqual({ "public.jobs": ["customer_id", "organization_id"] });
   });
 
-  it("emits no second trigger for a column an app trigger guards", () => {
-    const sql = render(schema);
+  it("emits no second trigger for a column an app trigger guards", async () => {
+    const sql = await render(schema);
 
     expect(sql).not.toContain('"bsb_same_tenant_customer_id"');
     expect(sql).toContain('"bsb_same_tenant_team_id"');
   });
 
-  it("emits the trigger without the app's", () => {
+  it("emits the trigger without the app's", async () => {
     expect(
-      render(schema.slice(0, schema.indexOf("create function"))),
+      await render(schema.slice(0, schema.indexOf("create function"))),
     ).toContain('"bsb_same_tenant_customer_id"');
   });
 });

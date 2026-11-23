@@ -15,22 +15,22 @@ import type { FilePlan } from "./core/files.ts";
 import type { CatalogPolicy } from "./introspect/types.ts";
 
 import {
-  adoptedColumnProblems,
   auditRegistrations,
   appColumnsOf,
   declaredPolicies,
   moduleLayout,
   resolveExposeColumns,
   resolveBlocks,
-  sameTenantLayout,
   mappingTagsOf,
   sameTenantTagsOf,
   withMappingTags,
 } from "../sql/index.ts";
+import { adoptedColumnProblems } from "./adopted-columns.ts";
 import { apiUsedNames } from "./api-used.ts";
 import { parseSnapshot } from "./commands/snapshot.ts";
 import { toCatalog } from "./introspect/catalog.ts";
 import { TypegenMissingError } from "./introspect/typegen.ts";
+import { sameTenantLayout } from "./same-tenant-layout.ts";
 import {
   declaredForeignKeys as appForeignKeys,
   declaredIndexes,
@@ -243,7 +243,7 @@ export async function moduleLayoutFor(
 
   const own = await ownLayout(config);
 
-  const adopted = adoptedColumnProblems(
+  const adopted = await adoptedColumnProblems(
     config.blocks,
     await declarativeTexts(config),
     config.schemas,
@@ -300,8 +300,7 @@ export async function moduleLayoutFor(
       ? undefined
       : resolveExposeColumns(
           base.grants,
-          await declarativeTexts(config),
-          config.schemas,
+          declaredTableColumns(await declarativeTexts(config), config.schemas),
         );
 
   const apiUsed = await apiUsedNames(config);

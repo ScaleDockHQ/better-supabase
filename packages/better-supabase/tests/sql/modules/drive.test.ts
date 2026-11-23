@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { adoptedTables } from "../../../src/sql/adopted-columns.ts";
+import {
+  adoptedTables,
+  primeAdoption,
+} from "../../../src/cli/adopted-columns.ts";
 import { modulePath } from "../../../src/sql/paths.ts";
 import {
   ORDER,
@@ -773,7 +776,9 @@ describe("drive module", () => {
     expect(noAttachment.map((entry) => entry.functions)).toEqual([[]]);
   });
 
-  it("checks only the grant columns the app's table uses", () => {
+  it("checks only the grant columns the app's table uses", async () => {
+    await primeAdoption(APP_MODULES, APP_DRIVE.ownTables);
+
     const user = adoptedTables(APP_MODULES, APP_DRIVE.ownTables).find(
       (table) => table.logical === "grants",
     );
@@ -783,6 +788,8 @@ describe("drive module", () => {
     const typedModules = {
       drive: { columns: { grants: { user: null, team: null } } },
     };
+
+    await primeAdoption(typedModules, ownTablesOf(typedModules));
 
     const typed = adoptedTables(typedModules, ownTablesOf(typedModules)).find(
       (table) => table.logical === "grants",

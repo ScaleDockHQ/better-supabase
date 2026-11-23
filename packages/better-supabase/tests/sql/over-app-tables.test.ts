@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { OwnIndex } from "../../src/sql/schema-scan.ts";
+import type { OwnIndex } from "../../src/sql/layout-types.ts";
 
 import { moduleContext } from "../../src/sql/module-context.ts";
 import { runsOverAppTables } from "../../src/sql/module-types.ts";
@@ -15,7 +15,7 @@ import {
 } from "../../src/sql/over-app-tables.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
-import { declaredIndexes } from "../../src/sql/schema-scan.ts";
+import { declaredIndexesOf } from "../helpers/facts.ts";
 import {
   ALONE,
   OVER,
@@ -424,7 +424,7 @@ create index if not exists other_idx on "public"."others" ("organization_id");
     );
   });
 
-  it("skips the teams and webhooks indexes the app's declared indexes already build", () => {
+  it("skips the teams and webhooks indexes the app's declared indexes already build", async () => {
     const appSql = `create index team_members_user_idx on public.team_members (organization_id, user_id);
 create index team_members_user_id_idx on public.team_members (user_id);
 create index webhook_destinations_event_kinds_idx on public.webhook_destinations using gin (event_kinds);
@@ -448,7 +448,7 @@ create index webhook_destinations_event_kinds_idx on public.webhook_destinations
         "public.webhook_destinations": "app.sql",
       },
       ownIndexes: Object.fromEntries(
-        declaredIndexes([{ text: appSql }], ["public"]),
+        await declaredIndexesOf([{ text: appSql }], ["public"]),
       ),
     })
       .map((file) => file.contents)

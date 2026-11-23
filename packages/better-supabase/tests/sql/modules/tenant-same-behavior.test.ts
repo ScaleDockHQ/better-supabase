@@ -3,8 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PgliteConnection } from "../../../src/lite/runtime.ts";
 
 import { loadLite } from "../../../src/lite/runtime.ts";
-import { sameTenantLayout } from "../../../src/sql/foreign-keys.ts";
 import { moduleBody } from "../../../src/sql/render.ts";
+import { sameTenantLayoutOf } from "../../helpers/facts.ts";
 
 const SCHEMA = `
 create table public.roles (id uuid primary key, organization_id uuid, name text);
@@ -22,8 +22,8 @@ create table public.tasks (
 `;
 
 /** The `same_tenant` function and its triggers, as the module renders them. */
-function sameTenantPart(): string {
-  const layout = sameTenantLayout([{ text: SCHEMA }], ["public"]);
+async function sameTenantPart(): Promise<string> {
+  const layout = await sameTenantLayoutOf([{ text: SCHEMA }], ["public"]);
 
   const body = moduleBody("memberships", {
     modules: { memberships: { options: { sameTenant: { auto: true } } } },
@@ -76,7 +76,7 @@ describe("same_tenant on a database", { timeout: 60_000 }, () => {
         if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated; end if;
       end $$;
       ${SCHEMA}
-      ${sameTenantPart()}
+      ${await sameTenantPart()}
     `);
   });
 
@@ -110,7 +110,7 @@ describe("same_tenant on a database", { timeout: 60_000 }, () => {
       ),
     ).toContain("must reference a row of");
 
-    const layout = sameTenantLayout([{ text: SCHEMA }], ["public"]);
+    const layout = await sameTenantLayoutOf([{ text: SCHEMA }], ["public"]);
 
     const body = moduleBody("memberships", {
       modules: {
@@ -165,6 +165,6 @@ describe("same_tenant on a database", { timeout: 60_000 }, () => {
     ).toContain("must reference a row of");
 
     await run("rollback");
-    expect(sameTenantPart()).toContain("create constraint trigger");
+    expect(await sameTenantPart()).toContain("create constraint trigger");
   });
 });

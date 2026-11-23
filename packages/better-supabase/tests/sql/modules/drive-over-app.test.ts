@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
+import { adoptedColumnProblems } from "../../../src/cli/adopted-columns.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 
@@ -209,9 +209,14 @@ async function run(check: string): Promise<void> {
 }
 
 describe("drive over the app's enum columns", BOOT, () => {
-  it("takes enum kind, role, drive type, source, provider and status columns", () => {
+  it("takes enum kind, role, drive type, source, provider and status columns", async () => {
     expect(
-      adoptedColumnProblems(BLOCKS, [{ text: APP }], ["public"], OWN_TABLES),
+      await adoptedColumnProblems(
+        BLOCKS,
+        [{ text: APP }],
+        ["public"],
+        OWN_TABLES,
+      ),
     ).toEqual([]);
   });
 

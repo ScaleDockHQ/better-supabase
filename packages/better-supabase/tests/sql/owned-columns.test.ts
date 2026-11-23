@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ownedColumnFiles } from "../../src/cli/codemod-owned-columns.ts";
-import { ownedColumns } from "../../src/sql/owned-columns.ts";
+import { ownedColumnsOf } from "../helpers/facts.ts";
 
 const APP = [
   {
@@ -25,23 +25,25 @@ alter table "better_supabase"."tags" add column if not exists "rank" text;
 ];
 
 describe("ownedColumns", () => {
-  it("finds the columns a block adds that the app's files lack", () => {
+  it("finds the columns a block adds that the app's files lack", async () => {
     expect(
-      ownedColumns(RENDERED, APP, ["public"]).map(
+      (await ownedColumnsOf(RENDERED, APP, ["public"])).map(
         (entry) => `${entry.table}.${entry.column}`,
       ),
     ).toEqual(["public.tasks.archived_at", "public.notes.color"]);
   });
 
-  it("keeps the block's statement as written", () => {
-    expect(ownedColumns(RENDERED, APP, ["public"])[1]?.statement).toBe(
+  it("keeps the block's statement as written", async () => {
+    expect(
+      (await ownedColumnsOf(RENDERED, APP, ["public"]))[1]?.statement,
+    ).toBe(
       `alter table "public"."notes" add column if not exists "color" text default 'x';`,
     );
   });
 
-  it("finds nothing once the files declare the columns", () => {
+  it("finds nothing once the files declare the columns", async () => {
     const files = ownedColumnFiles(
-      ownedColumns(RENDERED, APP, ["public"]),
+      await ownedColumnsOf(RENDERED, APP, ["public"]),
       "supabase/schemas",
     );
 
@@ -53,7 +55,7 @@ describe("ownedColumns", () => {
       `add column if not exists "archived_at" timestamptz;`,
     );
     expect(
-      ownedColumns(
+      await ownedColumnsOf(
         RENDERED,
         [...APP, ...files.map((file) => ({ text: file.contents }))],
         ["public"],
@@ -61,10 +63,10 @@ describe("ownedColumns", () => {
     ).toEqual([]);
   });
 
-  it("leaves a declaration that is already on disk", () => {
+  it("leaves a declaration that is already on disk", async () => {
     expect(
       ownedColumnFiles(
-        ownedColumns(RENDERED, APP, ["public"]),
+        await ownedColumnsOf(RENDERED, APP, ["public"]),
         "supabase/schemas",
         () => true,
       ),

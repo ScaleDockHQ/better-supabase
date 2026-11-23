@@ -1,6 +1,6 @@
 import type { DoctorContext } from "./rules.ts";
 
-import { adoptedTables } from "../../sql/index.ts";
+import { adoptedTables } from "../adopted-columns.ts";
 import { adoptionContext, appTablesOf } from "./app-tables.ts";
 
 /** The prefix the render pass gives block policies on the app's tables. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { DeclaredForeignKey } from "../../../src/sql/foreign-keys.ts";
+import type { DeclaredForeignKey } from "../../../src/sql/layout-types.ts";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
 

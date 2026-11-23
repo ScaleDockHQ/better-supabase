@@ -1,10 +1,10 @@
 import type {
-  AdoptedTable,
   BlockSqlNames,
   DataExportPlan,
-  TableCheckValues,
   ValueMaps,
 } from "../../sql/index.ts";
+import type { AdoptedTable } from "../adopted-columns.ts";
+import type { TableCheckValues } from "../check-values.ts";
 import type {
   CatalogColumn,
   CatalogEnum,
@@ -13,13 +13,9 @@ import type {
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import {
-  adoptedTables,
-  adoptedViews,
   appValues,
   checkedValueMaps,
-  checkValues,
   dataExportPlan,
-  declaredCheckValues,
   excludedColumns,
   moduleLayout,
   moduleSource,
@@ -29,12 +25,15 @@ import {
   sameTenantTrigger,
   SQL_MODULES,
   unusedDeclaredColumns,
-  writtenValues,
 } from "../../sql/index.ts";
+import { adoptedTables, adoptedViews } from "../adopted-columns.ts";
+import { checkValues, declaredCheckValues } from "../check-values.ts";
 import { tenantEntries } from "../codemod-config.ts";
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
 import { isRecord } from "../guards.ts";
+import { primeSchemaTexts } from "../sql-facts.ts";
+import { writtenValues } from "../written-values.ts";
 import { appTablesWithoutPolicies } from "./app-table-policies.ts";
 import { adoptionContext, appTablesOf, appViewsOf } from "./app-tables.ts";
 import { shadowedBlockColumns, staleRenameKeys } from "./column-renames.ts";
@@ -659,10 +658,10 @@ interface ManagedTables {
   readonly sql: string;
 }
 
-function managedTables(
+async function managedTables(
   name: string,
   context: DoctorContext,
-): ManagedTables | Error | undefined {
+): Promise<ManagedTables | Error | undefined> {
   const module = SQL_MODULES[name];
   const tables = module?.names?.tables;
 
@@ -685,6 +684,11 @@ function managedTables(
       ...appViewsOf(context),
     };
 
+    const sql =
+      moduleSource(name, layout, context.config.blockNames) ?? module.sql;
+
+    await primeSchemaTexts([module.sql, sql]);
+
     return {
       checks: declaredCheckValues([{ text: module.sql }]),
       tables,
@@ -693,7 +697,7 @@ function managedTables(
         context.config.blocks[name]?.values,
         tables,
       ),
-      sql: moduleSource(name, layout, context.config.blockNames) ?? module.sql,
+      sql,
     };
   } catch (error) {
     return error instanceof Error ? error : new Error(String(error));
@@ -737,7 +741,9 @@ function checkRejectsMessage(
 }
 
 /** Checks of the app's tables that reject a value the module writes (BS361). */
-function checkValuesOverAdoptedTables(context: DoctorContext): FindingInput[] {
+async function checkValuesOverAdoptedTables(
+  context: DoctorContext,
+): Promise<FindingInput[]> {
   const adopted = adoptedTables(
     context.config.blocks,
     appTablesOf(context),
@@ -763,7 +769,7 @@ function checkValuesOverAdoptedTables(context: DoctorContext): FindingInput[] {
     let managed = rendered.get(adoptedTable.module);
 
     if (!rendered.has(adoptedTable.module)) {
-      managed = managedTables(adoptedTable.module, context);
+      managed = await managedTables(adoptedTable.module, context);
       rendered.set(adoptedTable.module, managed);
 
       if (managed instanceof Error) {

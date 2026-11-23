@@ -3,7 +3,7 @@ import type { BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
-import { tableGlobs } from "../schema-scan.ts";
+import { tableGlobs } from "../text-edit.ts";
 import { autoTablesOf } from "./data-lifecycle-auto-tables.ts";
 import { entries } from "./data-lifecycle-entries.ts";
 

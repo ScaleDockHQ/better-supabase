@@ -1,11 +1,11 @@
-import { withoutComments } from "./audit-registrations.ts";
 import {
   closingParen,
   NAME,
   qualified,
   splitTopLevel,
   unquote,
-} from "./schema-scan.ts";
+} from "../sql/text-edit.ts";
+import { withoutComments } from "./schema-reader/index.ts";
 
 const TABLE_NAME = String.raw`(${NAME}(?:\s*\.\s*${NAME})?)`;
 
@@ -107,11 +107,18 @@ function assignments(
  * are `schema.table`, unquoted.
  */
 export function computedWrites(
-  sql: string,
+  sqls: readonly string[],
 ): ReadonlyMap<string, ReadonlySet<string>> {
-  const text = withoutComments(sql);
   const found = new Map<string, Set<string>>();
 
+  for (const sql of sqls) {
+    computedWritesOf(withoutComments(sql), found);
+  }
+
+  return found;
+}
+
+function computedWritesOf(text: string, found: Map<string, Set<string>>): void {
   for (const match of text.matchAll(INSERT)) {
     const table = qualified(match[1]!);
     const open = match.index + match[0].length - 1;
@@ -160,6 +167,4 @@ export function computedWrites(
     const start = match.index + match[0].length;
     assignments(found, table, text.slice(start, partEnd(text, start, SET_END)));
   }
-
-  return found;
 }

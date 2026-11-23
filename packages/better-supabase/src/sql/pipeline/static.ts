@@ -1,5 +1,5 @@
 import { maskComments, statementSpans } from "../over-app-tables.ts";
-import { closingParen, NAME, qualified } from "../schema-scan.ts";
+import { closingParen, NAME, qualified } from "../text-edit.ts";
 
 const TABLE_NAME = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
 

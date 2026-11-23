@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { moduleSource } from "../../src/sql/registry.ts";
-import { writtenValues } from "../../src/sql/written-values.ts";
+import { writtenValuesOf } from "../helpers/facts.ts";
 
 describe("moduleSource", () => {
   const layout = {
@@ -24,11 +24,11 @@ describe("moduleSource", () => {
     expect(moduleSource("nope")).toBeUndefined();
   });
 
-  it("finds the statuses the cases block writes through its trigger", () => {
+  it("finds the statuses the cases block writes through its trigger", async () => {
     const sql = moduleSource("cases", { modules: { cases: {} } }, ["cases"]);
 
-    expect(writtenValues(sql ?? "", "better_supabase.cases", "status")).toEqual(
-      expect.arrayContaining(["closed", "canceled", "open"]),
-    );
+    expect(
+      await writtenValuesOf(sql ?? "", "better_supabase.cases", "status"),
+    ).toEqual(expect.arrayContaining(["closed", "canceled", "open"]));
   });
 });

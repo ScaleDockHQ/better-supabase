@@ -1,4 +1,3 @@
-import { withoutComments } from "./audit-registrations.ts";
 import {
   closingParen,
   NAME,
@@ -6,7 +5,8 @@ import {
   splitTopLevel,
   TABLE,
   unquote,
-} from "./schema-scan.ts";
+} from "../sql/text-edit.ts";
+import { withoutComments } from "./schema-reader/index.ts";
 
 /** A simple membership check: one column and the values it accepts. */
 export interface CheckValues {

@@ -3,10 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import {
+  adoptedTables,
+  primeAdoption,
+} from "../../../src/cli/adopted-columns.ts";
 import { installMemo } from "../../../src/cli/cache/memo-backend.ts";
 import { cacheRoot, setCacheEnabled } from "../../../src/cli/cache/store.ts";
 import {
-  adoptedTables,
   clearMemo,
   memoStats,
   memoized,
@@ -114,6 +117,7 @@ describe("the adoption scan", () => {
 
     const tables = { "public.hook_secrets": "supabase/schemas/hooks.sql" };
 
+    await primeAdoption(modules, tables);
     await installMemo(root);
     const first = adoptedTables(modules, tables);
     expect(memoStats.computed).toBeGreaterThan(0);

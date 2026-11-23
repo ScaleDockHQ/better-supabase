@@ -2,7 +2,7 @@ import type { CatalogPolicy } from "../config/snapshot.ts";
 
 import { maskComments, statementSpans } from "./over-app-tables.ts";
 import { catalogPolicy, readPolicy } from "./policy.ts";
-import { qualified, unquote, NAME } from "./schema-scan.ts";
+import { qualified, unquote, NAME } from "./text-edit.ts";
 
 export type PolicyCommand = "select" | "insert" | "update" | "delete";
 

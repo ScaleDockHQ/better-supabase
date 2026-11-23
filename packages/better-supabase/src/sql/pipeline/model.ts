@@ -1,5 +1,5 @@
-import { NAME, qualified, unquote } from "../schema-scan.ts";
 import { sha256Hex } from "../sha256.ts";
+import { NAME, qualified, unquote } from "../text-edit.ts";
 import { splitStatements } from "./split.ts";
 
 /** What a statement declares. */

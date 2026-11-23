@@ -4,11 +4,11 @@ import type { PlannedFile } from "./core/files.ts";
 
 import {
   renderBlocks,
-  sameTenantLayout,
   sameTenantTagsOf,
   sameTenantTrigger,
 } from "../sql/index.ts";
 import { withoutConfigPaths } from "./codemod-prune.ts";
+import { sameTenantLayout } from "./same-tenant-layout.ts";
 import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 import { layoutFor } from "./sql/providers.ts";
 

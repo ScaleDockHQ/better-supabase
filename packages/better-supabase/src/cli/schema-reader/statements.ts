@@ -73,3 +73,28 @@ export function statementsFrom(source: Source): SqlStatement[] {
 
   return statements;
 }
+
+/**
+ * The text with each line comment dropped (its newline stays) and each block
+ * comment turned into one space, strings, quoted names and dollar quotes
+ * untouched.
+ *
+ * @param source - The scanned text.
+ * @returns The text without comments.
+ */
+export function blankedFrom(source: Source): string {
+  let text = "";
+  let at = 0;
+
+  for (const comment of source.comments) {
+    text += source.slice(at, comment.start);
+
+    if (comment.kind === "C_COMMENT") {
+      text += " ";
+    }
+
+    at = comment.end;
+  }
+
+  return text + source.slice(at, source.bytes.length);
+}

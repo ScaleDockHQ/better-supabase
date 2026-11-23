@@ -1,15 +1,17 @@
 import { posix, resolve } from "node:path";
 
 import type { ResolvedConfig, ColumnMapping } from "../config/index.ts";
-import type { OwnedColumn } from "../sql/index.ts";
+import type { OwnedColumn } from "./block-objects.ts";
 import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 
-import { ownedColumns, renderBlocks, SQL_MODULES } from "../sql/index.ts";
+import { renderBlocks, SQL_MODULES } from "../sql/index.ts";
+import { ownedColumns } from "./block-objects.ts";
 import { schemasDirOf } from "./codemod-extra-columns.ts";
 import { columnPins, pinReview } from "./codemod-naming-pins.ts";
 import { NAMING_RENAMES } from "./codemod-naming.ts";
 import { CliError } from "./core/errors.ts";
+import { primeSchemaFacts } from "./sql-facts.ts";
 import { ownLayout, snapshotColumnTypes } from "./sql-layout.ts";
 import { layoutFor } from "./sql/providers.ts";
 
@@ -164,13 +166,29 @@ export function ownedColumnsCodemod(): Codemod {
           keepUndeclaredColumns: true,
         };
 
-        columns = ownedColumns(
-          renderBlocks(config.blockNames, layout).map((file) => ({
-            contents: file.contents,
-          })),
-          app,
-          config.schemas,
+        const rendered = renderBlocks(config.blockNames, layout).map(
+          (file) => ({ contents: file.contents }),
         );
+
+        const unread = await primeSchemaFacts(
+          [
+            ...rendered.map(({ contents }) => ({
+              path: "block.sql",
+              text: contents,
+            })),
+            ...app.map((file) => ({ path: file.path, text: file.text })),
+          ],
+          config.root,
+          { lenient: true },
+        );
+
+        review.push(
+          ...unread.map((error) => ({
+            message: `${error.path}:${error.line}: this file does not parse, so the codemod could not read its columns (${error.message}).`,
+          })),
+        );
+
+        columns = ownedColumns(rendered, app, config.schemas);
 
         const own = await ownLayout(config);
 

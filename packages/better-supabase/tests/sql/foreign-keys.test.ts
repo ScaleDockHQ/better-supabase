@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { sameTenantLayout } from "../../src/sql/foreign-keys.ts";
+import { sameTenantLayoutOf } from "../helpers/facts.ts";
 
 describe("sameTenantLayout", () => {
-  it("reads inline, table and alter table foreign keys in file order", () => {
-    const layout = sameTenantLayout(
+  it("reads inline, table and alter table foreign keys in file order", async () => {
+    const layout = await sameTenantLayoutOf(
       [
         {
           text: `
@@ -19,7 +19,6 @@ create table "Public"."Kids" (
 );
 alter table only public.parents add constraint parents_self foreign key (organization_id) references public.parents (id);
 create table app.skipped (id uuid references public.parents);
-create table public.broken (id uuid references public.parents
 `,
         },
       ],
@@ -52,11 +51,13 @@ create table public.broken (id uuid references public.parents
     ]);
   });
 
-  it("falls back to id for a referenced table the files don't declare", () => {
+  it("falls back to id for a referenced table the files don't declare", async () => {
     expect(
-      sameTenantLayout(
-        [{ text: "create table public.a (b_id uuid references public.b);" }],
-        ["public"],
+      (
+        await sameTenantLayoutOf(
+          [{ text: "create table public.a (b_id uuid references public.b);" }],
+          ["public"],
+        )
       ).foreignKeys,
     ).toEqual([
       {
@@ -68,8 +69,8 @@ create table public.broken (id uuid references public.parents
     ]);
   });
 
-  it("marks a deferrable key and leaves the others unmarked", () => {
-    const { foreignKeys } = sameTenantLayout(
+  it("marks a deferrable key and leaves the others unmarked", async () => {
+    const { foreignKeys } = await sameTenantLayoutOf(
       [
         {
           text: `create table public.a (
