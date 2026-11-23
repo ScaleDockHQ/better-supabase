@@ -647,16 +647,21 @@ const definitionsOf = (
 
 /** The declaration model's view of one file: what it creates and alters. */
 export function declarationsOf(facts: FileFacts): DeclarationSummary {
+  const replaced = new Set(drops(facts, "trigger").map((drop) => drop.name));
+
   return {
-    objects: facts.declared.map((each) => ({
-      kind: each.kind,
-      name:
-        each.arity === undefined
-          ? each.name
-          : `${each.name}/${String(each.arity)}`,
-      line: each.line,
-      ifNotExists: each.ifNotExists,
-    })),
+    // A trigger the file drops first is an override of the one a block declares.
+    objects: facts.declared
+      .filter((each) => each.kind !== "trigger" || !replaced.has(each.name))
+      .map((each) => ({
+        kind: each.kind,
+        name:
+          each.arity === undefined
+            ? each.name
+            : `${each.name}/${String(each.arity)}`,
+        line: each.line,
+        ifNotExists: each.ifNotExists,
+      })),
     alters: facts.alters
       .filter((alter) => alter.addedColumns.length > 0)
       .map((alter) => ({
