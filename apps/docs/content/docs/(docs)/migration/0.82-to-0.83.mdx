@@ -111,6 +111,19 @@ files. The reader now ends the list at the next tag.
 Five adopter files become deletable: `secret_fields.sql`, `packages/supabase-runtime/src/db.ts`
 field helpers, the `gen.functions` section, and the two import runner files.
 
+## Codemod and render checks
+
+The codemods read TypeScript through a syntax tree. A file that does not parse
+is listed with its line and the parser's message instead of being skipped, so a
+file that needs a change never looks like a file with nothing to change. Fix it
+and run the codemod again. `codemod naming` renames an environment variable where
+code names it and leaves comments alone, and it lists a string that holds the
+name among other words.
+
+`gen` now parses the SQL of every installed module and every SQL fragment in the
+config before it writes anything. An error names the module and the statement,
+or the config key such as `vectorSearch.public.docs.predicate`.
+
 ## Direct dependencies
 
 `better-supabase` now installs `oxc-parser`, `@supabase/pg-parser`,
