@@ -9,29 +9,15 @@ export interface DbSource {
   readonly storage: StorageApi | undefined;
 }
 
-/**
- * A supabase-js client builds a new storage client on each read of `storage`,
- * so it is read once per connection.
- */
-const clientStorage = new WeakMap<DbSource, StorageApi>();
-
 export function storageOf(source: DbSource): StorageApi {
   if (source.storage) {
     return source.storage;
-  }
-
-  const cached = clientStorage.get(source);
-
-  if (cached) {
-    return cached;
   }
 
   const client = source.client;
   const storage = isRecord(client) ? client["storage"] : undefined;
 
   if (isStorageApi(storage)) {
-    clientStorage.set(source, storage);
-
     return storage;
   }
 

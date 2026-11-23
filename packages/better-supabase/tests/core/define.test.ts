@@ -213,18 +213,12 @@ describe("$storage", () => {
     expect(db.$withoutPlugins().$storage).toBe(storage);
   });
 
-  it("falls back to the client's storage, read once per connection", () => {
+  it("falls back to the client's storage", () => {
     const storage = storageApi();
-    const read = vi.fn(() => storage);
-
-    const client = Object.defineProperty({ from: () => ({}) }, "storage", {
-      get: read,
-    });
+    const client = { from: () => ({}), storage };
 
     const db = betterSupabase.connect(client);
     expect(db.$storage).toBe(storage);
-    expect(db.$storage).toBe(storage);
-    expect(read).toHaveBeenCalledOnce();
     const option = storageApi();
     expect(
       betterSupabase.connect(client, {}, { storage: option }).$storage,
