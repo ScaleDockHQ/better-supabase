@@ -26,6 +26,16 @@ export type ImportsSqlOptions = {
   readonly events?: Readonly<Record<string, ImportEventMode>>;
   /** `rows` audits every row change; `summary` one entry per entity and run. */
   readonly audit?: "rows" | "summary";
+  /**
+   * How long stored chunks keep their items, as intervals such as `"7 days"`. A
+   * done chunk drops them at once; a failed one after `keepFailedItems`
+   * (default 7 days). With `staleAfter` set, `maintenance()` cancels a run
+   * whose heartbeat is older and drops its chunks' items (ADR 1213).
+   */
+  readonly chunks?: {
+    readonly keepFailedItems?: string;
+    readonly staleAfter?: string;
+  };
 };
 
 export const importsSqlOptions: BlockOptionsSchema<ImportsSqlOptions> =
@@ -38,4 +48,8 @@ export const importsSqlOptions: BlockOptionsSchema<ImportsSqlOptions> =
     }>(),
     events: option.unknown<Readonly<Record<string, ImportEventMode>>>(),
     audit: option.string<"rows" | "summary">(),
+    chunks: option.unknown<{
+      readonly keepFailedItems?: string;
+      readonly staleAfter?: string;
+    }>(),
   });

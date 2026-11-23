@@ -2110,11 +2110,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "invoices",
         "ledger",
         "outbox",
-        "search"
+        "search",
+        "housekeeping"
       ],
       "manifest": "imports",
       "scopes": [
         "tenant"
+      ],
+      "contributes": [
+        "housekeeping"
       ]
     },
     {

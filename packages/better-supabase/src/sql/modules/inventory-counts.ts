@@ -423,7 +423,7 @@ function importFunctions(ctx: BlockSqlContext, names: InventoryNames): string {
 
   return `
 -- The import target of the stock_count entity: item.data is { locationId or
--- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- location (a code), or neither when the organization has one active location, note?, lines: [{ variantId or sku, binId or bin (a code)?,
 -- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
 -- expected takes the stock now. An imported count stays open; post it with
 -- post_stock_count, which posts once. Importing the same key again replaces the
@@ -457,13 +457,18 @@ begin
   exception when invalid_text_representation then
     ${fail("IMPORT_ITEM_INVALID", "locationId is a uuid", "22023")}
   end;
-  if v_location is null then
+  if v_location is null and nullif(v_data ->> 'location', '') is null then
+    -- Without a location the count goes to the organization's only active one.
+    select min(x.${l("id")}::text)::uuid into v_location from ${loc.table} x
+    where x.${l("tenant")} = v_tenant and ${loc.active("x")}
+    having count(*) = 1;
+  elsif v_location is null then
     select x.${l("id")} into v_location from ${loc.table} x where x.${l("tenant")} = v_tenant and x.${l("code")} = v_data ->> 'location';
   elsif not exists (select 1 from ${loc.table} x where x.${l("id")} = v_location and x.${l("tenant")} = v_tenant) then
     v_location := null;
   end if;
   if v_location is null then
-    ${fail("IMPORT_ITEM_INVALID", "the count's location isn't in this organization", "22023")}
+    ${fail("IMPORT_ITEM_INVALID", "the count's location isn't in this organization, or the count names none and the organization has more than one active location", "22023")}
   end if;
   if import_stock_count.subject_id is null then
     insert into ${counts} as x (${c("tenant")}, ${c("location")}, ${c("note")})

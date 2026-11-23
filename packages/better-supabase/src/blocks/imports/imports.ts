@@ -14,7 +14,7 @@ import type {
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { JobSource } from "../../core/jobs.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { ImportChunks } from "./chunks.ts";
+import type { ImportChunkProgress, ImportChunks } from "./chunks.ts";
 import type { ImportBatchReply, ImportItem } from "./define-import.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -96,6 +96,21 @@ export interface ImportRun {
   readonly createdAt: Temporal.Instant;
   readonly startedAt: Temporal.Instant | null;
   readonly finishedAt: Temporal.Instant | null;
+  /**
+   * The run's stored chunks per status, and the bytes of items they still hold
+   * (a done chunk drops its items).
+   */
+  readonly chunks: ImportChunkProgress & { readonly bytes: number };
+}
+
+/** One conflict of a run, as `runs.conflicts` pages them. */
+export interface ImportConflict {
+  readonly entity: string;
+  readonly key: string;
+  readonly code: string;
+  readonly message: string;
+  readonly createdAt: Temporal.Instant;
+  readonly resolvedAt: Temporal.Instant | null;
 }
 
 export interface StartImportRunOptions {
@@ -244,6 +259,20 @@ export interface Imports {
     count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
     /** Cancels a pending or running run; `false` when it already ended. */
     cancel(id: string): AsyncResult<boolean>;
+    /**
+     * Every conflict of a run, oldest first, where a batch's `conflictKeys`
+     * stops at 100. Pass `nextCursor` as `after` for the next page; `limit` is
+     * at most 1,000 (default 100).
+     */
+    conflicts(input: {
+      runId: string;
+      entity?: string;
+      after?: string;
+      limit?: number;
+    }): AsyncResult<{
+      readonly rows: readonly ImportConflict[];
+      readonly nextCursor: string | null;
+    }>;
   };
   /** Marks a pending run running (service role). */
   markRunning(id: string): AsyncResult<boolean>;
@@ -358,6 +387,19 @@ function runOf(value: unknown, fn: string): ImportRun {
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     startedAt: nullableInstant(row["startedAt"]),
     finishedAt: nullableInstant(row["finishedAt"]),
+    chunks: chunkCountsOf(row["chunks"]),
+  };
+}
+
+function chunkCountsOf(value: unknown): ImportRun["chunks"] {
+  const row = recordOrEmpty(value);
+
+  return {
+    pending: toCount(row["pending"]),
+    claimed: toCount(row["claimed"]),
+    done: toCount(row["done"]),
+    failed: toCount(row["failed"]),
+    bytes: toCount(row["bytes"]),
   };
 }
 
@@ -665,6 +707,33 @@ export function createImports(options: ImportsOptions): Imports {
       count: runEntries.count,
       cancel: (id) =>
         call("cancel_import_run", { id }, (value) => value === true),
+      conflicts: ({ runId, entity, after, limit }) =>
+        call(
+          "list_import_conflicts",
+          {
+            run: runId,
+            entity: entity ?? null,
+            after: after ?? null,
+            row_limit: limit ?? 100,
+          },
+          (value) => {
+            const page = recordOf(value, "list_import_conflicts");
+
+            return {
+              rows: recordsOf(page["rows"], "list_import_conflicts").map(
+                (row): ImportConflict => ({
+                  entity: textOf(row["entity"]),
+                  key: textOf(row["key"]),
+                  code: textOf(row["code"]),
+                  message: textOf(row["message"]),
+                  createdAt: requiredInstant(row["createdAt"], "createdAt"),
+                  resolvedAt: nullableInstant(row["resolvedAt"]),
+                }),
+              ),
+              nextCursor: nullableText(page["next_cursor"]),
+            };
+          },
+        ),
     },
     chunks: {
       store: ({ runId, entity, chunk, items }) =>
@@ -702,10 +771,10 @@ export function createImports(options: ImportsOptions): Imports {
                 })),
               };
         }),
-      fail: ({ runId, entity, chunk, message }) =>
+      fail: ({ runId, entity, chunk, message, final }) =>
         call(
           "fail_import_chunk",
-          { run: runId, entity, chunk, message },
+          { run: runId, entity, chunk, message, final: final === true },
           (value) => value === true,
         ),
       progress: (runId) =>

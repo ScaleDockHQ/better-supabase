@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
--- @bsb-block inventory@5 managed
--- @bsb-hash sha256:625bbc36340c67a14ffdfc6d9e8c10c4c8c099fe776e230747b1a9a59e82ece4
+-- @bsb-block inventory@6 managed
+-- @bsb-hash sha256:6484dad1c8127e1fe59836a81c6574178bd8a52bf1fe94aac4ee165a8cd5285d
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2232,7 +2232,7 @@ revoke execute on function "better_supabase"."cancel_stock_count"(uuid) from pub
 grant execute on function "better_supabase"."cancel_stock_count"(uuid) to authenticated, service_role;
 
 -- The import target of the stock_count entity: item.data is { locationId or
--- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- location (a code), or neither when the organization has one active location, note?, lines: [{ variantId or sku, binId or bin (a code)?,
 -- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
 -- expected takes the stock now. An imported count stays open; post it with
 -- post_stock_count, which posts once. Importing the same key again replaces the
@@ -2266,13 +2266,18 @@ begin
   exception when invalid_text_representation then
     raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
-  if v_location is null then
+  if v_location is null and nullif(v_data ->> 'location', '') is null then
+    -- Without a location the count goes to the organization's only active one.
+    select min(x."id"::text)::uuid into v_location from "better_supabase"."inventory_locations" x
+    where x."tenant_id" = v_tenant and x."active"
+    having count(*) = 1;
+  elsif v_location is null then
     select x."id" into v_location from "better_supabase"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
   elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
     v_location := null;
   end if;
   if v_location is null then
-    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'the count''s location isn''t in this organization, or the count names none and the organization has more than one active location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_stock_count.subject_id is null then
     insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")

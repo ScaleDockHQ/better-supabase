@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@5 managed
--- @bsb-hash sha256:4c07bb94d7d85dbd4c079c8ff5522e68b7634f15c2b3df5ca8b4cfdea489e44d
+-- @bsb-block inventory@6 managed
+-- @bsb-hash sha256:2ea410399682fb6b4ded70fe00102bb78c73a9fbba405a1d4752ed9346124bcc
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2223,7 +2223,7 @@ revoke execute on function "better_supabase"."cancel_stock_count"(uuid) from pub
 grant execute on function "better_supabase"."cancel_stock_count"(uuid) to authenticated, service_role;
 
 -- The import target of the stock_count entity: item.data is { locationId or
--- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- location (a code), or neither when the organization has one active location, note?, lines: [{ variantId or sku, binId or bin (a code)?,
 -- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
 -- expected takes the stock now. An imported count stays open; post it with
 -- post_stock_count, which posts once. Importing the same key again replaces the
@@ -2257,13 +2257,18 @@ begin
   exception when invalid_text_representation then
     raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
-  if v_location is null then
+  if v_location is null and nullif(v_data ->> 'location', '') is null then
+    -- Without a location the count goes to the organization's only active one.
+    select min(x."id"::text)::uuid into v_location from "better_supabase"."inventory_locations" x
+    where x."tenant_id" = v_tenant and x."active"
+    having count(*) = 1;
+  elsif v_location is null then
     select x."id" into v_location from "better_supabase"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
   elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
     v_location := null;
   end if;
   if v_location is null then
-    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'the count''s location isn''t in this organization, or the count names none and the organization has more than one active location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_stock_count.subject_id is null then
     insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
@@ -5471,21 +5476,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" a
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
+-- @bsb-hash sha256:3955e2faa68965857f25c48c7053d797451ab9fe7242409bae6a5f682cdb5972
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 5, 'managed')
+values ('inventory', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@5 managed
--- @bsb-hash sha256:fd7f6a04ece5cf23ccb759f17ebbce7cbb0e935755cd1c00279657c478522d88
+-- @bsb-block inventory@6 managed
+-- @bsb-hash sha256:2d4d52d7de755b1e20f3f93efb6b978f292f3e98b6d2c331dd06edd03c25d9e4
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7717,7 +7722,7 @@ revoke execute on function "better_supabase"."cancel_stock_count"(uuid) from pub
 grant execute on function "better_supabase"."cancel_stock_count"(uuid) to authenticated, service_role;
 
 -- The import target of the stock_count entity: item.data is { locationId or
--- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- location (a code), or neither when the organization has one active location, note?, lines: [{ variantId or sku, binId or bin (a code)?,
 -- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
 -- expected takes the stock now. An imported count stays open; post it with
 -- post_stock_count, which posts once. Importing the same key again replaces the
@@ -7751,13 +7756,18 @@ begin
   exception when invalid_text_representation then
     raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
-  if v_location is null then
+  if v_location is null and nullif(v_data ->> 'location', '') is null then
+    -- Without a location the count goes to the organization's only active one.
+    select min(x."id"::text)::uuid into v_location from "better_supabase"."inventory_locations" x
+    where x."tenant_id" = v_tenant and x."active"
+    having count(*) = 1;
+  elsif v_location is null then
     select x."id" into v_location from "better_supabase"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
   elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
     v_location := null;
   end if;
   if v_location is null then
-    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'the count''s location isn''t in this organization, or the count names none and the organization has more than one active location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_stock_count.subject_id is null then
     insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
@@ -11022,21 +11032,21 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
+-- @bsb-hash sha256:3955e2faa68965857f25c48c7053d797451ab9fe7242409bae6a5f682cdb5972
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 5, 'managed')
+values ('inventory', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@5 managed
--- @bsb-hash sha256:e25b705860170acde7e5b214cc14b46ee1f8f0cef94c0b4fa4db5e93918c6179
+-- @bsb-block inventory@6 managed
+-- @bsb-hash sha256:7587a7a0e6fb66dc5166504df6118a2cec1c48d0588f85b6b6f7a823ca1e6764
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13263,7 +13273,7 @@ revoke execute on function "app_private"."cancel_stock_count"(uuid) from public,
 grant execute on function "app_private"."cancel_stock_count"(uuid) to authenticated, service_role;
 
 -- The import target of the stock_count entity: item.data is { locationId or
--- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- location (a code), or neither when the organization has one active location, note?, lines: [{ variantId or sku, binId or bin (a code)?,
 -- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
 -- expected takes the stock now. An imported count stays open; post it with
 -- post_stock_count, which posts once. Importing the same key again replaces the
@@ -13297,13 +13307,18 @@ begin
   exception when invalid_text_representation then
     raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
-  if v_location is null then
+  if v_location is null and nullif(v_data ->> 'location', '') is null then
+    -- Without a location the count goes to the organization's only active one.
+    select min(x."id"::text)::uuid into v_location from "app_private"."inventory_locations" x
+    where x."tenant_id" = v_tenant and x."active"
+    having count(*) = 1;
+  elsif v_location is null then
     select x."id" into v_location from "app_private"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
   elsif not exists (select 1 from "app_private"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
     v_location := null;
   end if;
   if v_location is null then
-    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'the count''s location isn''t in this organization, or the count names none and the organization has more than one active location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_stock_count.subject_id is null then
     insert into "app_private"."stock_counts" as x ("tenant_id", "location_id", "note")
@@ -16511,21 +16526,21 @@ create policy bsb_tenant_scope_delete on "app_private"."stock_count_lines" as re
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
+-- @bsb-hash sha256:3955e2faa68965857f25c48c7053d797451ab9fe7242409bae6a5f682cdb5972
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 5, 'managed')
+values ('inventory', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@5 managed
--- @bsb-hash sha256:d73ff95e3f5fb8b7b0bed1476cc67e5a5664c9cf0ace37346a6abbc55c962af0
+-- @bsb-block inventory@6 managed
+-- @bsb-hash sha256:56e0265f71127eadcdae2f42350b400162f2d9bdefdb66b92788e6fd89be1dd1
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18747,7 +18762,7 @@ revoke execute on function "better_supabase"."cancel_stock_count"(uuid) from pub
 grant execute on function "better_supabase"."cancel_stock_count"(uuid) to authenticated, service_role;
 
 -- The import target of the stock_count entity: item.data is { locationId or
--- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- location (a code), or neither when the organization has one active location, note?, lines: [{ variantId or sku, binId or bin (a code)?,
 -- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
 -- expected takes the stock now. An imported count stays open; post it with
 -- post_stock_count, which posts once. Importing the same key again replaces the
@@ -18781,13 +18796,18 @@ begin
   exception when invalid_text_representation then
     raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
-  if v_location is null then
+  if v_location is null and nullif(v_data ->> 'location', '') is null then
+    -- Without a location the count goes to the organization's only active one.
+    select min(x."id"::text)::uuid into v_location from "better_supabase"."inventory_locations" x
+    where x."tenant_id" = v_tenant and x."active"
+    having count(*) = 1;
+  elsif v_location is null then
     select x."id" into v_location from "better_supabase"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
   elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
     v_location := null;
   end if;
   if v_location is null then
-    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'the count''s location isn''t in this organization, or the count names none and the organization has more than one active location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_stock_count.subject_id is null then
     insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
@@ -22579,21 +22599,21 @@ grant execute on function "api"."page_stock_variants"(uuid, jsonb) to authentica
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
+-- @bsb-hash sha256:3955e2faa68965857f25c48c7053d797451ab9fe7242409bae6a5f682cdb5972
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 5, 'managed')
+values ('inventory', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@5 managed
--- @bsb-hash sha256:66a81bbd45ae02b47d94177c4165edda4c7b1a30e681ed62b3d7a890be07acbc
+-- @bsb-block inventory@6 managed
+-- @bsb-hash sha256:d29d0bf21726f825496e907605b463ce2bad51983c094b3c57508826b5e486d1
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -24753,7 +24773,7 @@ revoke execute on function "better_supabase"."cancel_stock_count"(uuid) from pub
 grant execute on function "better_supabase"."cancel_stock_count"(uuid) to authenticated, service_role;
 
 -- The import target of the stock_count entity: item.data is { locationId or
--- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- location (a code), or neither when the organization has one active location, note?, lines: [{ variantId or sku, binId or bin (a code)?,
 -- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
 -- expected takes the stock now. An imported count stays open; post it with
 -- post_stock_count, which posts once. Importing the same key again replaces the
@@ -24787,13 +24807,18 @@ begin
   exception when invalid_text_representation then
     raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
-  if v_location is null then
+  if v_location is null and nullif(v_data ->> 'location', '') is null then
+    -- Without a location the count goes to the organization's only active one.
+    select min(x."id"::text)::uuid into v_location from "better_supabase"."inventory_locations" x
+    where x."tenant_id" = v_tenant and x."active"
+    having count(*) = 1;
+  elsif v_location is null then
     select x."id" into v_location from "better_supabase"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
   elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
     v_location := null;
   end if;
   if v_location is null then
-    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'the count''s location isn''t in this organization, or the count names none and the organization has more than one active location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_stock_count.subject_id is null then
     insert into "better_supabase"."stock_counts" as x ("tenant_id", "location_id", "note")
@@ -28001,21 +28026,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" a
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
+-- @bsb-hash sha256:3955e2faa68965857f25c48c7053d797451ab9fe7242409bae6a5f682cdb5972
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 5, 'managed')
+values ('inventory', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
--- @bsb-block inventory@5 managed
--- @bsb-hash sha256:e846fe848c2929a53c31eb783858584ad566113f0927c89b05e099938490dcc5
+-- @bsb-block inventory@6 managed
+-- @bsb-hash sha256:9d5802d5c6366c8b852c1d75a3e5b79db6ddb7fd0ac35aef675cec11324d8661
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30237,7 +30262,7 @@ revoke execute on function "better_supabase"."cancel_stock_count"(uuid) from pub
 grant execute on function "better_supabase"."cancel_stock_count"(uuid) to authenticated, service_role;
 
 -- The import target of the stock_count entity: item.data is { locationId or
--- location (a code), note?, lines: [{ variantId or sku, binId or bin (a code)?,
+-- location (a code), or neither when the organization has one active location, note?, lines: [{ variantId or sku, binId or bin (a code)?,
 -- lotId or lot (a code)?, serial?, counted, expected? }] }. A line without
 -- expected takes the stock now. An imported count stays open; post it with
 -- post_stock_count, which posts once. Importing the same key again replaces the
@@ -30271,13 +30296,18 @@ begin
   exception when invalid_text_representation then
     raise exception 'locationId is a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
-  if v_location is null then
+  if v_location is null and nullif(v_data ->> 'location', '') is null then
+    -- Without a location the count goes to the organization's only active one.
+    select min(x."id"::text)::uuid into v_location from "better_supabase"."inventory_locations" x
+    where x."org_id" = v_tenant and x."active"
+    having count(*) = 1;
+  elsif v_location is null then
     select x."id" into v_location from "better_supabase"."inventory_locations" x where x."org_id" = v_tenant and x."code" = v_data ->> 'location';
   elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."org_id" = v_tenant) then
     v_location := null;
   end if;
   if v_location is null then
-    raise exception 'the count''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'the count''s location isn''t in this organization, or the count names none and the organization has more than one active location' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_stock_count.subject_id is null then
     insert into "better_supabase"."stock_counts" as x ("org_id", "location_id", "note")
@@ -33485,13 +33515,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" a
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block-data inventory
--- @bsb-hash sha256:cceceeec0ea99073af6312f71cdbe0989c2416c29906644d4e37dc5359e4cb3a
+-- @bsb-hash sha256:3955e2faa68965857f25c48c7053d797451ab9fe7242409bae6a5f682cdb5972
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inventory', 5, 'managed')
+values ('inventory', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

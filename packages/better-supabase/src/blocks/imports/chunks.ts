@@ -56,13 +56,15 @@ export interface ImportChunks {
   /**
    * Marks a chunk failed with a message, so the run reports it instead of a
    * queue retrying it. Storing the chunk again makes it pending. `false` means
-   * the chunk is done or missing.
+   * the chunk is done or missing. `final` (the queue's last attempt) also fails
+   * the run with the message.
    */
   fail(input: {
     runId: string;
     entity: string;
     chunk: number;
     message: string;
+    final?: boolean;
   }): AsyncResult<boolean>;
   progress(runId: string): AsyncResult<ImportChunkProgress>;
 }
@@ -100,29 +102,53 @@ export const importChunkSchema: StandardSchemaV1<unknown, ImportChunkJob> = {
   },
 };
 
+/** The part of a queue `Job` the chunk handler reads. */
+export interface ImportChunkAttempt {
+  /** 1 on the first run. */
+  readonly attempts: number;
+  readonly maxAttempts: number;
+}
+
 /**
  * A queue job handler for the `imports` queue: it processes the chunk the job
- * names and throws a failure so the queue retries it. A chunk that is done or
- * held by another worker is a success.
+ * names and throws a failure so the queue retries it. On the job's last attempt
+ * it first marks the chunk failed with `final`, so the run fails instead of
+ * waiting for a chunk no worker will write. A chunk that is done or held by
+ * another worker is a success.
  */
 export function importChunkHandler(
   imports: Pick<Imports, "chunks">,
-): (payload: ImportChunkJob) => Promise<ImportChunkOutcome> {
-  return async (payload) =>
-    imports.chunks
-      .process({
-        runId: payload.run,
-        entity: payload.entity,
-        chunk: payload.chunk,
-      })
-      .orThrow();
+): (
+  payload: ImportChunkJob,
+  job?: ImportChunkAttempt,
+) => Promise<ImportChunkOutcome> {
+  return async (payload, job) => {
+    const target = {
+      runId: payload.run,
+      entity: payload.entity,
+      chunk: payload.chunk,
+    };
+
+    const processing = imports.chunks.process(target);
+    const processed = await processing;
+
+    if (!processed.ok && job !== undefined && job.attempts >= job.maxAttempts) {
+      await imports.chunks.fail({
+        ...target,
+        message: processed.error.message,
+        final: true,
+      });
+    }
+
+    return processing.orThrow();
+  };
 }
 
 /** The part of a `Queue` the worker uses. */
 export interface ImportWorkerQueue {
   work(input: {
     queue: "imports";
-    handler: (payload: ImportChunkJob) => unknown;
+    handler: (payload: ImportChunkJob, job: ImportChunkAttempt) => unknown;
     concurrency?: number;
     signal?: AbortSignal;
     pollInterval?: number;

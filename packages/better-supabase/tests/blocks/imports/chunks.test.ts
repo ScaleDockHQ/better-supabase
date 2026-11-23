@@ -168,6 +168,44 @@ describe("import chunks", () => {
     ).rejects.toThrow(/connection lost|DbException|Error/);
   });
 
+  it("fails the chunk and its run on the job's last attempt", async () => {
+    const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
+    const imports = createImports({
+      transport: {
+        call: (_schema: string, fn: string, args: Record<string, unknown>) => {
+          calls.push({ fn, args });
+
+          return fn === "process_import_chunk"
+            ? Promise.reject(new Error("statement timeout"))
+            : Promise.resolve(true);
+        },
+      },
+    });
+
+    const handler = importChunkHandler(imports);
+    const job = { run: "run-1", entity: "customer", chunk: 4 };
+
+    await expect(handler(job, { attempts: 2, maxAttempts: 5 })).rejects.toThrow(
+      /statement timeout/u,
+    );
+    expect(calls.map((call) => call.fn)).toEqual(["process_import_chunk"]);
+
+    await expect(handler(job, { attempts: 5, maxAttempts: 5 })).rejects.toThrow(
+      /statement timeout/u,
+    );
+    expect(calls.at(-1)).toEqual({
+      fn: "fail_import_chunk",
+      args: {
+        run: "run-1",
+        entity: "customer",
+        chunk: 4,
+        message: expect.stringContaining("statement timeout"),
+        final: true,
+      },
+    });
+  });
+
   it("runs the worker on the imports queue with its options", async () => {
     const seen: Record<string, unknown>[] = [];
     const abort = new AbortController();
@@ -180,7 +218,10 @@ describe("import chunks", () => {
         work: async (input) => {
           seen.push(input);
 
-          await input.handler({ run: "r", entity: "customer", chunk: 0 });
+          await input.handler(
+            { run: "r", entity: "customer", chunk: 0 },
+            { attempts: 1, maxAttempts: 5 },
+          );
 
           return { succeeded: 1, failed: 0 };
         },

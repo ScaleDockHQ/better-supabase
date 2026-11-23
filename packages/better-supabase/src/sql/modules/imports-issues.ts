@@ -196,6 +196,60 @@ end;
 $$;
 ${userGrant(`${fn("list_import_issues")}(uuid, text, integer, integer, text)`)}
 
+-- Every conflict of one run, paged by keyset on (created_at, id), where a batch's
+-- conflictKeys stops at 100. Pass the previous page's next_cursor as after.
+create or replace function ${fn("list_import_conflicts")}(run uuid, entity text default null, after text default null, row_limit integer default 100)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+  v_limit integer := least(greatest(coalesce(list_import_conflicts.row_limit, 100), 1), 1000);
+  v_after_at timestamptz;
+  v_after_id uuid;
+  v_rows jsonb;
+  v_found integer;
+  v_next text;
+begin
+  select r.${r("tenant")} into v_tenant from ${runs} r where r.${r("id")} = list_import_conflicts.run;
+  if v_tenant is null then
+    ${fail("IMPORT_NOT_FOUND", "import not found", "P0002")}
+  end if;
+  if not (${SERVICE_CALLER} or ${ctx.scope.can("v_tenant", manage)}) then
+    ${fail("IMPORT_FORBIDDEN", "not allowed to list import conflicts")}
+  end if;
+  if list_import_conflicts.after is not null then
+    begin
+      v_after_at := split_part(convert_from(decode(translate(list_import_conflicts.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 1)::timestamptz;
+      v_after_id := split_part(convert_from(decode(translate(list_import_conflicts.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 2)::uuid;
+    exception when others then
+      ${fail("IMPORT_ITEM_INVALID", "after is not a cursor of this list", "22023")}
+    end;
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('entity', t."entity", 'key', t."key", 'code', t."code", 'message', t."message", 'createdAt', t."created_at", 'resolvedAt', t."resolved_at") order by t."created_at", t."id") filter (where t."n" <= v_limit), '[]'::jsonb),
+    count(*),
+    max(translate(encode(convert_to(t."created_at"::text || '|' || t."id"::text, 'utf8'), 'base64'), '+/=', '-_.')) filter (where t."n" = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.*, row_number() over (order by p."created_at", p."id") as "n"
+    from (
+      select i."id", i."entity", i."key", i."code", i."message", i."created_at", i."resolved_at"
+      from ${table} i
+      where i."run_id" = list_import_conflicts.run and i."kind" = 'conflict'
+        and (list_import_conflicts.entity is null or i."entity" = list_import_conflicts.entity)
+        and (v_after_at is null or (i."created_at", i."id") > (v_after_at, v_after_id))
+      order by i."created_at", i."id"
+      limit v_limit + 1
+    ) p
+  ) t;
+  return jsonb_build_object('rows', v_rows, 'next_cursor', case when v_found > v_limit then v_next else null end);
+end;
+$$;
+${userGrant(`${fn("list_import_conflicts")}(uuid, text, text, integer)`)}
+
 -- Counts and the changed fields of a dry run, paged by position in the diff: pass the previous
 -- page's next_cursor as after. row_offset still works when after is null.
 create or replace function ${fn("list_import_diff")}(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)

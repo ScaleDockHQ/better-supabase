@@ -804,6 +804,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "IMPERSONATION_TARGET_PLATFORM": "A support session cannot target platform staff.",
   "IMPERSONATION_TTL": "Impersonation ttl.",
   "IMPERSONATION_WRITES_DISABLED": "Support sessions are read-only (blocks.impersonation.options.allowWrites).",
+  "IMPORT_CHUNKS_OPEN": "The import has chunks that are not done.",
   "IMPORT_DEPENDENCY_OPEN": "An earlier import wave still has open chunks.",
   "IMPORT_FORBIDDEN": "Not allowed to import.",
   "IMPORT_INVALID": "After and offset are two ways to page; pass one.",

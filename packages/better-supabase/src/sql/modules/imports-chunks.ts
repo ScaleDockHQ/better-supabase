@@ -37,7 +37,7 @@ create table if not exists ${chunks} (
   ${c("tenant")} ${ctx.idType} not null,
   ${c("entity")} text not null,
   ${c("chunk")} integer not null,
-  ${c("items")} jsonb not null,
+  ${c("items")} jsonb,
   ${c("status")} text not null default 'pending',
   ${c("result")} jsonb,
   ${c("claimedAt")} timestamptz,
@@ -45,6 +45,8 @@ create table if not exists ${chunks} (
   ${c("createdAt")} timestamptz not null default now(),
   primary key (${c("run")}, ${c("entity")}, ${c("chunk")})
 );
+-- A done chunk keeps its result and drops its items (ADR 1213).
+alter table ${chunks} alter column ${c("items")} drop not null;
 ${ensureCheck(chunks, `bsb_${k}_status`, `${c("status")} in ('pending', 'claimed', 'done', 'failed')`)}
 ${lockTable(chunks, { read: false })}
 create index if not exists ${sqlIdent(`${k}_tenant_idx`)} on ${chunks} (${c("tenant")});
@@ -95,23 +97,37 @@ ${serviceGrant(`${fn("store_import_chunk")}(uuid, text, integer, jsonb)`)}
 
 -- Marks a chunk failed with the message a worker gives, so a run can report it
 -- instead of retrying it forever. Storing the chunk again makes it pending. A done
--- chunk stays done and the answer is false.
-create or replace function ${fn("fail_import_chunk")}(run uuid, entity text, chunk integer, message text)
+-- chunk stays done and the answer is false. A final failure (the queue's last
+-- attempt) also fails the run with the chunk's message.
+drop function if exists ${fn("fail_import_chunk")}(uuid, text, integer, text);
+create or replace function ${fn("fail_import_chunk")}(run uuid, entity text, chunk integer, message text, final boolean default false)
 returns boolean
 language plpgsql
 security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
+declare
+  v_message text := left(coalesce(fail_import_chunk.message, ''), 500);
 begin
   update ${chunks} x set ${c("status")} = 'failed', ${c("doneAt")} = now(),
-    ${c("result")} = jsonb_build_object('failed', true, 'message', left(coalesce(fail_import_chunk.message, ''), 500))
+    ${c("result")} = jsonb_build_object('failed', true, 'message', v_message)
   where x.${c("run")} = fail_import_chunk.run and x.${c("entity")} = fail_import_chunk.entity
     and x.${c("chunk")} = fail_import_chunk.chunk and x.${c("status")} in ('pending', 'claimed', 'failed');
-  return found;
+  if not found then
+    return false;
+  end if;
+  if coalesce(fail_import_chunk.final, false) then
+    update ${runs} r set ${r("status")} = ${ctx.cast("runs", "status", "'failed'")}, ${r("outcome")} = 'failed', ${r("finishedAt")} = now(),
+      ${r("errors")} = r.${r("errors")} || jsonb_build_array(jsonb_build_object(
+        'entity', fail_import_chunk.entity, 'key', null, 'code', 'IMPORT_CHUNK_FAILED',
+        'message', 'chunk ' || fail_import_chunk.chunk::text || ': ' || v_message))
+    where r.${r("id")} = fail_import_chunk.run and r.${r("status")} in ('pending', 'running');
+  end if;
+  return true;
 end;
 $$;
-${serviceGrant(`${fn("fail_import_chunk")}(uuid, text, integer, text)`)}
+${serviceGrant(`${fn("fail_import_chunk")}(uuid, text, integer, text, boolean)`)}
 
 -- Takes a pending chunk, or one whose claim is older than lease seconds (a worker
 -- that died), and returns { entity, chunk, items }. Null when the chunk is done,
@@ -130,6 +146,7 @@ begin
     select x.${c("run")}, x.${c("entity")}, x.${c("chunk")}
     from ${chunks} x
     where x.${c("run")} = claim_import_chunk.run and x.${c("entity")} = claim_import_chunk.entity and x.${c("chunk")} = claim_import_chunk.chunk
+      and x.${c("items")} is not null
       and (x.${c("status")} = 'pending' or (x.${c("status")} = 'claimed' and x.${c("claimedAt")} < now() - make_interval(secs => greatest(claim_import_chunk.lease, 1))))
     for update skip locked
   )
@@ -145,7 +162,8 @@ end;
 $$;
 ${serviceGrant(`${fn("claim_import_chunk")}(uuid, text, integer, integer)`)}
 
--- Marks a claimed chunk done and keeps what its batch answered.
+-- Marks a claimed chunk done and keeps what its batch answered. Its items are
+-- written, so they are dropped.
 create or replace function ${fn("complete_import_chunk")}(run uuid, entity text, chunk integer, result jsonb)
 returns boolean
 language plpgsql
@@ -154,7 +172,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  update ${chunks} x set ${c("status")} = 'done', ${c("doneAt")} = now(), ${c("result")} = complete_import_chunk.result
+  update ${chunks} x set ${c("status")} = 'done', ${c("doneAt")} = now(), ${c("result")} = complete_import_chunk.result, ${c("items")} = null
   where x.${c("run")} = complete_import_chunk.run and x.${c("entity")} = complete_import_chunk.entity
     and x.${c("chunk")} = complete_import_chunk.chunk and x.${c("status")} = 'claimed';
   return found;
@@ -243,7 +261,7 @@ export const CHUNK_CONTRACT = [
   },
   {
     name: "fail_import_chunk",
-    args: ["uuid", "text", "integer", "text"],
+    args: ["uuid", "text", "integer", "text", "boolean"],
     returns: "boolean",
   },
   {
@@ -252,4 +270,174 @@ export const CHUNK_CONTRACT = [
     returns: "jsonb",
   },
   { name: "import_chunk_progress", args: ["uuid"], returns: "jsonb" },
+  { name: "import_chunk_maintenance", args: [], returns: "jsonb" },
 ] as const;
+
+const RETENTION = /^\d+ (?:seconds?|minutes?|hours?|days?)$/u;
+
+/** `blocks.imports.options.chunks`, checked. */
+export interface ChunkRetention {
+  /** How long a failed chunk keeps its items. */
+  readonly keepFailedItems: string;
+  /** Cancels a run whose heartbeat is older; `null` leaves runs alone. */
+  readonly staleAfter: string | null;
+}
+
+export function chunkRetentionOf(ctx: BlockSqlContext): ChunkRetention {
+  const raw: unknown = ctx.option("chunks") ?? {};
+  const record = typeof raw === "object" && raw !== null ? raw : {};
+
+  const keep = "keepFailedItems" in record ? record.keepFailedItems : "7 days";
+
+  const stale = "staleAfter" in record ? record.staleAfter : null;
+
+  for (const [name, value] of [
+    ["keepFailedItems", keep],
+    ["staleAfter", stale],
+  ] as const) {
+    if (
+      value !== null &&
+      value !== undefined &&
+      (typeof value !== "string" || !RETENTION.test(value))
+    ) {
+      throw new TypeError(
+        `blocks['imports'].options.chunks.${name} is an interval such as "7 days" (got ${JSON.stringify(value)})`,
+      );
+    }
+  }
+
+  return {
+    keepFailedItems: typeof keep === "string" ? keep : "7 days",
+    staleAfter: typeof stale === "string" ? stale : null,
+  };
+}
+
+/**
+ * The `chunks` part of a run's JSON: how many chunks are in each status and how
+ * many bytes of items they still hold.
+ */
+export function chunkSummary(ctx: BlockSqlContext, runId: string): string {
+  const c = (column: string): string => ctx.col("chunks", column);
+
+  return `(
+    select jsonb_build_object(
+      'pending', count(*) filter (where k.${c("status")} = 'pending'),
+      'claimed', count(*) filter (where k.${c("status")} = 'claimed'),
+      'done', count(*) filter (where k.${c("status")} = 'done'),
+      'failed', count(*) filter (where k.${c("status")} = 'failed'),
+      'bytes', coalesce(sum(pg_column_size(k.${c("items")})), 0)
+    )
+    from ${ctx.table("chunks")} k
+    where k.${c("run")} = ${runId}
+  )`;
+}
+
+/**
+ * `import_chunk_maintenance()`, the imports job of `maintenance()`: drops the
+ * items of chunks whose run ended and of failed chunks past `keepFailedItems`,
+ * and with `staleAfter` cancels a run whose heartbeat stopped.
+ */
+export function chunkMaintenance(ctx: BlockSqlContext, runs: string): string {
+  const chunks = ctx.table("chunks");
+  const c = (column: string): string => ctx.col("chunks", column);
+  const r = (column: string): string => ctx.col("runs", column);
+  const { keepFailedItems, staleAfter } = chunkRetentionOf(ctx);
+
+  const cancel =
+    staleAfter === null
+      ? ""
+      : `  update ${runs} r set ${r("status")} = ${ctx.cast("runs", "status", "'canceled'")}, ${r("outcome")} = 'stale', ${r("finishedAt")} = now()
+  where r.${r("status")} in ('pending', 'running')
+    and coalesce(r.${r("heartbeatAt")}, r.${r("startedAt")}, r.${r("createdAt")}) < now() - interval '${staleAfter}';
+  get diagnostics v_canceled = row_count;
+`;
+
+  return `
+-- The imports job of maintenance(): drops the items of chunks whose run ended
+-- and of failed chunks older than keepFailedItems${staleAfter === null ? "" : ", and cancels a run whose\n-- heartbeat is older than staleAfter"}.
+create or replace function ${ctx.fn("import_chunk_maintenance")}()
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_canceled integer := 0;
+  v_cleared integer;
+begin
+${cancel}  update ${chunks} x set ${c("items")} = null
+  where x.${c("items")} is not null
+    and (x.${c("run")} in (
+        select r.${r("id")} from ${runs} r
+        where r.${r("status")} in ('completed', 'canceled')
+          or (r.${r("status")} = 'failed' and r.${r("finishedAt")} < now() - interval '${keepFailedItems}'))
+      or (x.${c("status")} = 'failed' and x.${c("doneAt")} < now() - interval '${keepFailedItems}'));
+  get diagnostics v_cleared = row_count;
+  return jsonb_build_object('cleared', v_cleared, 'canceled', v_canceled);
+end;
+$$;
+${serviceGrant(`${ctx.fn("import_chunk_maintenance")}()`)}
+`;
+}
+
+/** `enqueue_import_chunks`: one job per chunk, a new key for a failed one. */
+export function chunkEnqueue(ctx: BlockSqlContext, runs: string): string {
+  const chunks = ctx.table("chunks");
+  const c = (column: string): string => ctx.col("chunks", column);
+  const r = (column: string): string => ctx.col("runs", column);
+
+  const queue = ctx.enqueue(
+    "imports",
+    `jsonb_build_object('run', v_run.${r("id")}, 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk)`,
+    `v_run.${r("id")}::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text`,
+  );
+
+  const retryQueue = ctx.enqueue(
+    "imports",
+    `jsonb_build_object('run', v_run.${r("id")}, 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk)`,
+    `v_run.${r("id")}::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text || ':retry:' || extract(epoch from clock_timestamp())::text`,
+  );
+
+  return `-- Queues one job per chunk of an entity's items, so a worker writes a large
+-- import in batches; the dedupe key makes a retry harmless.
+create or replace function ${ctx.fn("enqueue_import_chunks")}(run uuid, entity text, chunks integer)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run ${runs};
+  v_chunk integer;
+  v_failed integer[];
+begin
+  select * into v_run from ${runs} r where r.${r("id")} = enqueue_import_chunks.run;
+  if not found then
+    ${fail("IMPORT_NOT_FOUND", "import not found", "P0002")}
+  end if;
+  if enqueue_import_chunks.chunks is null or enqueue_import_chunks.chunks < 1 then
+    ${fail("IMPORT_ITEM_INVALID", "chunks must be at least 1", "22023")}
+  end if;
+  select coalesce(array_agg(x.${c("chunk")}), '{}') into v_failed from ${chunks} x
+  where x.${c("run")} = enqueue_import_chunks.run and x.${c("entity")} = enqueue_import_chunks.entity
+    and x.${c("status")} = 'failed';
+  -- A failed chunk that still has its items goes back to pending, with a new
+  -- job, so a retry reaches it.
+  update ${chunks} x set ${c("status")} = 'pending', ${c("claimedAt")} = null,
+    ${c("doneAt")} = null, ${c("result")} = null
+  where x.${c("run")} = enqueue_import_chunks.run and x.${c("entity")} = enqueue_import_chunks.entity
+    and x.${c("status")} = 'failed' and x.${c("items")} is not null;
+  for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
+    if v_chunk = any (v_failed) then
+      ${retryQueue}
+    else
+      ${queue}
+    end if;
+  end loop;
+  return enqueue_import_chunks.chunks;
+end;
+$$;
+${serviceGrant(`${ctx.fn("enqueue_import_chunks")}(uuid, text, integer)`)}
+`;
+}

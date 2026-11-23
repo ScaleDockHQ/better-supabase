@@ -400,7 +400,67 @@ await db.$rpc("enqueue_import_chunks", {
 await runImportWorker({ imports, queue, concurrency: 4, signal });
 ```
 
-`chunks.process` claims the chunk, writes it with `upsertBatch` and marks it done in one transaction, so a failure leaves it pending, a done chunk answers what it answered, and a chunk another worker holds is skipped (a claim older than five minutes is taken over). `chunks.progress(runId)` returns `{ pending, claimed, done, failed }`; call `runs.finish` once nothing is pending or claimed. A worker that gives up on a chunk calls `chunks.fail({ runId, entity, chunk, message })`: the chunk is `failed`, `process` answers `{ status: "failed", message }` instead of retrying it, and storing the chunk again makes it pending. A batch that finds conflicts lists the keys of the first 100 in `conflictKeys`, next to the `conflicted` count. `importChunkHandler(imports)` is the job handler for a worker you run yourself. The chunk rows go with the run and with a tenant purge.
+`chunks.process` claims the chunk, writes it with `upsertBatch` and marks it done in one transaction, so a failure leaves it pending, a done chunk answers what it answered, and a chunk another worker holds is skipped (a claim older than five minutes is taken over). `chunks.progress(runId)` returns `{ pending, claimed, done, failed }`. A worker that gives up on a chunk calls `chunks.fail({ runId, entity, chunk, message })`: the chunk is `failed`, `process` answers `{ status: "failed", message }` instead of retrying it, and storing the chunk again makes it pending. A batch that finds conflicts lists the keys of the first 100 in `conflictKeys`, next to the `conflicted` count. `importChunkHandler(imports)` is the job handler for a worker you run yourself. The chunk rows go with the run and with a tenant purge.
+
+### The chunk lifecycle
+
+A chunk holds its items only while it can still be written (ADR 1213):
+
+| Step                             | What happens                                                                                                                                               |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Done                             | The chunk keeps its result and drops its items.                                                                                                            |
+| Failed on the job's last attempt | `importChunkHandler` calls `chunks.fail({ ..., final: true })`, which fails the chunk and the run with `IMPORT_CHUNK_FAILED` in its errors, then rethrows. |
+| Failed earlier                   | `enqueue_import_chunks` makes a failed chunk that still has its items pending again and queues it under a new `:retry:` key.                               |
+| `runs.finish`                    | Refuses a run with a chunk that is not done (`IMPORT_CHUNKS_OPEN`, PT409).                                                                                 |
+| `maintenance()`, every hour      | Clears the items of chunks whose run completed, was canceled, or failed longer than `chunks.keepFailedItems` ago (default `7 days`).                       |
+
+Set `chunks.staleAfter` (an interval such as `"30 minutes"`, off by default) and
+the same job also cancels a pending or running run whose heartbeat is older,
+with the outcome `stale`. That covers a worker that died before it could mark
+its chunk failed. `runs.get` reports the chunks as
+`chunks: { pending, claimed, done, failed, bytes }`, where `bytes` is what the
+stored items take. On the local stack the chunks of a done 50,000-item run took
+839,540 bytes before and take none now.
+
+```ts title="lib/supabase/blocks.ts"
+imports: { options: { chunks: { keepFailedItems: "2 days", staleAfter: "30 minutes" } } },
+```
+
+`runs.conflicts({ runId, entity?, after?, limit? })` pages every conflict of a
+run, oldest first, as `{ rows, nextCursor }`, with up to 1,000 rows a page. Use
+it when a run has more conflicts than the 100 keys of `conflictKeys`.
+
+The `stock_count` target writes a count without `location` or `locationId` to
+the organization's only active location, and refuses it when the organization
+has more than one.
+
+### Replacing a copied runner
+
+An app that copied the import runner to change how one entity is written can
+go back to the library's loop with `replaces: true` on that entity's target. The
+app keeps its `write` function, and the batch loop, the content hash, the
+record map, chunks and conflicts stay the library's. Move the parts of the copy
+that changed an item before the write into a `before` function, and the parts
+that changed the answer into an `after` function:
+
+```ts title="lib/supabase/blocks.ts"
+imports: {
+  options: {
+    targets: {
+      invoice: {
+        replaces: true,
+        write: "public.import_invoice",
+        before: "public.import_invoice_before",
+        after: "public.import_invoice_after",
+      },
+    },
+  },
+},
+```
+
+Both take `(run uuid, item jsonb, subject_id text)` and return `jsonb`; a null
+keeps the value they received. Then delete the copied runner, so a later
+library fix to the loop reaches the entity.
 
 ## Hooks
 

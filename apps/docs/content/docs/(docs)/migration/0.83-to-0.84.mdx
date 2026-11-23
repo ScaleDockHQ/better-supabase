@@ -12,11 +12,12 @@ Run `better-supabase upgrade`, then generate a migration with
 `pnpm supabase:diff <name>` and `better-supabase add --adopt`. The upgrade
 writes the trigger, function and table changes below.
 
-| Section                                           | Needs code                                                       |
-| ------------------------------------------------- | ---------------------------------------------------------------- |
-| [Provider fields](#provider-fields)               | Optional: declare `tables` and `shareKey` to share cache entries |
-| [The authorizer context](#the-authorizer-context) | Treat an unset `context.enforcement` as `definer`                |
-| [Search source views](#search-source-views)       | Add `search.columns` to every record type with `search.from`     |
+| Section                                           | Needs code                                                             |
+| ------------------------------------------------- | ---------------------------------------------------------------------- |
+| [Provider fields](#provider-fields)               | Optional: declare `tables` and `shareKey` to share cache entries       |
+| [The authorizer context](#the-authorizer-context) | Treat an unset `context.enforcement` as `definer`                      |
+| [Search source views](#search-source-views)       | Add `search.columns` to every record type with `search.from`           |
+| [Import chunks](#import-chunks)                   | Finish a run only when every chunk is done; read `result`, not `items` |
 
 ## Provider fields
 
@@ -63,3 +64,24 @@ called the index trigger 1,000 times before, and takes 21 ms with no call now.
 An app table file that writes its own search trigger (the trigger the search
 block prints for a table it renders before) needs the same split. Copy the two
 triggers from the search module file.
+
+## Import chunks
+
+Three changes to stored import chunks (ADR 1213) break code that relied on the
+old behavior:
+
+| Before                                                     | Now                                                                           |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `runs.finish` finished a run with pending or failed chunks | It refuses with `IMPORT_CHUNKS_OPEN` (PT409) until every chunk is done        |
+| A done chunk kept its items                                | `items` is null on a done chunk; its `result` stays                           |
+| A failed chunk kept its items forever                      | `maintenance()` clears them after `chunks.keepFailedItems` (default `7 days`) |
+| `fail_import_chunk(run, entity, chunk, message)`           | `fail_import_chunk(run, entity, chunk, message, final default false)`         |
+
+A worker that finished a run with failed chunks to close it should cancel the
+run instead (`runs.cancel`), or retry the failed chunks with
+`enqueue_import_chunks` first. `importChunkHandler` now takes the job as its
+second argument and marks the chunk and the run failed on the job's last
+attempt; `runImportWorker` passes it. A handler you call yourself without the
+job keeps the old behavior. The housekeeping block runs the new
+`import_chunks` job; without it, call `import_chunk_maintenance()` from your
+own schedule.

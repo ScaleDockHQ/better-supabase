@@ -1585,7 +1585,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "invoices",
         "ledger",
         "outbox",
-        "search"
+        "search",
+        "housekeeping"
       ],
       "modes": [
         "managed",
