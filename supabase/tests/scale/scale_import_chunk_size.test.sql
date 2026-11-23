@@ -1,4 +1,4 @@
--- A 50,000-item import in 50 chunks of 1,000 (ADR 1213). While the chunks
+-- A 50,000-item import in 50 chunks of 1,000 (ADR 1223). While the chunks
 -- wait they hold their items; once each is done it keeps only its result, so
 -- the run's chunks shrink to a few bytes. The stored and the kept sizes go to
 -- SCALE_BYTES diag lines, the time to complete the chunks to SCALE_MS.

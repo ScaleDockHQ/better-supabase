@@ -205,7 +205,7 @@ export interface OrderParty {
 }
 
 /**
- * The staff order fields (ADR 1219). Each is null, or the default, when the
+ * The staff order fields (ADR 1224). Each is null, or the default, when the
  * orders table doesn't map its column.
  */
 export interface StaffOrderFields {

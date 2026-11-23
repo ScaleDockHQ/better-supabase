@@ -46,7 +46,6 @@ import { ENTITY_PAGE_INDEX_RULES } from "./entity-page-indexes.ts";
 import { ENV_RULES } from "./env.ts";
 import { ERROR_CODE_RULES } from "./error-codes.ts";
 import { FLAG_RULES } from "./flags.ts";
-import { FUNCTION_INVENTORY_RULES } from "./function-inventory.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { IMPORT_GUARD_RULES } from "./import-guard.ts";
 import { INLINE_SCHEMA_RULES } from "./inline-schemas.ts";
@@ -68,7 +67,6 @@ import { PG_TOPO_RULES } from "./pg-topo.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { PLAIN_SECRET_RULES } from "./plain-secrets.ts";
 import { POLICY_RULES } from "./policies.ts";
-import { POLICY_COUNT_RULES } from "./policy-count.ts";
 import { PRACTICE_RULES } from "./practices.ts";
 import { primeDoctorFacts } from "./prime.ts";
 import { PROVIDER_DOCTOR_RULES } from "./provider-doctor.ts";
@@ -76,6 +74,7 @@ import { REALTIME_RULES } from "./realtime.ts";
 import { receiverIsNotClient } from "./receiver-types.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
 import { ROUND_TRIP_RULES } from "./round-trips.ts";
+import { SCALE_RULES } from "./scale-rules.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
 import { SEARCH_KEY_RULES } from "./search-keys.ts";
 import { SEED_RULES } from "./seeds.ts";
@@ -1145,8 +1144,7 @@ export const RULES: readonly Rule[] = [
   ...OWN_RULES,
   ...RLS_RULES,
   ...POLICY_RULES,
-  ...POLICY_COUNT_RULES,
-  ...FUNCTION_INVENTORY_RULES,
+  ...SCALE_RULES,
   ...SCHEMA_DESIGN_RULES,
   ...HOOK_RULES,
   ...COOKIE_RULES,

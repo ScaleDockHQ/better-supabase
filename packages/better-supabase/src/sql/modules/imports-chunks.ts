@@ -45,7 +45,7 @@ create table if not exists ${chunks} (
   ${c("createdAt")} timestamptz not null default now(),
   primary key (${c("run")}, ${c("entity")}, ${c("chunk")})
 );
--- A done chunk keeps its result and drops its items (ADR 1213).
+-- A done chunk keeps its result and drops its items (ADR 1223).
 alter table ${chunks} alter column ${c("items")} drop not null;
 ${ensureCheck(chunks, `bsb_${k}_status`, `${c("status")} in ('pending', 'claimed', 'done', 'failed')`)}
 ${lockTable(chunks, { read: false })}

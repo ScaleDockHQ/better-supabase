@@ -73,7 +73,7 @@ triggers from the search module file.
 
 ## Import chunks
 
-Three changes to stored import chunks (ADR 1213) break code that relied on the
+Three changes to stored import chunks (ADR 1223) break code that relied on the
 old behavior:
 
 | Before                                                     | Now                                                                           |
@@ -142,7 +142,7 @@ function inventory.
 
 ## Staff orders
 
-The orders block moves to version 5 (ADR 1219). `better-supabase upgrade`
+The orders block moves to version 5 (ADR 1224). `better-supabase upgrade`
 adds the staff order columns and `page_orders`, and changes the quantity
 columns of order, fulfillment and return lines from `integer` to `numeric`.
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
 
-// The chunk lifecycle (ADR 1213): maintenance clears the items of ended runs
+// The chunk lifecycle (ADR 1223): maintenance clears the items of ended runs
 // after keepFailedItems and cancels a stale run only when staleAfter is set.
 const imports = (options: Readonly<Record<string, unknown>> = {}): string =>
   renderBlocks(["audit", "imports"], { modules: { imports: { options } } })

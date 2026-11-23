@@ -1,4 +1,4 @@
-# 1213: Import chunks drop their items when done
+# 1223: Import chunks drop their items when done
 
 - Status: accepted
 - Date: 2026-11-23

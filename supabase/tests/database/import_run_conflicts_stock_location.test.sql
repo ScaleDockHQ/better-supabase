@@ -1,4 +1,4 @@
--- The import follow-ups of ADR 1213: list_import_conflicts pages a run's
+-- The import follow-ups of ADR 1223: list_import_conflicts pages a run's
 -- conflicts by keyset, and a stock count without a location goes to the
 -- organization's only active location. The admin (…00a1) of Acme (…0001)
 -- reads the conflicts; the service role runs the import.

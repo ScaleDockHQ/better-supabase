@@ -24,7 +24,7 @@ export type OrdersSqlOptions = {
   readonly templates?: boolean;
   /**
    * The decimals of an order line, fulfillment and return quantity, from 0 to
-   * 6: 2 sells 1.5 hours or 0.25 kg. Default 0, whole quantities. ADR 1219.
+   * 6: 2 sells 1.5 hours or 0.25 kg. Default 0, whole quantities. ADR 1224.
    */
   readonly quantityScale?: number;
 };

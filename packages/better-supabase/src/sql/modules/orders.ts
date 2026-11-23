@@ -943,7 +943,7 @@ export const ORDERS: BlockSqlDefinition = {
     {
       from: 4,
       description:
-        "Line quantities become numeric with options.quantityScale decimals (0 by default), lines gain unit, description, line type and extra columns, orders gain channel, source and external id, invoicing policy, delivery method, quote, order discount, promotion, payment required, deposit and a customer party, and page_orders lists them (ADR 1219).",
+        "Line quantities become numeric with options.quantityScale decimals (0 by default), lines gain unit, description, line type and extra columns, orders gain channel, source and external id, invoicing policy, delivery method, quote, order discount, promotion, payment required, deposit and a customer party, and page_orders lists them (ADR 1224).",
       sql: () => "",
     },
   ],

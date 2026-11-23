@@ -1,4 +1,4 @@
--- Staff order fields and the order list (ADR 1219). The Acme admin (…a1)
+-- Staff order fields and the order list (ADR 1224). The Acme admin (…a1)
 -- enters an order with a channel, a source and external id, an order
 -- discount, a deposit, a customer party and line units; the same source and
 -- external id return the first order. A fractional quantity is refused at the

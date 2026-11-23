@@ -1,4 +1,4 @@
-# 1212: Search source views list the columns they read
+# 1222: Search source views list the columns they read
 
 - Status: accepted
 - Date: 2026-11-23

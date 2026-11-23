@@ -9,4 +9,4 @@ and its run failed on the job's last attempt (`fail_import_chunk` gains `final`)
 and, with `chunks.staleAfter`, cancels a run whose worker died. `runs.get` reports chunk counts
 and bytes, `runs.conflicts` pages every conflict of a run, and a stock count without a location
 goes to the organization's only active one. The chunks of a done 50,000-item run took 839,540
-bytes and take none now (ADR 1213).
+bytes and take none now (ADR 1223).

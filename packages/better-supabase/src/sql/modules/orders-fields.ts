@@ -110,7 +110,7 @@ function optional(
     : "";
 }
 
-/** The staff order columns of the orders table (ADR 1219). */
+/** The staff order columns of the orders table (ADR 1224). */
 export function staffOrderColumns(ctx: BlockSqlContext): string {
   const add = (logical: string, definition: (name: string) => string): string =>
     optional(ctx, "orders", logical, definition);

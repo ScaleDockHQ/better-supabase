@@ -9,4 +9,4 @@ idempotent like `origin`), `invoicingPolicy`, `deliveryMethod`, `quoteId`, `orde
 `promotionId`, `paymentRequired` with a `deposit`, and a `party`. Lines take `unit`,
 `description`, `lineType` and the extra columns your schema files add. `orderPage`, `orderFacets`
 and `orderCount` page orders by keyset from `page_orders`. The orders block moves to version 5;
-rename a column of your own that one of the new block columns takes (ADR 1219).
+rename a column of your own that one of the new block columns takes (ADR 1224).

@@ -1,4 +1,4 @@
--- The chunk lifecycle (ADR 1213): a done chunk drops its items, finish refuses a
+-- The chunk lifecycle (ADR 1223): a done chunk drops its items, finish refuses a
 -- run with open chunks, a final failure fails the run, a retried chunk reaches
 -- the queue under a :retry: key after the first message was archived, the run
 -- reports its chunks, and maintenance clears the items of ended runs.
