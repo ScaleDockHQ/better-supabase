@@ -32,9 +32,7 @@ export interface HoldApproval {
 }
 
 /** What a rejection does across the rules: one outcome, or per kind. */
-export function rejectionOf(
-  approval: HoldApproval,
-): "cancel" | "keep" | "mixed" {
+function rejectionOf(approval: HoldApproval): "cancel" | "keep" | "mixed" {
   const outcomes = new Set(approval.rules.map((rule) => rule.onReject));
 
   if (outcomes.size > 1) {
