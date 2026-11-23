@@ -1677,7 +1677,8 @@
       "VercelRuntimeCacheOptions",
       "VercelRuntimeCacheTags",
       "VersionCache",
-      "VersionStore"
+      "VersionStore",
+      "VersionStoreEntry"
     ]
   },
   "./server/accounts": {

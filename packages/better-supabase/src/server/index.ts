@@ -356,6 +356,7 @@ export type {
   SubscribeAuthzVersionsOptions,
   VersionCache,
   VersionStore,
+  VersionStoreEntry,
 } from "./authz-versions.ts";
 
 export type {

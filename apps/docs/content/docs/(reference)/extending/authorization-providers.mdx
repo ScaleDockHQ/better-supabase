@@ -795,8 +795,30 @@ instances share what one learned. The in-process map holds at most
 first, so a long-lived server never grows with every user it has seen; the
 shared `store` still has the dropped version.
 
+The store keeps the time each version was read next to it: `set(userId,
+version, at)` receives that time in epoch milliseconds, and `get` returns
+`{ version, at }` or `undefined`. The cache counts `maxStaleMs` from `at`, so a
+store whose keys never expire still never serves a version older than that. A
+value without a numeric `version` and `at` counts as a miss. A provider library
+whose store has the same shape can share one store object with the cache.
+
 ```ts title="src/lib/supabase/authz.ts"
+import type { VersionStore } from "better-supabase/server";
+
 import { createVersionCache } from "better-supabase/server";
+
+const redisVersionStore: VersionStore = {
+  async get(userId) {
+    const raw = await redis.get(`authz:v:${userId}`);
+    return raw ? JSON.parse(raw) : undefined;
+  },
+  async set(userId, version, at) {
+    await redis.set(`authz:v:${userId}`, JSON.stringify({ version, at }));
+  },
+  async delete(userId) {
+    await redis.del(`authz:v:${userId}`);
+  },
+};
 
 export const versions = createVersionCache({
   maxStaleMs: 60_000,
