@@ -3472,6 +3472,18 @@ export const PRESET_CATALOG: PresetCatalog = {
               "variantOf": "variant_of",
               "variantLabel": "variant_label",
               "isSelected": "is_selected",
+              "channel": "channel",
+              "source": "source",
+              "externalId": "external_id",
+              "invoicingPolicy": "invoicing_policy",
+              "deliveryMethod": "delivery_method",
+              "quote": "quote_id",
+              "orderDiscount": "order_discount",
+              "promotion": "promotion_id",
+              "paymentRequired": "payment_required",
+              "deposit": "deposit_amount",
+              "partyType": "party_type",
+              "partyId": "party_id",
               "updatedAt": "updated_at"
             }
           },
@@ -34324,7 +34336,36 @@ export const PRESET_CATALOG: PresetCatalog = {
           "kind": "orders.from_quote",
           "title": "Order the accepted quote"
         }
-      ]
+      ],
+      "entityLists": {
+        "order": {
+          "sorts": [
+            "placedAt",
+            "number",
+            "total"
+          ],
+          "facets": [
+            "status",
+            "currency",
+            "channel"
+          ],
+          "filters": [
+            "status",
+            "customerId",
+            "partyId",
+            "channel",
+            "source",
+            "currency",
+            "from",
+            "to"
+          ],
+          "search": [
+            "number",
+            "email",
+            "externalId"
+          ]
+        }
+      }
     },
     {
       "name": "organizations",

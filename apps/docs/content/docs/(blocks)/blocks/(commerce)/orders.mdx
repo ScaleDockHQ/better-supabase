@@ -258,7 +258,8 @@ unless you pass them, and with the [inventory block](/docs/blocks/inventory)
 each line that ships allocates its stock at `locationId` (the first location
 with stock by default), backordering what isn't there. A fulfillment ships
 from the allocation, and cancelling the order releases it. Line quantities
-are whole units.
+are whole units unless you set `options.quantityScale`; see
+[Staff order fields](#staff-order-fields).
 
 `fromQuote` needs the [quotes block](/docs/blocks/quotes) and an accepted
 quote (`ORDERS_QUOTE_NOT_ACCEPTED`). It copies the counted lines and the
@@ -327,6 +328,95 @@ Each line costs the variant's average cost in the order's currency, or 0
 without one, so edit the draft before placing it. Saving the draft needs
 `inventory.purchase`, and a blocked supplier fails with
 `PURCHASE_ORDER_SUPPLIER_BLOCKED`.
+
+### Staff order fields
+
+`fromLines` and `fromQuote` take the fields a back office records on an
+order (ADR 1219), and every order read returns them:
+
+```ts
+const { order, created } = await orders
+  .fromLines(organizationId, {
+    currency: "EUR",
+    lines: [
+      {
+        title: "Consulting",
+        quantity: 1.5,
+        unit: "h",
+        lineType: "service",
+        unitAmount: money(9000n, "EUR"),
+      },
+      {
+        variantId,
+        quantity: 2,
+        description: "Gift wrapped",
+        fields: { giftNote: "Happy birthday" },
+      },
+    ],
+    channel: "phone",
+    source: "legacy_erp",
+    externalId: "SO-10442",
+    orderDiscount: money(500n, "EUR"),
+    paymentRequired: true,
+    deposit: money(2000n, "EUR"),
+    party: { type: "company", id: companyId },
+  })
+  .orThrow();
+```
+
+| Field                        | What it does                                                                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `channel`                    | A lowercase slug such as `phone` or `b2b`; a list filter and facet                                                           |
+| `source`, `externalId`       | The order's id in another system, unique per organization and source; a repeat returns the first order with `created: false` |
+| `invoicingPolicy`            | `on_order` (default) or `on_delivery`, for the invoicing code you write                                                      |
+| `deliveryMethod`             | Free text, such as `pickup`                                                                                                  |
+| `quoteId`                    | Set by `fromQuote`                                                                                                           |
+| `orderDiscount`              | Off the net subtotal after the line discounts, and included in `discountTotal`                                               |
+| `promotionId`                | The promotion that gave the discount                                                                                         |
+| `paymentRequired`, `deposit` | `createFulfillment` refuses with `ORDERS_PAYMENT_REQUIRED` until the deposit, or the total without one, is paid              |
+| `party`                      | The contact or company the order is for, next to `customerId`                                                                |
+
+A line takes `unit`, `description`, `lineType` (`item`, `service` or `fee`,
+default `item`) and `fields`, the values of the columns your schema files add
+to `order_lines`. `options.quantityScale` (0 to 6, default 0) sets how many
+decimals a quantity may have: with 2, a line of 1.5 hours is valid, and the
+line's money is the unit price times the quantity, rounded to a minor unit.
+Quantities are `numeric` in the database and `number` in TypeScript.
+
+| Hint                      | Cause                                                                    |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `ORDERS_SOURCE_REQUIRED`  | `externalId` without `source`                                            |
+| `ORDERS_AMOUNT_INVALID`   | a negative `orderDiscount` or `deposit`, or a discount over the subtotal |
+| `ORDERS_PARTY_INVALID`    | a `party` without a type or id                                           |
+| `ORDERS_QUANTITY_INVALID` | more decimals than `quantityScale`, or zero and below                    |
+| `ORDERS_PAYMENT_REQUIRED` | a fulfillment before the required payment                                |
+
+## Paging orders
+
+`orderPage` pages the caller's orders by keyset (ADR 1077) from the SQL
+function `page_orders`, which runs as the caller, so row security decides
+which orders appear. Sorts are `placedAt` (the default, newest first),
+`number` and `total`. `status`, `customerId`, `partyId`, `channel`, `source`
+and `currency` filter, `from` and `to` bound the placed time, and `q`
+searches the number, the email and the external id. The facets are `status`,
+`currency` and `channel`. `orderFacets` and `orderCount` answer under the same
+filters.
+
+```ts
+const page = await db.orders
+  .orderPage({
+    organizationId,
+    filters: { channel: ["phone"], status: ["confirmed"] },
+    q: "SO-104",
+  })
+  .orThrow();
+const byChannel = await db.orders
+  .orderFacets({ organizationId, facets: ["channel"] })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from. [Block lists](/docs/extending/block-lists)
+describes the options every block list shares.
 
 ## Discount matrix
 
@@ -451,15 +541,15 @@ to type them: writes are validated before they reach the database (a
 observes any method; see [extending blocks](/docs/extending/blocks).
 
 ```sql title="supabase/schemas/orders.sql"
-alter table "better_supabase"."orders" add column "channel" text;
+alter table "better_supabase"."orders" add column "register" text;
 ```
 
 ```ts
 const client = createOrders({
   transport,
-  fields: v.object({ channel: v.optional(v.picklist(["web", "pos"])) }),
+  fields: v.object({ register: v.optional(v.picklist(["front", "back"])) }),
 });
-await client.checkout(cartId, { fields: { channel: "pos" } });
+await client.checkout(cartId, { fields: { register: "front" } });
 ```
 
 ## Hooks

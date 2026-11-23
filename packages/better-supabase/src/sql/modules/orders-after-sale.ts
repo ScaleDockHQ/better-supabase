@@ -5,6 +5,7 @@ import { fail, serviceGrant, userGrant } from "../shared.ts";
 import { variantTracked } from "./catalog-tracking.ts";
 import { moveStock } from "./inventory-stock.ts";
 import { shipAllocations } from "./orders-documents.ts";
+import { paymentGate, quantityRule, quantityValid } from "./orders-fields.ts";
 import {
   columns,
   guard,
@@ -148,7 +149,7 @@ begin
   ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_order.status::text not in ('paid', 'confirmed') then
     ${fail("ORDERS_NOT_PAID", "only a paid or confirmed order can be fulfilled", "55000")}
-  end if;${unsupported(trackingUrl, "create_fulfillment.tracking_url", "ORDERS_TRACKING_URL_UNSUPPORTED", "this fulfillment table has no tracking URL column")}
+  end if;${paymentGate(ctx)}${unsupported(trackingUrl, "create_fulfillment.tracking_url", "ORDERS_TRACKING_URL_UNSUPPORTED", "this fulfillment table has no tracking URL column")}
   ${ctx.hook("before_fulfillment_create", [["uuid", "v_order.id"]])}
   v_requested := coalesce(create_fulfillment.lines, (
     select jsonb_agg(jsonb_build_object('lineId', l.${ol("id")}, 'quantity', l.${ol("quantity")} - l.${ol("fulfilled")}) order by l.${ol("position")})
@@ -162,12 +163,12 @@ begin
     create_fulfillment.carrier, create_fulfillment.tracking_number${trackingUrl ? ", create_fulfillment.tracking_url" : ""})
   returning ${f("id")} into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity,
+    select (e ->> 'lineId')::uuid as line, case when ${quantityValid(ctx, "e ->> 'quantity'")} then (e ->> 'quantity')::numeric end as quantity,
       case when jsonb_typeof(e -> 'detail') = 'object' then e -> 'detail' end as detail
     from jsonb_array_elements(v_requested) e
   loop
     if v_item.quantity is null or v_item.quantity <= 0 then
-      ${fail("ORDERS_QUANTITY_INVALID", "each quantity is a whole number above zero", "22023")}
+      ${fail("ORDERS_QUANTITY_INVALID", quantityRule(ctx), "22023")}
     end if;${
       lineDetail
         ? ""
@@ -338,10 +339,10 @@ begin
   values (v_order.tenant, v_order.id${returnReason ? ", request_return.reason" : ""})
   returning ${r("id")} into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity from jsonb_array_elements(request_return.lines) e
+    select (e ->> 'lineId')::uuid as line, case when ${quantityValid(ctx, "e ->> 'quantity'")} then (e ->> 'quantity')::numeric end as quantity from jsonb_array_elements(request_return.lines) e
   loop
     if v_item.quantity is null or v_item.quantity <= 0 then
-      ${fail("ORDERS_QUANTITY_INVALID", "each quantity is a whole number above zero", "22023")}
+      ${fail("ORDERS_QUANTITY_INVALID", quantityRule(ctx), "22023")}
     end if;
     select coalesce(sum(y.${rl("quantity")}), 0) into v_open
     from ${returnLines} y join ${returns} z on z.${r("id")} = y.${rl("return")}

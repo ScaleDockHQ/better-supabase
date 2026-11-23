@@ -6,6 +6,7 @@ import { sqlString } from "../../core/template.ts";
 import { BILLING_PARTIES, COST_SOURCES } from "../line-items-sql.ts";
 import { hasLegalEntityColumn } from "../numbering-sql.ts";
 import { fail, serviceGrant } from "../shared.ts";
+import { quantityScale, quantityValid } from "./orders-fields.ts";
 import { assignNumber, columns } from "./orders-shared.ts";
 
 /** An import target names its functions as `schema.function`, without quotes. */
@@ -116,17 +117,17 @@ export function orderImportFunctions(
     [ol("product"), "nullif(e.l ->> 'productId', '')::uuid"],
     [ol("sku"), "coalesce(e.l ->> 'sku', '')"],
     [ol("title"), "e.l ->> 'title'"],
-    [ol("quantity"), "(e.l ->> 'quantity')::integer"],
+    [ol("quantity"), "(e.l ->> 'quantity')::numeric"],
     [ol("unitAmount"), "(e.l ->> 'unitAmount')::bigint"],
     [
       ol("subtotal"),
-      "coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint)",
+      "coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint)",
     ],
     [ol("discount"), "coalesce((e.l ->> 'discount')::bigint, 0)"],
     [ol("tax"), "coalesce((e.l ->> 'tax')::bigint, 0)"],
     [
       ol("total"),
-      "coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0))",
+      "coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0))",
     ],
     [
       ol("requiresShipping"),
@@ -234,9 +235,9 @@ begin
   end if;
   if exists (
     select 1 from jsonb_array_elements(v_data -> 'lines') l
-    where coalesce(l.value ->> 'title', '') = '' or coalesce(l.value ->> 'quantity', '') !~ '^[1-9][0-9]{0,8}$' or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
+    where coalesce(l.value ->> 'title', '') = '' or not ${quantityValid(ctx, "l.value ->> 'quantity'")} or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
   ) then
-    ${fail("IMPORT_ITEM_INVALID", "a line needs a title, a whole quantity above zero and a unitAmount", "22023")}
+    ${fail("IMPORT_ITEM_INVALID", quantityScale(ctx) === 0 ? "a line needs a title, a whole quantity above zero and a unitAmount" : `a line needs a title, a quantity above zero with at most ${String(quantityScale(ctx))} decimals and a unitAmount`, "22023")}
   end if;
   if exists (
     select 1 from jsonb_array_elements(v_data -> 'lines') l
@@ -246,7 +247,7 @@ begin
     ${fail("IMPORT_ITEM_INVALID", "a line's billingParty or costSource is not a known value", "22023")}
   end if;
 
-  select coalesce(sum((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::bigint), 0),
+  select coalesce(sum(round((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::numeric)::bigint), 0),
     coalesce(sum(coalesce((l.value ->> 'discount')::bigint, 0)), 0),
     coalesce(sum(coalesce((l.value ->> 'tax')::bigint, 0)), 0)
   into v_subtotal, v_discount, v_tax

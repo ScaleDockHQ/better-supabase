@@ -3,8 +3,18 @@ import type { OrdersNames } from "./orders-shared.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { countedLine, lineColumn } from "../line-items-sql.ts";
-import { fail, userGrant } from "../shared.ts";
+import { fail, insertExtraColumns, userGrant } from "../shared.ts";
 import { variantTracked } from "./catalog-tracking.ts";
+import {
+  LINE_TYPES,
+  externalOrderReturn,
+  lineExtrasOf,
+  quantityRule,
+  quantityScale,
+  quantityValid,
+  staffOrderChecks,
+  staffOrderInsert,
+} from "./orders-fields.ts";
 import {
   asService,
   assignNumber,
@@ -113,6 +123,29 @@ export function documentFunctions(
   const origin = hasOrigin(ctx);
   const email = ctx.has("orders", "email");
   const billing = ctx.has("orders", "billingAddress");
+  const staff = staffOrderInsert(ctx);
+
+  const line = (logical: string, value: string): readonly string[] =>
+    ctx.has("orderLines", logical)
+      ? [`, ${ol(logical)}`, `, ${value}`]
+      : ["", ""];
+
+  const lineFields = [
+    line("unit", "nullif(e.l ->> 'unit', '')"),
+    line("description", "nullif(e.l ->> 'description', '')"),
+    line("lineType", "coalesce(nullif(e.l ->> 'lineType', ''), 'item')"),
+  ];
+
+  const extras = insertExtraColumns(
+    ctx.table("orderLines"),
+    lineExtrasOf(ctx),
+    "coalesce(e.l -> 'fields', '{}'::jsonb)",
+  );
+
+  const lineInsert = {
+    columns: `${lineFields.map(([c]) => c).join("")}${extras.columns}`,
+    values: `${lineFields.map(([, v]) => v).join("")}${extras.values}`,
+  };
 
   const kind = catalog.has("products", "kind")
     ? `cp.${p("kind")}`
@@ -208,21 +241,21 @@ begin
       : `if p_attrs -> 'origin' is not null then
     ${fail("ORDERS_ORIGIN_UNSUPPORTED", "this orders table has no origin columns, so a document can't be ordered once", "22023")}
   end if;`
-  }
+  }${externalOrderReturn(ctx, names)}
   ${assignNumber(ctx, "order", "p_tenant", { seq: "v_seq", number: "v_number" }, orderTemplatesOn(ctx) ? "nullif(p_attrs ->> 'templateId', '') is null" : undefined)}
   insert into ${orders} (${o("tenant")}, ${o("number")}, ${o("sequence")}, ${o("customer")}, ${email ? `${o("email")}, ` : ""}${o("status")}, ${o("currency")},
     ${o("subtotal")}, ${o("discountTotal")}, ${o("shippingTotal")}, ${o("taxTotal")}, ${o("total")}, ${o("taxInclusive")},
-    ${o("shippingAddress")}${billing ? `, ${o("billingAddress")}` : ""}${origin ? `, ${o("originType")}, ${o("originId")}` : ""}${orderTemplatesOn(ctx) ? `, ${o("template")}${ctx.has("orders", "sourceTemplate") ? `, ${o("sourceTemplate")}` : ""}` : ""})
+    ${o("shippingAddress")}${billing ? `, ${o("billingAddress")}` : ""}${origin ? `, ${o("originType")}, ${o("originId")}` : ""}${orderTemplatesOn(ctx) ? `, ${o("template")}${ctx.has("orders", "sourceTemplate") ? `, ${o("sourceTemplate")}` : ""}` : ""}${staff.columns})
   values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, ${email ? "p_attrs ->> 'email', " : ""}case when coalesce((p_attrs ->> 'draft')::boolean, false) then ${ctx.value("orders", "status", "draft")} else ${ctx.value("orders", "status", "confirmed")} end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
-    p_attrs -> 'shippingAddress'${billing ? ", p_attrs -> 'billingAddress'" : ""}${origin ? ", p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}'" : ""}${orderTemplatesOn(ctx) ? `, nullif(p_attrs ->> 'templateId', '')::uuid${ctx.has("orders", "sourceTemplate") ? ", nullif(p_attrs ->> 'sourceTemplateId', '')::uuid" : ""}` : ""})
+    p_attrs -> 'shippingAddress'${billing ? ", p_attrs -> 'billingAddress'" : ""}${origin ? ", p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}'" : ""}${orderTemplatesOn(ctx) ? `, nullif(p_attrs ->> 'templateId', '')::uuid${ctx.has("orders", "sourceTemplate") ? ", nullif(p_attrs ->> 'sourceTemplateId', '')::uuid" : ""}` : ""}${staff.values})
   returning ${o("id")} into v_id;
   insert into ${ctx.table("orderLines")} (${ol("tenant")}, ${ol("order")}, ${ol("position")}, ${ol("variant")}, ${ol("product")}, ${ol("sku")}, ${ol("title")},
-    ${ol("quantity")}, ${ol("unitAmount")}, ${ol("subtotal")}, ${ol("discount")}, ${ol("tax")}, ${ol("total")}, ${ol("requiresShipping")})
+    ${ol("quantity")}, ${ol("unitAmount")}, ${ol("subtotal")}, ${ol("discount")}, ${ol("tax")}, ${ol("total")}, ${ol("requiresShipping")}${lineInsert.columns})
   select p_tenant, v_id, e.n, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, e.l ->> 'sku', e.l ->> 'title',
-    (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
-    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
+    (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
+    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean${lineInsert.values}
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select ${orderFields(ctx, "x")} into v_order from ${orders} x where x.${o("id")} = v_id;${orderTemplatesOn(ctx) ? `\n  if nullif(p_attrs ->> 'templateId', '') is null and not coalesce((p_attrs ->> 'draft')::boolean, false) then\n    ${allocateLines(ctx, "p_location")}\n  end if;` : `\n  if not coalesce((p_attrs ->> 'draft')::boolean, false) then${allocateLines(ctx, "p_location")}\n  end if;`}
   if coalesce((p_attrs ->> 'draft')::boolean, false) then
@@ -261,6 +294,7 @@ declare
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
+  v_order_discount bigint;
 begin
   ${guard(names.scope, names.manage, "order_from_lines.tenant")}
   if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
@@ -271,7 +305,8 @@ begin
   end if;
   if (v_attrs ? 'shippingTotal' and ${amount("v_attrs ->> 'shippingTotal'")} is null) then
     ${fail("ORDERS_AMOUNT_INVALID", "amounts are minor units of zero or more", "22023")}
-  end if;
+  end if;${staffOrderChecks(ctx)}
+  v_order_discount := coalesce(${amount("v_attrs ->> 'orderDiscount'")}, 0);
   for v_item in
     select e as raw, nullif(e ->> 'variantId', '')::uuid as variant, e ->> 'quantity' as quantity,
       cv.${v("id")} as found, cv.${v("tenant")} as variant_tenant, cv.${v("sku")} as sku, ${title} as title, cp.${p("id")} as product, ${kind} as kind
@@ -279,8 +314,11 @@ begin
     left join ${catalog.table("variants")} cv on cv.${v("id")} = nullif(e ->> 'variantId', '')::uuid
     left join ${catalog.table("products")} cp on cp.${p("id")} = cv.${v("product")}
   loop
-    if coalesce(v_item.quantity, '') !~ '^[1-9][0-9]{0,8}$' then
-      ${fail("ORDERS_QUANTITY_INVALID", "each quantity is a whole number above zero", "22023")}
+    if not ${quantityValid(ctx, "v_item.quantity")} then
+      ${fail("ORDERS_QUANTITY_INVALID", quantityRule(ctx), "22023")}
+    end if;
+    if coalesce(v_item.raw ->> 'lineType', 'item') not in (${LINE_TYPES.map(sqlString).join(", ")}) then
+      ${fail("ORDERS_LINES_INVALID", `a line's lineType is one of ${LINE_TYPES.join(", ")}`, "22023")}
     end if;
     if v_item.variant is not null and (v_item.found is null or v_item.variant_tenant <> order_from_lines.tenant) then
       ${fail("ORDERS_VARIANT_NOT_FOUND", "a line's variant isn't in this organization", "P0002")}
@@ -307,21 +345,27 @@ begin
       ${fail("ORDERS_LINE_UNPRICED", "a line has no unitAmount and its variant no price in this currency", "22023")}
     end if;
     v_disc := coalesce(${amount("v_item.raw ->> 'discount'")},
-      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
-    if v_disc > v_unit * v_item.quantity::bigint then
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(round(v_unit * v_item.quantity::numeric)::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > round(v_unit * v_item.quantity::numeric)::bigint then
       ${fail("ORDERS_AMOUNT_INVALID", "a line's discount is more than its subtotal", "22023")}
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
-      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
+      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (round(v_unit * v_item.quantity::numeric)::bigint)::text,
       'discount', v_disc::text, 'tax', coalesce(${amount("v_item.raw ->> 'tax'")}, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
-      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
-    v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
+      'total', (round(v_unit * v_item.quantity::numeric)::bigint - v_disc)::text,
+      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end)
+      || jsonb_strip_nulls(jsonb_build_object('unit', v_item.raw -> 'unit', 'description', v_item.raw -> 'description',
+        'lineType', v_item.raw -> 'lineType', 'fields', v_item.raw -> 'fields')));
+    v_subtotal := v_subtotal + round(v_unit * v_item.quantity::numeric)::bigint;
     v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(${amount("v_item.raw ->> 'tax'")}, 0);
   end loop;
+  if v_order_discount > v_subtotal - v_discount then
+    ${fail("ORDERS_AMOUNT_INVALID", "attrs.orderDiscount is more than the lines' net subtotal", "22023")}
+  end if;
+  v_discount := v_discount + v_order_discount;
   return ${fn("order_from_document")}(order_from_lines.tenant, v_attrs || jsonb_build_object(
     'subtotal', v_subtotal::text, 'discountTotal', v_discount::text, 'shippingTotal', v_shipping::text, 'taxTotal', v_tax::text,
     'total', (v_subtotal - v_discount + v_shipping + case when v_inclusive then 0 else v_tax end)::text),
@@ -403,14 +447,17 @@ begin
   end if;
   if ${quotes.is("quotes", "status", `v_quote.${q("status")}`, ["accepted"], true)} then
     ${fail("ORDERS_QUOTE_NOT_ACCEPTED", "only an accepted quote becomes an order", "55000")}
+  end if;${staffOrderChecks(ctx)}
+  if v_attrs ? 'orderDiscount' then
+    ${fail("ORDERS_FIELD_UNSUPPORTED", "an order from a quote takes the quote's discounts, not attrs.orderDiscount", "22023")}
   end if;${quoteVariantGuard(quotes, "v_quote", quotes.table("quotes"))}
   if exists (select 1 from ${quotes.table("lines")} x where x.${ql("parent")} = v_quote.${q("id")} and ${countedLine(quotes, "lines", "x")}
-    and x.${ql("quantity")} <> trunc(x.${ql("quantity")})) then
-    ${fail("ORDERS_QUANTITY_INVALID", "an order line is a whole quantity; the quote has a fractional one", "22023")}
+    and x.${ql("quantity")} <> round(x.${ql("quantity")}, ${String(quantityScale(ctx))})) then
+    ${fail("ORDERS_QUANTITY_INVALID", `an order line has at most ${String(quantityScale(ctx))} decimals (options.quantityScale); the quote has a line with more`, "22023")}
   end if;
   select coalesce(jsonb_agg(jsonb_build_object(
       'variantId', cv.${v("id")}, 'productId', cp.${p("id")}, 'sku', coalesce(cv.${v("sku")}, ''), 'title', x.${ql("description")},
-      'quantity', x.${ql("quantity")}::integer, 'unitAmount', x.${ql("unitAmount")}::text,
+      'quantity', x.${ql("quantity")}, 'unitAmount', x.${ql("unitAmount")}::text,
       'subtotal', s.subtotal::text, 'discount', s.discount::text,
       'tax', (case when ${inclusive} then (s.subtotal - s.discount) - round((s.subtotal - s.discount) * 10000.0 / (10000 + s.rate))
         else round((s.subtotal - s.discount) * s.rate / 10000.0) end)::bigint::text,
@@ -436,7 +483,7 @@ begin
     'currency', v_quote.${q("currency")}, 'taxInclusive', ${inclusive},
     'subtotal', v_quote.${q(quotes.has("quotes", "listTotal") ? "listTotal" : "subtotal")}::text, 'discountTotal', ${quotes.has("quotes", "discountTotal") ? `v_quote.${q("discountTotal")}::text` : "'0'"}, 'shippingTotal', '0',
     'taxTotal', v_quote.${q("taxTotal")}::text, 'total', v_quote.${q("total")}::text,
-    'origin', jsonb_build_object('type', 'quote', 'id', v_quote.${q("id")}::text)),
+    'origin', jsonb_build_object('type', 'quote', 'id', v_quote.${q("id")}::text)${ctx.has("orders", "quote") ? `, 'quoteId', v_quote.${q("id")}` : ""}),
     v_lines, nullif(v_attrs ->> 'locationId', '')::uuid);
 end;
 $$;

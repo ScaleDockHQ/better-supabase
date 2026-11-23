@@ -13,6 +13,7 @@ import {
 import { variantTracked } from "./catalog-tracking.ts";
 import { locationsOf, moveStock } from "./inventory-stock.ts";
 import { releaseAllocations } from "./orders-documents.ts";
+import { lineExtrasOf, lineJson, staffOrderJson } from "./orders-fields.ts";
 import { orderCreditSql } from "./orders-procurement.ts";
 import {
   amountOf,
@@ -129,7 +130,7 @@ as $$
         'subtotal', ${text("l", ol("subtotal"))}, 'discount', ${text("l", ol("discount"))}, 'tax', ${text("l", ol("tax"))},
         'total', ${text("l", ol("total"))}, 'requiresShipping', l.${ol("requiresShipping")}, 'locationId', l.${ol("location")},
         'reservationId', l.${ol("reservation")}, 'fulfilled', l.${ol("fulfilled")}, 'returned', l.${ol("returned")},
-        'backordered', l.${ol("backordered")}) order by l.${ol("position")})
+        'backordered', l.${ol("backordered")}${lineJson(ctx, "l")}${extraFieldsJson("l", lineExtrasOf(ctx))}) order by l.${ol("position")})
       from ${ctx.table("orderLines")} l where l.${ol("order")} = x.${o("id")}), '[]'::jsonb),
     'payments', coalesce((select jsonb_agg(jsonb_build_object(
         'id', y.${p("id")}, 'provider', y.${p("provider")}, 'reference', y.${p("reference")}, 'status', ${ctx.label("payments", "status", `y.${p("status")}`)},
@@ -153,7 +154,7 @@ as $$
         'id', y.${rf("id")}, 'paymentId', y.${rf("payment")}, 'returnId', y.${rf("return")}, 'amount', ${text("y", rf("amount"))},
         'status', ${ctx.label("refunds", "status", `y.${rf("status")}`)}, 'reason', ${or("refunds", "y", "reason")}, 'providerReference', y.${rf("providerReference")},
         'createdAt', y.${rf("createdAt")}, 'completedAt', y.${rf("completedAt")}) order by y.${rf("createdAt")})
-      from ${ctx.table("refunds")} y where y.${rf("order")} = x.${o("id")}), '[]'::jsonb)${extraFieldsJson("x", names.extras)})
+      from ${ctx.table("refunds")} y where y.${rf("order")} = x.${o("id")}), '[]'::jsonb)${extraFieldsJson("x", names.extras)}) || ${staffOrderJson(ctx, "x")}
   from ${ctx.table("orders")} x where x.${o("id")} = p_order
 $$;
 revoke execute on function ${names.fn("order_json")}(uuid) from public, anon, authenticated;

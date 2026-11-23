@@ -165,7 +165,12 @@ export interface OrderLine {
   readonly productId: string | null;
   readonly sku: string;
   readonly title: string;
+  /** With up to `options.quantityScale` decimals; whole by default. */
   readonly quantity: number;
+  /** The unit the quantity counts, such as `h` or `kg`. */
+  readonly unit: string | null;
+  readonly description: string | null;
+  readonly lineType: OrderLineType;
   readonly unitAmount: Money;
   readonly subtotal: Money;
   readonly discount: Money;
@@ -179,6 +184,48 @@ export interface OrderLine {
   readonly returned: number;
   /** The stock didn't cover the line when the order was placed or paid. */
   readonly backordered: boolean;
+  /** The extra columns your schema files add to the order lines table. */
+  readonly fields: Readonly<Record<string, unknown>>;
+}
+
+/** What an order line is. */
+export const ORDER_LINE_TYPES = ["item", "service", "fee"] as const;
+
+export type OrderLineType = (typeof ORDER_LINE_TYPES)[number];
+
+/** How a staff order is invoiced. */
+export const INVOICING_POLICIES = ["on_order", "on_delivery"] as const;
+
+export type InvoicingPolicy = (typeof INVOICING_POLICIES)[number];
+
+/** A contact or company an order is for, next to the customer user. */
+export interface OrderParty {
+  readonly type: string;
+  readonly id: string;
+}
+
+/**
+ * The staff order fields (ADR 1219). Each is null, or the default, when the
+ * orders table doesn't map its column.
+ */
+export interface StaffOrderFields {
+  /** The sales channel, such as `phone` or `b2b`. */
+  readonly channel: string | null;
+  /** The system an imported order comes from. */
+  readonly source: string | null;
+  /** The order's id in `source`: unique per organization and source. */
+  readonly externalId: string | null;
+  readonly invoicingPolicy: InvoicingPolicy;
+  readonly deliveryMethod: string | null;
+  /** The quote the order was made from. */
+  readonly quoteId: string | null;
+  /** A discount on the whole order, included in `discountTotal`. */
+  readonly orderDiscount: Money;
+  readonly promotionId: string | null;
+  /** The order ships once its deposit, or its total without one, is paid. */
+  readonly paymentRequired: boolean;
+  readonly deposit: Money | null;
+  readonly party: OrderParty | null;
 }
 
 export interface OrderPayment {
@@ -233,7 +280,9 @@ export interface OrderRefund {
 }
 
 /** An order. `F` types the extra columns the `fields` schema describes. */
-export interface Order<F extends object = Record<never, never>> {
+export interface Order<
+  F extends object = Record<never, never>,
+> extends StaffOrderFields {
   readonly id: string;
   readonly organizationId: string;
   /** Gapless per organization, from `numbering` when it numbers `order`. */
@@ -557,6 +606,37 @@ const when = (
   return instant === undefined ? {} : { [key]: instant };
 };
 
+/** The staff order fields of an order or order summary row. */
+export function staffFieldsOf(
+  row: Readonly<Record<string, unknown>>,
+  currency: string,
+): StaffOrderFields {
+  const party = row["party"];
+
+  return {
+    channel: nullableText(row["channel"]),
+    source: nullableText(row["source"]),
+    externalId: nullableText(row["externalId"]),
+    invoicingPolicy: enumOrThrow(
+      row["invoicingPolicy"] ?? "on_order",
+      INVOICING_POLICIES,
+      "invoicing policy",
+    ),
+    deliveryMethod: nullableText(row["deliveryMethod"]),
+    quoteId: nullableText(row["quoteId"]),
+    orderDiscount: moneyOf(row["orderDiscount"] ?? "0", currency),
+    promotionId: nullableText(row["promotionId"]),
+    paymentRequired: row["paymentRequired"] === true,
+    deposit:
+      row["deposit"] === null || row["deposit"] === undefined
+        ? null
+        : moneyOf(row["deposit"], currency),
+    party: isRecord(party)
+      ? { type: textOf(party["type"]), id: textOf(party["id"]) }
+      : null,
+  };
+}
+
 export function orderOf(value: unknown): Order {
   const row = recordOf(value, "get_order");
   const currency = textOf(row["currency"]);
@@ -600,6 +680,7 @@ export function orderOf(value: unknown): Order {
     cancelReason: nullableText(row["cancelReason"]),
     ...when("heldAt", row["heldAt"]),
     holdReason: nullableText(row["holdReason"]),
+    ...staffFieldsOf(row, currency),
     fields: rowFields(row["fields"]),
     lines: recordsOf(row["lines"], "orders").map((line) => ({
       id: textOf(line["id"]),
@@ -608,6 +689,13 @@ export function orderOf(value: unknown): Order {
       sku: textOf(line["sku"]),
       title: textOf(line["title"]),
       quantity: Number(line["quantity"]),
+      unit: nullableText(line["unit"]),
+      description: nullableText(line["description"]),
+      lineType: enumOrThrow(
+        line["lineType"] ?? "item",
+        ORDER_LINE_TYPES,
+        "order line type",
+      ),
       unitAmount: moneyOf(line["unitAmount"], currency),
       subtotal: moneyOf(line["subtotal"], currency),
       discount: moneyOf(line["discount"], currency),
@@ -619,6 +707,7 @@ export function orderOf(value: unknown): Order {
       fulfilled: Number(line["fulfilled"]),
       returned: Number(line["returned"]),
       backordered: line["backordered"] === true,
+      fields: rowFields(line["fields"]),
     })),
     payments: recordsOf(row["payments"], "orders").map((payment) => ({
       id: textOf(payment["id"]),

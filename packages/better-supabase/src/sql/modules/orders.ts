@@ -22,6 +22,14 @@ import { afterSaleFunctions } from "./orders-after-sale.ts";
 import { cartFunctions, shippingRateFunctions } from "./orders-carts.ts";
 import { checkoutFunctions } from "./orders-checkout.ts";
 import { documentFunctions } from "./orders-documents.ts";
+import {
+  lineColumns,
+  orderPage,
+  quantityScale,
+  quantityType,
+  staffOrderColumns,
+  staffOrderIndexes,
+} from "./orders-fields.ts";
 import { orderImportFunctions, orderImportTargets } from "./orders-import.ts";
 import {
   KITCHEN_TABLES,
@@ -146,6 +154,7 @@ const NAMES: BlockSqlNames = {
     "kitchen",
     "discountMatrix",
     "templates",
+    "quantityScale",
   ],
   tables: {
     carts: {
@@ -254,9 +263,33 @@ const NAMES: BlockSqlNames = {
         variantOf: "variant_of",
         variantLabel: "variant_label",
         isSelected: "is_selected",
+        channel: "channel",
+        source: "source",
+        externalId: "external_id",
+        invoicingPolicy: "invoicing_policy",
+        deliveryMethod: "delivery_method",
+        quote: "quote_id",
+        orderDiscount: "order_discount",
+        promotion: "promotion_id",
+        paymentRequired: "payment_required",
+        deposit: "deposit_amount",
+        partyType: "party_type",
+        partyId: "party_id",
         updatedAt: "updated_at",
       },
       optional: [
+        "channel",
+        "source",
+        "externalId",
+        "invoicingPolicy",
+        "deliveryMethod",
+        "quote",
+        "orderDiscount",
+        "promotion",
+        "paymentRequired",
+        "deposit",
+        "partyType",
+        "partyId",
         "email",
         "billingAddress",
         "cancelReason",
@@ -307,8 +340,14 @@ const NAMES: BlockSqlNames = {
         billingParty: "billing_party",
         billingPartyId: "billing_party_id",
         billingAccountId: "billing_account_id",
+        unit: "unit",
+        description: "description",
+        lineType: "line_type",
       },
       optional: [
+        "unit",
+        "description",
+        "lineType",
         "taxCodeId",
         "unitCost",
         "costSource",
@@ -566,14 +605,14 @@ create table if not exists ${t("orders")} (
   ${o("paidAt")} timestamptz,
   ${o("fulfilledAt")} timestamptz,
   ${o("completedAt")} timestamptz,
-  ${o("cancelledAt")} timestamptz,${optionalColumn("orders", "cancelReason", (name) => `${name} text`)}${optionalColumn("orders", "heldAt", (name) => `${name} timestamptz`)}${optionalColumn("orders", "heldFrom", (name) => `${name} text`)}${optionalColumn("orders", "holdReason", (name) => `${name} text check (length(${name}) <= 2000)`)}${optionalColumn("orders", "originType", (name) => `${name} text check (${name} ~ '^[a-z][a-z0-9_]{0,62}$')`)}${optionalColumn("orders", "originId", (name) => `${name} text check (length(${name}) between 1 and 200)`)}${optionalColumn("orders", "buyer", (name) => `${name} jsonb`)}${optionalColumn("orders", "variantOf", (name) => `${name} uuid references ${t("orders")} (${o("id")}) on delete set null`)}${optionalColumn("orders", "variantLabel", (name) => `${name} text check (length(${name}) <= 200)`)}${optionalColumn("orders", "isSelected", (name) => `${name} boolean not null default true`)}
+  ${o("cancelledAt")} timestamptz,${optionalColumn("orders", "cancelReason", (name) => `${name} text`)}${optionalColumn("orders", "heldAt", (name) => `${name} timestamptz`)}${optionalColumn("orders", "heldFrom", (name) => `${name} text`)}${optionalColumn("orders", "holdReason", (name) => `${name} text check (length(${name}) <= 2000)`)}${optionalColumn("orders", "originType", (name) => `${name} text check (${name} ~ '^[a-z][a-z0-9_]{0,62}$')`)}${optionalColumn("orders", "originId", (name) => `${name} text check (length(${name}) between 1 and 200)`)}${optionalColumn("orders", "buyer", (name) => `${name} jsonb`)}${optionalColumn("orders", "variantOf", (name) => `${name} uuid references ${t("orders")} (${o("id")}) on delete set null`)}${optionalColumn("orders", "variantLabel", (name) => `${name} text check (length(${name}) <= 200)`)}${optionalColumn("orders", "isSelected", (name) => `${name} boolean not null default true`)}${staffOrderColumns(ctx)}
   ${o("updatedAt")} timestamptz not null default now(),
   unique (${o("tenant")}, ${o("number")}),
   unique (${o("tenant")}, ${o("invoiceNumber")})
 );
 create index if not exists ${ctx.naming.rename("orders_status_idx")} on ${t("orders")} (${o("tenant")}, ${o("status")}, ${o("placedAt")});
 create index if not exists ${ctx.naming.rename("orders_customer_idx")} on ${t("orders")} (${o("customer")});
-create index if not exists ${ctx.naming.rename("orders_sequence_idx")} on ${t("orders")} (${o("tenant")}, ${o("sequence")});${
+create index if not exists ${ctx.naming.rename("orders_sequence_idx")} on ${t("orders")} (${o("tenant")}, ${o("sequence")});${staffOrderIndexes(ctx)}${
     ctx.has("orders", "originType") && ctx.has("orders", "originId")
       ? `
 create unique index if not exists ${ctx.naming.rename("orders_origin_idx")} on ${t("orders")} (${o("tenant")}, ${o("originType")}, ${o("originId")}) where ${o("originId")} is not null and ${ctx.is("orders", "status", o("status"), ["cancelled"], true)};`
@@ -596,7 +635,7 @@ create table if not exists ${t("orderLines")} (
   ${ol("product")} uuid,
   ${ol("sku")} text not null,
   ${ol("title")} text not null,
-  ${ol("quantity")} integer not null check (${ol("quantity")} > 0),
+  ${ol("quantity")} ${quantityType(ctx)} not null check (${ol("quantity")} > 0),${lineColumns(ctx)}
   ${amount(ol("unitAmount"))},
   ${amount(ol("subtotal"))},
   ${amount(ol("discount"))},
@@ -605,8 +644,8 @@ create table if not exists ${t("orderLines")} (
   ${ol("requiresShipping")} boolean not null default true,
   ${ol("location")} uuid,
   ${ol("reservation")} uuid,${optionalColumn("orderLines", "taxCodeId", (name) => `${name} uuid`)}${optionalColumn("orderLines", "unitCost", (name) => `${name} bigint check (${name} >= 0)`)}${optionalColumn("orderLines", "costSource", (name) => `${name} text check (${name} in (${COST_SOURCES.map(sqlString).join(", ")}))`)}${optionalColumn("orderLines", "binId", (name) => `${name} uuid`)}${optionalColumn("orderLines", "billingParty", (name) => `${name} text not null default 'customer' check (${name} in (${BILLING_PARTIES.map(sqlString).join(", ")}))`)}${optionalColumn("orderLines", "billingPartyId", (name) => `${name} text`)}${optionalColumn("orderLines", "billingAccountId", (name) => `${name} uuid`)}
-  ${ol("fulfilled")} integer not null default 0 check (${ol("fulfilled")} between 0 and ${ol("quantity")}),
-  ${ol("returned")} integer not null default 0 check (${ol("returned")} between 0 and ${ol("quantity")}),
+  ${ol("fulfilled")} ${quantityType(ctx)} not null default 0 check (${ol("fulfilled")} between 0 and ${ol("quantity")}),
+  ${ol("returned")} ${quantityType(ctx)} not null default 0 check (${ol("returned")} between 0 and ${ol("quantity")}),
   ${ol("backordered")} boolean not null default false
 );
 create index if not exists ${ctx.naming.rename("order_lines_order_idx")} on ${t("orderLines")} (${ol("order")});
@@ -653,7 +692,7 @@ create table if not exists ${t("fulfillmentLines")} (
   ${fl("tenant")} ${ctx.idType} not null,
   ${fl("fulfillment")} uuid not null references ${t("fulfillments")} (${f("id")}) on delete cascade,
   ${fl("line")} uuid not null references ${t("orderLines")} (${ol("id")}) on delete cascade,
-  ${fl("quantity")} integer not null check (${fl("quantity")} > 0),${optionalColumn("fulfillmentLines", "detail", (name) => `${name} jsonb check (${name} is null or jsonb_typeof(${name}) = 'object')`)}
+  ${fl("quantity")} ${quantityType(ctx)} not null check (${fl("quantity")} > 0),${optionalColumn("fulfillmentLines", "detail", (name) => `${name} jsonb check (${name} is null or jsonb_typeof(${name}) = 'object')`)}
   primary key (${fl("fulfillment")}, ${fl("line")})
 );${appUniqueIndex(ctx, "fulfillmentLines", ["fulfillment", "line"])}
 create index if not exists ${sqlIdent(`${ctx.tableName("fulfillmentLines").name}_${ctx.naming.rename("line_idx")}`)} on ${t("fulfillmentLines")} (${fl("line")});
@@ -676,7 +715,7 @@ create table if not exists ${t("returnLines")} (
   ${rl("tenant")} ${ctx.idType} not null,
   ${rl("return")} uuid not null references ${t("returns")} (${r("id")}) on delete cascade,
   ${rl("line")} uuid not null references ${t("orderLines")} (${ol("id")}) on delete cascade,
-  ${rl("quantity")} integer not null check (${rl("quantity")} > 0),
+  ${rl("quantity")} ${quantityType(ctx)} not null check (${rl("quantity")} > 0),
   primary key (${rl("return")}, ${rl("line")})
 );${appUniqueIndex(ctx, "returnLines", ["return", "line"])}
 create index if not exists ${ctx.naming.rename("order_return_lines_line_idx")} on ${t("returnLines")} (${rl("line")});
@@ -726,12 +765,13 @@ function build(ctx: BlockSqlContext): string {
   }
 
   paymentWindow(ctx);
+  quantityScale(ctx);
   const names = namesOf(ctx);
 
   return `${schemaPreamble(ctx)}
 -- Carts on any signed-in user (anonymous sign-ins included), checkout into
 -- orders with numbers, payments, fulfillments, returns and refunds.
-${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${staffOrderFunctions(ctx, names)}${orderVariantFunctions(ctx, names)}${dropShipFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${orderImportFunctions(ctx, names)}${orderReads(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
+${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${staffOrderFunctions(ctx, names)}${orderVariantFunctions(ctx, names)}${dropShipFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${orderImportFunctions(ctx, names)}${orderReads(ctx, names)}${orderPage(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -859,6 +899,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "order_status_board", args: ["{id}", "integer"], returns: "jsonb" },
+    { name: "page_orders", args: ["{id}", "jsonb"], returns: "jsonb" },
     ...(kitchenOn(ctx) ? kitchenContract() : []),
     ...dropShipContract(ctx),
   ];
@@ -885,7 +926,7 @@ export const ORDERS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -897,6 +938,12 @@ export const ORDERS: BlockSqlDefinition = {
       from: 2,
       description:
         "Orders made from lines or an accepted quote start confirmed and hold their stock through inventory allocations with backorders; orders gain origin columns and fulfillment lines a detail column for lots and serial numbers.",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "Line quantities become numeric with options.quantityScale decimals (0 by default), lines gain unit, description, line type and extra columns, orders gain channel, source and external id, invoicing policy, delivery method, quote, order discount, promotion, payment required, deposit and a customer party, and page_orders lists them (ADR 1219).",
       sql: () => "",
     },
   ],

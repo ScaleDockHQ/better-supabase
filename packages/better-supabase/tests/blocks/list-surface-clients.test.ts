@@ -23,6 +23,7 @@ import { createLims } from "../../src/blocks/lims/index.ts";
 import { createMailSync } from "../../src/blocks/mail-sync/index.ts";
 import { createMaintenance } from "../../src/blocks/maintenance/index.ts";
 import { createManufacturing } from "../../src/blocks/manufacturing/index.ts";
+import { createOrders } from "../../src/blocks/orders/index.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { createPasses } from "../../src/blocks/passes/index.ts";
 import { createPayrollExport } from "../../src/blocks/payroll-export/index.ts";
@@ -586,6 +587,24 @@ const CASES: readonly Case[] = [
         facets: (facets) =>
           client.documentFacets({ ...facets, organizationId }),
         count: (count) => client.documentCount({ ...count, organizationId }),
+      };
+    },
+  },
+  {
+    label: "orders",
+    searchable: true,
+    fn: "page_orders",
+    sort: "placedAt",
+    filter: "status",
+    facet: "channel",
+    list: (transport) => {
+      const client = createOrders(options(transport));
+      const organizationId = "org-1";
+
+      return {
+        page: (page) => client.orderPage({ ...page, organizationId }),
+        facets: (facets) => client.orderFacets({ ...facets, organizationId }),
+        count: (count) => client.orderCount({ ...count, organizationId }),
       };
     },
   },

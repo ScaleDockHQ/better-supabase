@@ -22,6 +22,7 @@ writes the trigger, function and table changes below.
 | [Open items](#open-items)                         | Filter `invoice_open_items` on `document_type` if you query it         |
 | [Audit retention](#audit-retention)               | Optional: set `retention` so `maintenance()` purges the log            |
 | [Doctor rules](#doctor-rules)                     | None; set `doctor.policies.max` to move the BS641 limit                |
+| [Staff orders](#staff-orders)                     | Rename a column of your own that a new block column takes              |
 
 ## Provider fields
 
@@ -137,3 +138,23 @@ enum column on a table with RLS. BS643 counts the functions per schema by
 caller, and `better-supabase config functions --all` lists them. Run
 `better-supabase gen --save-snapshot` once so an offline doctor has the
 function inventory.
+
+## Staff orders
+
+The orders block moves to version 5 (ADR 1219). `better-supabase upgrade`
+adds the staff order columns and `page_orders`, and changes the quantity
+columns of order, fulfillment and return lines from `integer` to `numeric`.
+
+| Before                                        | Now                                                                                                                                                                                                                                                                     |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quantities were `integer`                     | `numeric(18, quantityScale)`; scale 0 by default, so stored values don't change                                                                                                                                                                                         |
+| No order list read                            | `orderPage`, `orderFacets` and `orderCount`, from `page_orders`                                                                                                                                                                                                         |
+| Your own `channel`, `source` or `unit` column | The block owns `channel`, `source`, `external_id`, `invoicing_policy`, `delivery_method`, `quote_id`, `order_discount`, `promotion_id`, `payment_required`, `deposit_amount`, `party_type` and `party_id` on orders, and `unit`, `description` and `line_type` on lines |
+| `discountTotal` held the line discounts       | It also holds `orderDiscount`                                                                                                                                                                                                                                           |
+
+An app that added one of those columns to `orders` or `order_lines` in its
+own schema file renames it before it runs `upgrade`, or drops it and lets
+the block's column take its place. SQL of your own that reads a quantity as
+`integer` casts it, and an order made over your own tables maps the new
+columns or leaves them unmapped; a call that sets an unmapped one fails with
+`ORDERS_FIELD_UNSUPPORTED`. See [Staff order fields](/docs/blocks/orders#staff-order-fields).
