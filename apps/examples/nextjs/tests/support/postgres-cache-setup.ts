@@ -16,7 +16,7 @@ export default async function setup(): Promise<void> {
   try {
     await client.query(postgresCacheSql());
     await client.query(
-      "truncate public.bsb_cache_entries, public.bsb_cache_tags; notify pgrst, 'reload schema'",
+      "truncate public.bsb_cache_entries, public.bsb_cache_tags, public.bsb_cache_leases; notify pgrst, 'reload schema'",
     );
   } finally {
     await client.end();

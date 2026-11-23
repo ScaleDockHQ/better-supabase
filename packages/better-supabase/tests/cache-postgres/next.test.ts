@@ -49,6 +49,49 @@ describe("postgresCacheHandler", () => {
     expect(await handler.getExpiration(["bsb:none"])).toBe(0);
   });
 
+  it("renders a missing entry once across instances and serves the others its entry", async () => {
+    const store = memoryStore();
+    const first = postgresCacheHandler({ client: store });
+    const second = postgresCacheHandler({ client: store, wait: 500 });
+
+    expect(await first.get("k", [])).toBeUndefined();
+
+    const waiting = second.get("k", []);
+
+    await first.set("k", Promise.resolve(entry("filled", [])));
+
+    const served = await waiting;
+
+    expect(served && (await read(served.value))).toBe("filled");
+  });
+
+  it("renders itself once the wait runs out", async () => {
+    const store = memoryStore();
+    const first = postgresCacheHandler({ client: store });
+    const second = postgresCacheHandler({ client: store, wait: 50 });
+
+    await first.get("k", []);
+
+    expect(await second.get("k", [])).toBeUndefined();
+  });
+
+  it("releases the lease after set, so the next miss renders at once", async () => {
+    const store = memoryStore();
+    const lease = vi.spyOn(store, "lease");
+    const handler = postgresCacheHandler({ client: store, wait: 10_000 });
+
+    await handler.get("k", []);
+    await handler.set("k", Promise.resolve({ ...entry("x", []), expire: 0 }));
+
+    const started = Date.now();
+
+    await handler.get("k", []);
+
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(lease.mock.results).toHaveLength(2);
+    expect(await lease.mock.results[1]?.value).toMatchObject({ data: true });
+  });
+
   it("checks soft tags on get", async () => {
     const handler = postgresCacheHandler({ client: memoryStore() });
 

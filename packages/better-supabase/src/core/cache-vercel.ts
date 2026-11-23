@@ -94,6 +94,14 @@ export interface VercelRuntimeCacheAdapter extends CacheAdapter {
   delete(key: string): Promise<void>;
   /** Expires `bsb:` tags, encoded, in calls of 16 tags. */
   expireTags(tags: readonly string[]): Promise<void>;
+  /**
+   * A lock entry under `lease:<key>`. The Runtime Cache has no set-if-absent,
+   * so two instances that read at the same moment can both win: it only narrows
+   * a stampede.
+   */
+  lease(key: string, holder: string, ttlMs: number): Promise<boolean>;
+  /** Removes the lock entry when `holder` still holds it. */
+  release(key: string, holder: string): Promise<void>;
 }
 
 /**
@@ -144,6 +152,27 @@ export function vercelRuntimeCacheAdapter(
           open().expireTag(batch),
         ),
       );
+    },
+    lease: async (key, holder, ttlMs) => {
+      const lock = `lease:${key}`;
+      const current = await open().get(lock);
+
+      if (current !== undefined && current !== null && current !== holder) {
+        return false;
+      }
+
+      await open().set(lock, holder, {
+        ttl: Math.max(1, Math.ceil(ttlMs / 1000)),
+      });
+
+      return (await open().get(lock)) === holder;
+    },
+    release: async (key, holder) => {
+      const lock = `lease:${key}`;
+
+      if ((await open().get(lock)) === holder) {
+        await open().delete?.(lock);
+      }
     },
   };
 }

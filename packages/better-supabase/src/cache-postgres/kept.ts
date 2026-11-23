@@ -62,5 +62,21 @@ export function postgresKeptStore(
         throw new Error(deleted.error.message);
       }
     },
+    async lease(key, holder, ttlMs) {
+      const leased = await store.lease(key, holder, ttlMs);
+
+      if (!leased.ok) {
+        throw new Error(leased.error.message);
+      }
+
+      return leased.data;
+    },
+    async release(key, holder) {
+      const released = await store.release(key, holder);
+
+      if (!released.ok) {
+        throw new Error(released.error.message);
+      }
+    },
   };
 }

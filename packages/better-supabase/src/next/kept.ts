@@ -105,6 +105,7 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
       createKeptCache({
         store,
         ...(deps.options?.onSkip ? { onSkip: deps.options.onSkip } : {}),
+        wait: deps.options?.wait,
         onError: (cause) => {
           deps.events.logger.warn("bsb.kept() could not reach its store", {
             cause,

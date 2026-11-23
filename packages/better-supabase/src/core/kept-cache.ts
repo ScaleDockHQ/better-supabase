@@ -33,6 +33,14 @@ export interface KeptStore {
   expireTags(tags: readonly string[]): Promise<void>;
   /** Removes one entry; a store without it lets the entry expire. */
   delete?(key: string): Promise<void>;
+  /**
+   * Whether `holder` may fill `key` for the next `ttlMs` milliseconds, so one
+   * instance fills a missing entry while the others wait for it. A store
+   * without it lets every instance fill.
+   */
+  lease?(key: string, holder: string, ttlMs: number): Promise<boolean>;
+  /** Ends `holder`'s lease on `key` once its fill is stored. */
+  release?(key: string, holder: string): Promise<void>;
 }
 
 /** The limits of the Vercel Runtime Cache, applied to every store. */
@@ -97,6 +105,13 @@ export interface KeptCacheOptions {
   readonly onSkip?: ((skip: KeptSkip) => void) | undefined;
   /** Called when the store fails; the call then reads through. */
   readonly onError?: ((error: unknown) => void) | undefined;
+  /**
+   * Milliseconds a call waits for a fill another instance holds the lease for,
+   * before it fills itself. Default: 250.
+   */
+  readonly wait?: number | undefined;
+  /** Milliseconds a fill holds its lease at most. Default: 10 000. */
+  readonly leaseMs?: number | undefined;
   readonly now?: () => number;
 }
 
@@ -217,9 +232,21 @@ function serialize(
  * is served while one refresh runs, and a miss fills through `fill`. A store
  * error never fails a call; it reads through and reports to `onError`.
  */
+const POLL_MS = 25;
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
 export function createKeptCache(options: KeptCacheOptions): KeptCache {
   const { store } = options;
   const now = options.now ?? Date.now;
+  const wait = options.wait ?? 250;
+  const leaseMs = options.leaseMs ?? 10_000;
+  // One fill per key in this process; the lease covers the other instances.
+  const flights = new Map<string, Promise<KeptServed<unknown>>>();
+  const refreshing = new Set<string>();
 
   const report = (error: unknown): void => {
     options.onError?.(error);
@@ -279,6 +306,93 @@ export function createKeptCache(options: KeptCacheOptions): KeptCache {
     return { value: stored.value as T, outcome: "miss", fillMs };
   };
 
+  /** A holder when this call may fill, or `false` when another holds it. */
+  const lease = async (key: string): Promise<string | true | false> => {
+    if (!store.lease) {
+      return true;
+    }
+
+    const holder = crypto.randomUUID();
+
+    try {
+      return (await store.lease(key, holder, leaseMs)) ? holder : false;
+    } catch (error) {
+      report(error);
+
+      return true;
+    }
+  };
+
+  const release = (key: string, holder: string | true): void => {
+    if (holder !== true) {
+      store.release?.(key, holder).catch(report);
+    }
+  };
+
+  const fillLeased = async <T>(call: KeptCall<T>): Promise<KeptServed<T>> => {
+    const holder = await lease(call.key);
+
+    if (holder !== false) {
+      try {
+        return await fill(call);
+      } finally {
+        release(call.key, holder);
+      }
+    }
+
+    for (let polled = 0; polled < wait; polled += POLL_MS) {
+      await sleep(POLL_MS);
+
+      const found = await read(call.key);
+
+      if (found) {
+        // SAFETY: the entry under this key was written from this call's fill.
+        return { value: found.value as T, outcome: "wait" };
+      }
+    }
+
+    return fill(call);
+  };
+
+  const once = async <T>(call: KeptCall<T>): Promise<KeptServed<T>> => {
+    const running = flights.get(call.key);
+
+    if (running) {
+      // SAFETY: a flight under this key runs this call's fill.
+      const served = (await running) as KeptServed<T>;
+
+      return { value: served.value, outcome: "wait" };
+    }
+
+    const flight = fillLeased(call).finally(() => {
+      flights.delete(call.key);
+    });
+
+    flights.set(call.key, flight);
+
+    return flight;
+  };
+
+  const refresh = async <T>(call: KeptCall<T>): Promise<void> => {
+    refreshing.add(call.key);
+
+    try {
+      const holder = await lease(call.key);
+
+      if (holder === false) {
+        return;
+      }
+
+      try {
+        await fill(call);
+      } finally {
+        release(call.key, holder);
+      }
+    } finally {
+      refreshing.delete(call.key);
+    }
+  };
+
   const expireTags = async (tags: readonly string[]): Promise<void> => {
     if (tags.length > 0) {
       await store.expireTags(tags);
@@ -291,7 +405,7 @@ export function createKeptCache(options: KeptCacheOptions): KeptCache {
       const found = await read(call.key);
 
       if (!found) {
-        return fill(call);
+        return once(call);
       }
 
       // SAFETY: the entry under this key was written from this call's fill.
@@ -301,9 +415,9 @@ export function createKeptCache(options: KeptCacheOptions): KeptCache {
         return { value, outcome: "hit" };
       }
 
-      const refresh = fill(call).catch(report);
-
-      call.background?.(refresh);
+      if (!refreshing.has(call.key) && !flights.has(call.key)) {
+        call.background?.(refresh(call).catch(report));
+      }
 
       return { value, outcome: "stale" };
     },
@@ -332,6 +446,7 @@ export function memoryKeptStore(
   const now = options.now ?? Date.now;
   const entries = new Map<string, MemoryEntry>();
   const expired = new Map<string, number>();
+  const leases = new Map<string, { holder: string; until: number }>();
 
   return {
     get(key) {
@@ -373,6 +488,25 @@ export function memoryKeptStore(
     },
     delete(key) {
       entries.delete(key);
+
+      return Promise.resolve();
+    },
+    lease(key, holder, ttlMs) {
+      const at = now();
+      const current = leases.get(key);
+
+      if (current && current.until > at && current.holder !== holder) {
+        return Promise.resolve(false);
+      }
+
+      leases.set(key, { holder, until: at + ttlMs });
+
+      return Promise.resolve(true);
+    },
+    release(key, holder) {
+      if (leases.get(key)?.holder === holder) {
+        leases.delete(key);
+      }
 
       return Promise.resolve();
     },

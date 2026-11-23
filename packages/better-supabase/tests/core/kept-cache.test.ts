@@ -274,3 +274,119 @@ describe("memoryKeptStore", () => {
     expect(await store.get("a")).toBe(1);
   });
 });
+
+describe("createKeptCache fills once", () => {
+  it("runs one fill for concurrent misses in one process", async () => {
+    const cache = createKeptCache({ store: memoryKeptStore() });
+    const fill = vi.fn(() => Promise.resolve({ total: 1 }));
+
+    const [first, second] = await Promise.all([
+      cache.serve(call(fill)),
+      cache.serve(call(fill)),
+    ]);
+
+    expect(fill).toHaveBeenCalledOnce();
+    expect(first.outcome).toBe("miss");
+    expect(second).toEqual({ value: { total: 1 }, outcome: "wait" });
+  });
+
+  it("lets another instance wait for the fill that holds the lease", async () => {
+    const store = memoryKeptStore();
+    const one = createKeptCache({ store });
+    const two = createKeptCache({ store, wait: 1000 });
+
+    let finish = (_value: number): void => {};
+
+    const slow = vi.fn(
+      () =>
+        new Promise<number>((resolve) => {
+          finish = resolve;
+        }),
+    );
+
+    const fast = vi.fn(() => Promise.resolve(2));
+    const filling = one.serve(call(slow));
+
+    await vi.waitFor(() => {
+      expect(slow).toHaveBeenCalledWith();
+    });
+
+    const waiting = two.serve(call(fast));
+
+    finish(1);
+
+    expect(await filling).toMatchObject({ value: 1, outcome: "miss" });
+    expect(await waiting).toEqual({ value: 1, outcome: "wait" });
+    expect(fast).not.toHaveBeenCalled();
+  });
+
+  it("fills itself once the wait runs out", async () => {
+    const store = memoryKeptStore();
+    await store.lease?.("kept:a", "someone else", 60_000);
+
+    const cache = createKeptCache({ store, wait: 50 });
+    const served = await cache.serve(call(() => Promise.resolve(3)));
+
+    expect(served).toMatchObject({ value: 3, outcome: "miss" });
+  });
+
+  it("releases the lease after the fill", async () => {
+    const store = memoryKeptStore();
+    const cache = createKeptCache({ store });
+
+    await cache.serve(call(() => Promise.resolve(1), { key: "kept:b" }));
+
+    expect(await store.lease?.("kept:b", "next", 1000)).toBe(true);
+  });
+
+  it("starts one refresh for a stale entry and none while another holds the lease", async () => {
+    const time = clock();
+    const store = memoryKeptStore({ now: time.now });
+    const cache = createKeptCache({ store, now: time.now });
+    const background: Promise<unknown>[] = [];
+
+    await cache.serve(call(() => Promise.resolve(1)));
+    time.tick(61_000);
+
+    const refill = vi.fn(() => Promise.resolve(2));
+
+    const stale = call(refill, {
+      background: (pending) => {
+        background.push(pending);
+      },
+    });
+
+    await Promise.all([cache.serve(stale), cache.serve(stale)]);
+    await Promise.all(background);
+
+    expect(background).toHaveLength(1);
+    expect(refill).toHaveBeenCalledOnce();
+
+    time.tick(61_000);
+    await store.lease?.("kept:a", "another instance", 60_000);
+    await cache.serve(stale);
+    await Promise.all(background);
+
+    expect(refill).toHaveBeenCalledOnce();
+  });
+
+  it("fills when the lease call fails, and reports it", async () => {
+    const errors: unknown[] = [];
+
+    const store: KeptStore = {
+      ...memoryKeptStore(),
+      lease: () => Promise.reject(new Error("lock down")),
+    };
+
+    const cache = createKeptCache({
+      store,
+      onError: (error) => errors.push(error),
+    });
+
+    expect(await cache.serve(call(() => Promise.resolve(4)))).toMatchObject({
+      value: 4,
+      outcome: "miss",
+    });
+    expect(errors).toHaveLength(1);
+  });
+});

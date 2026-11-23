@@ -128,6 +128,19 @@ export interface PostgresCacheStore {
   ): Promise<Result<true>>;
   /** Deletes entries past their hard limit; run it from `pg_cron` or a job. */
   prune(now?: number): Promise<Result<true>>;
+  /**
+   * Whether `holder` may fill `key` for the next `ttlMs` milliseconds. Exactly
+   * one caller wins until the lease runs out or `release` ends it. Without the
+   * lease function of `postgresCacheSql()` every caller wins.
+   */
+  lease(
+    key: string,
+    holder: string,
+    ttlMs: number,
+    now?: number,
+  ): Promise<Result<boolean>>;
+  /** Ends `holder`'s lease on `key`; another holder's lease stays. */
+  release(key: string, holder: string): Promise<Result<true>>;
 }
 
 function failure(action: string, cause: unknown): DbError {
@@ -212,6 +225,13 @@ export interface Backend {
     expireSeconds: number,
     now: number,
   ): Promise<true | typeof MISSING>;
+  callLease(
+    key: string,
+    holder: string,
+    ttlMs: number,
+    now: number,
+  ): Promise<boolean | typeof MISSING>;
+  deleteLease(key: string, holder: string): Promise<void>;
 }
 
 export function restBackend(
@@ -302,6 +322,33 @@ export function restBackend(
 
       return true;
     },
+    async callLease(key, holder, ttlMs, now) {
+      const { data, error } = await db()
+        .rpc(names.leaseFunction, {
+          p_key: key,
+          p_holder: holder,
+          p_ttl_ms: ttlMs,
+          p_now: now,
+        })
+        .overrideTypes<boolean, { merge: false }>();
+
+      if (missing(error)) {
+        return MISSING;
+      }
+
+      raise(error);
+
+      return data === true;
+    },
+    async deleteLease(key, holder) {
+      const { error } = await db()
+        .from(names.leasesTable)
+        .delete()
+        .eq("key", key)
+        .eq("holder", holder);
+
+      raise(error);
+    },
   };
 }
 
@@ -369,6 +416,9 @@ export function createCacheStore(
   // function again after a minute: PostgREST may not have reloaded yet.
   let missingSince: number | undefined;
   let reported = false;
+  // Set when the lease function is missing: every caller then fills, and
+  // nothing is released.
+  let leaseMissingSince: number | undefined;
 
   const functionsReady = (): boolean =>
     missingSince === undefined || Date.now() - missingSince > 60_000;
@@ -588,6 +638,50 @@ export function createCacheStore(
         return ok(true);
       } catch (error) {
         return err(failure("tag write", error));
+      }
+    },
+
+    async lease(key, holder, ttlMs, at = Date.now()) {
+      if (
+        leaseMissingSince !== undefined &&
+        Date.now() - leaseMissingSince <= 60_000
+      ) {
+        return ok(true);
+      }
+
+      try {
+        const won = await backend.callLease(
+          key,
+          holder,
+          Math.max(1, Math.floor(ttlMs)),
+          Math.floor(at),
+        );
+
+        if (won === MISSING) {
+          leaseMissingSince = Date.now();
+
+          return ok(true);
+        }
+
+        leaseMissingSince = undefined;
+
+        return ok(won);
+      } catch (error) {
+        return err(failure("lease", error));
+      }
+    },
+
+    async release(key, holder) {
+      if (leaseMissingSince !== undefined) {
+        return ok(true);
+      }
+
+      try {
+        await backend.deleteLease(key, holder);
+
+        return ok(true);
+      } catch (error) {
+        return err(failure("release", error));
       }
     },
 

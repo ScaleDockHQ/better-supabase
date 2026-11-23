@@ -18,6 +18,7 @@ export function memoryStore(): PostgresCacheStore & {
 } {
   const entries = new Map<string, StoredCacheEntry>();
   const states = new Map<string, Required<TagState>>();
+  const leases = new Map<string, { holder: string; until: number }>();
 
   return {
     entries,
@@ -109,5 +110,23 @@ export function memoryStore(): PostgresCacheStore & {
       return Promise.resolve(ok(true as const));
     },
     prune: () => Promise.resolve(ok(true as const)),
+    lease: (key, holder, ttlMs, now = Date.now()) => {
+      const current = leases.get(key);
+
+      if (current && current.until > now && current.holder !== holder) {
+        return Promise.resolve(ok(false));
+      }
+
+      leases.set(key, { holder, until: now + ttlMs });
+
+      return Promise.resolve(ok(true));
+    },
+    release: (key, holder) => {
+      if (leases.get(key)?.holder === holder) {
+        leases.delete(key);
+      }
+
+      return Promise.resolve(ok(true as const));
+    },
   };
 }

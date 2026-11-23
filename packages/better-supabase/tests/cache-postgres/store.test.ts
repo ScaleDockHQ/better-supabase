@@ -428,6 +428,47 @@ describe("postgresCacheStore against the tables", () => {
     }
   });
 
+  it("takes a lease in one function call and releases only its own", async () => {
+    const { calls, client } = scripted((call) =>
+      call.target.endsWith("()") ? { data: false } : {},
+    );
+
+    const store = postgresCacheStore({ client });
+    const leased = await store.lease("k", "me", 1500.7, 10);
+
+    expect(leased.ok && leased.data).toBe(false);
+    expect(op(calls[0], "rpc")).toEqual([
+      { p_key: "k", p_holder: "me", p_ttl_ms: 1500, p_now: 10 },
+    ]);
+
+    expect((await store.release("k", "me")).ok).toBe(true);
+    expect(calls[1]?.target).toBe("public.bsb_cache_leases");
+    expect(calls[1]?.ops.filter(([name]) => name === "eq")).toEqual([
+      ["eq", "key", "k"],
+      ["eq", "holder", "me"],
+    ]);
+  });
+
+  it("lets every caller fill while the lease function is missing", async () => {
+    const { calls, client } = scripted(() => UNKNOWN_FUNCTION);
+    const store = postgresCacheStore({ client });
+
+    expect((await store.lease("k", "a", 1000)).ok).toBe(true);
+    expect(await store.lease("k", "b", 1000)).toMatchObject({ data: true });
+    expect((await store.release("k", "a")).ok).toBe(true);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("reports a failed lease as an error result", async () => {
+    const store = postgresCacheStore(
+      scripted(() => ({ error: { message: "down" } })),
+    );
+
+    const leased = await store.lease("k", "a", 1000);
+
+    expect(!leased.ok && leased.error.message).toContain("lease failed: down");
+  });
+
   it("deletes one entry by key", async () => {
     const { calls, client } = scripted(() => ({}));
     const store = postgresCacheStore({ client });

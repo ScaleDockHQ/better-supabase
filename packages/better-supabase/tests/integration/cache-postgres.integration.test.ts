@@ -21,6 +21,7 @@ const suffix = Math.random().toString(36).slice(2, 8);
 const names = {
   entriesTable: `bsb_test_cache_entries_${suffix}`,
   tagsTable: `bsb_test_cache_tags_${suffix}`,
+  leasesTable: `bsb_test_cache_leases_${suffix}`,
   functionPrefix: `bsb_test_cache_${suffix}`,
 };
 
@@ -82,7 +83,8 @@ describe.skipIf(!live)("cache-postgres against the local stack", () => {
     await pool.query(
       `drop function if exists public.${names.functionPrefix}_get(text, text[], bigint);
 drop function if exists public.${names.functionPrefix}_mark_tags(text[], text, bigint, bigint);
-drop table if exists public.${names.entriesTable}, public.${names.tagsTable};`,
+drop function if exists public.${names.functionPrefix}_lease(text, text, bigint, bigint);
+drop table if exists public.${names.entriesTable}, public.${names.tagsTable}, public.${names.leasesTable};`,
     );
     await pool.end();
   });
@@ -116,6 +118,39 @@ drop table if exists public.${names.entriesTable}, public.${names.tagsTable};`,
         `delete from public.${names.tagsTable} where tag = any($1)`,
         [tags],
       );
+    }
+  });
+
+  it("gives a lease to exactly one of 50 holders at once, and to the next after release", async () => {
+    for (const [label, store] of stores) {
+      const key = `lease-${suffix}-${label}`;
+
+      const results = await Promise.all(
+        Array.from({ length: 50 }, (_, index) =>
+          store.lease(key, `holder-${String(index)}`, 60_000),
+        ),
+      );
+
+      const winners = results.flatMap((result, index) =>
+        result.ok && result.data ? [index] : [],
+      );
+
+      expect(results.every((result) => result.ok)).toBe(true);
+      expect(winners).toHaveLength(1);
+
+      const winner = `holder-${String(winners[0])}`;
+
+      expect((await store.lease(key, winner, 60_000)).ok).toBe(true);
+      expect(await store.lease(key, "late", 60_000)).toMatchObject({
+        data: false,
+      });
+
+      await store.release(key, winner);
+
+      expect(await store.lease(key, "late", 60_000)).toMatchObject({
+        data: true,
+      });
+      await store.release(key, "late");
     }
   });
 

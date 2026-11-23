@@ -7,6 +7,8 @@ export interface PostgresCacheNames {
   readonly tagsTable: string;
   readonly getFunction: string;
   readonly markTagsFunction: string;
+  readonly leasesTable: string;
+  readonly leaseFunction: string;
 }
 
 export function postgresCacheNames(
@@ -20,5 +22,7 @@ export function postgresCacheNames(
     tagsTable: options.tagsTable ?? "bsb_cache_tags",
     getFunction: `${prefix}_get`,
     markTagsFunction: `${prefix}_mark_tags`,
+    leasesTable: options.leasesTable ?? "bsb_cache_leases",
+    leaseFunction: `${prefix}_lease`,
   };
 }

@@ -94,6 +94,46 @@ describe("vercelRuntimeCacheAdapter", () => {
     expect(calls[0]?.[0]).toBe("bsb:t:a~2c0");
   });
 
+  it("takes a lease as a lock entry, refuses another holder and releases its own", async () => {
+    const entries = new Map<string, unknown>();
+
+    const cache = {
+      get: (key: string) => Promise.resolve(entries.get(key)),
+      set: (key: string, value: unknown) => {
+        entries.set(key, value);
+
+        return Promise.resolve();
+      },
+      delete: (key: string) => {
+        entries.delete(key);
+
+        return Promise.resolve();
+      },
+      expireTag: () => Promise.resolve(),
+    };
+
+    const adapter = vercelRuntimeCacheAdapter(() => cache);
+
+    expect(await adapter.lease("kept:a", "one", 1500)).toBe(true);
+    expect(entries.get("lease:kept:a")).toBe("one");
+    expect(await adapter.lease("kept:a", "two", 1500)).toBe(false);
+
+    await adapter.release("kept:a", "two");
+    expect(entries.has("lease:kept:a")).toBe(true);
+
+    await adapter.release("kept:a", "one");
+    expect(await adapter.lease("kept:a", "two", 1500)).toBe(true);
+  });
+
+  it("sets the lock entry with a ttl in whole seconds", async () => {
+    const cache = fakeCache();
+    const adapter = vercelRuntimeCacheAdapter(() => cache);
+
+    await adapter.lease("kept:a", "one", 1500);
+
+    expect(cache.set).toHaveBeenCalledWith("lease:kept:a", "one", { ttl: 2 });
+  });
+
   it("opens the cache on first use, in its namespace", async () => {
     const cache = fakeCache();
 

@@ -38,7 +38,21 @@ export type PostgresCacheHandlerOptions = PostgresCacheTables &
     readonly onError?: ((error: DbError) => void) | undefined;
     /** Next.js dev server: an entry lives until `expire`, not `revalidate`. */
     readonly development?: boolean | undefined;
+    /**
+     * Milliseconds a miss waits for the render another instance holds the lease
+     * for, before it renders itself. Default: 250.
+     */
+    readonly wait?: number | undefined;
+    /** Milliseconds a render holds its lease at most. Default: 10 000. */
+    readonly leaseMs?: number | undefined;
   };
+
+const POLL_MS = 25;
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 function streamOf(bytes: Uint8Array<ArrayBuffer>): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
@@ -73,45 +87,89 @@ export function postgresCacheHandler(
   const store = storeOf(options);
 
   const dev = options.development ?? false;
+  const wait = options.wait ?? 250;
+  const leaseMs = options.leaseMs ?? 10_000;
   const pending = new Map<string, Promise<void>>();
+  // The lease a miss in this process took, released once its entry is stored.
+  const holders = new Map<string, string>();
 
   const report = (error: DbError): void => {
     options.onError?.(error);
   };
 
+  const read = async (
+    cacheKey: string,
+    softTags: string[],
+  ): Promise<NextCacheEntry | undefined | null> => {
+    await pending.get(cacheKey);
+
+    const found = await store.lookup(cacheKey, softTags);
+
+    if (!found.ok) {
+      report(found.error);
+
+      return null;
+    }
+
+    if (!found.data) {
+      return undefined;
+    }
+
+    const { entry: row, stale: isStale } = found.data;
+
+    // SAFETY: `set` below wrote `meta` with these numbers.
+    const { stale, expire, revalidate } = row.meta as {
+      stale: number;
+      expire: number;
+      revalidate: number;
+    };
+
+    return {
+      value: streamOf(row.value),
+      tags: [...row.tags],
+      stale,
+      timestamp: row.storedAt,
+      expire,
+      revalidate: isStale ? -1 : revalidate,
+    };
+  };
+
   return {
     async get(cacheKey, softTags) {
-      await pending.get(cacheKey);
+      const found = await read(cacheKey, softTags);
 
-      const found = await store.lookup(cacheKey, softTags);
+      if (found !== undefined) {
+        return found ?? undefined;
+      }
 
-      if (!found.ok) {
-        report(found.error);
+      // One instance renders a missing entry; the others wait for it.
+      const holder = crypto.randomUUID();
+      const leased = await store.lease(cacheKey, holder, leaseMs);
+
+      if (!leased.ok) {
+        report(leased.error);
 
         return;
       }
 
-      if (!found.data) {
+      if (leased.data) {
+        holders.set(cacheKey, holder);
+
         return;
       }
 
-      const { entry: row, stale: isStale } = found.data;
+      let filled: NextCacheEntry | undefined | null;
 
-      // SAFETY: `set` below wrote `meta` with these numbers.
-      const { stale, expire, revalidate } = row.meta as {
-        stale: number;
-        expire: number;
-        revalidate: number;
-      };
+      for (
+        let polled = 0;
+        filled === undefined && polled < wait;
+        polled += POLL_MS
+      ) {
+        await sleep(POLL_MS);
+        filled = await read(cacheKey, softTags);
+      }
 
-      return {
-        value: streamOf(row.value),
-        tags: [...row.tags],
-        stale,
-        timestamp: row.storedAt,
-        expire,
-        revalidate: isStale ? -1 : revalidate,
-      };
+      return filled ?? undefined;
     },
 
     async set(cacheKey, pendingEntry) {
@@ -153,6 +211,18 @@ export function postgresCacheHandler(
       } finally {
         done();
         pending.delete(cacheKey);
+
+        const holder = holders.get(cacheKey);
+
+        if (holder !== undefined) {
+          holders.delete(cacheKey);
+
+          const released = await store.release(cacheKey, holder);
+
+          if (!released.ok) {
+            report(released.error);
+          }
+        }
       }
     },
 

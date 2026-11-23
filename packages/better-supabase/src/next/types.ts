@@ -111,6 +111,12 @@ export interface NextKeptOptions {
   readonly store?: KeptStore;
   /** Called for each fill that was not stored, such as one over 2 MB. */
   readonly onSkip?: (skip: KeptSkip) => void;
+  /**
+   * Milliseconds a miss waits for the fill another instance holds the lease
+   * for, before it fills itself. Only stores with `lease` coordinate instances.
+   * Default: 250.
+   */
+  readonly wait?: number;
 }
 
 export interface NextDebugOptions {

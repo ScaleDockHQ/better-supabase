@@ -8,9 +8,12 @@ export interface PostgresCacheSqlOptions {
   readonly entriesTable?: string;
   /** Default: `bsb_cache_tags`. */
   readonly tagsTable?: string;
+  /** Default: `bsb_cache_leases`. */
+  readonly leasesTable?: string;
   /**
-   * Prefix of the functions: `<prefix>_get` and `<prefix>_mark_tags`. Change it
-   * when one schema holds two sets of cache tables. Default: `bsb_cache`.
+   * Prefix of the functions: `<prefix>_get`, `<prefix>_mark_tags` and
+   * `<prefix>_lease`. Change it when one schema holds two sets of cache tables.
+   * Default: `bsb_cache`.
    */
   readonly functionPrefix?: string;
   /**
@@ -38,6 +41,8 @@ export function postgresCacheSql(
   const tags = `${schema}.${sqlIdent(names.tagsTable)}`;
   const getFn = `${schema}.${sqlIdent(names.getFunction)}`;
   const markFn = `${schema}.${sqlIdent(names.markTagsFunction)}`;
+  const leases = `${schema}.${sqlIdent(names.leasesTable)}`;
+  const leaseFn = `${schema}.${sqlIdent(names.leaseFunction)}`;
 
   const pruneJob = options.prune
     ? `
@@ -45,6 +50,12 @@ select cron.schedule(
   'bsb-cache-prune',
   '0 * * * *',
   $$delete from ${entries} where expires_at < ${NOW_MS}$$
+);
+
+select cron.schedule(
+  'bsb-cache-prune-leases',
+  '0 * * * *',
+  $$delete from ${leases} where until < ${NOW_MS}$$
 );
 `
     : "";
@@ -72,13 +83,23 @@ create table if not exists ${tags} (
 -- A delayed expiry has its own column, so an immediate one never replaces it.
 alter table ${tags} add column if not exists expire_after bigint not null default 0;
 
+-- Who fills a missing entry: one holder per key, until its lease runs out.
+create table if not exists ${leases} (
+  key text primary key,
+  holder text not null,
+  until bigint not null
+);
+
 alter table ${entries} enable row level security;
 alter table ${tags} enable row level security;
+alter table ${leases} enable row level security;
 
 revoke all on ${entries} from anon, authenticated;
 revoke all on ${tags} from anon, authenticated;
+revoke all on ${leases} from anon, authenticated;
 grant select, insert, update, delete on ${entries} to service_role;
 grant select, insert, update, delete on ${tags} to service_role;
+grant select, insert, update, delete on ${leases} to service_role;
 
 -- One round trip per read: the entry, unless a tag of it or of the request
 -- expired after it was stored, and whether one went stale.
@@ -157,9 +178,39 @@ as $fn$
     expire_after = greatest(t.expire_after, excluded.expire_after)
 $fn$;
 
+-- True when p_holder now holds the lease on p_key: nobody held it, the last
+-- lease ran out, or p_holder held it already. One statement, so two callers
+-- never both win.
+create or replace function ${leaseFn}(
+  p_key text,
+  p_holder text,
+  p_ttl_ms bigint,
+  p_now bigint default null
+)
+returns boolean
+language sql
+volatile
+security invoker
+set search_path = ''
+as $fn$
+  with clock as (
+    select coalesce(p_now, ${NOW_MS}) as now
+  ),
+  taken as (
+    insert into ${leases} as l (key, holder, until)
+    select p_key, p_holder, clock.now + p_ttl_ms from clock
+    on conflict (key) do update set holder = excluded.holder, until = excluded.until
+    where l.until <= excluded.until - p_ttl_ms or l.holder = excluded.holder
+    returning 1
+  )
+  select exists (select 1 from taken)
+$fn$;
+
 revoke all on function ${getFn}(text, text[], bigint) from public, anon, authenticated;
 revoke all on function ${markFn}(text[], text, bigint, bigint) from public, anon, authenticated;
 grant execute on function ${getFn}(text, text[], bigint) to service_role;
 grant execute on function ${markFn}(text[], text, bigint, bigint) to service_role;
+revoke all on function ${leaseFn}(text, text, bigint, bigint) from public, anon, authenticated;
+grant execute on function ${leaseFn}(text, text, bigint, bigint) to service_role;
 ${pruneJob}`;
 }

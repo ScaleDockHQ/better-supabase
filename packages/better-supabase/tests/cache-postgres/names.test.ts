@@ -10,6 +10,8 @@ describe("postgresCacheNames", () => {
       tagsTable: "bsb_cache_tags",
       getFunction: "bsb_cache_get",
       markTagsFunction: "bsb_cache_mark_tags",
+      leasesTable: "bsb_cache_leases",
+      leaseFunction: "bsb_cache_lease",
     });
     expect(
       postgresCacheNames({ schema: "cache", functionPrefix: "pages" }),
@@ -17,6 +19,7 @@ describe("postgresCacheNames", () => {
       schema: "cache",
       getFunction: "pages_get",
       markTagsFunction: "pages_mark_tags",
+      leaseFunction: "pages_lease",
     });
   });
 });

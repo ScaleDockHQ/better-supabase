@@ -19,6 +19,8 @@ export function sqlBackend(
   const tags = `${schema}.${sqlIdent(names.tagsTable)}`;
   const getFn = `${schema}.${sqlIdent(names.getFunction)}`;
   const markFn = `${schema}.${sqlIdent(names.markTagsFunction)}`;
+  const leases = `${schema}.${sqlIdent(names.leasesTable)}`;
+  const leaseFn = `${schema}.${sqlIdent(names.leaseFunction)}`;
 
   // Postgres answers 42883 (undefined_function) for a function it does not know.
   const isMissing = (error: unknown): boolean =>
@@ -112,6 +114,28 @@ on conflict (tag) do update set stale_at = excluded.stale_at, expired_at = exclu
 
         throw error;
       }
+    },
+    async callLease(key, holder, ttlMs, now) {
+      try {
+        const [row] = await sql.queryRaw<{ won: boolean }>(
+          `select ${leaseFn}($1::text, $2::text, $3::bigint, $4::bigint) as won`,
+          [key, holder, ttlMs, now],
+        );
+
+        return row?.won === true;
+      } catch (error) {
+        if (isMissing(error)) {
+          return MISSING;
+        }
+
+        throw error;
+      }
+    },
+    async deleteLease(key, holder) {
+      await sql.queryRaw(
+        `delete from ${leases} where key = $1 and holder = $2`,
+        [key, holder],
+      );
     },
   };
 }
