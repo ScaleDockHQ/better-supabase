@@ -308,12 +308,36 @@ function tableOf(
     if (definition !== undefined) {
       parts.columns.push(columnOf(context.source, definition));
 
+      let previous: string | undefined;
+
       for (const item of list(definition["constraints"])) {
         const constraint = bodyOf(item, "Constraint");
 
-        if (constraint !== undefined) {
-          addConstraint(context, parts, constraint, str(definition["colname"]));
+        if (constraint === undefined) {
+          continue;
         }
+
+        const type = str(constraint["contype"]);
+
+        // A column's `deferrable` is its own node after the `references` it modifies.
+        if (
+          previous === "CONSTR_FOREIGN" &&
+          (type === "CONSTR_ATTR_DEFERRABLE" || type === "CONSTR_ATTR_DEFERRED")
+        ) {
+          const key = parts.foreignKeys.pop()!;
+
+          parts.foreignKeys.push({
+            ...key,
+            deferrable: true,
+            initiallyDeferred:
+              key.initiallyDeferred || type === "CONSTR_ATTR_DEFERRED",
+          });
+
+          continue;
+        }
+
+        previous = type;
+        addConstraint(context, parts, constraint, str(definition["colname"]));
       }
 
       continue;
@@ -485,7 +509,11 @@ function alterOf(context: Context, alter: Obj, line: number): AlterFact {
 function roleNames(value: unknown): readonly string[] {
   return list(value).flatMap((item) => {
     const role = bodyOf(item, "RoleSpec");
-    const name = str(role?.["rolename"]);
+
+    const name =
+      role?.["roletype"] === "ROLESPEC_PUBLIC"
+        ? "public"
+        : nonEmpty(str(role?.["rolename"]));
 
     return name === undefined ? [] : [name];
   });
@@ -680,7 +708,10 @@ function commentOf(
     return {
       target,
       name: qualifiedNames(context, strings(unwrapped[1]["objname"])),
-      signature: signatureOf(context.source, list(unwrapped[1]["objargs"])),
+      signature: signatureOf(
+        context.source,
+        list(unwrapped[1]["objargs"]).map((arg) => bodyOf(arg, "TypeName")),
+      ),
       text,
       line,
     };
