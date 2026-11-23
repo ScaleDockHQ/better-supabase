@@ -378,6 +378,7 @@ describe("parseSnapshot", () => {
     expect(Object.keys(full.extras).toSorted()).toEqual(
       [
         "buckets",
+        "functionComments",
         "functions",
         "hooks",
         "realtime",

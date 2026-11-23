@@ -555,7 +555,9 @@ export default defineConfig({
       // (20270102120003) drops the positional list_gifts, list_leases,
       // list_pledges and list_shipments signatures for one `filters jsonb`
       // argument (BS235, four findings); the client sends the new form.
-      ignore: ["BS235", "BS243", "BS244"],
+      // `projects.sql` carries the search tag's `bsb_search_project_index`
+      // trigger, which the search module file creates too (BS722, one finding).
+      ignore: ["BS235", "BS243", "BS244", "BS722"],
     },
   },
   auth: {

@@ -147,8 +147,19 @@ function findings(
     return [];
   }
 
+  // The module files the library renders under `_better_supabase/` replace
+  // their own functions and triggers and read dynamic sequences; the app can
+  // only act on the findings in its own files.
+  const own = (diagnostic: Diagnostic): boolean =>
+    !(locate(analysis, diagnostic.statementId)?.file ?? "").includes(
+      "/_better_supabase/",
+    );
+
   return analysis.result.diagnostics
-    .filter((diagnostic) => codes.includes(diagnostic.code) && keep(diagnostic))
+    .filter(
+      (diagnostic) =>
+        codes.includes(diagnostic.code) && keep(diagnostic) && own(diagnostic),
+    )
     .map((diagnostic) => {
       const at = locate(analysis, diagnostic.statementId);
 
@@ -236,7 +247,13 @@ export const PG_TOPO_RULES: readonly Rule[] = [
       findings(
         await analysisOf(context),
         ["DUPLICATE_PRODUCER"],
-        () => true,
+        // Every module file opens with `create schema if not exists` and
+        // `create extension if not exists`, which are idempotent, so repeats
+        // of those are not a copied definition.
+        (diagnostic) =>
+          !(diagnostic.objectRefs ?? []).every(
+            (ref) => ref.kind === "schema" || ref.kind === "extension",
+          ) || (diagnostic.objectRefs ?? []).length === 0,
         (diagnostic, where) =>
           `${where}: ${diagnostic.message.split(". This statement")[0] ?? diagnostic.message}. Keep one definition.`,
       ),

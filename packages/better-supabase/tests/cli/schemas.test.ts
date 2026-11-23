@@ -344,8 +344,8 @@ describe("shipped JSON Schemas", () => {
   });
 
   it("describe the fixture snapshot", async () => {
-    // The shared fixture is a saved version 2 file; it upgrades as it is.
-    expect(await errorsFor("snapshot-v2.json", fixture)).toEqual([]);
+    // The shared fixture is the saved version 3 file `gen --save-snapshot` writes.
+    expect(await errorsFor("snapshot-v3.json", fixture)).toEqual([]);
 
     expect(
       await errorsFor("snapshot-v3.json", await parseSnapshot(fixture)),
@@ -369,7 +369,7 @@ describe("shipped JSON Schemas", () => {
       },
     };
 
-    expect(await errorsFor("snapshot-v2.json", broken)).toEqual([
+    expect(await errorsFor("snapshot-v3.json", broken)).toEqual([
       '$.extras.tables[0].foreignKeys[0].onDelete: "explode" is not one of ["no action","restrict","cascade","set null","set default"]',
       "$.extras.tables[0]: unexpected extra",
     ]);

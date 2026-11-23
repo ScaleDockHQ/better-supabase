@@ -8,11 +8,7 @@ export default defineConfig({
       block: "organizations",
       tables: { organizations: "public.organizations" },
     },
-    {
-      block: "memberships",
-      tables: { memberships: "public.memberships" },
-      columns: { memberships: { tenant: "organization_id" } },
-    },
+    { block: "memberships", tables: { memberships: "public.memberships" } },
     {
       block: "profiles",
       tables: { profiles: "public.profiles" },
