@@ -16,6 +16,13 @@ const DDL = /\b(create|alter|drop|grant|revoke|comment\s+on)\b/i;
 const CRON_IN_BODY =
   /\$(\w*)\$[\s\S]*?(?<!['"(])\bcron\.schedule(?:_in_database)?\s*\(/gi;
 
+/**
+ * The body checks that pg_cron is installed before it schedules: the job is
+ * optional, so a plain statement would make the extension mandatory.
+ */
+const CRON_GUARD =
+  /to_regnamespace\s*\(\s*'cron'|to_regprocedure\s*\(\s*'cron\./i;
+
 const PUBLICATION_EXECUTE =
   /\bexecute\b[^;]*?\balter\s+publication\b|\balter\s+publication\b[^;]*\bformat\s*\(/gi;
 
@@ -87,6 +94,13 @@ function unsafeStatements(context: DoctorContext): FindingInput[] {
     }
 
     for (const match of text.matchAll(CRON_IN_BODY)) {
+      // The last delimiter before the call opens the body that holds it.
+      const opener = match[0].lastIndexOf(`$${match[1]}$`);
+
+      if (CRON_GUARD.test(match[0].slice(Math.max(opener, 0)))) {
+        continue;
+      }
+
       found.push({
         message: `${label} calls cron.schedule inside a function or do block. pg-delta reads pg_cron jobs from the catalog by name, so a job scheduled at run time is not part of the schema. Schedule it at the top level: select cron.schedule('name', '10 seconds', 'select ...');${note}`,
         target: file.path,

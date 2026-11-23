@@ -25,7 +25,7 @@ Doctor reads the project's own files under pg-delta and reports:
 - BS730: a table in a publication other than `supabase_realtime` without a
   primary key or `replica identity full`, which a Pipeline source needs.
 
-BS725 reads the module files better-supabase writes too, so a generated statement of these shapes is reported with the module's name and the advice to upgrade and regenerate. BS726 and BS728 to BS730 and the pg-topo group already read every file in the tree. A `cron.schedule` inside a string literal, such as a `to_regprocedure` check, is not a call.
+BS725 reads the module files better-supabase writes too, so a generated statement of these shapes is reported with the module's name and the advice to upgrade and regenerate. BS726 and BS728 to BS730 and the pg-topo group already read every file in the tree. A `cron.schedule` inside a string literal, such as a `to_regprocedure` check, is not a call. A call in a body that first checks `to_regnamespace('cron')` or `to_regprocedure('cron.…')` is accepted: the job is optional, and a plain statement would make pg_cron mandatory. `alter publication` through `execute` has no such exemption, because the `do` block around it is also reported as DDL the rule cannot see.
 
 ## Consequences
 

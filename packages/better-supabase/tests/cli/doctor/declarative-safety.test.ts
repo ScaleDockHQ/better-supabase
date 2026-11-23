@@ -92,6 +92,15 @@ describe("BS725 statements pg-delta cannot see", () => {
     expect(found[0]?.message).toContain("regenerate");
   });
 
+  it("accepts a cron.schedule that checks pg_cron is installed first", async () => {
+    expect(
+      await run("BS725", {
+        [schema("a.sql")]:
+          "do $$ begin if pg_catalog.to_regnamespace('cron') is not null then perform cron.schedule('a', '1 minute', 'select 1'); end if; end $$;",
+      }),
+    ).toEqual([]);
+  });
+
   it("ignores a cron.schedule lookup that only checks the function exists", async () => {
     expect(
       await run("BS725", {

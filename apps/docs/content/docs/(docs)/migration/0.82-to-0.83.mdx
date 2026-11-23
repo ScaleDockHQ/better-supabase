@@ -446,11 +446,11 @@ rendered statements changed so the files hold what pg-delta can see:
 
 The other `cron.schedule` calls (knowledge embeddings, computed usage meters,
 the workflow retention job, the maintenance and stream purge schedules and
-`schedule_job`) stay behind a check that pg_cron is installed, because a plain
-statement would make the extension mandatory. BS725 still reports them under
-pg-delta, and so it does `blocks.notifications.options.realtime: "changes"`,
-which adds the table to `supabase_realtime` through `execute format`. Accept
-those findings in `tooling.doctor.baseline` with the reason until a plain form
+`schedule_job`) check that pg_cron is installed first, because a plain
+statement would make the extension mandatory. BS725 accepts a body with that
+check. It still reports `blocks.notifications.options.realtime: "changes"`,
+which adds the table to `supabase_realtime` through `execute format`; accept
+that finding in `tooling.doctor.baseline` with the reason until a plain form
 exists.
 
 ## Generators
