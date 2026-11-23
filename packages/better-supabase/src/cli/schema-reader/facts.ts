@@ -331,10 +331,12 @@ export interface FileFacts {
   readonly outsideTransaction: boolean;
 }
 
-/** A file that does not parse; `gen` and doctor stop with this. */
+/** A file that does not parse; `gen` stops with this and doctor reports it. */
 export interface SchemaReadError {
   readonly path: string;
   readonly message: string;
   readonly line: number;
   readonly column: number;
+  /** The Postgres major whose grammar rejected the file. */
+  readonly major: 15 | 16 | 17;
 }

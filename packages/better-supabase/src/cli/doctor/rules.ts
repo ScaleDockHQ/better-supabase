@@ -7,6 +7,7 @@ import type { ContentMapperSetup } from "../content-mapper.ts";
 import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
 import type { PackageInstall } from "../lockfile.ts";
 import type { PeerVersion } from "../peers.ts";
+import type { SchemaReadError } from "../schema-reader/facts.ts";
 import type { SupabaseConfig, TomlValue } from "../supabase-config.ts";
 import type { ProjectSymbols } from "../typescript-symbols/index.ts";
 import type { AdvisorSource } from "./advisors.ts";
@@ -16,13 +17,7 @@ import type { LocalStackCheck } from "./stacks.ts";
 import type { SupabaseCliCheck } from "./supabase-cli.ts";
 import type { VercelEnvFile } from "./vercel-env.ts";
 
-import {
-  blockFileState,
-  moduleFileVersion,
-  blockSqlVersion,
-  sameBlockFile,
-  SQL_MODULES,
-} from "../../sql/index.ts";
+import { blockFileState, sameBlockFile } from "../../sql/index.ts";
 import { defineBucket, parseSize } from "../../storage/index.ts";
 import { byCodePoint } from "../compare.ts";
 import { sameText } from "../core/io.ts";
@@ -42,6 +37,7 @@ import { COOKIE_RULES } from "./cookies.ts";
 import { DECLARATIVE_SAFETY_RULES } from "./declarative-safety.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
 import { DISPATCH_REGRESSION_RULES } from "./dispatch-regression.ts";
+import { ENFORCEMENT_RULES } from "./enforcement.ts";
 import { ENTITY_PAGE_INDEX_RULES } from "./entity-page-indexes.ts";
 import { ENV_RULES } from "./env.ts";
 import { ERROR_CODE_RULES } from "./error-codes.ts";
@@ -59,6 +55,7 @@ import { MIGRATION_RULES } from "./migration-rules.ts";
 import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
 import { isAggregateUse } from "./module-calls.ts";
 import { moduleFiles } from "./module-files.ts";
+import { moduleVersionsBehind } from "./module-versions.ts";
 import { MODULE_RULES } from "./modules.ts";
 import { N_PLUS_ONE_RULES } from "./n-plus-one.ts";
 import { NEXT_CACHE_RULES } from "./next-cache.ts";
@@ -76,6 +73,7 @@ import { appliesTo, RLS_RULES } from "./rls.ts";
 import { ROUND_TRIP_RULES } from "./round-trips.ts";
 import { SCALE_RULES } from "./scale-rules.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
+import { SCHEMA_READ_RULES } from "./schema-read.ts";
 import { SEARCH_KEY_RULES } from "./search-keys.ts";
 import { SEED_RULES } from "./seeds.ts";
 import {
@@ -192,6 +190,8 @@ export interface DoctorContext {
   readonly functionFiles?: readonly TextFile[];
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
+  /** The SQL files the schema reader rejected, set by `runRules` (BS731). */
+  readonly schemaReadErrors?: readonly SchemaReadError[];
   /** Better-supabase's peers and the versions the project installs (BS601). */
   readonly peers?: readonly PeerVersion[];
   /**
@@ -256,66 +256,6 @@ const publicRoles = (policy: CatalogPolicy): boolean =>
 
 const isTrue = (expression: string | null): boolean =>
   expression !== null && /^\(*\s*true\s*\)*$/i.test(expression.trim());
-
-async function moduleVersionsBehind(
-  context: DoctorContext,
-): Promise<FindingInput[]> {
-  const findings: FindingInput[] = [];
-  const upgrade = "Run `better-supabase upgrade`";
-
-  for (const { file, path, installed, behind } of await moduleFiles(context)) {
-    if (!behind || installed === undefined) {
-      continue;
-    }
-
-    findings.push({
-      message: `${path} has ${file.instance ?? file.module} version ${String(installed)}; this release ships version ${String(moduleFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(workflowOf(context))}\`.`,
-      target: path,
-      location: { file: path, line: 1 },
-    });
-  }
-
-  const db = context.database;
-
-  if (!db || "skipped" in db || context.config.blockNames.length === 0) {
-    return findings;
-  }
-
-  let rows: { name: string; version: number }[];
-
-  try {
-    rows = await db.query("select name, version from better_supabase.blocks");
-  } catch {
-    try {
-      rows = await db.query(
-        "select name, version from better_supabase.modules",
-      );
-    } catch {
-      return findings;
-    }
-  }
-
-  for (const row of rows) {
-    const module = SQL_MODULES[row.name];
-
-    if (!module || !context.config.blockNames.includes(row.name)) {
-      continue;
-    }
-
-    const version = blockSqlVersion(module);
-
-    if (row.version >= version) {
-      continue;
-    }
-
-    findings.push({
-      message: `The database has ${row.name} version ${String(row.version)}; this release ships version ${String(version)}. ${upgrade} and apply the migrations it prints.`,
-      target: `better_supabase.blocks.${row.name}`,
-    });
-  }
-
-  return findings;
-}
 
 /**
  * `db.x.aggregate(`, an `_sum:`/`_avg:`/`_min:`/`_max:` include or a list with
@@ -1154,11 +1094,13 @@ export const RULES: readonly Rule[] = [
   ...CLAIM_RULES,
   ...MIGRATION_RULES,
   ...AUTHORIZATION_RULES,
+  ...ENFORCEMENT_RULES,
   ...LIVE_RULES,
   ...MODULE_RULES,
   ...PGDELTA_RULES,
   ...PG_TOPO_RULES,
   ...DECLARATIVE_SAFETY_RULES,
+  ...SCHEMA_READ_RULES,
   ...LITE_RULES,
   ...DEPENDENCY_RULES,
   ...WORKFLOW_BUILDER_RULES,
@@ -1193,8 +1135,13 @@ export async function runRules(
   rules: readonly Rule[] = RULES,
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
-  await primeDoctorFacts(context);
-  const scoped = { ...context, codes: rules.map((rule) => rule.code) };
+  const schemaReadErrors = await primeDoctorFacts(context);
+
+  const scoped = {
+    ...context,
+    codes: rules.map((rule) => rule.code),
+    schemaReadErrors,
+  };
 
   for (const rule of rules) {
     const help = `${DOCS_URL}#${rule.code.toLowerCase()}`;

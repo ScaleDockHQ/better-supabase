@@ -168,7 +168,7 @@ export async function checkConfigSql(
       if (error instanceof SchemaReadFailure) {
         return {
           code: 1,
-          error: `${fragment.path} is not valid SQL: ${error.details.message}\n  ${fragment.sql}`,
+          error: `${fragment.path} is not valid SQL for the Postgres ${error.details.major} grammar: ${error.details.message}\n  ${fragment.sql}`,
         };
       }
 

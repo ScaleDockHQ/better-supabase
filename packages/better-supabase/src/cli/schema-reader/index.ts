@@ -34,9 +34,15 @@ const DEFAULT_VERSION: SupportedVersion = 17;
 
 const parsers = new Map<SupportedVersion, PgParser<SupportedVersion>>();
 
+/** The grammar the reader uses for `db.major_version`. */
+function grammarFor(major: number | undefined): SupportedVersion {
+  return major !== undefined && isSupportedVersion(major)
+    ? major
+    : DEFAULT_VERSION;
+}
+
 function parserFor(major: number | undefined): PgParser<SupportedVersion> {
-  const version =
-    major !== undefined && isSupportedVersion(major) ? major : DEFAULT_VERSION;
+  const version = grammarFor(major);
 
   const known = parsers.get(version);
 
@@ -58,7 +64,7 @@ export class SchemaReadFailure extends Error {
 
   constructor(details: SchemaReadError) {
     super(
-      `${details.path}:${details.line}:${details.column}: ${details.message}`,
+      `${details.path}:${details.line}:${details.column}: ${details.message} (Postgres ${details.major} grammar)`,
     );
     this.details = details;
   }
@@ -66,6 +72,12 @@ export class SchemaReadFailure extends Error {
 
 /** Facts read ahead of time, by file text, for code that cannot wait. */
 const primed = new Map<string, FileFacts>();
+
+/**
+ * Empty facts for texts a lenient read rejected. Kept apart from `primed` so a
+ * later read parses the text again and reports it with its own grammar.
+ */
+const unparsed = new Map<string, FileFacts>();
 
 /**
  * The facts of one SQL text. A text that does not parse throws a
@@ -96,6 +108,7 @@ export async function readFileFacts(
       message: parsed.error.message,
       line: source.lineAt(parsed.error.position),
       column: source.columnAt(parsed.error.position),
+      major: grammarFor(options.majorVersion),
     });
   }
 
@@ -153,7 +166,7 @@ export async function readSchemaFactsLeniently(
         }
 
         failures.push(error.details);
-        primed.set(file.text, factsFrom(new Source(file.text, []), []));
+        unparsed.set(file.text, factsFrom(new Source(file.text, []), []));
       }
     }),
   );
@@ -168,7 +181,7 @@ export async function readSchemaFactsLeniently(
  * @returns What the file declares.
  */
 export function factsOf(text: string): FileFacts {
-  const known = primed.get(text);
+  const known = primed.get(text) ?? unparsed.get(text);
 
   if (known === undefined) {
     throw new Error(
@@ -226,6 +239,7 @@ export async function parseStatements(
       message: parsed.error.message,
       line: source.lineAt(parsed.error.position),
       column: source.columnAt(parsed.error.position),
+      major: grammarFor(options.majorVersion),
     });
   }
 

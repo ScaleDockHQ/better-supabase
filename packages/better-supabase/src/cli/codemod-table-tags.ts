@@ -521,7 +521,7 @@ export function tableTagsCodemod(): Codemod {
           ...result.review,
           ...sameTenant.review,
           ...unread.map((error) => ({
-            message: `${error.path}:${String(error.line)}: ${error.message}; the codemod did not read this file.`,
+            message: `${error.path}:${String(error.line)}: ${error.message} (Postgres ${String(error.major)} grammar); the codemod did not read this file.`,
           })),
         ],
       };

@@ -184,7 +184,7 @@ export function ownedColumnsCodemod(): Codemod {
 
         review.push(
           ...unread.map((error) => ({
-            message: `${error.path}:${error.line}: this file does not parse, so the codemod could not read its columns (${error.message}).`,
+            message: `${error.path}:${error.line}: this file does not parse with the Postgres ${error.major} grammar, so the codemod could not read its columns (${error.message}).`,
           })),
         );
 

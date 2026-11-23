@@ -466,7 +466,10 @@ export interface AccessBlockConfig<
    * whose `disabledAt` is null and whose `status` is in `active` is active, and
    * a missing row counts as disabled. Disabled tenants and users get no
    * permissions. Under the `provider` model both default to the provider's
-   * `suspension`.
+   * `suspension`, and a value set here replaces the provider's for that
+   * subject. Doctor BS409 warns when the two use different forms, since a
+   * missing row then lets the subject through in one and disables it in the
+   * other.
    */
   readonly disabled?: {
     readonly tenant?: string | DisabledRow;

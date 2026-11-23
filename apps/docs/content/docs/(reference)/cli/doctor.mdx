@@ -2320,6 +2320,14 @@ decides), warns when a function template uses a placeholder it does not
 take, and reports every entry of the provider's `problems`, such as a file
 version it can't read.
 
+Under the `provider` model it also warns when `blocks.permissions.disabled.user`
+or `.tenant` replaces the provider's `suspension` entry with the other form.
+The column form (`"schema.table.column"`) disables a user or tenant only when
+that column is set, so one with no row gets through. The row form needs an
+active row, so one with no row is disabled. The two values are not equal, so
+BS427 stays silent; the warning names both forms. Remove the config entry to use
+the provider's check, or give both the same form.
+
 ### BS410
 
 **Warning: HTTP auth hooks.** Auth calls an `[auth.hook.<hook>]` with an
@@ -2537,6 +2545,18 @@ and reports:
 - a table whose policies pass other keys to the provider's `idsWith` than its
   `permissions`, so the entry would be keyed on the wrong grant;
 - a name the database has no table for.
+
+### BS429
+
+**Info: a write definition sets no enforcement.** An action, a route bound to
+`POST`, `PUT`, `PATCH` or `DELETE`, a resource action that writes, or an MCP
+tool without `annotations.readOnlyHint: true` that checks a `permission` and
+sets no `enforcement` reaches the authorizer as `definer`. A provider then
+reads the authorization version live on each of those checks, because a
+`security definer` function or the admin client could do the write. Doctor
+names each definition with its file and line. Set `enforcement: "rls"` only
+when every write in the definition runs through the caller's `db`, where RLS
+checks it again, and set `"definer"` to record the default.
 
 ## Env files
 
@@ -3464,3 +3484,13 @@ data.
 publication other than `supabase_realtime` has no primary key and no `replica
 identity full`. A Pipeline (replication) source cannot replicate its updates and
 deletes. Add a primary key.
+
+### BS731
+
+**Warning: a SQL file does not parse.** The schema reader parses each SQL file
+with the grammar of `db.major_version` in `supabase/config.toml` (15, 16 or 17;
+17 when unset). A file it rejects keeps no facts, so the rules that read tables,
+policies or functions skip it, and `gen` stops on it. Doctor names the file,
+the line and column, the parser's message and the Postgres version whose
+grammar rejected it. Fix the statement, or set `db.major_version` when the file
+uses syntax of another version.
