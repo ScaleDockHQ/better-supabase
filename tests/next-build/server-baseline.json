@@ -1,6 +1,6 @@
 {
   "(proxy)": {
-    "raw": 1257085
+    "raw": 1257189
   },
   "/.well-known/oauth-protected-resource/[...path]/route": {
     "raw": 835376
@@ -9,754 +9,754 @@
     "raw": 1304678
   },
   "/.well-known/workflow/v1/flow/route": {
-    "raw": 5433190
+    "raw": 5433401
   },
   "/.well-known/workflow/v1/webhook/[token]/route": {
-    "raw": 1610603
+    "raw": 1610936
   },
   "/[locale]/(app)/advisories/page": {
-    "raw": 3224064
+    "raw": 3224679
   },
   "/[locale]/(app)/announcements/[id]/page": {
-    "raw": 3212448
+    "raw": 3213063
   },
   "/[locale]/(app)/announcements/page": {
-    "raw": 3214097
+    "raw": 3214712
   },
   "/[locale]/(app)/appraisals/[id]/page": {
-    "raw": 3218434
+    "raw": 3219049
   },
   "/[locale]/(app)/appraisals/page": {
-    "raw": 3208066
+    "raw": 3208681
   },
   "/[locale]/(app)/approvals/page": {
-    "raw": 3220771
+    "raw": 3221386
   },
   "/[locale]/(app)/assets/[id]/page": {
-    "raw": 3214185
+    "raw": 3214800
   },
   "/[locale]/(app)/assets/page": {
-    "raw": 3207573
+    "raw": 3208188
   },
   "/[locale]/(app)/assistant/[id]/page": {
-    "raw": 3789518
+    "raw": 3790191
   },
   "/[locale]/(app)/assistant/activity/page": {
-    "raw": 5342822
+    "raw": 5343340
   },
   "/[locale]/(app)/assistant/agents/[id]/page": {
-    "raw": 5353053
+    "raw": 5353571
   },
   "/[locale]/(app)/assistant/agents/approvals/page": {
-    "raw": 5345837
+    "raw": 5346355
   },
   "/[locale]/(app)/assistant/agents/memory/page": {
-    "raw": 5341135
+    "raw": 5341653
   },
   "/[locale]/(app)/assistant/agents/page": {
-    "raw": 5347046
+    "raw": 5347564
   },
   "/[locale]/(app)/assistant/agents/runs/[id]/page": {
-    "raw": 5353121
+    "raw": 5353639
   },
   "/[locale]/(app)/assistant/agents/runs/page": {
-    "raw": 3799303
+    "raw": 3799976
   },
   "/[locale]/(app)/assistant/agents/tools/page": {
-    "raw": 5343152
+    "raw": 5343670
   },
   "/[locale]/(app)/assistant/evals/[name]/page": {
-    "raw": 3735545
+    "raw": 3736160
   },
   "/[locale]/(app)/assistant/evals/page": {
-    "raw": 3210050
+    "raw": 3210665
   },
   "/[locale]/(app)/assistant/guardrails/page": {
-    "raw": 3211147
+    "raw": 3211762
   },
   "/[locale]/(app)/assistant/page": {
-    "raw": 3792056
+    "raw": 3792729
   },
   "/[locale]/(app)/assistant/prompts/[name]/page": {
-    "raw": 3205321
+    "raw": 3205936
   },
   "/[locale]/(app)/assistant/prompts/page": {
-    "raw": 3207618
+    "raw": 3208233
   },
   "/[locale]/(app)/assistant/tasks/page": {
-    "raw": 3203264
+    "raw": 3203879
   },
   "/[locale]/(app)/assistant/tour/page": {
-    "raw": 3781008
+    "raw": 3781681
   },
   "/[locale]/(app)/assistant/usage/page": {
-    "raw": 3792265
+    "raw": 3792938
   },
   "/[locale]/(app)/banking/accounts/[id]/page": {
-    "raw": 3260856
+    "raw": 3261471
   },
   "/[locale]/(app)/banking/accounts/page": {
-    "raw": 3260787
+    "raw": 3261402
   },
   "/[locale]/(app)/banking/page": {
-    "raw": 3222635
+    "raw": 3223250
   },
   "/[locale]/(app)/banking/transactions/[id]/page": {
-    "raw": 3260880
+    "raw": 3261495
   },
   "/[locale]/(app)/banking/transactions/page": {
-    "raw": 3260811
+    "raw": 3261426
   },
   "/[locale]/(app)/beta/page": {
-    "raw": 3199488
+    "raw": 3200103
   },
   "/[locale]/(app)/calendar/availability/page": {
-    "raw": 3220375
+    "raw": 3220990
   },
   "/[locale]/(app)/calendar/front-desk/page": {
-    "raw": 3215693
+    "raw": 3216308
   },
   "/[locale]/(app)/calendar/page": {
-    "raw": 3225074
+    "raw": 3225689
   },
   "/[locale]/(app)/care-alerts/page": {
-    "raw": 3206305
+    "raw": 3206920
   },
   "/[locale]/(app)/care-plans/page": {
-    "raw": 3208451
+    "raw": 3209066
   },
   "/[locale]/(app)/care/[clientId]/page": {
-    "raw": 3267085
+    "raw": 3267700
   },
   "/[locale]/(app)/care/page": {
-    "raw": 3215014
+    "raw": 3215629
   },
   "/[locale]/(app)/cases/page": {
-    "raw": 3221884
+    "raw": 3222499
   },
   "/[locale]/(app)/chat/page": {
-    "raw": 3755859
+    "raw": 3756532
   },
   "/[locale]/(app)/community/page": {
-    "raw": 3218562
+    "raw": 3219177
   },
   "/[locale]/(app)/compliance/[framework]/page": {
-    "raw": 3219420
+    "raw": 3220035
   },
   "/[locale]/(app)/compliance/page": {
-    "raw": 3235845
+    "raw": 3236460
   },
   "/[locale]/(app)/content/page": {
-    "raw": 3217725
+    "raw": 3218340
   },
   "/[locale]/(app)/courses/[courseId]/lessons/[lessonId]/page": {
-    "raw": 3220053
+    "raw": 3220668
   },
   "/[locale]/(app)/courses/[courseId]/page": {
-    "raw": 3224826
+    "raw": 3225441
   },
   "/[locale]/(app)/courses/page": {
-    "raw": 3219282
+    "raw": 3219897
   },
   "/[locale]/(app)/crm/commissions/page": {
-    "raw": 3264645
+    "raw": 3265260
   },
   "/[locale]/(app)/crm/commissions/statements/[id]/page": {
-    "raw": 3280781
+    "raw": 3281396
   },
   "/[locale]/(app)/crm/companies/[id]/page": {
-    "raw": 3290693
+    "raw": 3291310
   },
   "/[locale]/(app)/crm/companies/page": {
-    "raw": 3254655
+    "raw": 3255270
   },
   "/[locale]/(app)/crm/contacts/[id]/page": {
-    "raw": 3290671
+    "raw": 3291288
   },
   "/[locale]/(app)/crm/contacts/page": {
-    "raw": 3254650
+    "raw": 3255265
   },
   "/[locale]/(app)/crm/contracts/[id]/page": {
-    "raw": 3280676
+    "raw": 3281291
   },
   "/[locale]/(app)/crm/contracts/page": {
-    "raw": 3254394
+    "raw": 3255009
   },
   "/[locale]/(app)/crm/deals/[id]/page": {
-    "raw": 3292048
+    "raw": 3292665
   },
   "/[locale]/(app)/crm/deals/page": {
-    "raw": 3277695
+    "raw": 3278312
   },
   "/[locale]/(app)/crm/forecasts/[id]/page": {
-    "raw": 3260945
+    "raw": 3261560
   },
   "/[locale]/(app)/crm/forecasts/page": {
-    "raw": 3249010
+    "raw": 3249625
   },
   "/[locale]/(app)/crm/page": {
-    "raw": 3233273
+    "raw": 3233888
   },
   "/[locale]/(app)/crm/pipelines/[id]/page": {
-    "raw": 3260945
+    "raw": 3261560
   },
   "/[locale]/(app)/crm/pipelines/page": {
-    "raw": 3248296
+    "raw": 3248911
   },
   "/[locale]/(app)/crm/queues/[id]/page": {
-    "raw": 3250051
+    "raw": 3250666
   },
   "/[locale]/(app)/crm/queues/page": {
-    "raw": 3254398
+    "raw": 3255013
   },
   "/[locale]/(app)/crm/quotes/[id]/page": {
-    "raw": 3233601
+    "raw": 3234216
   },
   "/[locale]/(app)/crm/quotes/page": {
-    "raw": 3256874
+    "raw": 3257489
   },
   "/[locale]/(app)/crm/referrals/page": {
-    "raw": 3264539
+    "raw": 3265154
   },
   "/[locale]/(app)/crm/scoring/[id]/page": {
-    "raw": 3250057
+    "raw": 3250672
   },
   "/[locale]/(app)/crm/scoring/page": {
-    "raw": 3254399
+    "raw": 3255014
   },
   "/[locale]/(app)/crm/segments/[id]/page": {
-    "raw": 3250063
+    "raw": 3250678
   },
   "/[locale]/(app)/crm/segments/page": {
-    "raw": 3254406
+    "raw": 3255021
   },
   "/[locale]/(app)/crm/sequences/[id]/page": {
-    "raw": 3219216
+    "raw": 3219831
   },
   "/[locale]/(app)/crm/sequences/page": {
-    "raw": 3259321
+    "raw": 3259936
   },
   "/[locale]/(app)/crm/success/page": {
-    "raw": 3253773
+    "raw": 3254388
   },
   "/[locale]/(app)/customers/[id]/page": {
-    "raw": 3260531
+    "raw": 3261148
   },
   "/[locale]/(app)/customers/page": {
-    "raw": 3217545
+    "raw": 3218160
   },
   "/[locale]/(app)/dam/page": {
-    "raw": 3206076
+    "raw": 3206691
   },
   "/[locale]/(app)/deadlines/page": {
-    "raw": 3212046
+    "raw": 3212661
   },
   "/[locale]/(app)/documents/[id]/page": {
-    "raw": 3204341
+    "raw": 3204956
   },
   "/[locale]/(app)/documents/page": {
-    "raw": 3210504
+    "raw": 3211119
   },
   "/[locale]/(app)/documents/register/[id]/page": {
-    "raw": 3749099
+    "raw": 3749714
   },
   "/[locale]/(app)/documents/register/page": {
-    "raw": 3736659
+    "raw": 3737274
   },
   "/[locale]/(app)/documents/templates/[id]/page": {
-    "raw": 3217337
+    "raw": 3217952
   },
   "/[locale]/(app)/documents/templates/page": {
-    "raw": 3214133
+    "raw": 3214748
   },
   "/[locale]/(app)/drive/[folderId]/page": {
-    "raw": 3756412
+    "raw": 3757027
   },
   "/[locale]/(app)/drive/page": {
-    "raw": 3762539
+    "raw": 3763154
   },
   "/[locale]/(app)/field/day/page": {
-    "raw": 3228051
+    "raw": 3228666
   },
   "/[locale]/(app)/field/dispatch/page": {
-    "raw": 3232654
+    "raw": 3233269
   },
   "/[locale]/(app)/field/shipments/page": {
-    "raw": 3231775
+    "raw": 3232390
   },
   "/[locale]/(app)/finance/accounting/[id]/page": {
-    "raw": 3260850
+    "raw": 3261465
   },
   "/[locale]/(app)/finance/accounting/page": {
-    "raw": 3260781
+    "raw": 3261396
   },
   "/[locale]/(app)/finance/billable-time/[id]/page": {
-    "raw": 3260871
+    "raw": 3261486
   },
   "/[locale]/(app)/finance/billable-time/page": {
-    "raw": 3260804
+    "raw": 3261419
   },
   "/[locale]/(app)/finance/expenses/[id]/page": {
-    "raw": 3260841
+    "raw": 3261456
   },
   "/[locale]/(app)/finance/expenses/page": {
-    "raw": 3260772
+    "raw": 3261387
   },
   "/[locale]/(app)/finance/invoices/[id]/page": {
-    "raw": 3260841
+    "raw": 3261456
   },
   "/[locale]/(app)/finance/invoices/page": {
-    "raw": 3260774
+    "raw": 3261389
   },
   "/[locale]/(app)/finance/ledger/[id]/page": {
-    "raw": 3260829
+    "raw": 3261444
   },
   "/[locale]/(app)/finance/ledger/page": {
-    "raw": 3260760
+    "raw": 3261375
   },
   "/[locale]/(app)/finance/page": {
-    "raw": 3219968
+    "raw": 3220583
   },
   "/[locale]/(app)/finance/payables/[id]/page": {
-    "raw": 3260839
+    "raw": 3261454
   },
   "/[locale]/(app)/finance/payables/page": {
-    "raw": 3272907
+    "raw": 3273522
   },
   "/[locale]/(app)/finance/periods/[id]/page": {
-    "raw": 3260835
+    "raw": 3261450
   },
   "/[locale]/(app)/finance/periods/page": {
-    "raw": 3260767
+    "raw": 3261382
   },
   "/[locale]/(app)/finance/recurring/[id]/page": {
-    "raw": 3260847
+    "raw": 3261462
   },
   "/[locale]/(app)/finance/recurring/page": {
-    "raw": 3260780
+    "raw": 3261395
   },
   "/[locale]/(app)/finance/tax/[id]/page": {
-    "raw": 3260809
+    "raw": 3261424
   },
   "/[locale]/(app)/finance/tax/page": {
-    "raw": 3260759
+    "raw": 3261374
   },
   "/[locale]/(app)/forbidden/page": {
-    "raw": 3196351
+    "raw": 3196966
   },
   "/[locale]/(app)/forms/[id]/page": {
-    "raw": 3222945
+    "raw": 3223560
   },
   "/[locale]/(app)/forms/page": {
-    "raw": 3222171
+    "raw": 3222786
   },
   "/[locale]/(app)/funding/[id]/page": {
-    "raw": 3260773
+    "raw": 3261388
   },
   "/[locale]/(app)/funding/page": {
-    "raw": 3264538
+    "raw": 3265153
   },
   "/[locale]/(app)/imports/page": {
-    "raw": 3201982
+    "raw": 3202597
   },
   "/[locale]/(app)/inbox/[conversation]/page": {
-    "raw": 3217992
+    "raw": 3218607
   },
   "/[locale]/(app)/inbox/page": {
-    "raw": 3203572
+    "raw": 3204187
   },
   "/[locale]/(app)/incidents/[id]/page": {
-    "raw": 3216452
+    "raw": 3217067
   },
   "/[locale]/(app)/incidents/page": {
-    "raw": 3218565
+    "raw": 3219180
   },
   "/[locale]/(app)/inspections/page": {
-    "raw": 3210278
+    "raw": 3210893
   },
   "/[locale]/(app)/knowledge/page": {
-    "raw": 3725696
+    "raw": 3726311
   },
   "/[locale]/(app)/legal-entities/[id]/page": {
-    "raw": 3260815
+    "raw": 3261430
   },
   "/[locale]/(app)/legal-entities/page": {
-    "raw": 3276654
+    "raw": 3277269
   },
   "/[locale]/(app)/lims/[id]/page": {
-    "raw": 3241830
+    "raw": 3242445
   },
   "/[locale]/(app)/lims/page": {
-    "raw": 3214787
+    "raw": 3215402
   },
   "/[locale]/(app)/maintenance/[id]/page": {
-    "raw": 3246018
+    "raw": 3246633
   },
   "/[locale]/(app)/maintenance/meters/[id]/page": {
-    "raw": 3245993
+    "raw": 3246608
   },
   "/[locale]/(app)/maintenance/page": {
-    "raw": 3229301
+    "raw": 3229916
   },
   "/[locale]/(app)/manufacturing/page": {
-    "raw": 3219628
+    "raw": 3220243
   },
   "/[locale]/(app)/medications/page": {
-    "raw": 3213655
+    "raw": 3214270
   },
   "/[locale]/(app)/meetings/page": {
-    "raw": 3209713
+    "raw": 3210328
   },
   "/[locale]/(app)/members/invitations/page": {
-    "raw": 3199189
+    "raw": 3199804
   },
   "/[locale]/(app)/metrics/[key]/page": {
-    "raw": 3216533
+    "raw": 3217148
   },
   "/[locale]/(app)/metrics/page": {
-    "raw": 3212674
+    "raw": 3213289
   },
   "/[locale]/(app)/moderation/[type]/[id]/page": {
-    "raw": 3215798
+    "raw": 3216413
   },
   "/[locale]/(app)/moderation/page": {
-    "raw": 3222031
+    "raw": 3222646
   },
   "/[locale]/(app)/my-work/page": {
-    "raw": 3221560
+    "raw": 3222175
   },
   "/[locale]/(app)/notifications/page": {
-    "raw": 3207287
+    "raw": 3207902
   },
   "/[locale]/(app)/observations/page": {
-    "raw": 3221596
+    "raw": 3222211
   },
   "/[locale]/(app)/page": {
-    "raw": 3207628
+    "raw": 3208243
   },
   "/[locale]/(app)/payroll/[id]/page": {
-    "raw": 3260777
+    "raw": 3261392
   },
   "/[locale]/(app)/payroll/page": {
-    "raw": 3269897
+    "raw": 3270512
   },
   "/[locale]/(app)/people/[id]/page": {
-    "raw": 3221057
-  },
-  "/[locale]/(app)/people/encryption/page": {
-    "raw": 3220630
-  },
-  "/[locale]/(app)/people/hiring/page": {
-    "raw": 3227240
-  },
-  "/[locale]/(app)/people/leave/[id]/page": {
-    "raw": 3221837
-  },
-  "/[locale]/(app)/people/leave/page": {
-    "raw": 3220213
-  },
-  "/[locale]/(app)/people/onboarding/page": {
-    "raw": 3214915
-  },
-  "/[locale]/(app)/people/page": {
-    "raw": 3215994
-  },
-  "/[locale]/(app)/people/time/page": {
-    "raw": 3232963
-  },
-  "/[locale]/(app)/prescriptions/page": {
-    "raw": 3206679
-  },
-  "/[locale]/(app)/production/page": {
-    "raw": 3220564
-  },
-  "/[locale]/(app)/projects/[id]/page": {
-    "raw": 3231887
-  },
-  "/[locale]/(app)/projects/page": {
-    "raw": 3240252
-  },
-  "/[locale]/(app)/property/leases/[id]/page": {
-    "raw": 3214935
-  },
-  "/[locale]/(app)/property/leases/page": {
-    "raw": 3207705
-  },
-  "/[locale]/(app)/qualifications/[id]/page": {
-    "raw": 3220458
-  },
-  "/[locale]/(app)/qualifications/page": {
-    "raw": 3227083
-  },
-  "/[locale]/(app)/rfqs/[id]/page": {
-    "raw": 3254483
-  },
-  "/[locale]/(app)/rfqs/page": {
-    "raw": 3230710
-  },
-  "/[locale]/(app)/risks/[id]/page": {
-    "raw": 3226545
-  },
-  "/[locale]/(app)/risks/page": {
-    "raw": 3231746
-  },
-  "/[locale]/(app)/rules/[rule]/page": {
-    "raw": 3201649
-  },
-  "/[locale]/(app)/rules/page": {
-    "raw": 3214542
-  },
-  "/[locale]/(app)/search/page": {
-    "raw": 3215756
-  },
-  "/[locale]/(app)/settings/access-requests/page": {
-    "raw": 3221880
-  },
-  "/[locale]/(app)/settings/ai-providers/page": {
-    "raw": 3208556
-  },
-  "/[locale]/(app)/settings/api-keys/page": {
-    "raw": 3221390
-  },
-  "/[locale]/(app)/settings/audit/page": {
-    "raw": 3217307
-  },
-  "/[locale]/(app)/settings/billing/account/page": {
-    "raw": 3219367
-  },
-  "/[locale]/(app)/settings/billing/credits/[id]/page": {
-    "raw": 3219685
-  },
-  "/[locale]/(app)/settings/billing/credits/page": {
-    "raw": 3210805
-  },
-  "/[locale]/(app)/settings/billing/page": {
-    "raw": 3232494
-  },
-  "/[locale]/(app)/settings/custom-fields/page": {
     "raw": 3221672
   },
+  "/[locale]/(app)/people/encryption/page": {
+    "raw": 3221245
+  },
+  "/[locale]/(app)/people/hiring/page": {
+    "raw": 3227855
+  },
+  "/[locale]/(app)/people/leave/[id]/page": {
+    "raw": 3222452
+  },
+  "/[locale]/(app)/people/leave/page": {
+    "raw": 3220828
+  },
+  "/[locale]/(app)/people/onboarding/page": {
+    "raw": 3215530
+  },
+  "/[locale]/(app)/people/page": {
+    "raw": 3216609
+  },
+  "/[locale]/(app)/people/time/page": {
+    "raw": 3233578
+  },
+  "/[locale]/(app)/prescriptions/page": {
+    "raw": 3207294
+  },
+  "/[locale]/(app)/production/page": {
+    "raw": 3221179
+  },
+  "/[locale]/(app)/projects/[id]/page": {
+    "raw": 3232503
+  },
+  "/[locale]/(app)/projects/page": {
+    "raw": 3240868
+  },
+  "/[locale]/(app)/property/leases/[id]/page": {
+    "raw": 3215550
+  },
+  "/[locale]/(app)/property/leases/page": {
+    "raw": 3208320
+  },
+  "/[locale]/(app)/qualifications/[id]/page": {
+    "raw": 3221073
+  },
+  "/[locale]/(app)/qualifications/page": {
+    "raw": 3227698
+  },
+  "/[locale]/(app)/rfqs/[id]/page": {
+    "raw": 3255098
+  },
+  "/[locale]/(app)/rfqs/page": {
+    "raw": 3231325
+  },
+  "/[locale]/(app)/risks/[id]/page": {
+    "raw": 3227160
+  },
+  "/[locale]/(app)/risks/page": {
+    "raw": 3232361
+  },
+  "/[locale]/(app)/rules/[rule]/page": {
+    "raw": 3202264
+  },
+  "/[locale]/(app)/rules/page": {
+    "raw": 3215157
+  },
+  "/[locale]/(app)/search/page": {
+    "raw": 3216371
+  },
+  "/[locale]/(app)/settings/access-requests/page": {
+    "raw": 3222495
+  },
+  "/[locale]/(app)/settings/ai-providers/page": {
+    "raw": 3209171
+  },
+  "/[locale]/(app)/settings/api-keys/page": {
+    "raw": 3222005
+  },
+  "/[locale]/(app)/settings/audit/page": {
+    "raw": 3217922
+  },
+  "/[locale]/(app)/settings/billing/account/page": {
+    "raw": 3219982
+  },
+  "/[locale]/(app)/settings/billing/credits/[id]/page": {
+    "raw": 3220300
+  },
+  "/[locale]/(app)/settings/billing/credits/page": {
+    "raw": 3211420
+  },
+  "/[locale]/(app)/settings/billing/page": {
+    "raw": 3233109
+  },
+  "/[locale]/(app)/settings/custom-fields/page": {
+    "raw": 3222287
+  },
   "/[locale]/(app)/settings/domains/page": {
-    "raw": 3205933
+    "raw": 3206548
   },
   "/[locale]/(app)/settings/flags/page": {
-    "raw": 3204147
+    "raw": 3204762
   },
   "/[locale]/(app)/settings/integrations/[id]/page": {
-    "raw": 3213200
+    "raw": 3213815
   },
   "/[locale]/(app)/settings/integrations/page": {
-    "raw": 3222338
+    "raw": 3222953
   },
   "/[locale]/(app)/settings/jobs/page": {
-    "raw": 3298646
+    "raw": 3299273
   },
   "/[locale]/(app)/settings/jobs/runs/[queue]/[id]/page": {
-    "raw": 3295567
+    "raw": 3296194
   },
   "/[locale]/(app)/settings/jobs/runs/page": {
-    "raw": 3285084
+    "raw": 3285711
   },
   "/[locale]/(app)/settings/marketplace/[resource]/page": {
-    "raw": 3221259
+    "raw": 3221874
   },
   "/[locale]/(app)/settings/marketplace/page": {
-    "raw": 3219015
+    "raw": 3219630
   },
   "/[locale]/(app)/settings/members/[userId]/page": {
-    "raw": 3219077
+    "raw": 3219692
   },
   "/[locale]/(app)/settings/members/page": {
-    "raw": 3209278
+    "raw": 3209893
   },
   "/[locale]/(app)/settings/numbering/page": {
-    "raw": 3203887
+    "raw": 3204502
   },
   "/[locale]/(app)/settings/oauth-apps/[id]/page": {
-    "raw": 3212797
+    "raw": 3213412
   },
   "/[locale]/(app)/settings/oauth-apps/page": {
-    "raw": 3203974
+    "raw": 3204589
   },
   "/[locale]/(app)/settings/option-sets/[id]/page": {
-    "raw": 3218790
+    "raw": 3219405
   },
   "/[locale]/(app)/settings/option-sets/page": {
-    "raw": 3205256
+    "raw": 3205871
   },
   "/[locale]/(app)/settings/organization/page": {
-    "raw": 3214178
+    "raw": 3214793
   },
   "/[locale]/(app)/settings/page": {
-    "raw": 3197445
+    "raw": 3198060
   },
   "/[locale]/(app)/settings/preferences/page": {
-    "raw": 3198982
+    "raw": 3199597
   },
   "/[locale]/(app)/settings/privacy/page": {
-    "raw": 3221606
+    "raw": 3222221
   },
   "/[locale]/(app)/settings/profile/page": {
-    "raw": 3209434
+    "raw": 3210049
   },
   "/[locale]/(app)/settings/roles/[roleId]/page": {
-    "raw": 3209422
+    "raw": 3210037
   },
   "/[locale]/(app)/settings/roles/page": {
-    "raw": 3205610
+    "raw": 3206225
   },
   "/[locale]/(app)/settings/search/page": {
-    "raw": 3203816
+    "raw": 3204431
   },
   "/[locale]/(app)/settings/security/events/[id]/page": {
-    "raw": 3213162
+    "raw": 3213777
   },
   "/[locale]/(app)/settings/security/events/page": {
-    "raw": 3204333
+    "raw": 3204948
   },
   "/[locale]/(app)/settings/security/page": {
-    "raw": 3219959
+    "raw": 3220574
   },
   "/[locale]/(app)/settings/signing-keys/page": {
-    "raw": 3217081
+    "raw": 3217696
   },
   "/[locale]/(app)/settings/sso/page": {
-    "raw": 3221030
+    "raw": 3221645
   },
   "/[locale]/(app)/settings/support/page": {
-    "raw": 3216606
+    "raw": 3217221
   },
   "/[locale]/(app)/settings/teams/[teamId]/page": {
-    "raw": 3220540
+    "raw": 3221155
   },
   "/[locale]/(app)/settings/teams/page": {
-    "raw": 3210273
+    "raw": 3210888
   },
   "/[locale]/(app)/settings/webhooks/incoming/page": {
-    "raw": 3207729
+    "raw": 3208344
   },
   "/[locale]/(app)/settings/webhooks/page": {
-    "raw": 3226647
+    "raw": 3227262
   },
   "/[locale]/(app)/shifts/[id]/page": {
-    "raw": 3216422
+    "raw": 3217037
   },
   "/[locale]/(app)/shifts/page": {
-    "raw": 3214673
+    "raw": 3215288
   },
   "/[locale]/(app)/shop/checkout-sessions/[id]/page": {
-    "raw": 3211581
+    "raw": 3212196
   },
   "/[locale]/(app)/shop/checkout-sessions/page": {
-    "raw": 3204839
+    "raw": 3205454
   },
   "/[locale]/(app)/shop/collections/[id]/page": {
-    "raw": 3211794
+    "raw": 3212409
   },
   "/[locale]/(app)/shop/collections/page": {
-    "raw": 3206852
+    "raw": 3207467
   },
   "/[locale]/(app)/shop/donations/[id]/page": {
-    "raw": 3212343
+    "raw": 3212958
   },
   "/[locale]/(app)/shop/donations/page": {
-    "raw": 3207057
+    "raw": 3207672
   },
   "/[locale]/(app)/shop/inventory/[variantId]/page": {
-    "raw": 3248909
+    "raw": 3249524
   },
   "/[locale]/(app)/shop/inventory/lots/page": {
-    "raw": 3220044
+    "raw": 3220659
   },
   "/[locale]/(app)/shop/inventory/movements/page": {
-    "raw": 3220101
+    "raw": 3220716
   },
   "/[locale]/(app)/shop/inventory/page": {
-    "raw": 3234429
+    "raw": 3235044
   },
   "/[locale]/(app)/shop/kitchen/board/page": {
-    "raw": 3220611
+    "raw": 3221226
   },
   "/[locale]/(app)/shop/kitchen/page": {
-    "raw": 3223174
+    "raw": 3223789
   },
   "/[locale]/(app)/shop/orders/[id]/page": {
-    "raw": 3240028
+    "raw": 3240643
   },
   "/[locale]/(app)/shop/orders/page": {
-    "raw": 3234436
+    "raw": 3235051
   },
   "/[locale]/(app)/shop/page": {
-    "raw": 3231415
+    "raw": 3232030
   },
   "/[locale]/(app)/shop/passes/[id]/page": {
-    "raw": 3220089
+    "raw": 3220704
   },
   "/[locale]/(app)/shop/passes/page": {
-    "raw": 3206672
+    "raw": 3207287
   },
   "/[locale]/(app)/shop/reviews/[id]/page": {
-    "raw": 3211788
+    "raw": 3212403
   },
   "/[locale]/(app)/shop/reviews/page": {
-    "raw": 3204823
+    "raw": 3205438
   },
   "/[locale]/(app)/shop/warranty/[id]/page": {
-    "raw": 3212426
+    "raw": 3213041
   },
   "/[locale]/(app)/shop/warranty/page": {
-    "raw": 3207283
+    "raw": 3207898
   },
   "/[locale]/(app)/templates/page": {
-    "raw": 3217494
+    "raw": 3218109
   },
   "/[locale]/(app)/tills/[id]/page": {
-    "raw": 3242321
+    "raw": 3242936
   },
   "/[locale]/(app)/tills/page": {
-    "raw": 3231406
+    "raw": 3232021
   },
   "/[locale]/(app)/trash/page": {
-    "raw": 3220454
+    "raw": 3221069
   },
   "/[locale]/(app)/warehouse/[id]/page": {
-    "raw": 3263746
+    "raw": 3264361
   },
   "/[locale]/(app)/warehouse/counts/[id]/page": {
-    "raw": 3263717
+    "raw": 3264332
   },
   "/[locale]/(app)/warehouse/page": {
-    "raw": 3250483
+    "raw": 3251098
   },
   "/[locale]/(app)/warehouse/rules/[id]/page": {
-    "raw": 3263713
+    "raw": 3264328
   },
   "/[locale]/(app)/warehouse/waves/[id]/page": {
-    "raw": 3263711
+    "raw": 3264326
   },
   "/[locale]/(app)/work/grid/page": {
-    "raw": 3216181
+    "raw": 3216796
   },
   "/[locale]/(app)/work/page": {
-    "raw": 3218740
+    "raw": 3219355
   },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
-    "raw": 5241173
+    "raw": 5241674
   },
   "/[locale]/(app)/workflows/page": {
-    "raw": 5245165
+    "raw": 5245666
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
-    "raw": 5246164
+    "raw": 5246665
   },
   "/[locale]/(app)/workflows/runs/page": {
-    "raw": 5243780
+    "raw": 5244287
   },
   "/[locale]/(app)/workflows/templates/page": {
-    "raw": 5238990
+    "raw": 5239491
   },
   "/[locale]/(auth)/book/[token]/page": {
-    "raw": 3030046
+    "raw": 3030661
   },
   "/[locale]/(auth)/forgot-password/page": {
     "raw": 432438
@@ -780,31 +780,31 @@
     "raw": 1482499
   },
   "/[locale]/(auth)/send/[token]/page": {
-    "raw": 3546688
+    "raw": 3547303
   },
   "/[locale]/(auth)/share/[token]/page": {
-    "raw": 3040218
+    "raw": 3040835
   },
   "/[locale]/(auth)/signup/page": {
     "raw": 1488756
   },
   "/[locale]/(auth)/waitlist/page": {
-    "raw": 2948310
+    "raw": 2948925
   },
   "/[locale]/(public)/portal/page": {
-    "raw": 3024858
+    "raw": 3025473
   },
   "/[locale]/(public)/status/[slug]/page": {
-    "raw": 3029322
+    "raw": 3029937
   },
   "/[locale]/(public)/store/[org]/[product]/page": {
-    "raw": 3032563
+    "raw": 3033178
   },
   "/[locale]/(public)/store/[org]/cart/page": {
-    "raw": 3033548
+    "raw": 3034163
   },
   "/[locale]/(public)/store/[org]/page": {
-    "raw": 3033835
+    "raw": 3034450
   },
   "/[locale]/[...rest]/page": {
     "raw": 430094
@@ -816,13 +816,13 @@
     "raw": 1455460
   },
   "/_global-error/page": {
-    "raw": 288276
+    "raw": 288300
   },
   "/_not-found/page": {
-    "raw": 288809
+    "raw": 288831
   },
   "/api/[...rest]/route": {
-    "raw": 115320
+    "raw": 115335
   },
   "/api/assets/list/route": {
     "raw": 2820537
@@ -1032,7 +1032,7 @@
     "raw": 2707071
   },
   "/api/mcp/route": {
-    "raw": 2419678
+    "raw": 2420349
   },
   "/api/numbering/list/route": {
     "raw": 1148549
@@ -1080,7 +1080,7 @@
     "raw": 2829056
   },
   "/api/queues/audit-export/route": {
-    "raw": 639829
+    "raw": 639877
   },
   "/api/queues/block-ticks/route": {
     "raw": 4801231
@@ -1134,13 +1134,13 @@
     "raw": 1125762
   },
   "/api/store/cart/route": {
-    "raw": 208712
+    "raw": 208725
   },
   "/api/stripe/process/route": {
-    "raw": 234453
+    "raw": 234517
   },
   "/api/stripe/route": {
-    "raw": 234148
+    "raw": 234212
   },
   "/api/till-sessions/list/route": {
     "raw": 2707014
@@ -1179,6 +1179,6 @@
     "raw": 4792524
   },
   "/manifest.webmanifest/route": {
-    "raw": 182438
+    "raw": 182457
   }
 }
