@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@7 managed tasks
--- @bsb-hash sha256:35e9404755ed59030a8925ea4bf7022d0bd18c7e35b73dfdda4433f995c0149b
+-- @bsb-hash sha256:e4ba642b68d6f3e49c4507af2835fab7c6e71e241bf4da9c271bad2f8a0db41b
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1937,6 +1937,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
+  v_lost uuid[] := '{}';
   v_name text := "better_supabase"."maintenance_request_actor"(claim_next_maintenance_request.profile) ->> 'name';
   v_writer boolean := (auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_maintenance_request.tenant, 'facilities.write'), false);
 begin
@@ -1952,21 +1953,27 @@ begin
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_maintenance_request.tenant, 'facilities.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
-  select x."id" into v_id from "better_supabase"."maintenance_requests" x
-  where x."tenant_id" = claim_next_maintenance_request.tenant and x."archived_at" is null and x."closed_at" is null
-    and x."held_at" is null
-    and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."maintenance_request_assignees" y where y."maintenance_request_id" = x."id" and y."user_id" = auth.uid()))
-    and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
-    and not exists (select 1 from "better_supabase"."maintenance_request_claims" c where c."maintenance_request_id" = x."id" and c."expires_at" > now())
+  -- A claim committed after this statement's snapshot is invisible to it, so
+  -- a row picked here can already be taken. Check again and pick another.
+  loop
+    select x."id" into v_id from "better_supabase"."maintenance_requests" x
+    where x."id" <> all (v_lost) and x."tenant_id" = claim_next_maintenance_request.tenant and x."archived_at" is null and x."closed_at" is null
+      and x."held_at" is null
+      and (not (coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) or auth.uid() is not null) or exists (select 1 from "better_supabase"."maintenance_request_assignees" y where y."maintenance_request_id" = x."id" and y."user_id" = auth.uid()))
+      and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
+      and not exists (select 1 from "better_supabase"."maintenance_request_claims" c where c."maintenance_request_id" = x."id" and c."expires_at" > now())
       and (claim_next_maintenance_request.filter ->> 'teamId' is null or x."team_id" = (claim_next_maintenance_request.filter ->> 'teamId')::uuid)
       and (claim_next_maintenance_request.filter ->> 'projectId' is null or x."project_id" = (claim_next_maintenance_request.filter ->> 'projectId')::uuid)
       and (claim_next_maintenance_request.filter ->> 'parentId' is null or x."parent_id" = (claim_next_maintenance_request.filter ->> 'parentId')::uuid)
       and (claim_next_maintenance_request.filter ->> 'stageId' is null or x."stage_id" = (claim_next_maintenance_request.filter ->> 'stageId')::uuid)
       and (claim_next_maintenance_request.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_maintenance_request.filter ->> 'delegateProfile')
       and (claim_next_maintenance_request.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."maintenance_request_assignees" y where y."maintenance_request_id" = x."id" and y."user_id" = (claim_next_maintenance_request.filter ->> 'assigneeId')::uuid))
-  order by (case when exists (select 1 from "better_supabase"."maintenance_request_assignees" y where y."maintenance_request_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
-  limit 1
-  for update of x skip locked;
+    order by (case when exists (select 1 from "better_supabase"."maintenance_request_assignees" y where y."maintenance_request_id" = x."id" and y."user_id" = auth.uid()) then 0 else 1 end), x."number"
+    limit 1
+    for update of x skip locked;
+    exit when v_id is null or not exists (select 1 from "better_supabase"."maintenance_request_claims" c where c."maintenance_request_id" = v_id and c."expires_at" > now());
+    v_lost := v_lost || v_id;
+  end loop;
   if v_id is null then
     raise exception 'no task is ready to claim' using errcode = 'P0002', hint = 'TASK_NOTHING_READY';
   end if;
