@@ -4,9 +4,9 @@ import {
   appCheckNames,
   NAMING_RENAMES,
   namingCodemod,
-  renameEnvNames,
+  renameEnvFileNames,
   renameMigrationSql,
-  renameQuotedNames,
+  renameNames,
 } from "../../src/cli/codemod-naming.ts";
 import { applyCodemod } from "../../src/cli/codemod.ts";
 import { NAMING_RENAME_RULES } from "../../src/cli/doctor/naming-renames.ts";
@@ -79,25 +79,28 @@ describe("codemod naming", () => {
   });
 });
 
-describe("renameEnvNames", () => {
+const ENV = [
+  {
+    from: "BSB_STACK",
+    to: "BETTER_SUPABASE_STACK",
+    kind: "env",
+    since: "0.54",
+  },
+] as const;
+
+describe("renameEnvFileNames", () => {
   it("renames whole names only", () => {
     expect(
-      renameEnvNames("BSB_STACK X_BSB_STACK BSB_STACK_2 BSB_STACK", [
-        {
-          from: "BSB_STACK",
-          to: "BETTER_SUPABASE_STACK",
-          kind: "env",
-          since: "0.54",
-        },
-      ]),
+      renameEnvFileNames("BSB_STACK X_BSB_STACK BSB_STACK_2 BSB_STACK", ENV),
     ).toBe(
       "BETTER_SUPABASE_STACK X_BSB_STACK BSB_STACK_2 BETTER_SUPABASE_STACK",
     );
   });
 });
 
-describe("renameQuotedNames", () => {
+describe("renameNames", () => {
   const renames = [
+    ...ENV,
     { from: "OLD_CODE", to: "NEW_CODE", kind: "hint", since: "0.54" },
     {
       from: "thing.saved",
@@ -109,22 +112,58 @@ describe("renameQuotedNames", () => {
 
   it("renames whole string literals of hints and events only", () => {
     expect(
-      renameQuotedNames(
-        `a("OLD_CODE") b('OLD_CODE') c("LEDGER_OLD_CODE") d(\`thing.saved\`) e("thing.savedx")`,
+      renameNames(
+        `a("OLD_CODE"); b('OLD_CODE'); c("LEDGER_OLD_CODE"); d(\`thing.saved\`); e("thing.savedx");`,
         renames,
-      ),
+      ).text,
     ).toBe(
-      `a("NEW_CODE") b('NEW_CODE') c("LEDGER_OLD_CODE") d(\`thing.published\`) e("thing.savedx")`,
+      `a("NEW_CODE"); b('NEW_CODE'); c("LEDGER_OLD_CODE"); d(\`thing.published\`); e("thing.savedx");`,
     );
   });
 
-  it("is applied by the codemod to source files", () => {
-    const { text } = applyCodemod(
-      namingCodemod(renames),
-      'if (error.hint === "OLD_CODE") {}\n',
+  it("renames an environment variable where code names it", () => {
+    const { text } = renameNames(
+      'const a = process.env.BSB_STACK;\nconst b = process.env["BSB_STACK"];\nconst c = { BSB_STACK: 1, BSB_STACK_2: 2 };\n',
+      renames,
     );
 
-    expect(text).toBe('if (error.hint === "NEW_CODE") {}\n');
+    expect(text).toBe(
+      'const a = process.env.BETTER_SUPABASE_STACK;\nconst b = process.env["BETTER_SUPABASE_STACK"];\nconst c = { BETTER_SUPABASE_STACK: 1, BSB_STACK_2: 2 };\n',
+    );
+  });
+
+  it("leaves comments alone and lists a string that mentions a name", () => {
+    const source =
+      '// set BSB_STACK first, then "OLD_CODE"\n/* BSB_STACK */\nlog("set BSB_STACK to x");\n';
+
+    const result = renameNames(source, renames);
+
+    expect(result.text).toBe(source);
+    expect(result.review).toHaveLength(1);
+    expect(result.review[0]?.line).toBe(3);
+  });
+
+  it("renames a shorthand property with its binding", () => {
+    expect(
+      renameNames("const BSB_STACK = 1;\nuse({ BSB_STACK });\n", renames).text,
+    ).toBe(
+      "const BETTER_SUPABASE_STACK = 1;\nuse({ BETTER_SUPABASE_STACK });\n",
+    );
+  });
+
+  it("lists a file that does not parse", () => {
+    expect(renameNames("const = ;", renames).review).toHaveLength(1);
+  });
+
+  it("is applied by the codemod to source files, and to env files as text", () => {
+    const codemod = namingCodemod(renames);
+
+    expect(
+      applyCodemod(codemod, 'if (error.hint === "OLD_CODE") {}\n').text,
+    ).toBe('if (error.hint === "NEW_CODE") {}\n');
+    expect(
+      applyCodemod(codemod, "BSB_STACK=1\n", undefined, ".env.local").text,
+    ).toBe("BETTER_SUPABASE_STACK=1\n");
   });
 });
 

@@ -102,10 +102,10 @@ export interface Codemod {
   /** `better-supabase/<subpath>` import specifiers, renamed. */
   readonly subpaths?: Readonly<Record<string, string>>;
   /** A rewrite of every source file, after the renames above. */
-  readonly source?: (text: string) => {
-    readonly text: string;
-    readonly review: readonly ReviewLine[];
-  };
+  readonly source?: (
+    text: string,
+    path: string,
+  ) => { readonly text: string; readonly review: readonly ReviewLine[] };
   /**
    * A rewrite of every source file that needs the project (the generated
    * folder, the config). It reads what it needs once and returns the per-file
@@ -317,7 +317,7 @@ export function applyCodemod(
   }
 
   if (codemod.source) {
-    const rewritten = codemod.source(text);
+    const rewritten = codemod.source(text, path);
     text = rewritten.text;
     review.push(...rewritten.review);
   }
