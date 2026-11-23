@@ -139,6 +139,40 @@ describe("every config key that holds SQL", () => {
     ).toContain("authorization.fixtureRoles[0].setup is not valid SQL");
   });
 
+  it("lists and checks the where of a role source's roles table", async () => {
+    const source = (where: string) =>
+      withAuth({
+        roleSources: [
+          {
+            table: "public.memberships",
+            role: {
+              column: "role_id",
+              through: {
+                table: "public.roles",
+                id: "id",
+                column: "name",
+                where,
+              },
+            },
+          },
+        ],
+      });
+
+    expect(
+      configSqlFragments(source("{row}.tenant_id is null")).map(
+        (fragment) => fragment.path,
+      ),
+    ).toContain("authorization.roleSources[0].role.through.where");
+
+    await expect(
+      checkConfigSql(source("{row}.tenant_id is null")),
+    ).resolves.toBeUndefined();
+
+    expect(await bad(source("tenant_id is not ("))).toContain(
+      "authorization.roleSources[0].role.through.where is not valid SQL",
+    );
+  });
+
   it("accepts setup statements with placeholders", async () => {
     await expect(
       checkConfigSql(

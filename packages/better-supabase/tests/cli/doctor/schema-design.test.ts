@@ -52,6 +52,19 @@ const run = (ctx: DoctorContext, code: string) =>
     RULES.filter((rule) => rule.code === code),
   );
 
+const tier = (
+  type: string | undefined,
+): NonNullable<DoctorContext["symbols"]> => ({
+  root: "/app",
+  tier: {
+    version: "7.1.0",
+    references: () => [],
+    declaration: () => undefined,
+    typeOf: () => type,
+    close: () => {},
+  },
+});
+
 const column = (overrides: Partial<CatalogColumn>): CatalogColumn => ({
   name: "meta",
   udt: "jsonb",
@@ -695,6 +708,32 @@ create trigger notes_customer before insert or update on public.notes for each r
 
     for (const code of ["BS221", "BS226", "BS227"]) {
       expect(await run(context(base, { sources }), code)).toEqual([]);
+    }
+  });
+
+  it("drops containment and count calls on a receiver TypeScript types as a collection (BS219, BS227)", async () => {
+    const snap = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.columns = [...notes.columns, column({})];
+    });
+
+    const sources = [
+      {
+        path: "src/notes.ts",
+        text: 'q.contains("meta", { pinned: true });\nconst n = await seen.count();\n',
+      },
+    ];
+
+    for (const type of ["Set<string>", undefined, "Db<Database>"]) {
+      const symbols = tier(type);
+      const dropped = type === "Set<string>";
+
+      expect(
+        (await run(context(snap, { sources, symbols }), "BS219")).length > 0,
+      ).toBe(!dropped);
+      expect(
+        (await run(context(base, { sources, symbols }), "BS227")).length > 0,
+      ).toBe(!dropped);
     }
   });
 

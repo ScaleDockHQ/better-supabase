@@ -2,14 +2,22 @@ import { dirname, posix, resolve } from "node:path";
 
 import type { BlockSqlLayout } from "../sql/index.ts";
 import type { Codemod, CodemodProject } from "./codemod.ts";
+import type { ImportFollow } from "./config-document/index.ts";
 import type { PlannedFile } from "./core/files.ts";
+import type { ProjectSymbols } from "./typescript-symbols/index.ts";
 
 import {
   LEGACY_OPTION,
   legacyOptionTarget,
   moduleContext,
 } from "../sql/index.ts";
-import { ConfigDocument } from "./config-document/index.ts";
+import {
+  changedFiles,
+  ConfigDocument,
+  followedReview,
+  openImports,
+  ownerOf,
+} from "./config-document/index.ts";
 import { CliError } from "./core/errors.ts";
 import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 import { layoutFor } from "./sql/providers.ts";
@@ -32,7 +40,12 @@ export interface ExtraColumnsInput {
   /** The folder app schema files live in, for a new `<table>.ext.sql`. */
   readonly schemasDir: string;
   /** The config file and its text. */
-  readonly config?: { readonly path: string; readonly text: string };
+  readonly config?: {
+    readonly path: string;
+    readonly text: string;
+    /** Lets the edit follow a block or option the config imports. */
+    readonly symbols?: ProjectSymbols | undefined;
+  };
 }
 
 /** The `extraColumns` options a config sets, with their columns. */
@@ -139,18 +152,40 @@ function taggedFields(
 export function withoutOptionKeys(
   text: string,
   keys: ReadonlySet<string>,
-): { readonly text: string; readonly review: readonly string[] } {
+  follow?: ImportFollow,
+  known: readonly string[] = [],
+): {
+  readonly text: string;
+  readonly review: readonly string[];
+  readonly others: readonly { readonly file: string; readonly text: string }[];
+} {
   const document = ConfigDocument.parse(text);
+  const imports = openImports(follow, document);
 
   for (const root of ["blocks", "instances"]) {
-    for (const name of document.keys([root]) ?? []) {
+    const names = new Set([...(document.keys([root]) ?? []), ...known]);
+
+    for (const name of names) {
       for (const key of keys) {
-        document.remove([root, name, "options", key]);
+        const path = [root, name, "options", key];
+
+        if (document.remove(path).status !== "absent") {
+          continue;
+        }
+
+        // A block the config imports lives in the file that declares it.
+        const found = ownerOf(imports, path);
+
+        found?.owner.document.remove(found.inner);
       }
     }
   }
 
-  return { text: document.text, review: document.review };
+  return {
+    text: document.text,
+    review: [...document.review, ...followedReview(imports)],
+    others: changedFiles(imports),
+  };
 }
 
 /**
@@ -250,7 +285,13 @@ export function extraColumnsFiles(input: ExtraColumnsInput): {
       options.map((option) => option.key).filter((key) => !kept.has(key)),
     );
 
-    const edit = withoutOptionKeys(input.config.text, keys);
+    const edit = withoutOptionKeys(
+      input.config.text,
+      keys,
+      { symbols: input.config.symbols, configFile: input.config.path },
+      Object.keys(input.options),
+    );
+
     const left = ConfigDocument.parse(edit.text);
 
     review.push(...edit.review.map((message) => ({ message })));
@@ -277,6 +318,14 @@ export function extraColumnsFiles(input: ExtraColumnsInput): {
         policy: "edit",
       });
     }
+
+    files.push(
+      ...edit.others.map(({ file, text }): PlannedFile => ({
+        path: file,
+        contents: text,
+        policy: "edit",
+      })),
+    );
   }
 
   return { files, review };
@@ -398,6 +447,7 @@ export function extraColumnsCodemod(): Codemod {
               config: {
                 path: project.configFile,
                 text: project.configText ?? "",
+                symbols: project.symbols,
               },
             }),
       });

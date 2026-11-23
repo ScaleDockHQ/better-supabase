@@ -70,6 +70,7 @@ import { POLICY_RULES } from "./policies.ts";
 import { PRACTICE_RULES } from "./practices.ts";
 import { PROVIDER_DOCTOR_RULES } from "./provider-doctor.ts";
 import { REALTIME_RULES } from "./realtime.ts";
+import { receiverIsNotClient } from "./receiver-types.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
 import { ROUND_TRIP_RULES } from "./round-trips.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
@@ -665,7 +666,12 @@ const OWN_RULES: readonly Rule[] = [
       }
 
       for (const file of context.sources) {
-        const line = findLine(file.text, isAggregateUse);
+        const line = findLine(
+          file.text,
+          (node) =>
+            isAggregateUse(node) &&
+            !receiverIsNotClient(context.symbols, file.path, node),
+        );
 
         if (line === undefined) {
           continue;

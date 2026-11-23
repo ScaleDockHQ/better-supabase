@@ -10,6 +10,7 @@ import { sameTenantLayout } from "../../sql/index.ts";
 import { configFor } from "../gen/shared.ts";
 import { splinterTables } from "./advisor-rules.ts";
 import { enrichedAppTables } from "./app-table-scope.ts";
+import { receiverIsNotClient } from "./receiver-types.ts";
 import { escape, withoutStrings } from "./rls.ts";
 import { SCALE_RULES } from "./scale.ts";
 import { SCHEMA_COST_RULES } from "./schema-cost.ts";
@@ -334,7 +335,9 @@ const DESIGN_RULES: readonly Rule[] = [
       const filtered = new Set<string>();
 
       for (const file of context.sources) {
-        for (const column of containmentColumns(file.text)) {
+        for (const column of containmentColumns(file.text, (call) =>
+          receiverIsNotClient(context.symbols, file.path, call),
+        )) {
           filtered.add(column);
         }
       }
@@ -580,7 +583,9 @@ const DESIGN_RULES: readonly Rule[] = [
       '`pagination: "offset"` on a resource or list reads and discards every row before the page, so late pages get slower as the table grows, and rows written between requests shift the pages. `count: "exact"` and a `.count()` call without a `mode` count every matching row on each request. Use `pagination: "cursor"`, and `count: "planned"` or `"estimated"` on large tables. Doctor looks in `tooling.doctor.sources`.',
     check: (context) =>
       context.sources.flatMap((file): FindingInput[] => {
-        const found = scaleLines(file.text);
+        const found = scaleLines(file.text, (call) =>
+          receiverIsNotClient(context.symbols, file.path, call),
+        );
 
         return [
           ...found.offset.map((line): FindingInput => ({

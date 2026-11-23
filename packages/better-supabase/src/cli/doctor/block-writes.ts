@@ -10,6 +10,7 @@ import { blockTables } from "../../sql/index.ts";
 import { parseSource } from "../config-document/parse.ts";
 import { appTablesOf } from "./app-tables.ts";
 import { PROJECTION_RULES, projectedBlockTables } from "./projections.ts";
+import { provablyNotClient } from "./receiver-types.ts";
 
 const DIRECT_METHODS: ReadonlySet<string> = new Set([
   "insert",
@@ -124,6 +125,7 @@ function writesIn(
   text: string,
   owned: OwnedTables,
   clients: ReadonlySet<string>,
+  notClient: (offset: number) => boolean,
 ): Write[] {
   const writes: Write[] = [];
 
@@ -173,7 +175,8 @@ function writesIn(
         key === undefined ||
         receiver?.type !== "Identifier" ||
         clients.has(key) ||
-        clients.has(receiver.name)
+        clients.has(receiver.name) ||
+        notClient(receiver.start)
       ) {
         return;
       }
@@ -263,17 +266,21 @@ function directBlockWrites(context: DoctorContext): FindingInput[] {
   const clients = blockClientKeys(context);
 
   return context.sources.flatMap((file) =>
-    writesIn(file.text, owned, clients).map(
-      ({ index, method, entry }): FindingInput => {
-        const line = lineAt(file.text, index);
+    writesIn(
+      file.text,
+      owned,
+      clients,
+      (offset) =>
+        provablyNotClient(context.symbols, file.path, offset) === true,
+    ).map(({ index, method, entry }): FindingInput => {
+      const line = lineAt(file.text, index);
 
-        return {
-          message: `${file.path}:${String(line)} calls .${method}() on ${entry.view === undefined ? "" : `${entry.view}, the app's view over `}${entry.table.table}, the ${entry.logical} table of blocks.${entry.block}. A direct write skips the block's functions, so its events, hooks and checks don't run. Write it through the ${entry.block} API that createBlocks returns.`,
-          target: `${file.path}:${String(line)}`,
-          location: { file: file.path, line },
-        };
-      },
-    ),
+      return {
+        message: `${file.path}:${String(line)} calls .${method}() on ${entry.view === undefined ? "" : `${entry.view}, the app's view over `}${entry.table.table}, the ${entry.logical} table of blocks.${entry.block}. A direct write skips the block's functions, so its events, hooks and checks don't run. Write it through the ${entry.block} API that createBlocks returns.`,
+        target: `${file.path}:${String(line)}`,
+        location: { file: file.path, line },
+      };
+    }),
   );
 }
 

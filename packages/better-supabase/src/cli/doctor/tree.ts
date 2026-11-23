@@ -418,3 +418,25 @@ export function blankComments(text: string): string {
 
   return result + text.slice(last);
 }
+
+/**
+ * Where to ask TypeScript for the type of a call's receiver: the receiver
+ * itself when it is a name, the last name of a member chain otherwise (`db` in
+ * `db.count()`, `customers` in `db.customers.count()`).
+ */
+export function receiverOffset(node: Node): number | undefined {
+  if (
+    node.type !== "CallExpression" ||
+    node.callee.type !== "MemberExpression"
+  ) {
+    return undefined;
+  }
+
+  const { object } = node.callee;
+
+  if (object.type === "Identifier") {
+    return object.start;
+  }
+
+  return object.type === "MemberExpression" ? object.property.start : undefined;
+}

@@ -1117,6 +1117,32 @@ describe("doctor rules", () => {
       RULES.filter((rule) => rule.code === "BS210"),
     );
 
+    const typed = (
+      type: string | undefined,
+    ): NonNullable<DoctorContext["symbols"]> => ({
+      root: "/app",
+      tier: {
+        version: "7.1.0",
+        references: () => [],
+        declaration: () => undefined,
+        typeOf: () => type,
+        close: () => {},
+      },
+    });
+
+    expect(
+      await codes(
+        context(withSettings({}), { sources, symbols: typed("Set<string>") }),
+        "BS210",
+      ),
+    ).toEqual([]);
+    expect(
+      await codes(
+        context(withSettings({}), { sources, symbols: typed(undefined) }),
+        "BS210",
+      ),
+    ).toEqual(["BS210"]);
+
     expect(off).toMatchObject([
       {
         code: "BS210",

@@ -3,7 +3,7 @@ import type { ObjectExpression } from "oxc-parser";
 import { readFileSync } from "node:fs";
 
 import type { ProjectSymbols } from "../typescript-symbols/index.ts";
-import type { ConfigDocument } from "./document.ts";
+import type { ConfigDocument, PathSegment } from "./document.ts";
 
 import { ConfigDocument as Document } from "./document.ts";
 import { propertyName, unwrap } from "./nodes.ts";
@@ -146,3 +146,65 @@ export function followImports(
 
   return { followed, review };
 }
+
+/** What lets an edit follow a value the config imports from another file. */
+export interface ImportFollow {
+  readonly symbols: ProjectSymbols | undefined;
+  readonly configFile: string;
+}
+
+/** The imports an edit followed, and why it could not follow the others. */
+export interface FollowedImports {
+  readonly followed: readonly FollowedDocument[];
+  readonly review: readonly string[];
+}
+
+/**
+ * The followed document that holds the config entry at `path`, with the path
+ * inside it, or `undefined` when no followed value sits above the entry.
+ */
+export function ownerOf(
+  imports: FollowedImports | undefined,
+  path: readonly PathSegment[],
+): { owner: FollowedDocument; inner: PathSegment[] } | undefined {
+  const owner = imports?.followed.find(
+    ({ prefix }) =>
+      prefix.length <= path.length &&
+      prefix.every((segment, index) => segment === path[index]),
+  );
+
+  return owner === undefined
+    ? undefined
+    : { owner, inner: path.slice(owner.prefix.length) };
+}
+
+/** The followed files whose text an edit changed, with the new text. */
+export function changedFiles(
+  imports: FollowedImports | undefined,
+): { readonly file: string; readonly text: string }[] {
+  return (imports?.followed ?? [])
+    .filter(
+      ({ document, file }) => document.text !== readFileSync(file, "utf-8"),
+    )
+    .map(({ file, document }) => ({ file, text: document.text }));
+}
+
+/** The review lines of the followed documents' own edits. */
+export const followedReview = (
+  imports: FollowedImports | undefined,
+): string[] => [
+  ...(imports?.review ?? []),
+  ...(imports?.followed.flatMap(({ document }) => document.review) ?? []),
+];
+
+/**
+ * Opens `follow`'s imports of `document`, or nothing when the edit does not
+ * follow imports.
+ */
+export const openImports = (
+  follow: ImportFollow | undefined,
+  document: ConfigDocument,
+): FollowedImports | undefined =>
+  follow === undefined
+    ? undefined
+    : followImports(follow.symbols, follow.configFile, document);

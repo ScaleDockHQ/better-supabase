@@ -44,13 +44,17 @@ function each(text: string, visit: (node: Node) => void): void {
 }
 
 /** The columns named in `.contains("tags"`, `.containedBy(` and `.overlaps(`. */
-export function containmentColumns(text: string): string[] {
+export function containmentColumns(
+  text: string,
+  skip: (call: Node) => boolean = () => false,
+): string[] {
   const columns: string[] = [];
 
   each(text, (node) => {
     if (
       node.type === "CallExpression" &&
-      isMethodCall(node, "contains", "containedBy", "overlaps")
+      isMethodCall(node, "contains", "containedBy", "overlaps") &&
+      !skip(node)
     ) {
       const column = stringOf(node.arguments[0]);
 
@@ -188,7 +192,10 @@ export interface ScaleLines {
  * Lines with `pagination: "offset"`, `count: "exact"` and a `.count()` or
  * `.count({ ... })` call that sets no `mode`, which counts exactly.
  */
-export function scaleLines(text: string): ScaleLines {
+export function scaleLines(
+  text: string,
+  skip: (call: Node) => boolean = () => false,
+): ScaleLines {
   const offset = new Set<number>();
   const exact = new Set<number>();
   const countMode = new Set<number>();
@@ -199,7 +206,11 @@ export function scaleLines(text: string): ScaleLines {
       offset.add(lineOf(node));
     } else if (isStringProperty(node, "count", "exact")) {
       exact.add(lineOf(node));
-    } else if (node.type === "CallExpression" && isMethodCall(node, "count")) {
+    } else if (
+      node.type === "CallExpression" &&
+      isMethodCall(node, "count") &&
+      !skip(node)
+    ) {
       const [options] = node.arguments;
 
       const withoutMode =
