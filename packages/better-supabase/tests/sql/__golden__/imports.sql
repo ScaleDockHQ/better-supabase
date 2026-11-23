@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:63affbdc9c0f72d293479b681d3c0088912b8928d201ccdc30cac475dd2f01f9
+-- @bsb-hash sha256:cdbe9365eb1bd1829e4f1c6a12598b2e1246dc69653f42e1ea861713b3135f37
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1927,7 +1927,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:6fd9585a030a899220443679c75fbfb5ba40d44d49bb23fbe8e915b1cb0e74a6
+-- @bsb-hash sha256:2c6a9db9bfdc2a1824b1cbe04210dacd4a3b590116acc1191cabb5ad3e03b80e
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4086,7 +4086,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:732e13321690553ed0b037261b179311973e1668eab5e3533e93774ff07a5adf
+-- @bsb-hash sha256:671cb656a49d3bd2bbdf67c4e874c998c84e3f314bf4b2340029db2c21db3836
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6017,7 +6017,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:94b322d131f50efd83f6e15d3043d23b532ba2317d8cbf63279c41e5b85e5f10
+-- @bsb-hash sha256:748d306cdd1e4e1ef105ea84aa0ce87838a772c739296113d17681fec2ab3c42
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8284,7 +8284,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:b2ff280babc240f1be053ab3c7cf6450d1f9c604572ff11d25122e4ec3df12a0
+-- @bsb-hash sha256:9429e9a0255548ff6b87b8396f21ae548c1c9c86aabca2f48cfadf92fe635544
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10191,7 +10191,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:ef52d6e0e2415d12fddb41a35b910fbe6549fd6ce2b9b85a953cfeb0ad07e393
+-- @bsb-hash sha256:7c1b6cd5bd14084e2e1c02394166b6a18dd56854d7492a9979f592864ebba92d
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
