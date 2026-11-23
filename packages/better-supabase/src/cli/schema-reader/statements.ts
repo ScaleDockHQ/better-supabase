@@ -126,3 +126,63 @@ export function blankedFrom(source: Source): string {
 
   return text + source.slice(at, source.bytes.length);
 }
+
+/**
+ * A run of a SQL text: code, a string literal, a dollar-quoted body or a
+ * comment.
+ */
+export interface SqlPart {
+  readonly kind: "code" | "comment" | "dollar" | "string";
+  readonly text: string;
+}
+
+/**
+ * The text cut at its string literals, dollar quotes and comments, in order, so
+ * a rewrite can touch the code and leave the rest as written. The parts join
+ * back to the source.
+ *
+ * @param source - The scanned text.
+ * @returns The parts, adjacent code merged.
+ */
+export function partsFrom(source: Source): readonly SqlPart[] {
+  const marks = [
+    ...source.tokens.flatMap((token) =>
+      token.kind.endsWith("SCONST") ||
+      token.kind === "BCONST" ||
+      token.kind === "XCONST"
+        ? [
+            {
+              token,
+              dollar: source.slice(token.start, token.start + 1) === "$",
+            },
+          ]
+        : [],
+    ),
+    ...source.comments.map((token) => ({ token, dollar: false })),
+  ].toSorted((a, b) => a.token.start - b.token.start);
+
+  const parts: SqlPart[] = [];
+  let at = 0;
+
+  const code = (end: number): void => {
+    if (end > at) {
+      parts.push({ kind: "code", text: source.slice(at, end) });
+    }
+  };
+
+  for (const { token, dollar } of marks) {
+    code(token.start);
+
+    const comment = token.kind === "SQL_COMMENT" || token.kind === "C_COMMENT";
+
+    parts.push({
+      kind: comment ? "comment" : dollar ? "dollar" : "string",
+      text: source.slice(token.start, token.end),
+    });
+    at = token.end;
+  }
+
+  code(source.bytes.length);
+
+  return parts;
+}

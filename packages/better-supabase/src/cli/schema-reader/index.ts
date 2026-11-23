@@ -8,19 +8,20 @@ import {
 
 import type { FileFacts, SchemaReadError } from "./facts.ts";
 import type { RawStatement } from "./read.ts";
-import type { SqlStatement } from "./statements.ts";
+import type { SqlPart, SqlStatement } from "./statements.ts";
 
 import { factsFrom } from "./read.ts";
 import { Source } from "./source.ts";
 import {
   blankedFrom,
+  partsFrom,
   rawStatementsFrom,
   statementsFrom,
 } from "./statements.ts";
 
 export type * from "./facts.ts";
 
-export type { SqlStatement } from "./statements.ts";
+export type { SqlPart, SqlStatement } from "./statements.ts";
 
 /** The Postgres grammar used when `db.major_version` is missing or unknown. */
 const DEFAULT_VERSION: SupportedVersion = 17;
@@ -240,6 +241,7 @@ export async function parseStatements(
 const split = new Map<string, readonly SqlStatement[]>();
 const blanked = new Map<string, string>();
 const raw = new Map<string, readonly string[]>();
+const parted = new Map<string, readonly SqlPart[]>();
 
 /**
  * Splits every text into statements with the scanner, so `statementsOf` can
@@ -266,6 +268,7 @@ export async function primeStatements(
       split.set(text, statementsFrom(source));
       blanked.set(text, blankedFrom(source));
       raw.set(text, rawStatementsFrom(source));
+      parted.set(text, partsFrom(source));
     }),
   );
 }
@@ -282,6 +285,24 @@ export function statementsOf(text: string): readonly SqlStatement[] {
   if (known === undefined) {
     throw new Error(
       "The SQL reader has not split this text yet; await primeStatements first.",
+    );
+  }
+
+  return known;
+}
+
+/**
+ * A text cut into code, string literals, dollar-quoted bodies and comments.
+ *
+ * @param text - A SQL text that `primeStatements` scanned before.
+ * @returns The parts in source order; they join back to the text.
+ */
+export function partsOf(text: string): readonly SqlPart[] {
+  const known = parted.get(text);
+
+  if (known === undefined) {
+    throw new Error(
+      "The SQL reader has not scanned this text yet; await primeStatements first.",
     );
   }
 

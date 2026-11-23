@@ -101,9 +101,10 @@ async function run(
 }
 
 describe("withColumnTag", () => {
-  it("starts a comment, and adds to one that has tags", () => {
-    const created = withColumnTag(
+  it("starts a comment, and adds to one that has tags", async () => {
+    const created = await withColumnTag(
       "create table a.b (c int);",
+      "/p",
       "a.b",
       "c",
       "@bsb same-tenant shared=false",
@@ -113,8 +114,9 @@ describe("withColumnTag", () => {
       `comment on column "a"."b"."c" is '@bsb same-tenant shared=false';`,
     );
     expect(
-      withColumnTag(
+      await withColumnTag(
         "comment on column a.b.c is '@bsb x=1';",
+        "/p",
         "a.b",
         "c",
         "@bsb y=2",
@@ -127,9 +129,15 @@ describe("withColumnTag on a comment without tags", () => {
   it.each([
     ["is 'note';", "@bsb y=2", "is 'note\n@bsb y=2';"],
     ["is '';", "@bsb y='a'", "is '@bsb y=''a''';"],
-  ])("%s takes %s", (tail, line, expected) => {
+  ])("%s takes %s", async (tail, line, expected) => {
     expect(
-      withColumnTag(`comment on column a.b.c ${tail}`, "a.b", "c", line),
+      await withColumnTag(
+        `comment on column a.b.c ${tail}`,
+        "/p",
+        "a.b",
+        "c",
+        line,
+      ),
     ).toBe(`comment on column a.b.c ${expected}`);
   });
 });

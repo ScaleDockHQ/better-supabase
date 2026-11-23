@@ -11,6 +11,7 @@ import {
   legacyOptionTarget,
   moduleContext,
 } from "../sql/index.ts";
+import { withCommentTag } from "./comment-tag.ts";
 import {
   changedFiles,
   ConfigDocument,
@@ -19,6 +20,7 @@ import {
   ownerOf,
 } from "./config-document/index.ts";
 import { CliError } from "./core/errors.ts";
+import { factsOf } from "./schema-reader/index.ts";
 import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 import { layoutFor } from "./sql/providers.ts";
 
@@ -39,6 +41,8 @@ export interface ExtraColumnsInput {
   readonly sql: readonly { readonly path: string; readonly text: string }[];
   /** The folder app schema files live in, for a new `<table>.ext.sql`. */
   readonly schemasDir: string;
+  /** The project root, for the Postgres version the reader parses with. */
+  readonly root: string;
   /** The config file and its text. */
   readonly config?: {
     readonly path: string;
@@ -76,18 +80,8 @@ export function extraColumnsOptions(
 const quoted = (name: string): string => name.replaceAll('"', '""');
 
 /** Whether `text` has an `alter table` statement for `schema.table`. */
-function altersTable(text: string, table: string): boolean {
-  const schema = table.slice(0, table.indexOf("."));
-  const name = table.slice(table.indexOf(".") + 1);
-
-  const escape = (value: string): string =>
-    value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-
-  return new RegExp(
-    String.raw`\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(?:"?${escape(schema)}"?\s*\.\s*)"?${escape(name)}"?(?![\w$])`,
-    "i",
-  ).test(text.replaceAll(/--[^\n]*/g, ""));
-}
+const altersTable = (text: string, table: string): boolean =>
+  factsOf(text).alters.some((alter) => alter.table === table);
 
 /** `alter table ... add column` for `columns`, as one statement. */
 function addColumns(
@@ -106,41 +100,31 @@ function addColumns(
  * app creates: an existing `comment on table` gets the line, a table without
  * one gets the statement.
  */
-export function withTableTag(
+export async function withTableTag(
   text: string,
+  root: string,
   table: string,
   line: string,
-): string {
+): Promise<string> {
   const [schema, name] = table.split(".");
 
-  const comment = new RegExp(
-    String.raw`(comment\s+on\s+table\s+(?:"?${schema}"?\s*\.\s*)?"?${name}"?\s+is\s+')((?:[^']|'')*)(')`,
-    "i",
+  return withCommentTag(
+    text,
+    root,
+    "table",
+    table,
+    line,
+    `comment on table "${quoted(schema!)}"."${quoted(name!)}" is '${line.replaceAll("'", "''")}';`,
   );
-
-  const escaped = line.replaceAll("'", "''");
-
-  if (comment.test(text)) {
-    // One `@bsb` starts the tag block and `;` separates the tags in it, so a
-    // second `@bsb` would read as a word of the tag before it.
-    return text.replace(
-      comment,
-      (_all, head: string, body: string, tail: string) =>
-        /(^|\s)@bsb(?:\s|$)/u.test(body)
-          ? `${head}${body.trimEnd().replace(/;$/u, "")}; ${escaped.replace(/^@bsb\s+/u, "")}${tail}`
-          : `${head}${body === "" ? "" : `${body}\n`}${escaped}${tail}`,
-    );
-  }
-
-  return `${text.replace(/\n*$/, "\n")}\ncomment on table "${quoted(schema!)}"."${quoted(name!)}" is '${escaped}';\n`;
 }
 
 function taggedFields(
   text: string,
+  root: string,
   table: string,
   columns: readonly string[],
-): string {
-  return withTableTag(text, table, `@bsb fields ${columns.join(", ")}`);
+): Promise<string> {
+  return withTableTag(text, root, table, `@bsb fields ${columns.join(", ")}`);
 }
 
 /**
@@ -193,10 +177,12 @@ export function withoutOptionKeys(
  * each column is added where an app file already alters the table, or in
  * `<table>.ext.sql`, and the options leave the config.
  */
-export function extraColumnsFiles(input: ExtraColumnsInput): {
+export async function extraColumnsFiles(
+  input: ExtraColumnsInput,
+): Promise<{
   readonly files: readonly PlannedFile[];
   readonly review: readonly { readonly message: string }[];
-} {
+}> {
   const options = extraColumnsOptions(input.options);
 
   const byTable = new Map<string, [string, string][]>();
@@ -235,8 +221,9 @@ export function extraColumnsFiles(input: ExtraColumnsInput): {
 
       edited.set(
         creator.path,
-        taggedFields(
+        await taggedFields(
           current,
+          input.root,
           table,
           columns.map(([column]) => column),
         ),
@@ -436,11 +423,12 @@ export function extraColumnsCodemod(): Codemod {
         }
       };
 
-      const result = extraColumnsFiles({
+      const result = await extraColumnsFiles({
         options,
         tableOf,
         sql: project.sql,
         schemasDir: resolve(config.root, schemasDirOf(config.sql.dir)),
+        root: config.root,
         ...(project.configFile === undefined
           ? {}
           : {

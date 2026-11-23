@@ -1072,7 +1072,21 @@ export function factsFrom(
         );
 
         if (comment !== undefined) {
-          comments.push(comment);
+          const literal = tokens.findLast((token) =>
+            token.kind.endsWith("SCONST"),
+          );
+
+          comments.push(
+            literal === undefined
+              ? comment
+              : {
+                  ...comment,
+                  span: [
+                    source.slice(0, literal.start).length,
+                    source.slice(0, literal.end).length,
+                  ],
+                },
+          );
         }
 
         break;

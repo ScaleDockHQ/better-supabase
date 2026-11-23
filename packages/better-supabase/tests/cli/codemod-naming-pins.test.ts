@@ -13,7 +13,7 @@ const driveTable = { "public.drive_nodes": "table" } as const;
 const drive = { tables: { nodes: "public.drive_nodes" } };
 
 describe("columnPins", () => {
-  it("pins the old name of a column an app table of the block still has", () => {
+  it("pins the old name of a column an app table of the block still has", async () => {
     const pins = columnPins({ blocks: { drive } }, NAMING_RENAMES, driveTable, {
       "public.drive_nodes": ["id", "tenant_id", "deleted_at"],
     });
@@ -29,7 +29,7 @@ describe("columnPins", () => {
     expect(pins.review).toEqual([]);
   });
 
-  it("pins nothing for a table that has the new name or sets the column", () => {
+  it("pins nothing for a table that has the new name or sets the column", async () => {
     expect(
       columnPins({ blocks: { drive } }, NAMING_RENAMES, driveTable, {
         "public.drive_nodes": ["archived_at"],
@@ -53,7 +53,7 @@ describe("columnPins", () => {
     ).toEqual([]);
   });
 
-  it("pins no tenant column that sql.tenantColumn already names", () => {
+  it("pins no tenant column that sql.tenantColumn already names", async () => {
     const blocks = { outbox: { tables: { events: "public.workflow_events" } } };
     const own = { "public.workflow_events": "table" } as const;
 
@@ -74,7 +74,7 @@ describe("columnPins", () => {
     ).toEqual([]);
   });
 
-  it("pins a state-machine history actor and a hiring scorecard column", () => {
+  it("pins a state-machine history actor and a hiring scorecard column", async () => {
     const history = columnPins(
       {
         blocks: {
@@ -144,7 +144,7 @@ describe("columnPins", () => {
     });
   });
 
-  it("pins a block whose config still carries options 0.58 removed", () => {
+  it("pins a block whose config still carries options 0.58 removed", async () => {
     const report = columnPins(
       {
         blocks: {
@@ -171,7 +171,7 @@ describe("columnPins", () => {
     expect(report.pins.map((pin) => pin.block)).toEqual(["drive", "files"]);
   });
 
-  it("reports a block whose context refuses the config", () => {
+  it("reports a block whose context refuses the config", async () => {
     const report = columnPins(
       { blocks: { drive: { tables: { notATable: "public.x" } } } },
       NAMING_RENAMES,
@@ -197,7 +197,7 @@ describe("withColumnPins", () => {
     physical: "public.drive_nodes",
   };
 
-  it("adds the pin to an existing columns object, a table or a block", () => {
+  it("adds the pin to an existing columns object, a table or a block", async () => {
     const withTable = withColumnPins(
       'export default { blocks: { drive: { columns: { nodes: { name: "title" } } } } };',
       [pin],
@@ -218,7 +218,7 @@ describe("withColumnPins", () => {
     ).toContain('deletedAt: "deleted_at"');
   });
 
-  it("writes the pin inside blocks, at the next line's indent", () => {
+  it("writes the pin inside blocks, at the next line's indent", async () => {
     const text = withColumnPins(
       `const drive = { deletedAt: "keep" };
 export default {
@@ -236,7 +236,7 @@ export default {
     expect(text).toContain('const drive = { deletedAt: "keep" }');
   });
 
-  it("keeps the comments of the entries around the pin", () => {
+  it("keeps the comments of the entries around the pin", async () => {
     const text = withColumnPins(
       `export default {
   blocks: {
@@ -260,7 +260,7 @@ export default {
     expect(text).toContain('deletedAt: "deleted_at"');
   });
 
-  it("follows a shorthand and a spread to the object that holds the block", () => {
+  it("follows a shorthand and a spread to the object that holds the block", async () => {
     const shorthand = withColumnPins(
       `const drive = { tables: {} };
 export default { blocks: { drive } };
@@ -286,7 +286,7 @@ export default { blocks: { ...shared } };
     expect(spread.text).toContain("blocks: { ...shared }");
   });
 
-  it("keeps CRLF line endings and tabs", () => {
+  it("keeps CRLF line endings and tabs", async () => {
     const text = withColumnPins(
       "export default {\r\n\tblocks: {\r\n\t\tdrive: {\r\n\t\t\ttables: {},\r\n\t\t},\r\n\t},\r\n};\r\n",
       [pin],
@@ -296,7 +296,7 @@ export default { blocks: { ...shared } };
     expect(text).toContain('\t\t\t\t\tdeletedAt: "deleted_at",\r\n');
   });
 
-  it("reports a block it cannot edit instead of skipping it", () => {
+  it("reports a block it cannot edit instead of skipping it", async () => {
     const imported = withColumnPins(
       `import { drive } from "./drive.ts";
 export default { blocks: { drive } };
@@ -316,7 +316,7 @@ export default { blocks: { drive } };
     expect(call.missed).toEqual([pin]);
   });
 
-  it("writes a history actor pin on its own line", () => {
+  it("writes a history actor pin on its own line", async () => {
     const text = withHistoryPins(
       `export default {
   blocks: {
@@ -340,14 +340,14 @@ export default { blocks: { drive } };
     expect(text).toContain('actor: "actor_user_id"');
   });
 
-  it("reports a pin whose block it can't find", () => {
+  it("reports a pin whose block it can't find", async () => {
     expect(
       withColumnPins("export default { blocks: { drive: true } };", [pin])
         .missed,
     ).toEqual([pin]);
   });
 
-  it("skips a history entry that is not a table, and one that already names an actor", () => {
+  it("skips a history entry that is not a table, and one that already names an actor", async () => {
     const machines = {
       blocks: {
         "state-machine": {
@@ -420,8 +420,8 @@ const other = { nodes: {} };
 });
 
 describe("renameSqlColumns", () => {
-  it("renames the columns of a better_supabase table in a seed", () => {
-    const out = renameSqlColumns(
+  it("renames the columns of a better_supabase table in a seed", async () => {
+    const out = await renameSqlColumns(
       "insert into better_supabase.drive_nodes (id, deleted_at) values (1, null);\nupdate better_supabase.drive_nodes set deleted_at = now() where id = 1;\n",
       NAMING_RENAMES,
     );
@@ -431,8 +431,8 @@ describe("renameSqlColumns", () => {
     expect(out).toContain("set archived_at = now()");
   });
 
-  it("renames a qualified column, an audit list and not a value or a dollar body", () => {
-    const qualified = renameSqlColumns(
+  it("renames a qualified column, an audit list and not a value or a dollar body", async () => {
+    const qualified = await renameSqlColumns(
       "select n.deleted_at from better_supabase.drive_nodes n;\nupdate better_supabase.drive_nodes set name = deleted_at;\nselect better_supabase.audit('better_supabase.drive_nodes', ignore => '{deleted_at, id}');\n",
       NAMING_RENAMES,
     );
@@ -444,20 +444,20 @@ describe("renameSqlColumns", () => {
     const body =
       "do $$ begin update better_supabase.drive_nodes set deleted_at = now(); end $$;\n";
 
-    expect(renameSqlColumns(body, NAMING_RENAMES)).toBe(body);
+    expect(await renameSqlColumns(body, NAMING_RENAMES)).toBe(body);
   });
 
-  it("leaves the app's own tables, string literals and tenant columns alone", () => {
+  it("leaves the app's own tables, string literals and tenant columns alone", async () => {
     const own = "update public.documents set deleted_at = now();\n";
-    expect(renameSqlColumns(own, NAMING_RENAMES)).toBe(own);
+    expect(await renameSqlColumns(own, NAMING_RENAMES)).toBe(own);
 
     const literal =
       "insert into better_supabase.drive_nodes (name) values ('deleted_at');\n";
 
-    expect(renameSqlColumns(literal, NAMING_RENAMES)).toBe(literal);
+    expect(await renameSqlColumns(literal, NAMING_RENAMES)).toBe(literal);
 
     expect(
-      renameSqlColumns(
+      await renameSqlColumns(
         "update better_supabase.drive_nodes set deleted_at = now();\n",
         NAMING_RENAMES,
         new Set(["deleted_at"]),
@@ -465,7 +465,7 @@ describe("renameSqlColumns", () => {
     ).toContain("deleted_at");
 
     expect(
-      renameSqlColumns(
+      await renameSqlColumns(
         "update better_supabase.drive_nodes set deleted_at = now();\n",
         NAMING_RENAMES,
         {
@@ -478,31 +478,37 @@ describe("renameSqlColumns", () => {
     ).toContain("deleted_at");
   });
 
-  it("leaves a dollar tag, a broken audit call and an unqualified table alone", () => {
+  it("leaves a dollar tag, a broken audit call and an unqualified table alone", async () => {
     const open =
       "select 1 from better_supabase.drive_nodes; do $$ begin update better_supabase.drive_nodes set deleted_at = now(); end $$;\nselect $;\n";
 
     const tag = "select $tag$ deleted_at from better_supabase.drive_nodes;\n";
 
-    const renamed = renameSqlColumns(open, NAMING_RENAMES);
+    const renamed = await renameSqlColumns(open, NAMING_RENAMES);
 
     expect(renamed).toContain("do $$");
     expect(renamed).toContain("set deleted_at = now()");
-    expect(renameSqlColumns(tag, NAMING_RENAMES)).toContain("$tag$");
+    // The scanner rejects an unterminated dollar tag; the codemod reports the
+    // file instead of guessing where the body ends.
+    await expect(renameSqlColumns(tag, NAMING_RENAMES)).rejects.toThrow(
+      "unterminated dollar-quoted string",
+    );
 
     const broken =
       "select better_supabase.audit('better_supabase.drive_nodes' from better_supabase.drive_nodes;\n";
 
-    expect(renameSqlColumns(broken, NAMING_RENAMES)).toContain("audit(");
+    expect(await renameSqlColumns(broken, NAMING_RENAMES)).toContain("audit(");
 
     const other =
       "select better_supabase.audit('public.other', ignore => '{deleted_at}');\nselect «9» from better_supabase.drive_nodes;\n";
 
-    expect(renameSqlColumns(other, NAMING_RENAMES)).toContain("'{deleted_at}'");
-    expect(renameSqlColumns(other, NAMING_RENAMES)).not.toContain("«9»");
+    expect(await renameSqlColumns(other, NAMING_RENAMES)).toContain(
+      "'{deleted_at}'",
+    );
+    expect(await renameSqlColumns(other, NAMING_RENAMES)).toContain("«9»");
 
     expect(
-      renameSqlColumns(
+      await renameSqlColumns(
         "update better_supabase.drive_nodes set deleted_at = now();\n",
         [
           {
@@ -519,7 +525,7 @@ describe("renameSqlColumns", () => {
 });
 
 describe("pinReview", () => {
-  it("names the config line that keeps the old column name", () => {
+  it("names the config line that keeps the old column name", async () => {
     expect(
       pinReview({
         block: "drive",
@@ -545,7 +551,7 @@ describe("withColumnPins search edges", () => {
     physical: "public.drive_nodes",
   };
 
-  it("skips keys in strings, before blocks and after it, and finds an instance", () => {
+  it("skips keys in strings, before blocks and after it, and finds an instance", async () => {
     const text = [
       'const note = "drive: { columns: {} }";',
       "const drive = { other: 1 };",
@@ -564,7 +570,7 @@ describe("withColumnPins search edges", () => {
     );
   });
 
-  it("misses a block with no object and rejects an unclosed one", () => {
+  it("misses a block with no object and rejects an unclosed one", async () => {
     expect(
       withColumnPins("export default { blocks: {} };", [pin]).missed,
     ).toEqual([pin]);
@@ -575,7 +581,7 @@ describe("withColumnPins search edges", () => {
 });
 
 describe("columnPins skips", () => {
-  it("pins nothing when the live database lacks the table", () => {
+  it("pins nothing when the live database lacks the table", async () => {
     expect(
       columnPins({ blocks: { drive } }, NAMING_RENAMES, driveTable, {}).pins,
     ).toEqual([]);
@@ -583,9 +589,18 @@ describe("columnPins skips", () => {
 });
 
 describe("renameSqlColumns edges", () => {
-  it("renames up to an unclosed dollar sign and keeps a closing dollar body", () => {
+  it("leaves a comment as written", async () => {
+    const commented =
+      "-- set deleted_at = now()\nupdate better_supabase.drive_nodes set deleted_at = now(); /* better_supabase.drive_nodes.deleted_at */";
+
+    expect(await renameSqlColumns(commented, NAMING_RENAMES)).toBe(
+      "-- set deleted_at = now()\nupdate better_supabase.drive_nodes set archived_at = now(); /* better_supabase.drive_nodes.deleted_at */",
+    );
+  });
+
+  it("renames up to an unclosed dollar sign and keeps a closing dollar body", async () => {
     expect(
-      renameSqlColumns(
+      await renameSqlColumns(
         "update better_supabase.drive_nodes set deleted_at = $1",
         NAMING_RENAMES,
       ),
@@ -594,21 +609,21 @@ describe("renameSqlColumns edges", () => {
     const body =
       "update better_supabase.drive_nodes set deleted_at = now();\nselect $$ deleted_at $$";
 
-    expect(renameSqlColumns(body, NAMING_RENAMES)).toBe(
+    expect(await renameSqlColumns(body, NAMING_RENAMES)).toBe(
       "update better_supabase.drive_nodes set archived_at = now();\nselect $$ deleted_at $$",
     );
   });
 
-  it("leaves an audit call for another table and skips a rename without a schema", () => {
+  it("leaves an audit call for another table and skips a rename without a schema", async () => {
     const other =
       "select better_supabase.audit('public.notes', ignore => '{deleted_at}');\n";
 
-    expect(renameSqlColumns(other, NAMING_RENAMES)).toBe(other);
+    expect(await renameSqlColumns(other, NAMING_RENAMES)).toBe(other);
 
     const bare = "update better_supabase.drive_nodes set deleted_at = now();";
 
     expect(
-      renameSqlColumns(bare, [
+      await renameSqlColumns(bare, [
         {
           kind: "column",
           from: "deleted_at",
@@ -619,9 +634,9 @@ describe("renameSqlColumns edges", () => {
     ).toBe(bare);
   });
 
-  it("reads a table without an alias", () => {
+  it("reads a table without an alias", async () => {
     expect(
-      renameSqlColumns(
+      await renameSqlColumns(
         "select drive_nodes.deleted_at from better_supabase.drive_nodes where true;",
         NAMING_RENAMES,
       ),
@@ -630,7 +645,7 @@ describe("renameSqlColumns edges", () => {
 });
 
 describe("withColumnPins without blocks", () => {
-  it("misses every pin in a config without blocks or instances", () => {
+  it("misses every pin in a config without blocks or instances", async () => {
     const pin = {
       block: "drive",
       module: "drive",
@@ -645,7 +660,7 @@ describe("withColumnPins without blocks", () => {
 });
 
 describe("columnPins history tables", () => {
-  it("reads an unqualified history table as public", () => {
+  it("reads an unqualified history table as public", async () => {
     const report = columnPins(
       {
         blocks: {

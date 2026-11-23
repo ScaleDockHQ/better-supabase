@@ -4,8 +4,14 @@ import type { PlannedFile } from "./core/files.ts";
 
 import { renderBlocks, sameTenantTrigger } from "../sql/index.ts";
 import { withoutConfigPaths } from "./codemod-prune.ts";
+import { withCommentTag } from "./comment-tag.ts";
 import { sameTenantLayout } from "./same-tenant-layout.ts";
-import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
+import { factsOf } from "./schema-reader/index.ts";
+import {
+  declarationsOfText,
+  primeSchemaFacts,
+  primeSchemaTexts,
+} from "./sql-facts.ts";
 import { layoutFor } from "./sql/providers.ts";
 import { sameTenantTagsOf } from "./tag-comments.ts";
 
@@ -26,51 +32,41 @@ const quoted = (name: string): string => name.replaceAll('"', '""');
  * they create. Moving an entry into a tag is made only when the statement of
  * its column is the same string afterwards.
  */
-function statementsOf(
+async function statementsOf(
   names: readonly string[],
   layout: BlockSqlLayout,
-): ReadonlyMap<string, string> {
+): Promise<ReadonlyMap<string, string>> {
   const contents = renderBlocks(names, layout)
     .map((file) => file.contents)
     .join("\n");
 
-  const found = new Map<string, string>();
+  await primeSchemaTexts([contents]);
 
-  for (const match of contents.matchAll(
-    /create (?:constraint )?trigger ("bsb_same_tenant_\w+") [^;\n]*? on ("[^"]+"\."[^"]+")\n[^;]*;/gu,
-  )) {
-    found.set(`${match[2] ?? ""}.${match[1] ?? ""}`, match[0]);
-  }
-
-  return found;
+  return new Map(
+    factsOf(contents)
+      .triggers.filter((trigger) => trigger.name.startsWith("bsb_same_tenant_"))
+      .map((trigger) => [`${trigger.table}.${trigger.name}`, trigger.text]),
+  );
 }
 
 /** `text` with `@bsb same-tenant` tags on `table.column`'s comment. */
-export function withColumnTag(
+export async function withColumnTag(
   text: string,
+  root: string,
   table: string,
   column: string,
   line: string,
-): string {
+): Promise<string> {
   const [schema = "public", name = ""] = table.split(".");
-  const escaped = line.replaceAll("'", "''");
 
-  const comment = new RegExp(
-    String.raw`(comment\s+on\s+column\s+(?:"?${schema}"?\s*\.\s*)?"?${name}"?\s*\.\s*"?${column}"?\s+is\s+')((?:[^']|'')*)(')`,
-    "i",
+  return withCommentTag(
+    text,
+    root,
+    "column",
+    `${schema}.${name}.${column}`,
+    line,
+    `comment on column "${quoted(schema)}"."${quoted(name)}"."${quoted(column)}" is '${line.replaceAll("'", "''")}';`,
   );
-
-  if (comment.test(text)) {
-    return text.replace(
-      comment,
-      (_all, head: string, body: string, tail: string) =>
-        /(^|\s)@bsb(?:\s|$)/u.test(body)
-          ? `${head}${body.trimEnd().replace(/;$/u, "")}; ${escaped.replace(/^@bsb\s+/u, "")}${tail}`
-          : `${head}${body === "" ? "" : `${body}\n`}${escaped}${tail}`,
-    );
-  }
-
-  return `${text.replace(/\n*$/u, "\n")}\ncomment on column "${quoted(schema)}"."${quoted(name)}"."${quoted(column)}" is '${escaped}';\n`;
 }
 
 interface Entry {
@@ -194,10 +190,7 @@ export interface SameTenantMoves {
 }
 
 const statementKey = (table: string, column: string): string =>
-  `${table
-    .split(".")
-    .map((part) => `"${quoted(part)}"`)
-    .join(".")}."${sameTenantTrigger(column)}"`;
+  `${table}.${sameTenantTrigger(column)}`;
 
 /**
  * Moves each `sameTenant` entry of the config into a `@bsb same-tenant` tag on
@@ -237,7 +230,7 @@ export async function sameTenantMoves(
   const render = (
     drop: ReadonlySet<string>,
     schema: ReadonlyMap<string, string>,
-  ): ReadonlyMap<string, string> => {
+  ): Promise<ReadonlyMap<string, string>> => {
     const sources = [...schema.values()];
 
     const scanned = sameTenantLayout(
@@ -252,7 +245,7 @@ export async function sameTenantMoves(
     });
   };
 
-  let before = render(removed, texts);
+  let before = await render(removed, texts);
 
   for (const entry of entries) {
     const { table, column } = entry.value;
@@ -323,7 +316,7 @@ export async function sameTenantMoves(
 
     const candidate = new Map(texts).set(
       path,
-      withColumnTag(text, table, column, line),
+      await withColumnTag(text, project.config.root, table, column, line),
     );
 
     // The tag changes the creator's text, which the reader has not seen.
@@ -333,7 +326,11 @@ export async function sameTenantMoves(
       { lenient: true },
     );
 
-    const after = render(new Set([...removed, idOf(entry.value)]), candidate);
+    const after = await render(
+      new Set([...removed, idOf(entry.value)]),
+      candidate,
+    );
+
     const wanted = before.get(statementKey(table, column));
 
     if (

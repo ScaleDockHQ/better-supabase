@@ -206,6 +206,11 @@ export interface CommentFact {
   /** The decoded comment text, whichever quoting the file used. */
   readonly text: string;
   readonly line: number;
+  /**
+   * The string literal as written, quotes and prefix included, as character
+   * offsets.
+   */
+  readonly span?: readonly [number, number];
 }
 
 export interface GrantFact {
