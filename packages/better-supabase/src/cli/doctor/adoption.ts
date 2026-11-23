@@ -26,7 +26,11 @@ import {
   SQL_MODULES,
   unusedDeclaredColumns,
 } from "../../sql/index.ts";
-import { adoptedTables, adoptedViews } from "../adopted-columns.ts";
+import {
+  adoptedTables,
+  adoptedViews,
+  primeAdoption,
+} from "../adopted-columns.ts";
 import { checkValues, declaredCheckValues } from "../check-values.ts";
 import { tenantEntries } from "../codemod-config.ts";
 import { notNullTag } from "../gen/model-functions.ts";
@@ -240,13 +244,20 @@ export const ADOPTION_RULES: readonly Rule[] = [
     title: "Enum column of the app's that a module writes as text",
     description:
       "A module writes a text parameter or computed text value into a column of the app's table that the snapshot declares as an enum; string literals are fine. Postgres has no implicit cast from text to an enum, so the module's functions fail when they run. Columns the module casts to their declared type, such as the tags `kind`, the numbering `entity` and the profiles `locale`, may be enums.",
-    check: (context) => {
+    check: async (context) => {
       const { tables } = catalogOf(context);
 
       // Every table the database has may be the app's; a table a block
       // created has text columns, so it never reports here.
       const ownTables = Object.fromEntries(
         tables.map((table) => [qualified(table), "database"]),
+      );
+
+      // This table set differs from the one the doctor primed, so read its module text too.
+      await primeAdoption(
+        context.config.blocks,
+        ownTables,
+        adoptionContext(context).subjects,
       );
 
       return adoptedTables(

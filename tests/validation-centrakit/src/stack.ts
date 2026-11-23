@@ -4,11 +4,7 @@ import type { BlockSqlAccessProvider } from "better-supabase/sql";
 import type { PoolClient, QueryResultRow } from "pg";
 
 import { resolveConfig } from "better-supabase/config";
-import {
-  declaredTables,
-  moduleLayout,
-  renderBlocks,
-} from "better-supabase/sql";
+import { moduleLayout, renderBlocks } from "better-supabase/sql";
 import { readdir, readFile } from "node:fs/promises";
 import { DatabaseError, Pool } from "pg";
 
@@ -142,12 +138,17 @@ async function centrakitTables(): Promise<Record<string, string>> {
   const path = "schemas/000_centrakit.sql";
   const text = await readFile(new URL(path, SUPABASE), "utf-8");
 
-  return Object.fromEntries(
-    declaredTables([{ text }], resolved.schemas).map((table) => [
-      table,
-      `supabase/${path}`,
-    ]),
+  // The file is one fixture the tests own: every table sits on a line that starts with
+  // `create table <schema>.<name>`, so a line match is enough here.
+  const tables = [
+    ...text.matchAll(/^create table (?:if not exists )?(\w+)\.(\w+)/gmu),
+  ].flatMap(([, schema, name]) =>
+    schema !== undefined && resolved.schemas.includes(schema)
+      ? [`${schema}.${name}`]
+      : [],
   );
+
+  return Object.fromEntries(tables.map((table) => [table, `supabase/${path}`]));
 }
 
 /** The files `upgrade` wrote in `dir`, in the order a reset applies them. */
