@@ -189,7 +189,7 @@ These methods are for a queue that several workers, human or agent, pull from. E
 
 ### Prerequisites
 
-With `options.needs: { kind: "blocks" }` and the [relations](/docs/blocks/relations) block, `setNeeds({ taskId, needs })` replaces the tasks that block one. The `waiting_on` column counts the open prerequisites, the `ready` list filter returns tasks nothing blocks, and `task.unblocked` is sent when the count reaches zero. A cycle or a prerequisite from another organization is refused with `TASK_NEEDS_INVALID`. A prerequisite that is canceled or failed keeps its dependents blocked, and deleting one unblocks them. `refuse` sets what an unready task refuses: `claims` (default), `started` or `none`; the refusal is `TASK_NOT_READY`. Setting needs takes the relations manage permission.
+With `options.needs: { kind: "blocks" }` and the [relations](/docs/blocks/relations) block, `setNeeds({ taskId, needs })` replaces the tasks that block one. The `waiting_on` column counts the open prerequisites, the `ready` list filter returns open tasks nothing blocks, `waiting` returns open tasks that still wait on one, and `task.unblocked` is sent when the count reaches zero. A cycle or a prerequisite from another organization is refused with `TASK_NEEDS_INVALID`. A prerequisite that is canceled or failed keeps its dependents blocked, and deleting one unblocks them. `refuse` sets what an unready task refuses: `claims` (default), `started` or `none`; the refusal is `TASK_NOT_READY`. Setting needs takes the relations manage permission.
 
 ### Create a plan
 
@@ -197,7 +197,7 @@ With `options.needs: { kind: "blocks" }` and the [relations](/docs/blocks/relati
 
 ### Claims
 
-`claim({ taskId, lease, profile })` takes a lease (`options.claims.lease` and `maxLease`, in seconds) and returns a token. A live claim of someone else is `TASK_CLAIMED`, a held task is `TASK_HELD`. `claimNext({ organizationId, filter })` takes the oldest ready task by `number`, and concurrent callers get different tasks. `options.claims.next` is `"assigned"` by default, so a caller picks only tasks assigned to it; `"any"` also takes unassigned ones. An agent session always picks assigned tasks (`TASK_NOT_ASSIGNED`, and `TASK_FILTER_FORBIDDEN` for another assignee). `filter.delegateProfile` picks tasks reserved for a profile. `renew` and `release` need the token and raise `TASK_CLAIM_LOST` after the lease ran out or someone else took over. Every new claim bumps `epoch`. `startStage` and `expiredStage` move the task when a claim starts or expires, and take a stage key or `{ category }`. `delegate({ taskId, toUserId, toProfile })` assigns the task and ends the claim. With `toProfile` the task is reserved for that profile of that user: anyone else gets `TASK_RESERVED`, except a person with write access, who takes it over. The task reads back `delegateProfile: { name, userId }`, and a re-delegate, an unassign and a close clear it.
+`claim({ taskId, lease, profile })` takes a lease (`options.claims.lease` and `maxLease`, in seconds) and returns a token. A live claim of someone else is `TASK_CLAIMED`, a held task is `TASK_HELD`. `claimNext({ organizationId, filter })` takes the oldest ready task by `number`, and concurrent callers get different tasks. `options.claims.next` is `"assigned"` by default, so a caller picks only tasks assigned to it; `"any"` also takes unassigned ones. An agent session always picks assigned tasks (`TASK_NOT_ASSIGNED`, and `TASK_FILTER_FORBIDDEN` for another assignee). A session counts as an agent when its `act` claim has the kind `agent`. `options.claims.agents` adds other session kinds: `"oauth-client"` for a token with `client_id` or an `act` claim without a kind (an MCP client), and `"api-key"` for an app API key. Such a session then claims only tasks assigned to its user, by id and with `claimNext`, and can't take over a reserved task. `filter.delegateProfile` picks tasks reserved for a profile. `renew` and `release` need the token and raise `TASK_CLAIM_LOST` after the lease ran out or someone else took over. Every new claim bumps `epoch`. `startStage` and `expiredStage` move the task when a claim starts or expires, and take a stage key or `{ category }`. `delegate({ taskId, toUserId, toProfile })` assigns the task and ends the claim. With `toProfile` the task is reserved for that profile of that user: anyone else gets `TASK_RESERVED`, except a person with write access, who takes it over. The task reads back `delegateProfile: { name, userId }`, and a re-delegate, an unassign and a close clear it.
 
 ### Who acts
 
@@ -207,12 +207,30 @@ With `options.needs: { kind: "blocks" }` and the [relations](/docs/blocks/relati
 
 `hold({ taskId, kind, note, askUserIds })` puts a task on hold to ask a person. The note goes through [messaging](/docs/blocks/messaging) and mentions `askUserIds`, who must be able to read the task. `options.hold.kinds` lists the accepted kinds (`TASK_HOLD_INVALID` otherwise). With `options.hold.stage`, a key or `{ category }`, the task moves to that stage until `releaseHold`. Releasing, moving out of the stage and closing cancel a pending approval request; doctor rule BS245 reports a stage that does not exist. A manual move into that stage is not a hold, and a manual move out of it clears one.
 
-With the [approvals](/docs/blocks/approvals) block installed, `options.hold.approval` files each hold as an approval request of the subject type `task_hold`. `true` asks one approver, a member with the manage permission; `{ policy }` takes an approvals policy without `run`, and `kinds` limits which hold kinds open a request. An approval releases the task, and a rejection cancels it, or with `onReject: "keep"` leaves it on hold. Nobody needs the write permission to decide: approvals checks the approver, and the task changes through an internal function that is granted to no role. A decision on a task that is no longer on hold is refused. The option needs the `held_at` column and fails at render without the approvals block. `task.held` then carries the request as `approvalId`.
+With the [approvals](/docs/blocks/approvals) block installed, `options.hold.approval` files each hold as an approval request of the subject type `task_hold`. `true` asks one approver, a member with the manage permission; `{ policy }` takes an approvals policy without `run`, and `kinds` limits which hold kinds open a request. An approval releases the task, and a rejection cancels it, or with `onReject: "keep"` leaves it on hold. `kinds` can also be a record from hold kind to `true` or `{ policy, onReject }`, so each kind files under its own policy and settles a rejection its own way; a kind without a field takes the block-wide `policy` and `onReject`. The record needs the `hold_kind` column. Nobody needs the write permission to decide: approvals checks the approver, and the task changes through an internal function that is granted to no role. A decision on a task that is no longer on hold is refused. The option needs the `held_at` column and fails at render without the approvals block. `task.held` then carries the request as `approvalId`.
 
 ```ts
 // better-supabase.config.ts
 blocks: {
   tasks: { options: { hold: { stage: "blocked", approval: { onReject: "cancel" } } } },
+}
+```
+
+```ts
+// better-supabase.config.ts: a spend hold keeps the task on hold when it is rejected
+blocks: {
+  tasks: {
+    options: {
+      claims: { agents: ["oauth-client", "api-key"] },
+      hold: {
+        kinds: ["review", "spend", "input"],
+        approval: {
+          onReject: "cancel",
+          kinds: { review: true, spend: { onReject: "keep" } },
+        },
+      },
+    },
+  },
 }
 ```
 

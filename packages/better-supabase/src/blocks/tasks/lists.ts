@@ -3,7 +3,8 @@ import type { EntityListSurface } from "../../core/entity-list.ts";
 /**
  * What the task `page`, `facets` and `count` accept (ADR 0749, 1077). The
  * manifest declares the same names, and the SQL list function `page_tasks`
- * implements them. `number` is the default, newest first.
+ * implements them. `number` is the default, newest first. `ready` and `waiting`
+ * split the open tasks by their `waiting_on` count.
  */
 export const taskListSurface: EntityListSurface = {
   sorts: ["number", "title", "dueAt", "createdAt"],
@@ -18,6 +19,7 @@ export const taskListSurface: EntityListSurface = {
     "assigneeId",
     "open",
     "ready",
+    "waiting",
   ],
   search: ["title", "identifier"],
 };

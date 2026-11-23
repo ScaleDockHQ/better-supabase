@@ -1,4 +1,5 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { AgentKind } from "./tasks-coordination.ts";
 import type { TaskNames } from "./tasks-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -11,6 +12,17 @@ import {
   taskRecord,
 } from "./tasks-coordination-shared.ts";
 import { cancelHoldRequestSql, HOLD_SUBJECT } from "./tasks-hold-approvals.ts";
+
+const AGENT_TESTS: Readonly<Record<AgentKind, string>> = {
+  agent: `auth.jwt() -> 'act' ->> 'kind' = 'agent'`,
+  "oauth-client": `(coalesce(auth.jwt() ->> 'client_id', '') <> '' or (jsonb_typeof(auth.jwt() -> 'act') = 'object' and auth.jwt() -> 'act' ->> 'kind' is null))`,
+  "api-key": `jsonb_typeof(auth.jwt() -> 'api_key') = 'object'`,
+};
+
+/** Whether the session is one of the kinds `claims.agents` treats as agents. */
+function agentTest(kinds: readonly AgentKind[]): string {
+  return `coalesce(${kinds.map((kind) => AGENT_TESTS[kind]).join(" or ")}, false)`;
+}
 
 /** Claims: claim, claim next, renew, release, delegate and the expiry job. */
 export function claimsSql(
@@ -70,7 +82,7 @@ export function claimsSql(
       and (claim_next_task.filter ->> 'delegateProfile' is null or ${has("delegateProfile") ? `${alias}.${w("delegateProfile")} ->> 'name' = claim_next_task.filter ->> 'delegateProfile'` : "false"})
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from ${t("assignees")} y where y.${a("item")} = ${alias}.${w("id")} and y.${a("user")} = (claim_next_task.filter ->> 'assigneeId')::uuid))`;
 
-  const isAgent = `coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false)`;
+  const isAgent = agentTest(co.agents);
   const restricted = `(${isAgent}${co.next === "assigned" ? " or auth.uid() is not null" : ""})`;
 
   // An agent acts with a member's access, so it never picks beyond that
@@ -406,12 +418,29 @@ ${userGrant(`${fn("release_task_hold")}(uuid)`)}
 
   const approval = co.holdApproval;
 
+  const request = (policy: string): string =>
+    `v_request := ${ctx.of("approvals").fn("open_approval")}(v_row.${w("tenant")}, ${sqlString(HOLD_SUBJECT)}, v_row.${w("id")}::text, 'approve',
+    ${sqlString(policy)}::jsonb, v_note, jsonb_build_object('kind', hold_task.kind), auth.uid());`;
+
+  const kindsTest = (kinds: readonly string[]): string =>
+    `hold_task.kind = any(array[${kinds.map((held) => sqlString(held)).join(", ")}])`;
+
+  const [only] = approval?.rules ?? [];
+
   const open =
-    approval === null
+    approval === null || only === undefined
       ? ""
-      : `
-${approval.kinds === null ? "" : `  if hold_task.kind = any(array[${approval.kinds.map((kind) => sqlString(kind)).join(", ")}]) then\n  `}  v_request := ${ctx.of("approvals").fn("open_approval")}(v_row.${w("tenant")}, ${sqlString(HOLD_SUBJECT)}, v_row.${w("id")}::text, 'approve',
-    ${sqlString(approval.policy)}::jsonb, v_note, jsonb_build_object('kind', hold_task.kind), auth.uid());${approval.kinds === null ? "" : "\n  end if;"}`;
+      : approval.rules.length === 1
+        ? `
+${only.kinds === null ? "" : `  if ${kindsTest(only.kinds)} then\n  `}  ${request(only.policy)}${only.kinds === null ? "" : "\n  end if;"}`
+        : `
+${approval.rules
+  .map(
+    (rule, index) =>
+      `  ${index === 0 ? "if" : "elsif"} ${kindsTest(rule.kinds ?? [])} then\n    ${request(rule.policy).replaceAll("\n", "\n  ")}`,
+  )
+  .join("\n")}
+  end if;`;
 
   const messaging = ctx.installed("messaging")
     ? (() => {

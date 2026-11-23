@@ -13,14 +13,42 @@ export const HOLD_SUBJECT = "task_hold";
 
 const WHERE = "blocks.tasks.options.hold.approval";
 
-/** What `hold.approval` resolves to. */
-export interface HoldApproval {
+/** How the hold kinds of one rule are approved. */
+export interface HoldApprovalRule {
   /** The policy snapshot the request stores, as JSON text. */
   readonly policy: string;
   /** What a rejection does: cancel the task, or leave it on hold. */
   readonly onReject: "cancel" | "keep";
   /** The hold kinds that open an approval, or null for every kind. */
   readonly kinds: readonly string[] | null;
+}
+
+/**
+ * What `hold.approval` resolves to: one rule, or one per kind when
+ * `approval.kinds` is a record. A kind no rule names opens no approval.
+ */
+export interface HoldApproval {
+  readonly rules: readonly HoldApprovalRule[];
+}
+
+/** What a rejection does across the rules: one outcome, or per kind. */
+export function rejectionOf(
+  approval: HoldApproval,
+): "cancel" | "keep" | "mixed" {
+  const outcomes = new Set(approval.rules.map((rule) => rule.onReject));
+
+  if (outcomes.size > 1) {
+    return "mixed";
+  }
+
+  return outcomes.has("keep") ? "keep" : "cancel";
+}
+
+/** The kinds whose rejection cancels the task. */
+function cancelKinds(approval: HoldApproval): readonly string[] {
+  return approval.rules.flatMap((rule) =>
+    rule.onReject === "cancel" ? (rule.kinds ?? []) : [],
+  );
 }
 
 /** What a hold kind looks like: a short lowercase word. */
@@ -69,7 +97,8 @@ export function holdApprovalOn(ctx: BlockSqlContext): boolean {
 
 /**
  * Reads `hold.approval`: `true` for one approver step (members with the manage
- * permission), or `{ policy, onReject }`. Needs the approvals block.
+ * permission), or `{ policy, onReject, kinds }`, where `kinds` is a list or a
+ * record of per-kind rules. Needs the approvals block.
  */
 export function holdApprovalOf(
   ctx: BlockSqlContext,
@@ -103,28 +132,26 @@ export function holdApprovalOf(
     );
   }
 
-  const onReject = rules["onReject"] ?? "cancel";
+  const onReject = onRejectOf(rules["onReject"], `${WHERE}.onReject`, "cancel");
 
-  if (onReject !== "cancel" && onReject !== "keep") {
-    throw new TypeError(`${WHERE}.onReject must be "cancel" or "keep"`);
-  }
-
-  const policy: ApprovalPolicy = policyOf(
-    HOLD_SUBJECT,
-    "approve",
+  const policy = rulePolicy(
     rules["policy"] ?? { steps: [{ approvers: { permission: manageKey } }] },
     `${WHERE}.policy`,
   );
 
-  if (policy.run !== undefined) {
-    throw new TypeError(
-      `${WHERE}.policy.run is not allowed; the decision releases or cancels the task`,
-    );
-  }
+  const listed = rules["kinds"];
 
-  const kinds = holdKindsOf(rules["kinds"], `${WHERE}.kinds`);
+  const approval: HoldApproval = isRecord(listed)
+    ? { rules: kindRules(listed, policy, onReject) }
+    : {
+        rules: [
+          { policy, onReject, kinds: holdKindsOf(listed, `${WHERE}.kinds`) },
+        ],
+      };
 
-  const stray = kinds?.find((kind) => holdKinds?.includes(kind) === false);
+  const stray = approval.rules
+    .flatMap((rule) => rule.kinds ?? [])
+    .find((kind) => holdKinds?.includes(kind) === false);
 
   if (stray !== undefined) {
     throw new TypeError(
@@ -132,7 +159,89 @@ export function holdApprovalOf(
     );
   }
 
-  return { policy: policySnapshot(policy), onReject, kinds };
+  if (rejectionOf(approval) === "mixed" && !ctx.has("items", "holdKind")) {
+    throw new TypeError(
+      `${WHERE}.kinds gives kinds different onReject values, which needs the hold_kind column: add it to your tasks table, or run better-supabase codemod owned-columns`,
+    );
+  }
+
+  return approval;
+}
+
+function onRejectOf(
+  value: unknown,
+  at: string,
+  fallback: "cancel" | "keep",
+): "cancel" | "keep" {
+  const onReject = value ?? fallback;
+
+  if (onReject !== "cancel" && onReject !== "keep") {
+    throw new TypeError(`${at} must be "cancel" or "keep"`);
+  }
+
+  return onReject;
+}
+
+/** An approvals policy without `run`, as the snapshot a request stores. */
+function rulePolicy(value: unknown, at: string): string {
+  const policy: ApprovalPolicy = policyOf(HOLD_SUBJECT, "approve", value, at);
+
+  if (policy.run !== undefined) {
+    throw new TypeError(
+      `${at}.run is not allowed; the decision releases or cancels the task`,
+    );
+  }
+
+  return policySnapshot(policy);
+}
+
+/**
+ * `approval.kinds` as a record: each kind takes `true` (the top-level policy
+ * and onReject) or `{ policy, onReject }` over them.
+ */
+function kindRules(
+  kinds: Record<string, unknown>,
+  policy: string,
+  onReject: "cancel" | "keep",
+): readonly HoldApprovalRule[] {
+  const entries = Object.entries(kinds);
+
+  if (entries.length === 0) {
+    throw new TypeError(`${WHERE}.kinds must name at least one hold kind`);
+  }
+
+  return entries.map(([kind, value]) => {
+    const at = `${WHERE}.kinds.${kind}`;
+
+    if (!HOLD_KIND.test(kind)) {
+      throw new TypeError(
+        `${WHERE}.kinds has "${kind}", which is not a short lowercase word such as review or input`,
+      );
+    }
+
+    if (value === true) {
+      return { policy, onReject, kinds: [kind] };
+    }
+
+    if (!isRecord(value)) {
+      throw new TypeError(`${at} must be true or { policy, onReject }`);
+    }
+
+    for (const key of Object.keys(value)) {
+      if (key !== "policy" && key !== "onReject") {
+        throw new TypeError(`${at} has no key "${key}"`);
+      }
+    }
+
+    return {
+      policy:
+        value["policy"] === undefined
+          ? policy
+          : rulePolicy(value["policy"], `${at}.policy`),
+      onReject: onRejectOf(value["onReject"], `${at}.onReject`, onReject),
+      kinds: [kind],
+    };
+  });
 }
 
 /**
@@ -158,8 +267,26 @@ export function settleHoldSql(ctx: BlockSqlContext, n: TaskNames): string {
       : "",
   ].filter((set) => set !== "");
 
-  return `
--- Applies an approval's decision to a held task: release it, or cancel it.
+  const mixed = rejectionOf(n.co.holdApproval) === "mixed";
+  const outcome = mixed ? "v_outcome" : "settle_task_hold.outcome";
+
+  const rejectByKind = mixed
+    ? `
+  if v_outcome = 'reject' then
+    if v_row.${w("holdKind")} = any (array[${cancelKinds(n.co.holdApproval)
+      .map((held) => sqlString(held))
+      .join(", ")}]::text[]) then
+      v_outcome := 'cancel';
+    else
+      return;
+    end if;
+  end if;`
+    : "";
+
+  const header = `
+-- Applies an approval's decision to a held task: release it, or cancel it.${
+    mixed ? "\n-- reject cancels or keeps the task by its hold kind." : ""
+  }
 -- Approvals calls it; it isn't granted to anyone. A task that is no longer on
 -- hold is left alone.
 create or replace function ${fn}(task uuid, outcome text)
@@ -170,13 +297,15 @@ set search_path = ''
 as $$
 declare
   v_row ${n.t("items")};
-  v_stage uuid;
-begin
+  v_stage uuid;${mixed ? "\n  v_outcome text := settle_task_hold.outcome;" : ""}
+begin`;
+
+  return `${header}
   select * into v_row from ${n.t("items")} x where x.${w("id")} = settle_task_hold.task for update;
   if not found or v_row.${w("heldAt")} is null then
     return;
-  end if;
-  if settle_task_hold.outcome = 'cancel' then
+  end if;${rejectByKind}
+  if ${outcome} = 'cancel' then
     v_stage := ${stageByCategory(ctx, `v_row.${w("pipeline")}`, "canceled")};
   end if;
   if v_stage is not null then
@@ -186,14 +315,17 @@ begin
     return;
   end if;
   update ${n.t("items")} x set ${clear.join(", ")} where x.${w("id")} = v_row.${w("id")} returning * into v_row;
-  ${taskRecord(ctx, n, "task.hold_released", "v_row", `, 'returnStageId', v_row.${w("stage")}, 'approved', settle_task_hold.outcome = 'release'`)}
+  ${taskRecord(ctx, n, "task.hold_released", "v_row", `, 'returnStageId', v_row.${w("stage")}, 'approved', ${outcome} = 'release'`)}
 end;
 $$;
 revoke execute on function ${fn}(uuid, text) from public, anon, authenticated;
 `;
 }
 
-/** Approvals decides holds: approval releases the task, rejection cancels it. */
+/**
+ * Approvals decides holds: approval releases the task, and a rejection cancels
+ * it or leaves it on hold, per the rule of its kind.
+ */
 export function holdApprovalContribution(
   own: BlockSqlContext,
   holdApproval: HoldApproval | null,
@@ -203,6 +335,7 @@ export function holdApprovalContribution(
   }
 
   const settle = own.fn("settle_task_hold");
+  const rejection = rejectionOf(holdApproval);
 
   return [
     {
@@ -213,12 +346,12 @@ export function holdApprovalContribution(
         `exists (select 1 from ${own.table("items")} x where x.${own.col("items", "id")} = ${subjectUuid(subjectId)} and x.${own.col("items", "heldAt")} is not null)`,
       approve: ({ subjectId }) =>
         `perform ${settle}(${subjectUuid(subjectId)}, 'release');`,
-      ...(holdApproval.onReject === "cancel"
-        ? {
+      ...(rejection === "keep"
+        ? {}
+        : {
             reject: ({ subjectId }: { readonly subjectId: string }) =>
-              `perform ${settle}(${subjectUuid(subjectId)}, 'cancel');`,
-          }
-        : {}),
+              `perform ${settle}(${subjectUuid(subjectId)}, ${rejection === "cancel" ? "'cancel'" : "'reject'"});`,
+          }),
     },
   ];
 }
