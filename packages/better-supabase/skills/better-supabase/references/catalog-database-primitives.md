@@ -67,7 +67,7 @@ Import runs and the external record map. import_upsert_batch writes items throug
 - Client: `importsBlock` from `better-supabase/blocks/imports`
 - Modes: `managed`, `custom`
 - Requires: `memberships`, `permissions`, `queue`
-- Works with: `attachments`, `contacts`, `invoices`, `ledger`, `outbox`, `search`
+- Works with: `attachments`, `contacts`, `invoices`, `ledger`, `outbox`, `search`, `housekeeping`
 - Events (`ImportsEvents`): `import.completed`, `import.entity_completed`, `import.failed`
 
 ## rank

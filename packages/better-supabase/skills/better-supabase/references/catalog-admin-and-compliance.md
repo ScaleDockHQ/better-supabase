@@ -12,7 +12,7 @@ Records inserts, updates and deletes with the actor and changed columns for tabl
 - Docs: https://bettersupabase.com/docs/blocks/audit
 - Client: `auditBlock` from `better-supabase/blocks/audit`
 - Modes: `managed`
-- Works with: `permissions`, `organizations`, `data-lifecycle`
+- Works with: `permissions`, `organizations`, `data-lifecycle`, `housekeeping`
 
 ## impersonation
 
