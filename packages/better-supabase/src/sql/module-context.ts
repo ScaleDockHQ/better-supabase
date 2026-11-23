@@ -158,6 +158,10 @@ export function moduleContextSource(
               }),
         }
       : {}),
+    ...(modules?.permissions?.model === "provider" &&
+    layout.accessProvider?.functions.roleOn !== undefined
+      ? { providerRoleOn: layout.accessProvider.functions.roleOn }
+      : {}),
     integrations(module) {
       const definition = registry().modules[module];
 

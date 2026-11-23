@@ -335,6 +335,7 @@ const authorization = v.strictObject({
     permitted: v.optional(v.string()),
     rowsWith: v.optional(v.string()),
     rowsWithFor: v.optional(v.string()),
+    roleOn: v.optional(v.string()),
     portalSubjects: v.optional(v.string()),
     portalParties: v.optional(v.string()),
     subject: v.optional(v.string()),

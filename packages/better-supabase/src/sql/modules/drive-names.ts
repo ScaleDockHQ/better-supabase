@@ -153,6 +153,7 @@ export const NAMES: BlockSqlNames = {
     "driveKinds",
     "sources",
     "roleFunctions",
+    "grants",
     "readPolicy",
     "previewPrefix",
     "maxTextBytes",
@@ -239,6 +240,8 @@ export const NAMES: BlockSqlNames = {
             ? ["user", "team"]
             : ["principalType", "principalId"],
       },
+      optionalTable: true,
+      omitWhen: { option: "grants", value: "roles" },
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",

@@ -1,5 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -67,6 +68,41 @@ function providerRoles(
   };
 }
 
+/**
+ * `{ rows }` alone: the provider's `functions.roleOn` names the role, so a
+ * provider whose roles are not permission keys (a role table, a relation graph)
+ * answers with one call per node.
+ */
+function providerRoleOn(
+  ctx: BlockSqlContext,
+  at: string,
+  rows: unknown,
+): DriveRoleHook {
+  if (!isResourceName(rows)) {
+    throw new TypeError(
+      `${at} takes { rows }: the provider's resource name, such as file_node`,
+    );
+  }
+
+  const roleOn = ctx.providerRoleOn;
+
+  if (roleOn === undefined) {
+    throw new TypeError(
+      `${at} without roles needs blocks.permissions.model "provider" and an authorization provider with functions.roleOn`,
+    );
+  }
+
+  return {
+    label: `the authorization provider's roles on ${rows}`,
+    role: (id, user) =>
+      `(${fillTemplate("authorization.functions.roleOn", roleOn, {
+        user,
+        resource: rows,
+        id: `${id}::text`,
+      })})::text`,
+  };
+}
+
 /** `options.roleFunctions`: app functions that return the caller's role. */
 export function driveRoleFunctions(
   ctx: BlockSqlContext,
@@ -90,6 +126,10 @@ export function driveRoleFunctions(
 
     if (value === undefined) {
       return undefined;
+    }
+
+    if (isRecord(value) && value["roles"] === undefined) {
+      return providerRoleOn(ctx, `${where}.${key}`, value["rows"]);
     }
 
     if (isRecord(value)) {

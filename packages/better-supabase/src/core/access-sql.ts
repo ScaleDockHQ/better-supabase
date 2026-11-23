@@ -31,6 +31,7 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   permitted: ["permission", "id", "tenant", "resource", "scope"],
   rowsWith: ["permission", "resource", "ids"],
   rowsWithFor: ["user", "permission", "resource", "ids"],
+  roleOn: ["user", "resource", "id"],
   portalSubjects: ["action"],
   portalParties: [],
   subject: [],

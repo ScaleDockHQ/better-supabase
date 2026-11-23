@@ -23,6 +23,7 @@ writes the trigger, function and table changes below.
 | [Audit retention](#audit-retention)               | Optional: set `retention` so `maintenance()` purges the log            |
 | [Doctor rules](#doctor-rules)                     | None; set `doctor.policies.max` to move the BS641 limit                |
 | [Staff orders](#staff-orders)                     | Rename a column of your own that a new block column takes              |
+| [Drive role grants](#drive-role-grants)           | None; set `grants: "roles"` to drop the drive grants table             |
 
 ## Provider fields
 
@@ -158,3 +159,7 @@ the block's column take its place. SQL of your own that reads a quantity as
 `integer` casts it, and an order made over your own tables maps the new
 columns or leaves them unmapped; a call that sets an unmapped one fails with
 `ORDERS_FIELD_UNSUPPORTED`. See [Staff order fields](/docs/blocks/orders#staff-order-fields).
+
+## Drive role grants
+
+Nothing changes for an app that keeps the default `grants: "table"`. An app whose `roleFunctions.node` already decides every node role can set `grants: "roles"`, run `better-supabase upgrade` and generate a migration: the diff drops `drive_grants`, so move any rows you still need to your role source first. `drive_share` and `drive_unshare` then refuse with `DRIVE_SHARING_EXTERNAL`, so remove share buttons or point them at your own role writes ([Roles without grant rows](/docs/blocks/drive#roles-without-grant-rows)). A provider without permission keys per role adds a `roleOn` template and uses `roleFunctions.node: { rows }`.

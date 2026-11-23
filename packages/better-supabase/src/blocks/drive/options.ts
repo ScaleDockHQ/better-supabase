@@ -6,11 +6,14 @@ import { blockOptions, option } from "../options.ts";
 /**
  * App functions that decide the caller's role on a node or a drive:
  * `schema.name(id uuid, user uuid)` returns one of `options.roles`, or null.
- * With one set, the block calls it instead of its own grants for that level.
+ * With one set, the block calls it instead of its own grants for that level. `{
+ * rows, roles }` maps the provider's permission keys on `rows` to roles; `{
+ * rows }` alone asks the provider's `functions.roleOn` for the role.
  */
 export type DriveRoleHook =
   | string
-  | { readonly rows: string; readonly roles: Readonly<Record<string, string>> };
+  | { readonly rows: string; readonly roles: Readonly<Record<string, string>> }
+  | { readonly rows: string };
 
 /** `blocks.drive.options.quota`: the usage meter uploads count against. */
 export type DriveQuota = BlockQuota;
@@ -67,6 +70,13 @@ export type DriveSqlOptions = {
   readonly driveKinds?: readonly string[];
   readonly sources?: readonly string[];
   readonly roleFunctions?: DriveRoleFunctions;
+  /**
+   * Where node access lives. `table` (the default) keeps a grants table that
+   * `drive_share` writes. `roles` keeps none: `roleFunctions.node` alone names
+   * each member's role, so sharing, offboarding and the access list follow the
+   * app's or the authorization provider's roles.
+   */
+  readonly grants?: "table" | "roles";
   readonly readPolicy?: boolean;
   readonly previewPrefix?: string;
   readonly maxTextBytes?: number;
@@ -95,6 +105,7 @@ export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
     driveKinds: option.strings({ default: ["shared"] }),
     sources: option.strings({ default: ["google-drive", "onedrive"] }),
     roleFunctions: option.unknown<DriveRoleFunctions>(),
+    grants: option.string<"table" | "roles">(),
     readPolicy: option.boolean({ default: true }),
     previewPrefix: option.string({ default: "_previews" }),
     maxTextBytes: option.number({ default: 1_048_576 }),

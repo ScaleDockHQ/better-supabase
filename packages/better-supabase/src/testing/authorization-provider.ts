@@ -206,6 +206,19 @@ export function testAuthorizationProvider(
         }
       },
     ],
+    provider.functions.roleOn !== undefined && [
+      "answers roleOn for a user on one row",
+      () => {
+        const template = provider.functions.roleOn ?? "";
+
+        for (const key of ["user", "resource", "id"]) {
+          expect(
+            template.includes(`{${key}}`),
+            `functions.roleOn doesn't use {${key}}, so it can't name the role one user holds on one row`,
+          );
+        }
+      },
+    ],
     [
       "templates are safe to inline",
       () => {

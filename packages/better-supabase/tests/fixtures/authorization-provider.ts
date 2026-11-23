@@ -16,6 +16,7 @@ type StubProvider = AuthorizationProvider & {
       | "subject"
       | "rowsWith"
       | "rowsWithFor"
+      | "roleOn"
       | "subjectForTenant"
       | "approverFor"
       | "bootstrapPermissions"

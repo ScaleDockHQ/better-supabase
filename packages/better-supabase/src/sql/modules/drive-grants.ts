@@ -37,7 +37,12 @@ export function driveGrantsSql(kit: DriveKit): string {
     principalType,
     principalId,
     grantLive,
+    grantRows,
   } = kit;
+
+  if (!grantRows) {
+    return driveRoleGrantsSql(kit);
+  }
 
   const grantColumns = typed
     ? `${g("tenant")}, ${g("node")}, ${g("principalType")}, ${g("principalId")}, ${g("role")}${expiring ? `, ${g("expiresAt")}` : ""}${ctx.has("grants", "createdBy") ? `, ${g("createdBy")}` : ""}`
@@ -182,6 +187,82 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('id', dg.${g("id")}, 'nodeId', dg.${g("node")}, 'principalType', ${principalType("dg")}, 'principalId', ${principalId("dg")}, 'role', dg.${g("role")}, 'expiresAt', ${expiring ? `dg.${g("expiresAt")}` : "null"}, 'inherited', dg.${g("node")} <> drive_grants.node) order by dg.${g("node")} = drive_grants.node, ${rank(`dg.${g("role")}`)} desc, dg.${g("id")}), '[]'::jsonb)
     from ${G} dg
     where dg.${g("node")} = any (${fn("drive_ancestors")}(drive_grants.node))${grantLive("dg")}
+  );
+end;
+$$;
+${userGrant(`${fn("drive_grants")}(uuid)`)}
+`;
+}
+
+/**
+ * `grants: "roles"`: there are no grant rows. Sharing is decided where the role
+ * function reads its roles, and the access list is every active member the role
+ * function gives a role on the node.
+ */
+function driveRoleGrantsSql(kit: DriveKit): string {
+  const {
+    ctx,
+    T,
+    n,
+    fn,
+    tenant,
+    m,
+    rank,
+    canRead,
+    notFound,
+    nodeRole,
+    rolesArray,
+  } = kit;
+
+  if (nodeRole === undefined) {
+    throw new Error(
+      'drive: options.grants "roles" needs options.roleFunctions.node.',
+    );
+  }
+
+  const refuse = (name: string, args: string, returns: string): string => `
+create or replace function ${fn(name)}(${args})
+returns ${returns}
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  ${fail("DRIVE_SHARING_EXTERNAL", "sharing is off: options.roleFunctions.node names the role of each member, so change it there", "0A000")}
+end;
+$$;`;
+
+  return `
+-- options.grants is "roles": the drive keeps no grant rows, and
+-- ${nodeRole.label} names each member's role on a node.
+${refuse("drive_share", "node uuid, principal_type text, principal_id text, role text, expires_at timestamptz default null", "jsonb")}
+${userGrant(`${fn("drive_share")}(uuid, text, text, text, timestamptz)`)}
+${refuse("drive_unshare", "node uuid, principal_type text, principal_id text", "boolean")}
+${userGrant(`${fn("drive_unshare")}(uuid, text, text)`)}
+
+-- Who has access: each active member of the node's organization with a role
+-- from ${nodeRole.label}.
+create or replace function ${fn("drive_grants")}(node uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not (${SERVICE_CALLER} or ${canRead("drive_grants.node")}) then
+    ${notFound}
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', md5(drive_grants.node::text || r.member::text)::uuid, 'nodeId', drive_grants.node, 'principalType', 'user', 'principalId', r.member::text, 'role', r.role, 'expiresAt', null, 'inherited', false) order by ${rank("r.role")} desc, r.member), '[]'::jsonb)
+    from (
+      select mu.${m("user")} as member, (${nodeRole.role("drive_grants.node", `mu.${m("user")}`)}) as role
+      from ${T} x
+      join ${tenant.table("memberships")} mu on mu.${m("tenant")} = x.${n("tenant")}${activeMembership(ctx, "mu")}
+      where x.${n("id")} = drive_grants.node
+    ) r
+    where r.role = any (${rolesArray})
   );
 end;
 $$;

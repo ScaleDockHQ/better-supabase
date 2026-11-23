@@ -107,6 +107,15 @@ export interface AuthorizationFunctions {
    */
   readonly rowsWithFor?: string;
   /**
+   * The role `{user}` (a uuid) holds on the `{resource}` row `{id}` (text), as
+   * text, or `null` without one. The provider decides what a role is and where
+   * it comes from (a role table, a relation graph, a group sync); the block
+   * keeps no grant rows of its own. `blocks.drive.options.roleFunctions.node: {
+   * rows }` calls it, with `options.grants: "roles"`, for every node read,
+   * share check and access list.
+   */
+  readonly roleOn?: string;
+  /**
    * The records the caller may reach as a guest for `{action}` (`read`,
    * `comment` or `upload`), as a set of `(tenant text, subject_type text,
    * subject_id text)`: it is used as `select g.tenant, g.subject_type,

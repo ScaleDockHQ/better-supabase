@@ -215,6 +215,7 @@ function transferSql(kit: DriveKit): string {
     dg,
     driveTyped,
     driveUserColumn,
+    grantRows,
   } = kit;
 
   const top = sqlString(roles.top);
@@ -287,8 +288,12 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_grant ${G}%rowtype;
-  v_node ${T}%rowtype;${
+  ${
+    grantRows
+      ? `v_grant ${G}%rowtype;
+  v_node ${T}%rowtype;`
+      : ""
+  }${
     drives && D !== undefined
       ? `
   v_drive ${D}%rowtype;`
@@ -319,7 +324,9 @@ begin
   ) then
     ${fail("DRIVE_PRINCIPAL_NOT_FOUND", "the new owner is not an active member of this organization", "P0002")}
   end if;
-  for v_grant in
+${
+  grantRows
+    ? `  for v_grant in
     select gr.* from ${G} gr
     where gr.${g("tenant")} = drive_transfer_ownership.tenant and gr.${g("role")}::text = ${top}
       and ${held("gr", "drive_transfer_ownership.from_user")}
@@ -329,7 +336,9 @@ begin
     select * into v_node from ${T} x where x.${n("id")} = v_grant.${g("node")};
     v_nodes := v_nodes + 1;
     ${record("drive_node.ownership_transferred", "v_node", users, accessAudit("v_node", "ownership transferred"))}
-  end loop;${driveGrants}${driveOwners}${driveEvents}
+  end loop;`
+    : ""
+}${driveGrants}${driveOwners}${driveEvents}
   return jsonb_build_object('nodes', v_nodes, 'drives', v_drives);
 end;
 $$;

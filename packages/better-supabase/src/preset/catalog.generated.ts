@@ -34241,10 +34241,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "OrderLineInput"
         },
         {
+          "name": "OrderLineType"
+        },
+        {
           "name": "OrderMetrics"
         },
         {
           "name": "OrderMetricsOptions"
+        },
+        {
+          "name": "OrderParty"
         },
         {
           "name": "OrderPayment"
@@ -34287,10 +34293,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "OrderStatusTotal"
         },
         {
+          "name": "OrderSummary"
+        },
+        {
           "name": "OrderVariants"
         },
         {
           "name": "PricedCart"
+        },
+        {
+          "name": "StaffOrderFields"
         }
       ],
       "events": {
