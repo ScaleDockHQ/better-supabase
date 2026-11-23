@@ -101,6 +101,10 @@ file by file and lists the places a symbol leaves its file as review lines.
   the file that declares a value the config imports (`blocks: sharedBlocks`).
   Without TypeScript 7.1 a review line lists the imported values to edit by
   hand.
+- **Other config edits.** `codemod prune`, `declared-rows`, `adopt-names` and
+  `extra-columns` edit the file that declares an imported value too, and list it
+  for review, because the render check covers only the config file. Run
+  `better-supabase gen --check` afterwards.
 
 ## What it leaves for you
 

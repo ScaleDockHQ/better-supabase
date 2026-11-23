@@ -496,6 +496,19 @@ Rules that were wrong now agree with the code:
 | BS239 | Fires only when a `package.json` script runs `better-supabase db diff`; a Supabase CLI declarative project never loads pg-delta's library               |
 | BS217 | A same-tenant trigger, generated or an app trigger that BS398 accepts, satisfies it; an info finding recommends the composite key where a unique exists |
 
+Source rules that read TypeScript (BS2xx scale rules, BS3xx block rules, BS4xx
+and BS5xx wiring, cookie and cache rules, BS6xx) read the syntax tree. A comment
+or a string that mentions a call no longer counts, and findings, codes and lines
+are the same for real code. BS260 reports only imported function and type names,
+BS511 and BS621 count dynamic imports, and the shim check ignores comments.
+BS210, BS219, BS227 and BS351 join the rules that check receiver types when
+`typescript` 7.1 or newer is installed. Rules that read SQL or dotenv files still
+match text.
+
+With `typescript` 7.1 or newer, `codemod prune`, `declared-rows`, `adopt-names`
+and `extra-columns` also edit config values that the config imports from other
+files, and list those files for review.
+
 BS706 warns about a shim of a feature the library ships: a seal trigger beside
 `field-encryption`, a `decider` option where the provider has `approverFor`,
 `approvals: false` with `standaloneApprovals`, and an app file that redefines a
