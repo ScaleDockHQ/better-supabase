@@ -13,7 +13,6 @@ import type {
 
 import { DEFAULT_CLAIMS, splitPermissionLevel } from "../config/index.ts";
 import {
-  MODULE_ID_TYPES,
   moduleIdType,
   scopeProblems,
   templateFunctions,
@@ -57,42 +56,23 @@ type TenantScope =
  * The provider's tenant scope and its id type. A scope missing from `scopes`,
  * or without an id type this release renders, is invalid rather than a guess.
  */
-function tenantScope(
-  provider: AuthorizationProvider,
-  subject: string,
-): TenantScope {
+function tenantScope(provider: AuthorizationProvider): TenantScope {
   const scope = provider.tenantScope;
-  const entry = provider.scopes.find((candidate) => candidate.name === scope);
-  const label = providerLabel(provider);
+
+  const declared = provider.scopes.find(
+    (candidate) => candidate.name === scope,
+  )?.idType;
+
+  const idType = declared === undefined ? undefined : moduleIdType(declared);
+
   const problems = scopeProblems(provider);
 
-  if (problems.length > 0) {
+  // scopeProblems names a missing tenant scope, its missing idType and an id
+  // type outside SCOPE_ID_TYPES, the types moduleIdType reads.
+  if (problems.length > 0 || idType === undefined) {
     return {
       kind: "invalid",
-      problem: `The scopes of ${label} are inconsistent: ${problems.join("; ")}.`,
-    };
-  }
-
-  if (!entry) {
-    return {
-      kind: "invalid",
-      problem: `authorization.tenantScope is "${scope}", but ${label} has the scopes ${provider.scopes.map((candidate) => candidate.name).join(", ") || "none"}.`,
-    };
-  }
-
-  if (entry.idType === undefined) {
-    return {
-      kind: "invalid",
-      problem: `${label} gives scope "${scope}" no idType, so ${subject} can't tell its id type.`,
-    };
-  }
-
-  const idType = moduleIdType(entry.idType);
-
-  if (idType === undefined) {
-    return {
-      kind: "invalid",
-      problem: `${label} gives scope "${scope}" the type ${entry.idType}, but ${subject} renders only ${MODULE_ID_TYPES.join(", ").replace(/, (?=[^,]*$)/, " or ")} ids.`,
+      problem: `The scopes of ${providerLabel(provider)} are inconsistent: ${problems.join("; ")}.`,
     };
   }
 
@@ -199,7 +179,7 @@ export function entitlementsMode(
     };
   }
 
-  const chosen = tenantScope(provider, "the entitlements module");
+  const chosen = tenantScope(provider);
 
   if (chosen.kind === "invalid") {
     return chosen;
@@ -252,7 +232,7 @@ export function accessProviderMode(
     };
   }
 
-  const chosen = tenantScope(provider, "the provider access model");
+  const chosen = tenantScope(provider);
 
   if (chosen.kind === "invalid") {
     return chosen;

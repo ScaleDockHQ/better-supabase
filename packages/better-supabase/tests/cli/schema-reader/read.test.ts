@@ -60,6 +60,18 @@ create table t (
     });
   });
 
+  it("reads a column's deferrable after its initially clause", async () => {
+    const read = await readFileFacts(`create table public.t (
+  a int references public.o initially immediate deferrable,
+  b int references public.o not deferrable initially immediate
+);`);
+
+    expect(read.tables[0]?.foreignKeys).toMatchObject([
+      { columns: ["a"], deferrable: true, initiallyDeferred: false },
+      { columns: ["b"], deferrable: false, initiallyDeferred: false },
+    ]);
+  });
+
   it("reads alter table commands and every drop kind", async () => {
     const read =
       await readFileFacts(`alter table p add column x int not null, alter column n set not null,
