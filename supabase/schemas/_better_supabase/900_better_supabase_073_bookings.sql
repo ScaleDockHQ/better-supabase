@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:b340504d5661d9b3466249ebd43eacac3dd6d16411eb758d25ee4c288b7efb25
+-- @bsb-hash sha256:21a6bf403d9350285f436e15105f6d70494d3393757df9c21faa370c3351da05
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1864,8 +1864,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bookings" as restric
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_booking_index"
-  after insert or delete or update of "id", "tenant_id", "customer_name" on "better_supabase"."bookings"
+  after insert or delete on "better_supabase"."bookings"
   for each row execute function "better_supabase"."search_index_row"('booking', 'id');
+create trigger "bsb_search_booking_index_u"
+  after update of "id", "tenant_id", "customer_name" on "better_supabase"."bookings"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."customer_name" is distinct from new."customer_name")
+  execute function "better_supabase"."search_index_row"('booking', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.bookings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"booking","event_prefix":"booking","archive_column":"archived_at"}');

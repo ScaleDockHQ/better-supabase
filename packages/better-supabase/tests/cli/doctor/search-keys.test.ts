@@ -7,6 +7,8 @@ import {
   SEARCH_KEY_RULES,
   searchKeyMismatches,
   searchKeyPairs,
+  searchViewSources,
+  unlistedViewColumns,
 } from "../../../src/cli/doctor/search-keys.ts";
 
 const searched = {
@@ -130,6 +132,69 @@ describe("BS632 check", () => {
 
     expect(
       await rule?.check(
+        context(database, { order: { table: "public.orders" } }),
+      ),
+    ).toEqual([]);
+    expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe("BS637 check", () => {
+  const unlisted = SEARCH_KEY_RULES[1];
+
+  const viewed = {
+    order: {
+      table: "public.orders",
+      tenant: "tenant_id",
+      search: {
+        from: { view: "public.order_search", key: "order_id" },
+        columns: ["number"],
+      },
+    },
+  };
+
+  const use = (table: string, column: string) => ({
+    view_schema: "public",
+    view_name: "order_search",
+    table_schema: "public",
+    table_name: table,
+    column_name: column,
+  });
+
+  it("lists the record's own columns the view reads and the config leaves out", () => {
+    expect(
+      unlistedViewColumns(searchViewSources(viewed), [
+        use("orders", "number"),
+        use("orders", "id"),
+        use("orders", "tenant_id"),
+        use("orders", "title"),
+        use("orders", "status"),
+        use("customers", "name"),
+      ]).map((entry) => entry.missing),
+    ).toEqual([["status", "title"]]);
+  });
+
+  it("reads view_column_usage for the source views and reports the gap", async () => {
+    const { database, query } = live([use("orders", "title")]);
+    const findings = await unlisted?.check(context(database, viewed));
+
+    expect(unlisted?.code).toBe("BS637");
+    expect(findings).toHaveLength(1);
+    expect(findings?.[0]?.target).toBe("order.search.columns");
+    expect(findings?.[0]?.message).toContain(
+      'reads "title" of "public"."orders"',
+    );
+    expect(query.mock.calls[0]?.[0]).toContain("view_column_usage");
+    expect(query.mock.calls[0]?.[0]).toContain("('public', 'order_search')");
+  });
+
+  it("skips without a live database or a source view", async () => {
+    expect(await unlisted?.check(context(undefined, viewed))).toEqual([]);
+
+    const { database, query } = live([]);
+
+    expect(
+      await unlisted?.check(
         context(database, { order: { table: "public.orders" } }),
       ),
     ).toEqual([]);

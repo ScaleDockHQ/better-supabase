@@ -1,6 +1,6 @@
 -- better-supabase module: tax
 -- @bsb-block tax@2 managed
--- @bsb-hash sha256:9aac7c1c364e41817a485b77725be028dee0bcab15a26b96118e84f6dfc746a7
+-- @bsb-hash sha256:444f7a7d48654b25d8bb02005add57874fa889f1fc5d752a4e11569aa92a0118
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1066,8 +1066,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines"
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_tax_code_index"
-  after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."tax_codes"
+  after insert or delete on "better_supabase"."tax_codes"
   for each row execute function "better_supabase"."search_index_row"('tax_code', 'id');
+create trigger "bsb_search_tax_code_index_u"
+  after update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."tax_codes"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('tax_code', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.tax_codes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"tax_code","event_prefix":"tax_code","archive_column":"archived_at"}');

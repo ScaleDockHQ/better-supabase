@@ -1,6 +1,6 @@
 -- better-supabase module: warranty
 -- @bsb-block warranty@1 managed
--- @bsb-hash sha256:1bfa2b788315d4425cb9e86b12aec7c03be87f860ff07060139f02ec0334e912
+-- @bsb-hash sha256:6e14f64d49f217f044aaefdcf2c422dfc85c85868336449b173d950c8e112168
 -- Warranty claims for an asset: the supplier or manufacturer, the covered amount, a status, a decision and attachments on the claim.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -588,8 +588,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."warranty_claims" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_warranty_claim_index"
-  after insert or delete or update of "id", "tenant_id", "title", "manufacturer", "decision" on "better_supabase"."warranty_claims"
+  after insert or delete on "better_supabase"."warranty_claims"
   for each row execute function "better_supabase"."search_index_row"('warranty_claim', 'id');
+create trigger "bsb_search_warranty_claim_index_u"
+  after update of "id", "tenant_id", "title", "manufacturer", "decision" on "better_supabase"."warranty_claims"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."manufacturer" is distinct from new."manufacturer" or old."decision" is distinct from new."decision")
+  execute function "better_supabase"."search_index_row"('warranty_claim', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.warranty_claims deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"warranty_claim","event_prefix":"warranty_claim"}');

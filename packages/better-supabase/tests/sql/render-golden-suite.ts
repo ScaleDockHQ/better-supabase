@@ -88,6 +88,7 @@ const VARIANTS: readonly Variant[] = [
           search: {
             title: "label",
             from: { view: "public.customer_search", key: "customer_id" },
+            columns: ["name"],
             watch: [
               {
                 table: "public.orders",

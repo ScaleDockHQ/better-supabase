@@ -1,0 +1,65 @@
+---
+title: From 0.83 to 0.84
+description: What to change when upgrading from better-supabase 0.83 to 0.84. The shared cache tier (bsb.kept, tenant-shared entries, the Postgres cache functions), the authorizer's enforcement context, and the scale changes to search triggers, import chunks, open items, audit retention, doctor rules, staff orders and drive grants.
+---
+
+0.84 adds a cache tier that outlives a request and closes the scale gaps a
+production adopter reported. It is a minor release, and below 1.0 a minor
+version may carry breaking changes. Each change is also in the
+[changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+Run `better-supabase upgrade`, then generate a migration with
+`pnpm supabase:diff <name>` and `better-supabase add --adopt`. The upgrade
+writes the trigger, function and table changes below.
+
+| Section                                           | Needs code                                                       |
+| ------------------------------------------------- | ---------------------------------------------------------------- |
+| [Provider fields](#provider-fields)               | Optional: declare `tables` and `shareKey` to share cache entries |
+| [The authorizer context](#the-authorizer-context) | Treat an unset `context.enforcement` as `definer`                |
+| [Search source views](#search-source-views)       | Add `search.columns` to every record type with `search.from`     |
+
+## Provider fields
+
+An `AuthorizationProvider` may declare `tables`: per table, `tenant` when
+every caller who holds the listed permissions in a tenant reads the same rows,
+or `row` when the select policy also filters by row. The provider's hooks may
+add `shareKey`, which names the grant a cache entry is keyed on. With them,
+`share: "tenant"` on `bsb.kept()` or `remote()` stores one entry per tenant and
+grant instead of one per user. The entry is filled through the caller's own
+client under RLS, never the service role, and a table the provider does not
+list always refuses to share. Doctor BS428 checks the declaration against the
+policies. A provider that declares neither changes nothing and stays at
+`apiVersion: 1`.
+
+## The authorizer context
+
+The authorizer's request context gains `enforcement`: `"rls"` when the write
+goes through a caller's client and RLS checks it again, `"definer"` when a
+`security definer` function or the service role does the write. A repository
+write through a caller's db passes `"rls"`, a block verb passes `"definer"`,
+and actions, routes, resource actions and MCP tools declare it. An authorizer
+that reads it must treat an unset value as `"definer"`; the conformance check
+in `better-supabase/testing` forges `"rls"` to prove it decides from the
+subject.
+
+## Search source views
+
+A record type with `search.from` must list `search.columns`, the columns of
+its own table that the view reads. The config error names the record type:
+
+```txt
+subjects.customer.search.columns: list the columns of public.customers that
+public.customer_search reads.
+```
+
+Before 0.84 such a type re-indexed on every update of its row. The index
+trigger is now two triggers: `bsb_search_<type>_index` for inserts and deletes,
+and `bsb_search_<type>_index_u`, which fires on `update of` the listed columns
+(plus the id, tenant and archive columns) only when one of them changes value.
+Doctor BS637 reports a column the view reads that the list leaves out. On 1,000
+rows of a view-backed type, an update of an unlisted column took 71 ms and
+called the index trigger 1,000 times before, and takes 21 ms with no call now.
+
+An app table file that writes its own search trigger (the trigger the search
+block prints for a table it renders before) needs the same split. Copy the two
+triggers from the search module file.

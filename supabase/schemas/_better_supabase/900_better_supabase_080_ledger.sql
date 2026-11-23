@@ -1,6 +1,6 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:a492991886a4e154b6435e54befb9e783cbe6b6c86d865769537eceff46f4dd6
+-- @bsb-hash sha256:074be20487b89e2be9961f6671c0f8dafa26c2ea3cd50e8c397d67d24f886f62
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -972,8 +972,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ledger_holds" as res
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_ledger_account_index"
-  after insert or delete or update of "id", "tenant_id", "name" on "better_supabase"."ledger_accounts"
+  after insert or delete on "better_supabase"."ledger_accounts"
   for each row execute function "better_supabase"."search_index_row"('ledger_account', 'id');
+create trigger "bsb_search_ledger_account_index_u"
+  after update of "id", "tenant_id", "name" on "better_supabase"."ledger_accounts"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name")
+  execute function "better_supabase"."search_index_row"('ledger_account', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.ledger_accounts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ledger_account","event_prefix":"ledger_account"}');

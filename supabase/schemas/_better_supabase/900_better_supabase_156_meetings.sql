@@ -1,6 +1,6 @@
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:22a8ff759139e2875d41a3a1428bdbf8a574fe050cc99e921db2aee7fb3b8182
+-- @bsb-hash sha256:035b42aeb0550a76b42aa0918ab42907b2eca81004b89396525dcaa4afc821c6
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1646,11 +1646,19 @@ create policy bsb_tenant_scope_delete on "better_supabase"."meeting_action_items
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_meeting_index"
-  after insert or delete or update of "id", "tenant_id", "title", "location", "summary" on "better_supabase"."meetings"
+  after insert or delete on "better_supabase"."meetings"
   for each row execute function "better_supabase"."search_index_row"('meeting', 'id');
+create trigger "bsb_search_meeting_index_u"
+  after update of "id", "tenant_id", "title", "location", "summary" on "better_supabase"."meetings"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."location" is distinct from new."location" or old."summary" is distinct from new."summary")
+  execute function "better_supabase"."search_index_row"('meeting', 'id');
 create trigger "bsb_search_meeting_decision_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."meeting_decisions"
+  after insert or delete on "better_supabase"."meeting_decisions"
   for each row execute function "better_supabase"."search_index_row"('meeting_decision', 'id');
+create trigger "bsb_search_meeting_decision_index_u"
+  after update of "id", "tenant_id", "title" on "better_supabase"."meeting_decisions"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('meeting_decision', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.meetings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"meeting","event_prefix":"meeting","archive_column":"archived_at"}');

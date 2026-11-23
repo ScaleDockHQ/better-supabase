@@ -332,22 +332,23 @@ function triggerSql(
   const name = (suffix: string): string =>
     sqlIdent(`bsb_search_${subject.type}_${suffix}`.slice(0, 63));
 
-  const trigger = name("index");
+  const base = `bsb_search_${subject.type}_index`;
+  const trigger = sqlIdent(base.slice(0, 63));
+
+  const updateTrigger = sqlIdent(
+    base.length + 2 <= 63 ? `${base}_u` : `${base.slice(0, 61)}_u`,
+  );
+
   const type = sqlString(subject.type);
   const key = sqlString(subject.config.id ?? "id");
-
-  // Null: every update re-indexes, as a view reads columns we can't name.
-  const watched =
-    subject.config.search?.from !== undefined &&
-    subject.config.search.columns === undefined
-      ? null
-      : watchedColumns(subject);
+  const watched = watchedColumns(subject);
+  const on = subject.qualified;
 
   if (subject.config.search?.statement === true) {
     const fn = search.fn("search_index_stmt");
-    const on = subject.qualified;
 
     return `drop trigger if exists ${trigger} on ${on};
+drop trigger if exists ${updateTrigger} on ${on};
 drop trigger if exists ${name("insert")} on ${on};
 create trigger ${name("insert")}
   after insert on ${on} referencing new table as new_rows
@@ -355,22 +356,32 @@ create trigger ${name("insert")}
 drop trigger if exists ${name("update")} on ${on};
 create trigger ${name("update")}
   after update on ${on} referencing old table as old_rows new table as new_rows
-  for each statement execute function ${fn}(${type}, ${key}, ${sqlString(watched === null ? "" : watched.join(","))});
+  for each statement execute function ${fn}(${type}, ${key}, ${sqlString(watched.join(","))});
 drop trigger if exists ${name("delete")} on ${on};
 create trigger ${name("delete")}
   after delete on ${on} referencing old table as old_rows
   for each statement execute function ${fn}(${type}, ${key});`;
   }
 
-  const update =
-    watched === null
-      ? "update"
-      : `update of ${watched.map(sqlIdent).join(", ")}`;
+  const fn = `${search.fn("search_index_row")}(${type}, ${key})`;
 
-  return `drop trigger if exists ${trigger} on ${subject.qualified};
+  // `update of` still fires when a column is set to its own value.
+  const changed = watched
+    .map(
+      (column) =>
+        `old.${sqlIdent(column)} is distinct from new.${sqlIdent(column)}`,
+    )
+    .join(" or ");
+
+  return `drop trigger if exists ${trigger} on ${on};
 create trigger ${trigger}
-  after insert or delete or ${update} on ${subject.qualified}
-  for each row execute function ${search.fn("search_index_row")}(${type}, ${key});`;
+  after insert or delete on ${on}
+  for each row execute function ${fn};
+drop trigger if exists ${updateTrigger} on ${on};
+create trigger ${updateTrigger}
+  after update of ${watched.map(sqlIdent).join(", ")} on ${on}
+  for each row when (${changed})
+  execute function ${fn};`;
 }
 
 /**
@@ -956,7 +967,7 @@ export const SEARCH: BlockSqlDefinition = {
   integrates: ["share-links", "vector-search"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   upgrades: [
     {
       from: 1,
@@ -981,6 +992,12 @@ export const SEARCH: BlockSqlDefinition = {
       from: 4,
       description:
         "search_page, recents and favorites check readability once per record type through can_subjects instead of once per row through can_subject.",
+      sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "The row trigger splits into an insert and delete trigger and an update trigger that fires only when an indexed column changes. A record type with search.from needs search.columns.",
       sql: () => "",
     },
   ],

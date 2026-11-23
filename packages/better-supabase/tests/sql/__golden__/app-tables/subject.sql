@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:5d30432f24836c37ca81af9f480bd45bdf5ecd80449f5d8a525dd3a0ef19d55e
+-- @bsb-hash sha256:5d7f572915e2ca6b7915fc4ee553a283ab4b67594fa1b26dc4965e1b9138aa69
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -53,8 +53,12 @@ create index if not exists "projects_stage_rank_idx" on "public"."projects" ("st
 create trigger "bsb_updated_at" before update on "public"."projects"
   for each row execute function better_supabase.set_updated_at();
 create trigger "bsb_search_project_index"
-  after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
+  after insert or delete on "public"."projects"
   for each row execute function "better_supabase"."search_index_row"('project', 'id');
+create trigger "bsb_search_project_index_u"
+  after update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
+  for each row when (old."id" is distinct from new."id" or old."organization_id" is distinct from new."organization_id" or old."name" is distinct from new."name" or old."deleted_at" is distinct from new."deleted_at")
+  execute function "better_supabase"."search_index_row"('project', 'id');
 
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables

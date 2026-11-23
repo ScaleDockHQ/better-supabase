@@ -1,6 +1,6 @@
 -- better-supabase module: expenses
 -- @bsb-block expenses@2 managed
--- @bsb-hash sha256:e55bb9a3cdfc7ee094c56d3ee97675d7b756634bfe0f94b68e63de4c2613eab9
+-- @bsb-hash sha256:850bc4f6b35798975fdfbb1e829ff4e28fd90ed95bad6fd7179ca37388fb2c32
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1467,11 +1467,19 @@ create policy bsb_tenant_scope_delete on "better_supabase"."expense_lines" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_expense_report_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."expense_reports"
+  after insert or delete on "better_supabase"."expense_reports"
   for each row execute function "better_supabase"."search_index_row"('expense_report', 'id');
+create trigger "bsb_search_expense_report_index_u"
+  after update of "id", "tenant_id", "title" on "better_supabase"."expense_reports"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('expense_report', 'id');
 create trigger "bsb_search_expense_line_index"
-  after insert or delete or update of "id", "tenant_id", "description" on "better_supabase"."expense_lines"
+  after insert or delete on "better_supabase"."expense_lines"
   for each row execute function "better_supabase"."search_index_row"('expense_line', 'id');
+create trigger "bsb_search_expense_line_index_u"
+  after update of "id", "tenant_id", "description" on "better_supabase"."expense_lines"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."description" is distinct from new."description")
+  execute function "better_supabase"."search_index_row"('expense_line', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.expense_reports deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"expense_report","event_prefix":"expense_report"}');

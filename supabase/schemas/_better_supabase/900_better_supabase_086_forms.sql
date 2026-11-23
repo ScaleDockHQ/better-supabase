@@ -1,6 +1,6 @@
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:0f7918b9220567a88ba969c5c38ef5af6dfbc2415133b8e9781f88b16cbec57f
+-- @bsb-hash sha256:3c47c2e7f1116a564c1fee849e8818bd9e07d9736ef202ca5eba855f3a50e184
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1814,8 +1814,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."form_submissions" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_form_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."forms"
+  after insert or delete on "better_supabase"."forms"
   for each row execute function "better_supabase"."search_index_row"('form', 'id');
+create trigger "bsb_search_form_index_u"
+  after update of "id", "tenant_id", "title" on "better_supabase"."forms"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('form', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.forms deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"form","event_prefix":"form"}');

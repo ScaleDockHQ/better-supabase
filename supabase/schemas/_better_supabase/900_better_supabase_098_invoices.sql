@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:3733fb0882fa299ea3bfca9495af0af7f5f5fc3b2bf292c2a1d2c80ed1948120
+-- @bsb-hash sha256:c190b4bb96c2a51ee36a2a9d9bc1a5342c1eb4d36405df8325e9075b2f990009
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5947,8 +5947,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_invoice_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."invoices"
+  after insert or delete on "better_supabase"."invoices"
   for each row execute function "better_supabase"."search_index_row"('invoice', 'id');
+create trigger "bsb_search_invoice_index_u"
+  after update of "id", "tenant_id", "title" on "better_supabase"."invoices"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('invoice', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.invoices deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"invoice","event_prefix":"invoice","archive_column":"archived_at"}');

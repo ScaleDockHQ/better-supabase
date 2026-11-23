@@ -3038,6 +3038,17 @@ view and follows watch keys on the columns' own type. When the live catalog
 gives the two columns different types, the comparison stays text and cannot use
 the key's index. Make the columns the same type.
 
+### BS637
+
+**Warning: a search source view reads a column `search.columns` leaves out.**
+A record type with `search.from` re-indexes when one of the columns in
+`search.columns` (or its id, tenant or archive column) changes, because the
+generator cannot see what the view reads. Doctor reads
+`information_schema.view_column_usage` for each source view and reports every
+column of the record's own table that the view reads and the list leaves out.
+An update of such a column leaves the search document stale. Add the column to
+`search.columns`.
+
 ### BS633
 
 **Info: an app row trigger has no `importing()` guard.** An import writes many

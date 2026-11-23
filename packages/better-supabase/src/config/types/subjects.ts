@@ -195,10 +195,10 @@ export interface SubjectSearch {
    */
   readonly from?: { readonly view: string; readonly key: string };
   /**
-   * With `from`: the columns of the record's own table that the view reads. The
-   * indexing trigger then fires on an update of these (and the id, tenant and
-   * archive columns) instead of on every update, so a change to another column
-   * costs no re-index. Without it the trigger fires on every update.
+   * Required with `from`: the columns of the record's own table that the view
+   * reads. The indexing trigger fires only when one of these (or the id, tenant
+   * or archive column) changes value, so a change to another column costs no
+   * re-index. Doctor BS637 reports a column the view reads that is missing.
    */
   readonly columns?: readonly string[];
   /**

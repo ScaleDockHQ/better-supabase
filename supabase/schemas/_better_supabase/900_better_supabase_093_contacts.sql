@@ -1,6 +1,6 @@
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:a25006d5f0b03a72cfb9b99f918e9933886f1405040c4ff6c07e98cd81c5d9f1
+-- @bsb-hash sha256:2bf38cc8d41c70ca8af274b4eb0f1a7aea00880744841700cb7eae6a9ee62a2d
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2669,11 +2669,19 @@ create policy bsb_tenant_scope_delete on "better_supabase"."party_channels" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_company_index"
-  after insert or delete or update of "id", "tenant_id", "name", "domain", "website" on "better_supabase"."companies"
+  after insert or delete on "better_supabase"."companies"
   for each row execute function "better_supabase"."search_index_row"('company', 'id');
+create trigger "bsb_search_company_index_u"
+  after update of "id", "tenant_id", "name", "domain", "website" on "better_supabase"."companies"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name" or old."domain" is distinct from new."domain" or old."website" is distinct from new."website")
+  execute function "better_supabase"."search_index_row"('company', 'id');
 create trigger "bsb_search_person_index"
-  after insert or delete or update of "id", "tenant_id", "name", "email", "phone", "title" on "better_supabase"."people"
+  after insert or delete on "better_supabase"."people"
   for each row execute function "better_supabase"."search_index_row"('person', 'id');
+create trigger "bsb_search_person_index_u"
+  after update of "id", "tenant_id", "name", "email", "phone", "title" on "better_supabase"."people"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name" or old."email" is distinct from new."email" or old."phone" is distinct from new."phone" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('person', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.companies deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"company","event_prefix":"company","archive_column":"archived_at"}');

@@ -1,6 +1,6 @@
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:d9ca7c73e00ec50642c1bc45b7ed7e4cd350fa1b56557b167fa90b3be0fe432a
+-- @bsb-hash sha256:e58f1a66ccc7bd17031d28c1ce7f4e6e3a8129df42fc8996d3aaf7fa8904bb57
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1275,8 +1275,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."lims_results" as res
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_lims_sample_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."lims_samples"
+  after insert or delete on "better_supabase"."lims_samples"
   for each row execute function "better_supabase"."search_index_row"('lims_sample', 'id');
+create trigger "bsb_search_lims_sample_index_u"
+  after update of "id", "tenant_id", "title" on "better_supabase"."lims_samples"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('lims_sample', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.lims_samples deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lims_sample","event_prefix":"lims_sample"}');

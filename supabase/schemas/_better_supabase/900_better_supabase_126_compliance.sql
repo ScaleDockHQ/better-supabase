@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:4c9f9a87aeeabaf2d2b8665fd4edf6f10ec3b7c112efb0f0b6bf10f39d25ac50
+-- @bsb-hash sha256:f46fda32deaf6632c87410ffbbf98acaf1a5959cf9d77c6414451edc3638ab45
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1851,11 +1851,19 @@ create policy bsb_tenant_scope_delete on "better_supabase"."compliance_policies"
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_control_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."controls"
+  after insert or delete on "better_supabase"."controls"
   for each row execute function "better_supabase"."search_index_row"('control', 'id');
+create trigger "bsb_search_control_index_u"
+  after update of "id", "tenant_id", "title" on "better_supabase"."controls"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('control', 'id');
 create trigger "bsb_search_compliance_policy_index"
-  after insert or delete or update of "id", "tenant_id", "title", "key" on "better_supabase"."compliance_policies"
+  after insert or delete on "better_supabase"."compliance_policies"
   for each row execute function "better_supabase"."search_index_row"('compliance_policy', 'id');
+create trigger "bsb_search_compliance_policy_index_u"
+  after update of "id", "tenant_id", "title", "key" on "better_supabase"."compliance_policies"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."key" is distinct from new."key")
+  execute function "better_supabase"."search_index_row"('compliance_policy', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.controls deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"control","event_prefix":"control"}');

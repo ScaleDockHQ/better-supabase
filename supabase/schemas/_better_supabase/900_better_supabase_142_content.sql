@@ -1,6 +1,6 @@
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:7fdb008a6b44cadcfd4c04f81774fc2db68fd9463fd74e748262a1c5197e8837
+-- @bsb-hash sha256:e7b5e867af6aa9e0b38385f2ef698c5f418611d5165c907adf517c859fbd60e1
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1017,8 +1017,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."content_entries" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_content_entry_index"
-  after insert or delete or update of "id", "tenant_id", "title", "summary" on "better_supabase"."content_entries"
+  after insert or delete on "better_supabase"."content_entries"
   for each row execute function "better_supabase"."search_index_row"('content_entry', 'id');
+create trigger "bsb_search_content_entry_index_u"
+  after update of "id", "tenant_id", "title", "summary" on "better_supabase"."content_entries"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."summary" is distinct from new."summary")
+  execute function "better_supabase"."search_index_row"('content_entry', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.content_entries deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"content_entry","event_prefix":"content_entry"}');

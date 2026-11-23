@@ -1,6 +1,6 @@
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:d79b216611fbd515a45490a9f40efc516cbcbce0dcbf677fc7ee1975d77da79e
+-- @bsb-hash sha256:852486fcd691aceb01c4bb493ba187d2ab918ac2a6d7430f8fe4568926e90fbd
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1707,8 +1707,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_page
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_incident_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."incidents"
+  after insert or delete on "better_supabase"."incidents"
   for each row execute function "better_supabase"."search_index_row"('incident', 'id');
+create trigger "bsb_search_incident_index_u"
+  after update of "id", "tenant_id", "title" on "better_supabase"."incidents"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('incident', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.incidents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"incident","event_prefix":"incident"}');

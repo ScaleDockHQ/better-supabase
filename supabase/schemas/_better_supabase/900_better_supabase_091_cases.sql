@@ -1,6 +1,6 @@
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:a59c1b452d93715168c869b2a65b114853148caf8a80f891860516f0c21709fe
+-- @bsb-hash sha256:738e9d5f723a072ec2c29267795c95af3dfd73cbd2a61b586ea7cfaebec565bc
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1989,8 +1989,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."case_actions" as res
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_case_index"
-  after insert or delete or update of "id", "tenant_id", "title", "number", "description", "root_cause", "archived_at" on "better_supabase"."cases"
+  after insert or delete on "better_supabase"."cases"
   for each row execute function "better_supabase"."search_index_row"('case', 'id');
+create trigger "bsb_search_case_index_u"
+  after update of "id", "tenant_id", "title", "number", "description", "root_cause", "archived_at" on "better_supabase"."cases"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."number" is distinct from new."number" or old."description" is distinct from new."description" or old."root_cause" is distinct from new."root_cause" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('case', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.cases deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"case","event_prefix":"case","archive_column":"archived_at"}');

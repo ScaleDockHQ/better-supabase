@@ -317432,7 +317432,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -317440,7 +317439,21 @@
             "args": [
               "activity",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_activity_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "activity",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "body",
@@ -318215,7 +318228,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -318223,7 +318235,21 @@
             "args": [
               "advisory",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_advisory_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "advisory",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "summary",
@@ -318576,7 +318602,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -318584,7 +318609,21 @@
             "args": [
               "advisory_product",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_advisory_product_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "advisory_product",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "id",
@@ -327215,7 +327254,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -327223,7 +327261,21 @@
             "args": [
               "asset_location",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_asset_location_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "asset_location",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "name",
@@ -327682,7 +327734,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -327690,7 +327741,21 @@
             "args": [
               "asset",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_asset_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "asset",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "name",
@@ -330157,7 +330222,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -330165,7 +330229,21 @@
             "args": [
               "bank_account",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_bank_account_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "bank_account",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "holder",
@@ -333307,7 +333385,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -333315,7 +333392,21 @@
             "args": [
               "booking",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_booking_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "booking",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "customer_name",
               "id",
@@ -334060,7 +334151,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -334068,7 +334158,21 @@
             "args": [
               "calendar_event",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_calendar_event_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "calendar_event",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "description",
               "id",
@@ -335709,7 +335813,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -335717,7 +335820,21 @@
             "args": [
               "care_plan",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_care_plan_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "care_plan",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -337210,7 +337327,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -337218,7 +337334,21 @@
             "args": [
               "case",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_case_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "case",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "description",
@@ -338224,7 +338354,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -338232,7 +338361,21 @@
             "args": [
               "channel",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_channel_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "channel",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "name",
@@ -340740,7 +340883,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -340748,7 +340890,21 @@
             "args": [
               "company",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_company_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "company",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "domain",
               "id",
@@ -341112,7 +341268,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -341120,7 +341275,21 @@
             "args": [
               "compliance_policy",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_compliance_policy_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "compliance_policy",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "key",
@@ -342764,7 +342933,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -342772,7 +342940,21 @@
             "args": [
               "content_entry",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_content_entry_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "content_entry",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "summary",
@@ -343320,7 +343502,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -343328,7 +343509,21 @@
             "args": [
               "contract",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_contract_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "contract",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -343961,7 +344156,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -343969,7 +344163,21 @@
             "args": [
               "control",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_control_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "control",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -344345,7 +344553,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -344353,7 +344560,21 @@
             "args": [
               "conversation",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_conversation_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "conversation",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "id",
@@ -345573,7 +345794,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -345581,7 +345801,21 @@
             "args": [
               "course",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_course_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "course",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "summary",
@@ -346167,7 +346401,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -346175,7 +346408,21 @@
             "args": [
               "dam_usage_right",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_dam_usage_right_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "dam_usage_right",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "licensee",
@@ -347843,7 +348090,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -347851,7 +348097,21 @@
             "args": [
               "deal",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_deal_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "deal",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "id",
@@ -349768,7 +350028,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -349776,7 +350035,21 @@
             "args": [
               "document",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_document_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "document",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "name",
@@ -350009,7 +350282,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -350017,7 +350289,21 @@
             "args": [
               "donation_fund",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_donation_fund_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "donation_fund",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "name",
@@ -351200,7 +351486,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -351208,7 +351493,21 @@
             "args": [
               "drive_node",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_drive_node_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "drive_node",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "id",
@@ -352304,7 +352603,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -352312,7 +352610,21 @@
             "args": [
               "employee",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_employee_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "employee",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "email",
               "id",
@@ -354383,7 +354695,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -354391,7 +354702,21 @@
             "args": [
               "expense_line",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_expense_line_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "expense_line",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "description",
               "id",
@@ -354648,7 +354973,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -354656,7 +354980,21 @@
             "args": [
               "expense_report",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_expense_report_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "expense_report",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -356507,7 +356845,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -356515,7 +356852,21 @@
             "args": [
               "form",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_form_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "form",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -362964,7 +363315,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -362972,7 +363322,21 @@
             "args": [
               "incident",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_incident_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "incident",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -363564,7 +363928,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -363572,7 +363935,21 @@
             "args": [
               "inspection_finding",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_inspection_finding_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "inspection_finding",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -363968,7 +364345,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -363976,7 +364352,21 @@
             "args": [
               "inspection_program",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_inspection_program_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "inspection_program",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "id",
@@ -364349,7 +364739,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -364357,7 +364746,21 @@
             "args": [
               "inspection",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_inspection_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "inspection",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "number",
@@ -368191,7 +368594,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -368199,7 +368601,21 @@
             "args": [
               "invoice",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_invoice_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "invoice",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -369807,7 +370223,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -369815,7 +370230,21 @@
             "args": [
               "lease",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_lease_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "lease",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -370546,7 +370975,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -370554,7 +370982,21 @@
             "args": [
               "ledger_account",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_ledger_account_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "ledger_account",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "name",
@@ -372601,7 +373043,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -372609,7 +373050,21 @@
             "args": [
               "lims_sample",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_lims_sample_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "lims_sample",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -374884,7 +375339,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -374892,7 +375346,21 @@
             "args": [
               "maintenance_plan",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_maintenance_plan_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "maintenance_plan",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -378141,7 +378609,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -378149,7 +378616,21 @@
             "args": [
               "meeting_decision",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_meeting_decision_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "meeting_decision",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -378399,7 +378880,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -378407,7 +378887,21 @@
             "args": [
               "meeting",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_meeting_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "meeting",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "location",
@@ -379648,7 +380142,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -379656,7 +380149,21 @@
             "args": [
               "message",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_message_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "message",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "body",
@@ -385774,7 +386281,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -385782,7 +386288,21 @@
             "args": [
               "order",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_order_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "order",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "number",
@@ -388812,7 +389332,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -388820,7 +389339,21 @@
             "args": [
               "person",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_person_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "person",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "email",
               "id",
@@ -391996,7 +392529,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -392004,7 +392536,21 @@
             "args": [
               "post",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_post_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "post",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "body",
               "id",
@@ -394295,7 +394841,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -394303,7 +394848,21 @@
             "args": [
               "product_variant",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_product_variant_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "product_variant",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "barcode",
               "id",
@@ -395078,7 +395637,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -395086,7 +395644,21 @@
             "args": [
               "production_order",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_production_order_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "production_order",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "note",
@@ -395373,7 +395945,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -395381,7 +395952,21 @@
             "args": [
               "product",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_product_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "product",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "description",
               "id",
@@ -398246,7 +398831,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -398254,7 +398838,21 @@
             "args": [
               "qualification_type",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_qualification_type_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "qualification_type",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "key",
@@ -399438,7 +400036,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -399446,7 +400043,21 @@
             "args": [
               "quote",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_quote_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "quote",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -402675,7 +403286,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -402683,7 +403293,21 @@
             "args": [
               "rfq",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_rfq_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "rfq",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -403566,7 +404190,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -403574,7 +404197,21 @@
             "args": [
               "risk",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_risk_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "risk",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "cause",
@@ -408861,7 +409498,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -408869,7 +409505,21 @@
             "args": [
               "shipment",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_shipment_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "shipment",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "reference",
@@ -415365,7 +416015,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -415373,7 +416022,21 @@
             "args": [
               "tax_code",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_tax_code_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "tax_code",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "id",
@@ -418567,7 +419230,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -418575,7 +419237,21 @@
             "args": [
               "till",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_till_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "till",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "name",
@@ -421457,7 +422133,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -421465,7 +422140,21 @@
             "args": [
               "vulnerability",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_vulnerability_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "vulnerability",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "summary",
@@ -421838,7 +422527,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -421846,7 +422534,21 @@
             "args": [
               "warranty_claim",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_warranty_claim_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "warranty_claim",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "decision",
               "id",
@@ -422771,7 +423473,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -422779,7 +423480,21 @@
             "args": [
               "work_center",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_work_center_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "work_center",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "id",
@@ -423983,7 +424698,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -423991,7 +424705,21 @@
             "args": [
               "work_item",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_work_item_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "work_item",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "archived_at",
               "body",
@@ -424730,7 +425458,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -424738,7 +425465,21 @@
             "args": [
               "work_order",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_work_order_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "work_order",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "tenant_id",
@@ -429342,7 +430083,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -429350,7 +430090,21 @@
             "args": [
               "project",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_project_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "project",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "deleted_at",
               "id",
@@ -430255,7 +431009,6 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
             ],
             "level": "row",
@@ -430263,7 +431016,21 @@
             "args": [
               "task",
               "id"
+            ]
+          },
+          {
+            "name": "bsb_search_task_index_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
+            "level": "row",
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "task",
+              "id"
+            ],
+            "conditional": true,
             "updateOf": [
               "id",
               "organization_id",

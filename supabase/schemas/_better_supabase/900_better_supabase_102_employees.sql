@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:b67390c09d4e8ca775c81120b0c5c2bb8bb614d57911e163d5357cb03c31722c
+-- @bsb-hash sha256:3e888b233974b0948b5e569d2cc5fcad28a3b17368ae563f44aac97dc0098f65
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1260,8 +1260,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."employee_contracts" 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_employee_index"
-  after insert or delete or update of "id", "tenant_id", "name", "email", "job_title" on "better_supabase"."employees"
+  after insert or delete on "better_supabase"."employees"
   for each row execute function "better_supabase"."search_index_row"('employee', 'id');
+create trigger "bsb_search_employee_index_u"
+  after update of "id", "tenant_id", "name", "email", "job_title" on "better_supabase"."employees"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name" or old."email" is distinct from new."email" or old."job_title" is distinct from new."job_title")
+  execute function "better_supabase"."search_index_row"('employee', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.employees deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"employee","event_prefix":"employee"}');

@@ -1,6 +1,6 @@
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:dc647d0752411f500b283f713662a96f6e478b30c1e365dfe315fd5012332d8a
+-- @bsb-hash sha256:590afe2840b500e890d4d71d9a0e859327ae8b5919aa5aef3cb281d0ac3bf61b
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1828,14 +1828,26 @@ create policy bsb_tenant_scope_delete on "better_supabase"."inspection_findings"
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_inspection_index"
-  after insert or delete or update of "id", "tenant_id", "title", "number", "scope", "summary" on "better_supabase"."inspections"
+  after insert or delete on "better_supabase"."inspections"
   for each row execute function "better_supabase"."search_index_row"('inspection', 'id');
+create trigger "bsb_search_inspection_index_u"
+  after update of "id", "tenant_id", "title", "number", "scope", "summary" on "better_supabase"."inspections"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."number" is distinct from new."number" or old."scope" is distinct from new."scope" or old."summary" is distinct from new."summary")
+  execute function "better_supabase"."search_index_row"('inspection', 'id');
 create trigger "bsb_search_inspection_program_index"
-  after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."inspection_programs"
+  after insert or delete on "better_supabase"."inspection_programs"
   for each row execute function "better_supabase"."search_index_row"('inspection_program', 'id');
+create trigger "bsb_search_inspection_program_index_u"
+  after update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."inspection_programs"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('inspection_program', 'id');
 create trigger "bsb_search_inspection_finding_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."inspection_findings"
+  after insert or delete on "better_supabase"."inspection_findings"
   for each row execute function "better_supabase"."search_index_row"('inspection_finding', 'id');
+create trigger "bsb_search_inspection_finding_index_u"
+  after update of "id", "tenant_id", "title" on "better_supabase"."inspection_findings"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('inspection_finding', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.inspections deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inspection","event_prefix":"inspection"}');

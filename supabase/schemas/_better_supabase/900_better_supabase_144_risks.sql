@@ -1,6 +1,6 @@
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:61d6267bf6e9024a8685fc4fe9748b838cf2be7b4ce99eedcae515a0573b9b20
+-- @bsb-hash sha256:949e0f52abb9f27e708d13e4991f06f86307bc0b967fb928dd8347b2f32cc970
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1486,8 +1486,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."risk_assessments" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_risk_index"
-  after insert or delete or update of "id", "tenant_id", "title", "number", "description", "cause", "consequence", "archived_at" on "better_supabase"."risks"
+  after insert or delete on "better_supabase"."risks"
   for each row execute function "better_supabase"."search_index_row"('risk', 'id');
+create trigger "bsb_search_risk_index_u"
+  after update of "id", "tenant_id", "title", "number", "description", "cause", "consequence", "archived_at" on "better_supabase"."risks"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."number" is distinct from new."number" or old."description" is distinct from new."description" or old."cause" is distinct from new."cause" or old."consequence" is distinct from new."consequence" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('risk', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.risks deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"risk","event_prefix":"risk","archive_column":"archived_at"}');

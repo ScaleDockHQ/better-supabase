@@ -470,7 +470,7 @@
   },
   "search": {
     "security-definer-functions": 50,
-    "row-triggers": 3
+    "row-triggers": 4
   },
   "security-events": {
     "security-definer-functions": 78,
