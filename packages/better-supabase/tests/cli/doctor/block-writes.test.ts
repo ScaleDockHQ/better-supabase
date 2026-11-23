@@ -123,6 +123,21 @@ describe("BS351", () => {
     );
   });
 
+  it("ignores writes in comments and strings", async () => {
+    const findings = await run([
+      {
+        path: "src/app/notes.ts",
+        text: [
+          '// await supabase.from("credentials").insert({});',
+          'const doc = `supabase.from("credentials").delete()`;',
+          "export const ok = doc;",
+        ].join("\n"),
+      },
+    ]);
+
+    expect(findings).toEqual([]);
+  });
+
   it("leaves a table of the app's with the same name alone", async () => {
     const findings = await run([WRITES], withAppCredentials());
 

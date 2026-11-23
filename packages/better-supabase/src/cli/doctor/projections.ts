@@ -5,6 +5,7 @@ import { blockTables, parseBsbComment } from "../../sql/index.ts";
 import { projectionsOf } from "../powersync/projection.ts";
 import { subjectFromTag } from "../subject-tag.ts";
 import { catalogOf } from "./shared.ts";
+import { callStrings } from "./tree.ts";
 
 /** The helpers that take a table name and read or sync its rows. */
 const HELPERS = [
@@ -13,32 +14,6 @@ const HELPERS = [
   "attachmentQueueRoute",
   "queryEngine",
 ];
-
-const HELPER_CALL = new RegExp(String.raw`\b(${HELPERS.join("|")})\s*\(`, "g");
-
-const lineAt = (text: string, index: number): number =>
-  text.slice(0, index).split("\n").length;
-
-/** The text of the call whose `(` is at `open`, up to its match. */
-function argumentsOf(text: string, open: number): string {
-  let depth = 0;
-
-  for (let at = open; at < text.length; at += 1) {
-    const char = text[at];
-
-    if (char === "(") {
-      depth += 1;
-    } else if (char === ")") {
-      depth -= 1;
-
-      if (depth === 0) {
-        return text.slice(open + 1, at);
-      }
-    }
-  }
-
-  return text.slice(open + 1);
-}
 
 /**
  * The app's views over block tables, as the block table and the view name:
@@ -124,10 +99,8 @@ export const PROJECTION_RULES: readonly Rule[] = [
       }
 
       return context.sources.flatMap((file) =>
-        [...file.text.matchAll(HELPER_CALL)].flatMap((call): FindingInput[] => {
-          const args = argumentsOf(file.text, call.index + call[0].length - 1);
-
-          return projections.flatMap(({ base, view }): FindingInput[] => {
+        callStrings(file.text, HELPERS).flatMap((call): FindingInput[] =>
+          projections.flatMap(({ base, view }): FindingInput[] => {
             const name = base.slice(base.indexOf(".") + 1);
             const viewName = view.slice(view.indexOf(".") + 1);
 
@@ -137,21 +110,21 @@ export const PROJECTION_RULES: readonly Rule[] = [
               `${escape(base)}\\b${name === viewName ? "" : `|(?<!\\w)${escape(name)}\\b`}`,
             );
 
-            if (!pattern.test(args)) {
+            if (!call.strings.some((value) => pattern.test(value))) {
               return [];
             }
 
-            const line = lineAt(file.text, call.index);
+            const { line } = call;
 
             return [
               {
-                message: `${file.path}:${String(line)}: ${call[1]!}() names ${base}, which the app projects through ${view}. Name ${view}.`,
+                message: `${file.path}:${String(line)}: ${call.name}() names ${base}, which the app projects through ${view}. Name ${view}.`,
                 target: `${file.path}:${String(line)}`,
                 location: { file: file.path, line },
               },
             ];
-          });
-        }),
+          }),
+        ),
       );
     },
   },

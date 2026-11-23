@@ -679,6 +679,25 @@ create trigger notes_customer before insert or update on public.notes for each r
     ]);
   });
 
+  it("ignores scale and pooler signs in comments and strings (BS221, BS226, BS227)", async () => {
+    const sources = [
+      {
+        path: "src/quiet.ts",
+        text: [
+          "/* export const runtime = 'edge'; Deno.serve(handler); */",
+          "const doc = \"pagination: 'offset', count: 'exact', db.count()\";",
+          "// import postgres from 'postgres'",
+          "// const p = new PrismaClient()",
+          "export const ok = 1;",
+        ].join("\n"),
+      },
+    ];
+
+    for (const code of ["BS221", "BS226", "BS227"]) {
+      expect(await run(context(base, { sources }), code)).toEqual([]);
+    }
+  });
+
   it("reports count() without a mode (BS227)", async () => {
     const sources = [
       {

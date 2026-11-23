@@ -1126,13 +1126,30 @@ describe("doctor rules", () => {
     ]);
 
     const include = [
-      { path: "src/c.tsx", text: "include: { _sum: { invoices: {} } }" },
+      {
+        path: "src/c.tsx",
+        text: "const q = { include: { _sum: { invoices: {} } } };",
+      },
     ];
 
     expect(
       await codes(context(withSettings({}), { sources: include }), "BS210"),
     ).toEqual(["BS210"]);
-    const lists = [{ path: "src/d.ts", text: "facetCounts: true," }];
+
+    const lists = [
+      { path: "src/d.ts", text: "const q = { facetCounts: true };" },
+    ];
+
+    const quiet = [
+      {
+        path: "src/e.ts",
+        text: "// db.orders.aggregate({}) and facetCounts: true\nconst s = '_sum: { a: 1 }';\n",
+      },
+    ];
+
+    expect(
+      await codes(context(withSettings({}), { sources: quiet }), "BS210"),
+    ).toEqual([]);
     expect(
       await codes(context(withSettings({}), { sources: lists }), "BS210"),
     ).toEqual(["BS210"]);

@@ -346,3 +346,75 @@ export function isMethodCall(node: Node, ...names: readonly string[]): boolean {
     isCallOf(node, ...names)
   );
 }
+
+/**
+ * A call of a named function with the strings and names written in its
+ * arguments.
+ */
+export interface CallStrings {
+  readonly name: string;
+  readonly line: number;
+  readonly strings: readonly string[];
+}
+
+/**
+ * Every call of one of `names`, as `name(` or `object.name(`, with the strings
+ * and template parts in its arguments. A comment or an identifier is not one.
+ */
+export function callStrings(
+  text: string,
+  names: readonly string[],
+): CallStrings[] {
+  const found: CallStrings[] = [];
+
+  walk(parseSource(text).program, {
+    enter(node) {
+      if (node.type !== "CallExpression") {
+        return;
+      }
+
+      const name = calleeName(node.callee);
+
+      if (name === undefined || !names.includes(name)) {
+        return;
+      }
+
+      const strings: string[] = [];
+
+      for (const argument of node.arguments) {
+        walk(argument, {
+          enter(inner) {
+            if (inner.type === "Literal" && typeof inner.value === "string") {
+              strings.push(inner.value);
+            } else if (inner.type === "TemplateElement") {
+              strings.push(inner.value.raw);
+            } else if (inner.type === "Identifier") {
+              strings.push(inner.name);
+            }
+          },
+        });
+      }
+
+      found.push({ name, line: lineColumn(text, node.start).line, strings });
+    },
+  });
+
+  return found;
+}
+
+/**
+ * `text` with every comment replaced by spaces, so offsets and lines stay the
+ * same and a pattern that reads strings and code never reads a comment.
+ */
+export function blankComments(text: string): string {
+  let result = "";
+  let last = 0;
+
+  for (const comment of parseSource(text).comments) {
+    result += text.slice(last, comment.start);
+    result += text.slice(comment.start, comment.end).replaceAll(/[^\n]/g, " ");
+    last = comment.end;
+  }
+
+  return result + text.slice(last);
+}

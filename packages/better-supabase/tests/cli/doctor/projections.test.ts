@@ -78,6 +78,20 @@ describe("BS381", () => {
     ).toHaveLength(1);
   });
 
+  it("ignores a table name in a comment inside the call", () => {
+    expect(
+      check(
+        "BS381",
+        context(config, {
+          sqlFiles,
+          sources: sources(
+            "powersyncEngine(db, {\n  // better_supabase.attachments\n  tables: { job_attachments: route },\n});",
+          ),
+        }),
+      ),
+    ).toStrictEqual([]);
+  });
+
   it("accepts a call that names the view, and a call with no projection", () => {
     expect(
       check(
