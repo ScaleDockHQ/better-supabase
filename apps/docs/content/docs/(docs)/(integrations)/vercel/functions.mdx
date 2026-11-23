@@ -135,6 +135,8 @@ PostgREST and the pool, and the second request about 25 ms.
 Runtime Cache as its store, so every instance in a region reads one entry:
 
 ```ts title="src/lib/supabase/server.ts"
+import "server-only";
+
 import { getCache } from "@vercel/functions";
 import { createNext } from "better-supabase/next";
 import { vercelRuntimeCacheAdapter } from "better-supabase/server";

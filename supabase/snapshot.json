@@ -499466,7 +499466,7 @@
       {
         "schema": "better_supabase",
         "name": "sole_owned_organizations",
-        "signature": "member uuid",
+        "signature": "member uuid, organization uuid",
         "execute": [
           "authenticated",
           "service_role"
