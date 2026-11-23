@@ -163,3 +163,37 @@ columns or leaves them unmapped; a call that sets an unmapped one fails with
 ## Drive role grants
 
 Nothing changes for an app that keeps the default `grants: "table"`. An app whose `roleFunctions.node` already decides every node role can set `grants: "roles"`, run `better-supabase upgrade` and generate a migration: the diff drops `drive_grants`, so move any rows you still need to your role source first. `drive_share` and `drive_unshare` then refuse with `DRIVE_SHARING_EXTERNAL`, so remove share buttons or point them at your own role writes ([Roles without grant rows](/docs/blocks/drive#roles-without-grant-rows)). A provider without permission keys per role adds a `roleOn` template and uses `roleFunctions.node: { rows }`.
+
+## What the changes measure
+
+Measured on the local Supabase stack on one machine, before on `main` at
+`1cad3b1c` and after on this release. The Vercel rows need a preview
+deployment and a maintainer run of `scripts/probe-vercel-tags.ts`.
+
+| Cache tier                                         | Before                            | After                                      |
+| -------------------------------------------------- | --------------------------------- | ------------------------------------------ |
+| `postgresCacheHandler` hit through PostgREST       | two requests, p50 2.0 to 2.7 ms   | one call, p50 1.4 to 1.7 ms                |
+| Same hit, p95                                      | 3.0 to 4.1 ms                     | 1.8 to 3.3 ms                              |
+| Tag mark through PostgREST, p50                    | 1.7 to 2.9 ms (read, then upsert) | 1.2 to 1.3 ms (one call)                   |
+| Hit and tag mark through a pool, p50               | no pool transport                 | 0.1 to 0.2 ms                              |
+| Fills for 20 concurrent misses on two processes    | 20                                | 1                                          |
+| First request of a process (JWKS, PostgREST, pool) | 87 to 97 ms                       | 86 to 90 ms, or about 25 ms after `warm()` |
+| Calls of a session-handle fill in request stats    | 0 (expected 1)                    | 1                                          |
+| Example app, cold page, p50 and p95                | 206 ms and 310 ms                 | pending                                    |
+| Example app, warm page, p50 and p95                | 146 ms and 194 ms                 | pending                                    |
+| Runtime Cache read and fill on Vercel              | pending maintainer run            | pending maintainer run                     |
+| Tag expiry by method on Vercel                     | pending maintainer run            | pending maintainer run                     |
+
+| Scale change                                                        | Before                           | After                       |
+| ------------------------------------------------------------------- | -------------------------------- | --------------------------- |
+| Update of an unindexed column, 1,000 drive nodes in a search view   | 71 to 74 ms, 1,000 trigger calls | 21 ms, no call              |
+| Bytes the chunks of a done 50,000-item import run hold              | 839,540                          | 0                           |
+| Open items of one party (100 items)                                 | 2.6 ms (fold)                    | 1.4 ms (stored)             |
+| Open items of the whole organization (5,000 invoices)               | 81 ms (fold)                     | 67 ms (stored)              |
+| Import of 2,000 new parties                                         | 547 ms                           | 246 ms                      |
+| Import of 2,000 new products                                        | 406 ms                           | 232 ms                      |
+| Import of 2,000 stock allocations                                   | 328 ms                           | 200 ms                      |
+| Import of 2,000 stock counts                                        | 392 ms                           | 189 ms                      |
+| 1,000-row list read, 9 against 13 policies                          | 0.92 ms                          | 1.00 ms (no fold, ADR 1218) |
+| Session cookie of a member, `user-and-tokens` against `tokens-only` | 3,137 B                          | 1,788 B                     |
+| Session cookie of an admin with many permissions                    | 6,979 B in 3 chunks              | 5,609 B in 2 chunks         |
