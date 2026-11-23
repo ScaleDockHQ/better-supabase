@@ -30,7 +30,7 @@ import { serverImportsCodemod } from "./codemod-server-imports.ts";
 import { renameSubpaths } from "./codemod-subpaths.ts";
 import { tableModulesCodemod } from "./codemod-table-modules.ts";
 import { tableTagsCodemod } from "./codemod-table-tags.ts";
-import { parseSource } from "./config-document/parse.ts";
+import { lineColumn, parseSource } from "./config-document/parse.ts";
 import { generatorsCodemod } from "./generators/codemod.ts";
 
 /** What a project-level codemod reads. */
@@ -328,5 +328,40 @@ export function applyCodemod(
     review.push(...rewritten.review);
   }
 
+  const hasSourceStage =
+    codemod.source !== undefined ||
+    codemod.imports !== undefined ||
+    codemod.subpaths !== undefined;
+
+  if (hasSourceStage && text === source && review.length === 0) {
+    review.push(...unparsedLine(source, path));
+  }
+
   return { text, review };
+}
+
+const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
+
+/**
+ * One review line when `source` is a script that does not parse, so a codemod
+ * that found nothing to change is never mistaken for one that could not read
+ * the file. A file with another extension (`.env`, `turbo.json`) has no tree.
+ */
+function unparsedLine(source: string, path: string): readonly ReviewLine[] {
+  if (path !== "" && !SCRIPT_FILE.test(path)) {
+    return [];
+  }
+
+  const [first] = parseSource(source).errors;
+
+  if (first === undefined) {
+    return [];
+  }
+
+  return [
+    {
+      line: lineColumn(source, first.labels[0]?.start ?? 0).line,
+      message: `the file does not parse (${first.message}), so the codemod left it unchanged; fix it and run the codemod again.`,
+    },
+  ];
 }
