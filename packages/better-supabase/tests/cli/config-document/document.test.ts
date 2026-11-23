@@ -206,3 +206,232 @@ describe("ConfigDocument", () => {
     );
   });
 });
+
+describe("ConfigDocument edges", () => {
+  it.each([
+    [
+      `import { defineConfig } from "x";\nmodule.exports = defineConfig({ a: 1 });`,
+      "1",
+    ],
+    [
+      `import { defineConfig } from "x";\nconst c = defineConfig({ a: 2 });`,
+      "2",
+    ],
+    [
+      `import * as bs from "x";\nexport default bs.defineConfig({ a: 3 });`,
+      "3",
+    ],
+    [`export default defineConfig(function () { return { a: 4 }; });`, "4"],
+    [`const a = b;\nconst b = a;\nexport default a;`, undefined],
+    [`export default defineConfig(() => { const x = 1; });`, undefined],
+    [`export default defineConfig(...args);`, undefined],
+    [`export default make({ a: 1 });`, undefined],
+    [`export default "x";`, undefined],
+    [`const o = { ...o };\nexport default o;`, undefined],
+  ])("reads the config of %j", (source, value) => {
+    expect(ConfigDocument.parse(source).valueText(["a"])).toBe(value);
+  });
+
+  it("reads the declared object inside a range and nothing outside it", () => {
+    const source = `import x from "x";\nconst a = 1;\nexport const extra = { b: 2 };\n`;
+    const start = source.indexOf("extra");
+
+    const inside = ConfigDocument.parseDeclared(source, "e.ts", {
+      start,
+      end: source.length,
+    });
+
+    expect(inside.valueText(["b"])).toBe("2");
+    expect(
+      ConfigDocument.parseDeclared(source, "e.ts", {
+        start: 0,
+        end: 5,
+      }).configObject(),
+    ).toBeUndefined();
+  });
+
+  it("finds the blocks object of a wiring call", () => {
+    expect(
+      ConfigDocument.parseWiring(
+        `defineBlocks(config, { a: 1 });\ncreateBlocks(o, { a: 2 });`,
+      ).valueText(["a"]),
+    ).toBe("1");
+    expect(
+      ConfigDocument.parseWiring(`createBlocks(o, make());`).wiredCall(),
+    ).toEqual({ name: "createBlocks", blocks: undefined });
+    expect(
+      ConfigDocument.parseWiring(`createBlocks(o);`).wiredCall()?.blocks,
+    ).toBeUndefined();
+  });
+
+  it("lists every defineConfig object once, skipping calls without one", () => {
+    const document = ConfigDocument.parse(
+      `const shared = { a: 1 };\ndefineConfig();\ndefineConfig(...x);\ndefineConfig(shared);\ndefineConfig(shared);\ndefineConfig({ b: 2 });`,
+    );
+
+    expect(
+      document.defineConfigCalls().map((each) => Object.keys(each)),
+    ).toHaveLength(2);
+    expect(document.sortKeys([], 1)).toEqual({ status: "done" });
+  });
+
+  it("steps through holes, spreads and labels of a list", () => {
+    const document = ConfigDocument.parse(
+      `const more = [{ block: "c" }];\nexport default { list: ["a", , ...more, { name: "b" }, 7], n: 1 };`,
+    );
+
+    expect(document.has(["list", 1])).toBe(false);
+    expect(document.valueText(["list", 2])).toBe(`[{ block: "c" }]`);
+    expect(document.valueText(["list", "b"])).toBe(`{ name: "b" }`);
+    expect(document.has(["list", "c"])).toBe(false);
+    expect(document.keys(["list"])).toEqual(["a", "b"]);
+    expect(document.keys(["n"])).toBeUndefined();
+    expect(document.has(["n", "x"])).toBe(false);
+    expect(document.valueRange(["n"])).toEqual({
+      start: document.text.lastIndexOf("1"),
+      end: document.text.lastIndexOf("1") + 1,
+    });
+    expect(document.valueRange(["none"])).toBeUndefined();
+  });
+
+  it("counts an object spread twice only once", () => {
+    const document = ConfigDocument.parse(
+      `const base = { x: 1 };\nexport default { ...base, ...base, y: 2 };`,
+    );
+
+    expect(document.keys([])).toEqual(["x", "y"]);
+  });
+
+  it.each([
+    [
+      `const more = [1];\nexport default { list: [...more] };`,
+      ["list", 0],
+      /is a spread/,
+    ],
+    [`export default { a() { return 1; } };`, ["a"], /method or accessor/],
+    [`export default { get a() { return 1; } };`, ["a"], /method or accessor/],
+  ])("flags an entry it cannot edit in %j", (source, path, review) => {
+    const document = ConfigDocument.parse(source);
+
+    expect(document.set(path, "2")).toMatchObject({
+      status: "review",
+      review: expect.stringMatching(review),
+    });
+    expect(document.remove(path)).toMatchObject({ status: "review" });
+    expect(document.text).toBe(source);
+  });
+
+  it.each([[["a", "b"]], [["o", 3]]])(
+    "flags adding %j under a non-object",
+    (path) => {
+      const document = ConfigDocument.parse(
+        `export default { a: [1], o: {} };`,
+      );
+
+      expect(document.set(path, "1")).toMatchObject({ status: "review" });
+    },
+  );
+
+  it("ensures an existing path by setting it, and flags what it cannot create", () => {
+    const document = ConfigDocument.parse(
+      `export default { a: 1, "b-c": {} };`,
+    );
+
+    expect(document.ensure(["a"], "2")).toEqual({ status: "done" });
+    expect(document.ensure(["b-c", "list", 0], "1")).toMatchObject({
+      status: "review",
+    });
+    expect(document.ensure(["b-c", "x-y", "z"], "3")).toEqual({
+      status: "done",
+    });
+    expect(document.valueText(["a"])).toBe("2");
+    expect(document.valueText(["b-c", "x-y", "z"])).toBe("3");
+    expect(document.text).toContain(`"x-y": {`);
+    expect(
+      ConfigDocument.parse(`export const x = 1;`).ensure(["a", "b"], "1"),
+    ).toMatchObject({ review: "config.ts: no config object found." });
+  });
+
+  it.each([
+    [`export default { l: [] };`, `export default { l: [9] };`],
+    [`export default { l: [\n  ] };`, `export default { l: [\n    9,\n  ] };`],
+    [`export default { l: [1] };`, `export default { l: [1, 9] };`],
+    [
+      `export default {\n  l: [\n    1 // one\n  ],\n};`,
+      `export default {\n  l: [\n    1, // one\n    9\n  ],\n};`,
+    ],
+    [
+      `export default {\n  l: [\n    1, // one\n  ],\n};`,
+      `export default {\n  l: [\n    1, // one\n    9,\n  ],\n};`,
+    ],
+  ])("appends to %j", (source, expected) => {
+    const document = ConfigDocument.parse(source);
+
+    expect(document.append(["l"], "9")).toEqual({ status: "done" });
+    expect(document.text).toBe(expected);
+  });
+
+  it("flags appending to a value that is not a list", () => {
+    expect(
+      ConfigDocument.parse(`export default { l: 1 };`).append(["l"], "2"),
+    ).toMatchObject({ status: "review" });
+  });
+
+  it.each([
+    [
+      `export default {\n  o: {\n    a: 1 // one\n  },\n};`,
+      `export default {\n  o: {\n    a: 1, // one\n    b: 2\n  },\n};`,
+    ],
+    [`export default { o: {\n} };`, `export default { o: {\n  b: 2,\n} };`],
+  ])("adds a property to %j", (source, expected) => {
+    const document = ConfigDocument.parse(source);
+
+    document.set(["o", "b"], "2");
+
+    expect(document.text).toBe(expected);
+  });
+
+  it("reports sorting an absent path as absent and a non-object as a review", () => {
+    const document = ConfigDocument.parse(`export default { a: 1 };`);
+
+    expect(document.sortKeys(["none"])).toEqual({ status: "absent" });
+    expect(document.sortKeys(["a"])).toMatchObject({ status: "review" });
+    expect(
+      ConfigDocument.parse(`export const x = 1;`).sortKeys([]),
+    ).toMatchObject({ status: "review" });
+  });
+
+  it("reads a trailing comma behind a comment", () => {
+    expect(
+      ConfigDocument.parse(`export default { a: 1 /* c */, };`).style
+        .trailingComma,
+    ).toBe(true);
+  });
+
+  it("keeps a default import that shares a statement with named ones", () => {
+    const document = ConfigDocument.parse(
+      `import helper, { keep } from "./h.ts";\nexport default { a: helper(), b: keep };`,
+    );
+
+    document.remove(["a"]);
+
+    expect(document.text).toBe(
+      `import helper, { keep } from "./h.ts";\nexport default { b: keep };`,
+    );
+  });
+
+  it("rewrites through a callback only when it changes the text", () => {
+    const document = ConfigDocument.parse(`export default { a: 1 };`);
+
+    document.rewrite(() => undefined);
+    expect(document.text).toBe(`export default { a: 1 };`);
+    document.rewrite(({ edit, text }) =>
+      edit.overwrite(text.indexOf("1"), text.indexOf("1") + 1, "2"),
+    );
+    expect(document.valueText(["a"])).toBe("2");
+    expect(() => {
+      document.rewrite(({ edit }) => edit.append("{"));
+    }).toThrow(/^config\.ts:/);
+    expect(document.valueText(["a"])).toBe("2");
+  });
+});

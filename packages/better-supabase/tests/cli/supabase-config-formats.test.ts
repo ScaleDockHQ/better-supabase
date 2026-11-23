@@ -8,12 +8,17 @@ import { enablePgDelta } from "../../src/cli/enable-pgdelta.ts";
 import {
   configFileConflict,
   configFileIn,
+  declarativeSchemasDir,
   detectWorkflow,
   findSupabaseRoot,
+  httpHooks,
+  pgFunctionHooks,
   readConfigInDir,
   readSupabaseConfig,
+  schemaPaths,
   supabaseConfigFromText,
   tomlGet,
+  tomlNumber,
   withConfigValue,
 } from "../../src/cli/supabase-config.ts";
 
@@ -293,4 +298,150 @@ describe("enablePgDelta on each format", () => {
       "[api]\nport = 1\n\n[experimental.pgdelta]\nenabled = true\n",
     );
   });
+});
+
+describe("JSON config edges", () => {
+  const json = supabaseConfigFromText(
+    '{ "a": null, "n": [1, { "x": true }], "s": 1 }',
+    "supabase/config.json",
+  );
+
+  it.each([
+    [["a"], "null"],
+    [["n"], [1, { x: true }]],
+    [["s", "deep"], undefined],
+  ])("raw(%j) is %j", (path, value) => {
+    expect(json.raw(path)).toEqual(value);
+  });
+
+  it("reads a non-object file as an empty table", () => {
+    expect(supabaseConfigFromText("[1]", "config.json").document).toEqual({});
+  });
+
+  it.each([
+    ["", ["a"], undefined],
+    ['{ "a": 1 }', ["b", "c"], undefined],
+    ['{ "a": { "b": 1 } }', ["a", "z"], { line: 1, column: 3, exact: false }],
+  ])("locates %j at %j", (text, path, location) => {
+    expect(supabaseConfigFromText(text, "config.jsonc").locate(path)).toEqual(
+      location,
+    );
+  });
+
+  it("keeps CRLF line endings when it edits JSON", () => {
+    const text = withConfigValue(
+      supabaseConfigFromText('{\r\n  "a": 1\r\n}', "config.json"),
+      ["b"],
+      ["x"],
+    );
+
+    expect(text).toContain('\r\n  "b": [\r\n');
+    expect(JSON.parse(text)).toEqual({ a: 1, b: ["x"] });
+  });
+});
+
+describe("TOML edges", () => {
+  it("locates nothing outside every table, and a key under an unnamed header", () => {
+    const config = supabaseConfigFromText("[.]\na = 1\n");
+
+    expect(config.locate(["a"])).toEqual({ line: 2, column: 1, exact: true });
+    expect(config.locate(["x", "y"])).toBeUndefined();
+  });
+
+  it.each([
+    ["", ["api", "port"], 1, "[api]\nport = 1\n"],
+    ["a = 1", ["api", "tags"], ["x"], 'a = 1\n\n[api]\ntags = ["x"]\n'],
+    ["[api]\nport = 1", ["api", "on"], false, "[api]\nport = 1\non = false"],
+    ["[api]\nport = 1 # old", ["api", "port"], 2, "[api]\nport = 2 # old"],
+  ])("writes into %j", (text, path, value, expected) => {
+    expect(withConfigValue(supabaseConfigFromText(text), path, value)).toBe(
+      expected,
+    );
+  });
+});
+
+describe("tomlNumber", () => {
+  it.each([
+    [7, 7],
+    ["42", 42],
+    [" ", undefined],
+    ["many", undefined],
+    [true, undefined],
+  ])("reads %j as %j", (value, expected) => {
+    expect(tomlNumber({ a: value }, ["a"])).toBe(expected);
+  });
+});
+
+describe("auth hooks", () => {
+  const document = {
+    auth: {
+      hook: {
+        text: "x",
+        list: [1],
+        pg: { enabled: "true", uri: "pg-functions://postgres/public/hook" },
+        bad_pg: { enabled: true, uri: "pg-functions://postgres/only" },
+        off: { enabled: false, uri: "https://hooks.test/off" },
+        http: { enabled: true, uri: " https://hooks.test/h ", secrets: 5 },
+        ftp: { enabled: true, uri: "ftp://hooks.test" },
+        broken: { enabled: true, uri: "http://" },
+      },
+    },
+  };
+
+  it("lists the enabled pg-functions hooks", () => {
+    expect(pgFunctionHooks(document)).toEqual([
+      {
+        hook: "pg",
+        uri: "pg-functions://postgres/public/hook",
+        schema: "public",
+        name: "hook",
+      },
+    ]);
+  });
+
+  it("lists the enabled HTTP hooks with a valid URL", () => {
+    expect(httpHooks(document)).toEqual([
+      {
+        hook: "http",
+        uri: new URL("https://hooks.test/h"),
+        secrets: undefined,
+      },
+    ]);
+  });
+
+  it.each([{}, { auth: { hook: "x" } }, { auth: { hook: [1] } }])(
+    "finds none in %j",
+    (doc) => {
+      expect([...pgFunctionHooks(doc), ...httpHooks(doc)]).toEqual([]);
+    },
+  );
+});
+
+describe("schema folders", () => {
+  it.each([
+    ["./custom/", "supabase/custom"],
+    ["  ", "supabase/schemas"],
+  ])("puts declarative_schema_path %j at %s", (path, dir) => {
+    const toml = supabaseConfigFromText(
+      `[experimental.pgdelta]\ndeclarative_schema_path = "${path}"\n`,
+    );
+
+    expect(declarativeSchemasDir(toml, "pg-delta")).toBe(dir);
+  });
+
+  it.each([
+    ["pg-delta", undefined],
+    ["migra", undefined],
+    ["migra", supabaseConfigFromText("[db.migrations]\nschema_paths = [1]\n")],
+    ["migra", supabaseConfigFromText('[db.migrations]\nschema_paths = "x"\n')],
+  ] as const)(
+    "finds no %s files in a project without schemas",
+    async (workflow, toml) => {
+      expect(await schemaPaths("/nonexistent-root", toml, workflow)).toEqual({
+        files: [],
+        unlisted: [],
+        configured: false,
+      });
+    },
+  );
 });

@@ -666,3 +666,124 @@ describe("receiver types", () => {
     );
   });
 });
+
+describe("supabase-js forms", () => {
+  it("reads a supabase rpc and from tables written as templates or qualified names", () => {
+    const findings = check(
+      "BS634",
+      lines(
+        "export async function load(supabase: Client, ids: string[], name: string) {",
+        "  for (const id of ids) {",
+        '    await supabase.rpc("get_customer", { p_id: id });',
+        '    await supabase.from(`customers`).select().eq("id", id);',
+        '    await supabase.from("public.customers").select().eq("id", id);',
+        '    await supabase.from(name).select().eq("id", id);',
+        '    await db.customers.list({ where: { id, q: "fixed" } });',
+        "  }",
+        "}",
+      ),
+    );
+
+    expect(findings.map((finding) => finding.location?.line)).toEqual([
+      3, 4, 5, 6, 7,
+    ]);
+    expect(findings[0]?.message).toContain(
+      'supabase.rpc("get_customer") once per item',
+    );
+    expect(findings[0]?.message).toContain("array parameter (`uuid[]`)");
+    expect(findings[4]?.message).toContain("with an `in` filter");
+  });
+
+  it.each([
+    '    await supabase.rpc("create_customer", { p_id: id });',
+    '    await db.$rpc("create_customer", { p_id: id });',
+    '    await supabase.from("notes").insert({ id });',
+  ])("skips a loop that writes with %s", (write) => {
+    expect(
+      check(
+        "BS634",
+        lines(
+          "export async function save(db: Db, supabase: Client, ids: string[]) {",
+          "  for (const id of ids) {",
+          "    await db.customers.get(id);",
+          write,
+          "  }",
+          "}",
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("skips a for-of without a declaration and keeps names that do not derive from the item", () => {
+    const findings = check(
+      "BS634",
+      lines(
+        "export async function load(db: Db, ids: string[]) {",
+        "  let id;",
+        "  for (id of ids) await db.customers.get(id);",
+        "  for (const each of ids) {",
+        "    const fixed = 1;",
+        "    await db.customers.get(fixed);",
+        "  }",
+        "}",
+      ),
+    );
+
+    expect(findings).toEqual([]);
+  });
+});
+
+describe("BS635 origins", () => {
+  it("reads origins from conditional awaits and Promise.all holes, sharing one pass", () => {
+    const text = lines(
+      "export async function load(db: Db, flag: boolean) {",
+      "  const orders = await (flag ? db.orders.list() : db.orders.first());",
+      "  const [, more] = await Promise.all([, db.orders.list()]);",
+      "  const ids = orders.map((order) => order.customerId);",
+      "  await db.customers.list({ where: { id: { in: ids } } });",
+      "  await db.customers.list({ where: { id: { in: more } } });",
+      "}",
+    );
+
+    const rule = N_PLUS_ONE_RULES.find((each) => each.code === "BS635")!;
+
+    const context = {
+      sources: [{ path: "src/lib/data.ts", text }],
+      snapshot: {
+        generator: {
+          relationships: [
+            ...relationships,
+            { ...relationships[0]!, columns: [] },
+          ],
+          views: [],
+          materializedViews: [],
+        },
+      },
+    } as unknown as DoctorContext;
+
+    const first = rule.check(context);
+    const second = rule.check(context);
+
+    expect(first).toEqual(second);
+    expect(
+      Array.isArray(first) ? first.map((each) => each.location?.line) : [],
+    ).toEqual([5, 6]);
+  });
+});
+
+describe("BS634 search filters", () => {
+  it("takes the first search filter that uses the item, in source order", () => {
+    const [finding] = check(
+      "BS634",
+      lines(
+        "export async function search(db: Db, terms: string[]) {",
+        "  for (const needle of terms) {",
+        '    await db.products.list({ where: { name: { contains: needle }, q: "fixed" } });',
+        "  }",
+        "}",
+      ),
+    );
+
+    expect(finding?.message).toContain("`needle` is a search term");
+  });
+});

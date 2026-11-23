@@ -723,6 +723,117 @@ describe("doctor command", () => {
     );
   });
 
+  it("keeps the unfixable findings of --yes and names the project it writes to", async () => {
+    const requireConsent = vi.fn();
+    const ran: string[] = [];
+
+    const result = await doctor(
+      [
+        "--only",
+        "BS100,BS236",
+        "--yes",
+        "--project-ref",
+        "abcdefghijklmnopqrst",
+        "--json",
+      ],
+      // SAFETY: the fake returns the rows BS236 asks for and records the fix.
+      {
+        snapshot: await parseSnapshot(fixture),
+        advisors: { skipped: "offline" },
+        requireConsent,
+        database: {
+          describe: "test",
+          session: true,
+          query: async (sql: string) => {
+            ran.push(sql);
+
+            if (sql.includes("pg_constraint")) {
+              return [
+                {
+                  schema: "public",
+                  table: "invoices",
+                  name: "c",
+                  expression: "(a IS NOT NULL)",
+                },
+              ];
+            }
+
+            return sql.startsWith("select exists") ? [{ failing: false }] : [];
+          },
+        },
+      } as Parameters<typeof runDoctor>[3],
+    );
+
+    expect(requireConsent).toHaveBeenCalledExactlyOnceWith({
+      effect: "database-write",
+      detail:
+        "doctor --yes runs 1 fix(es) against project abcdefghijklmnopqrst",
+    });
+    expect(ran.some((sql) => sql.includes('validate constraint "c"'))).toBe(
+      true,
+    );
+    expect(findings(result).map((finding) => finding.code)).toEqual(["BS100"]);
+  });
+
+  it("rejects a baseline file that does not parse", async () => {
+    await write("doctor-baseline.json", "{ nope");
+
+    await expect(
+      doctor(
+        ["--only", "BS210"],
+        { snapshot: await parseSnapshot(fixture) },
+        { tooling: { doctor: { baseline: "doctor-baseline.json" } } },
+      ),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("fails on warnings in strict mode and rejects an unknown --fail-on", async () => {
+    await write(
+      "src/a.ts",
+      "export const load = (db: Db, ids: string[]) =>\n  Promise.all(ids.map((id) => db.notes.get(id)));\n",
+    );
+
+    const snapshot = await parseSnapshot(fixture);
+    const strict = { tooling: { doctor: { strict: true } } };
+
+    expect(
+      await doctor(["--only", "BS634"], { snapshot }, strict),
+    ).toMatchObject({
+      code: 1,
+      errorCode: "findings",
+      error: expect.stringContaining("(--fail-on warning)"),
+    });
+    expect(
+      await doctor(
+        ["--only", "BS634", "--fail-on", "never"],
+        { snapshot },
+        strict,
+      ),
+    ).toMatchObject({ code: 0 });
+    expect(
+      await usageError(() =>
+        doctor(["--only", "BS634", "--fail-on", "info"], { snapshot }),
+      ),
+    ).toBe('--fail-on takes error, warning or never, got "info".');
+  });
+
+  it("still reports when the workspace file the dependency readers need cannot be read", async () => {
+    await write("package.json", JSON.stringify({ dependencies: { pg: "8" } }));
+    await mkdir(join(root, "pnpm-workspace.yaml"));
+
+    const result = await doctor(
+      ["--only", "BS100", "--json"],
+      {
+        snapshot: await parseSnapshot(fixture),
+        advisors: { skipped: "offline" },
+      },
+      { tooling: { doctor: { sources: ["src/**/*.ts"] } } },
+    );
+
+    expect(result.code).toBe(0);
+    expect(findings(result).map((finding) => finding.code)).toEqual(["BS100"]);
+  });
+
   it("completes formats and rule codes, live ones included", () => {
     const completions = completionValues(doctorCommand);
     const codes = completions["only"]?.();
@@ -790,6 +901,44 @@ describe("doctor --metadata", () => {
 
     expect(result.code).toBe(65);
     expect(result.stderr).toMatch(/is not JSON/);
+  });
+
+  it("names every database flag it refuses", async () => {
+    const result = await doctorMeta(
+      [
+        "--explain",
+        "notes",
+        "--explain-write",
+        "notes",
+        "--args",
+        "[]",
+        "--as",
+        "u",
+        "--yes",
+      ],
+      "{}",
+    );
+
+    for (const flag of [
+      "--explain",
+      "--explain-write",
+      "--args",
+      "--as",
+      "--yes",
+    ]) {
+      expect(result.stderr).toContain(flag);
+    }
+  });
+
+  it("passes on an error that is not a rejected document", async () => {
+    const err: string[] = [];
+
+    const result = await run(["doctor", "--metadata", "-", "--cwd", root], {
+      io: { stdout: () => {}, stderr: (text) => void err.push(text) },
+    });
+
+    expect(result.code).not.toBe(65);
+    expect(err.join("")).toContain("nothing is piped in");
   });
 
   it("refuses flags that need a database", async () => {
