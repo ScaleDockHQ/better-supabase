@@ -75,6 +75,34 @@ export function statementsFrom(source: Source): SqlStatement[] {
 }
 
 /**
+ * The statements of a scanned text as written: each runs from the end of the
+ * previous semicolon through its own, so comments and the semicolon stay. A
+ * tail with only comments is kept as a last entry.
+ *
+ * @param source - The scanned text.
+ * @returns The raw statements in source order.
+ */
+export function rawStatementsFrom(source: Source): string[] {
+  const found: string[] = [];
+  let start = 0;
+
+  for (const token of source.tokens) {
+    if (token.text === ";" && token.kind !== "SCONST") {
+      found.push(source.slice(start, token.end));
+      start = token.end;
+    }
+  }
+
+  const tail = source.slice(start, source.bytes.length);
+
+  if (tail.trim() !== "") {
+    found.push(tail);
+  }
+
+  return found;
+}
+
+/**
  * The text with each line comment dropped (its newline stays) and each block
  * comment turned into one space, strings, quoted names and dollar quotes
  * untouched.

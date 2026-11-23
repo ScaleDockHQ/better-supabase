@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { moduleBody } from "../../../src/sql/render.ts";
-import { sameTenantTagsOf } from "../../../src/sql/table-facts.ts";
-import { sameTenantLayoutOf } from "../../helpers/facts.ts";
+import { sameTenantLayoutOf, sameTenantTagsFrom } from "../../helpers/facts.ts";
 
 const SCHEMA = `
 create table public.projects (id uuid primary key, organization_id uuid not null, region text);
@@ -22,7 +21,11 @@ async function render(comments: string): Promise<string> {
   return moduleBody("memberships", {
     modules: { memberships: { options: { sameTenant: { auto: true } } } },
     ...layout,
-    sameTenantTags: sameTenantTagsOf(texts, ["public"], layout.foreignKeys),
+    sameTenantTags: await sameTenantTagsFrom(
+      texts,
+      ["public"],
+      layout.foreignKeys,
+    ),
   })!;
 }
 
@@ -78,7 +81,7 @@ create table public.tasks (
     return moduleBody("memberships", {
       modules: { memberships: { options: { sameTenant: { auto: true } } } },
       ...layout,
-      sameTenantTags: sameTenantTagsOf(
+      sameTenantTags: await sameTenantTagsFrom(
         [schema, comments],
         ["public"],
         layout.foreignKeys,

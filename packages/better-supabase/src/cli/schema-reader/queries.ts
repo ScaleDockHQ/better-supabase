@@ -1,3 +1,4 @@
+import type { CatalogPolicy } from "../introspect/types.ts";
 import type {
   DeclaredFact,
   DropFact,
@@ -681,4 +682,55 @@ export function declarationsOf(facts: FileFacts): DeclarationSummary {
     inserts: facts.inserts,
     outsideTransaction: facts.outsideTransaction,
   };
+}
+
+/**
+ * The policies the files leave on each `schema.table` in `schemas`, in order: a
+ * later `drop policy` removes one, and a later `create policy` of the same name
+ * replaces it.
+ */
+export function declaredPolicies(
+  files: readonly FileFacts[],
+  schemas: readonly string[],
+): Record<string, CatalogPolicy[]> {
+  const found = new Map<string, Map<string, CatalogPolicy>>();
+
+  for (const facts of files) {
+    inOrder([
+      ...facts.policies.map((policy): Event => ({
+        index: policy.index,
+        apply: () => {
+          if (!inSchemas(policy.table, schemas)) {
+            return;
+          }
+
+          const named =
+            found.get(policy.table) ?? new Map<string, CatalogPolicy>();
+
+          named.set(policy.name, {
+            name: policy.name,
+            command: COMMANDS.find((c) => c === policy.command) ?? "all",
+            roles: policy.roles.length === 0 ? ["public"] : policy.roles,
+            permissive: policy.permissive,
+            using: policy.using ?? null,
+            check: policy.withCheck ?? null,
+          });
+
+          found.set(policy.table, named);
+        },
+      })),
+      ...drops(facts, "policy").map((drop): Event => ({
+        index: drop.index,
+        apply: () => {
+          const at = drop.name.lastIndexOf(".");
+
+          found.get(drop.name.slice(0, at))?.delete(drop.name.slice(at + 1));
+        },
+      })),
+    ]);
+  }
+
+  return Object.fromEntries(
+    [...found].map(([table, named]) => [table, [...named.values()]]),
+  );
 }

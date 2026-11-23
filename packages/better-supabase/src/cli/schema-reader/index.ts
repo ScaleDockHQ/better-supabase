@@ -12,7 +12,11 @@ import type { SqlStatement } from "./statements.ts";
 
 import { factsFrom } from "./read.ts";
 import { Source } from "./source.ts";
-import { blankedFrom, statementsFrom } from "./statements.ts";
+import {
+  blankedFrom,
+  rawStatementsFrom,
+  statementsFrom,
+} from "./statements.ts";
 
 export type * from "./facts.ts";
 
@@ -235,6 +239,7 @@ export async function parseStatements(
 /** Statements split ahead of time, by file text. */
 const split = new Map<string, readonly SqlStatement[]>();
 const blanked = new Map<string, string>();
+const raw = new Map<string, readonly string[]>();
 
 /**
  * Splits every text into statements with the scanner, so `statementsOf` can
@@ -260,6 +265,7 @@ export async function primeStatements(
 
       split.set(text, statementsFrom(source));
       blanked.set(text, blankedFrom(source));
+      raw.set(text, rawStatementsFrom(source));
     }),
   );
 }
@@ -276,6 +282,25 @@ export function statementsOf(text: string): readonly SqlStatement[] {
   if (known === undefined) {
     throw new Error(
       "The SQL reader has not split this text yet; await primeStatements first.",
+    );
+  }
+
+  return known;
+}
+
+/**
+ * The statements of a text as written, each with its comments and closing
+ * semicolon, for a writer that moves statements between files.
+ *
+ * @param text - A SQL text that `primeStatements` scanned before.
+ * @returns The statements in source order.
+ */
+export function rawStatementsOf(text: string): readonly string[] {
+  const known = raw.get(text);
+
+  if (known === undefined) {
+    throw new Error(
+      "The SQL reader has not scanned this text yet; await primeStatements first.",
     );
   }
 

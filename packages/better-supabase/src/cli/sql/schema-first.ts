@@ -2,6 +2,7 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { BsbTag, TableFeature } from "../../sql/index.ts";
 
 import { setTableFeature } from "../../sql/index.ts";
+import { rawStatementsOf } from "../schema-reader/index.ts";
 import { subjectTagArgs } from "../subject-tag.ts";
 
 /** One file `migrate schema-first` writes, relative to the schemas folder. */
@@ -74,58 +75,6 @@ function bare(statement: string): string {
 }
 
 const LEADING_COMMENTS = /^(?:\s*--[^\n]*\n)+/u;
-const DOLLAR_TAG = /^\$[A-Za-z_]*\$/u;
-
-/**
- * The statements of `sql`, split at semicolons outside quotes, dollar quotes
- * and comments.
- */
-function statements(sql: string): string[] {
-  const found: string[] = [];
-  let start = 0;
-  let at = 0;
-
-  while (at < sql.length) {
-    const char = sql[at];
-
-    if (char === "-" && sql[at + 1] === "-") {
-      const end = sql.indexOf("\n", at);
-      at = end === -1 ? sql.length : end;
-    } else if (char === "/" && sql[at + 1] === "*") {
-      const end = sql.indexOf("*/", at + 2);
-      at = end === -1 ? sql.length : end + 2;
-    } else if (char === "'" || char === '"') {
-      let end = at + 1;
-
-      while (end < sql.length && sql[end] !== char) {
-        end += 1;
-      }
-
-      at = end + 1;
-    } else if (char === "$") {
-      const tag = DOLLAR_TAG.exec(sql.slice(at))?.[0];
-
-      if (tag === undefined) {
-        at += 1;
-      } else {
-        const end = sql.indexOf(tag, at + tag.length);
-        at = end === -1 ? sql.length : end + tag.length;
-      }
-    } else if (char === ";") {
-      found.push(sql.slice(start, at + 1));
-      start = at + 1;
-      at += 1;
-    } else {
-      at += 1;
-    }
-  }
-
-  if (sql.slice(start).trim() !== "") {
-    found.push(sql.slice(start));
-  }
-
-  return found;
-}
 
 /** The table or view a statement belongs to, or undefined for anything else. */
 function targetOf(
@@ -339,7 +288,7 @@ export function splitAppTables(
   tables: readonly string[],
 ): SchemaFirstFile[] {
   const known = new Set(tables);
-  const all = statements(sql).map((raw) => bare(raw));
+  const all = rawStatementsOf(sql).map((raw) => bare(raw));
 
   const views = new Set(
     all.flatMap((statement) => {

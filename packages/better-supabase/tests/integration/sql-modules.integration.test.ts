@@ -37,7 +37,6 @@ import { createRateLimit } from "../../src/rate-limit/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { withBlock } from "../../src/server/entries/block.ts";
 import { apiWrappers } from "../../src/sql/api-schema.ts";
-import { auditRegistrations } from "../../src/sql/audit-registrations.ts";
 import { rerunnableDdl } from "../../src/sql/pipeline/static.ts";
 import { compileReadSet } from "../../src/sql/read-sets.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
@@ -46,6 +45,7 @@ import { asUser } from "../../src/testing/as-user.ts";
 import { testQueueProvider } from "../../src/testing/kits/queue-provider.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { auditRegistrationsOf } from "../helpers/facts.ts";
 import { deleteAudit } from "./audit-cleanup.ts";
 import { FIXTURE_HELPERS_SQL, FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
 import { reloadSchemaCache } from "./schema-cache.ts";
@@ -4284,8 +4284,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     try {
       const passing = await tap(
-        file({ auditedTables: auditRegistrations([{ text: register }]) })
-          .contents,
+        file({
+          auditedTables: await auditRegistrationsOf([{ text: register }]),
+        }).contents,
       );
 
       expect(passing.filter((line) => /^not ok/m.test(line))).toEqual([]);

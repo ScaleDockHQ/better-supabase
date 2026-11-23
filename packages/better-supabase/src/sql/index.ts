@@ -50,8 +50,6 @@ export {
 
 export { blockSqlVersion } from "./module-types.ts";
 
-export { mappingTagsOf, withMappingTags } from "./mapping-tags.ts";
-
 export { moduleSource, resolveBlocks, SQL_MODULES } from "./registry.ts";
 
 export { seedDefaultsFunctions } from "./seed-functions.ts";
@@ -120,22 +118,16 @@ export {
 
 export type { MemoBackend } from "./result-memo.ts";
 
-export { auditRegistrations } from "./audit-registrations.ts";
-
 export { excludedColumns, resolveExposeColumns } from "./expose-columns.ts";
 
 export {
   auditExemptTag,
-  columnTagComments,
   grantExpose,
   grantTag,
   lifecycleTag,
   sameTenantTag,
-  sameTenantTagsOf,
-  type SameTenantTags,
   splitList,
   TABLE_FACT_TAGS,
-  type ColumnTagComment,
   type GrantFact,
   type LifecycleFact,
   type SameTenantFact,
@@ -162,7 +154,7 @@ export { tenantsQuery, type TenantQuery } from "./tenant-query.ts";
 
 export { subjectColumns } from "./subject-registry.ts";
 
-export type { AuditedTable } from "./audit-registrations.ts";
+export type { AuditedTable } from "./layout-types.ts";
 
 export { blockReadRoles } from "./read-roles.ts";
 
@@ -223,11 +215,7 @@ export { notNullCheckName } from "./shared.ts";
 
 export { TENANT_SCOPE_NAMES, TENANT_SCOPE_POLICY } from "./tenant-scope.ts";
 
-export {
-  appTablePolicyNotes,
-  declaredPolicies,
-  widenedCommands,
-} from "./policy-cover.ts";
+export { appTablePolicyNotes, widenedCommands } from "./policy-cover.ts";
 
 export { bsbPolicyName } from "./policy-names.ts";
 

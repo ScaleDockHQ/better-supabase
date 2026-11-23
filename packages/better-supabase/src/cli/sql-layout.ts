@@ -15,25 +15,23 @@ import type { FilePlan } from "./core/files.ts";
 import type { CatalogPolicy } from "./introspect/types.ts";
 
 import {
-  auditRegistrations,
-  declaredPolicies,
   moduleLayout,
   resolveExposeColumns,
   resolveBlocks,
-  mappingTagsOf,
-  sameTenantTagsOf,
-  withMappingTags,
 } from "../sql/index.ts";
 import { adoptedColumnProblems } from "./adopted-columns.ts";
 import { apiUsedNames } from "./api-used.ts";
+import { auditRegistrations } from "./audit-registrations.ts";
 import { parseSnapshot } from "./commands/snapshot.ts";
 import { appColumnsOf } from "./declaration-model.ts";
 import { toCatalog } from "./introspect/catalog.ts";
 import { TypegenMissingError } from "./introspect/typegen.ts";
+import { mappingTagsOf, withMappingTags } from "./mapping-tags.ts";
 import { sameTenantLayout } from "./same-tenant-layout.ts";
 import {
   declaredForeignKeys as appForeignKeys,
   declaredIndexes,
+  declaredPolicies,
   declaredTableColumns,
   declaredColumnTypes,
   declaredTables,
@@ -52,6 +50,7 @@ import {
   schemaPaths,
   sqlWorkflow,
 } from "./supabase-config.ts";
+import { sameTenantTagsOf } from "./tag-comments.ts";
 
 /** The folder the module data files sit next to, for the project's workflow. */
 export async function schemasDirOf(config: ResolvedConfig): Promise<string> {

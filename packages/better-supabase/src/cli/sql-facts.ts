@@ -18,6 +18,7 @@ import {
   declaredUpdatedAtTriggers as declaredUpdatedAtTriggersOf,
   declaredViews as declaredViewsOf,
   extensionSchema as extensionSchemaOf,
+  declaredPolicies as declaredPoliciesOf,
   policyGrants as policyGrantsOf,
   rlsTables as rlsTablesOf,
 } from "./schema-reader/queries.ts";
@@ -120,6 +121,12 @@ export const policyGrants = (
   files: Texts,
   schemas: readonly string[],
 ): ReturnType<typeof policyGrantsOf> => policyGrantsOf(facts(files), schemas);
+
+export const declaredPolicies = (
+  files: Texts,
+  schemas: readonly string[],
+): ReturnType<typeof declaredPoliciesOf> =>
+  declaredPoliciesOf(facts(files), schemas);
 
 export const extensionSchema = (
   files: Texts,

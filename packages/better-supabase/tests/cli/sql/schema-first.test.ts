@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { primeStatements } from "../../../src/cli/schema-reader/index.ts";
 import { splitAppTables } from "../../../src/cli/sql/schema-first.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
@@ -25,6 +26,16 @@ create function public.helper() returns int language sql as $$ select 1; select 
 comment on table public.tasks is 'Plain text.';
 `;
 
+const split = async (
+  config: Parameters<typeof splitAppTables>[0],
+  sql: string,
+  tables: readonly string[],
+): Promise<ReturnType<typeof splitAppTables>> => {
+  await primeStatements([sql]);
+
+  return splitAppTables(config, sql, tables);
+};
+
 describe("splitAppTables", () => {
   const base = resolveConfig({ blocks: {} }, "/tmp");
 
@@ -42,8 +53,8 @@ describe("splitAppTables", () => {
     ],
   };
 
-  it("groups statements per table, view and the rest", () => {
-    const files = splitAppTables(config, SQL, ["tasks"]);
+  it("groups statements per table, view and the rest", async () => {
+    const files = await split(config, SQL, ["tasks"]);
     const paths = files.map((file) => file.path);
 
     expect(paths).toEqual([
@@ -64,8 +75,8 @@ describe("splitAppTables", () => {
     expect(files[2]?.contents).toContain("select 1; select 2");
   });
 
-  it("omits the custom file when every statement has a home", () => {
-    const files = splitAppTables(
+  it("omits the custom file when every statement has a home", async () => {
+    const files = await split(
       resolveConfig({ blocks: {} }, "/tmp"),
       'create table "public"."a" (id int);',
       ["a"],
@@ -75,11 +86,11 @@ describe("splitAppTables", () => {
     expect(files[0]?.contents).not.toContain("@bsb");
   });
 
-  it("handles block comments, empty statements and a missing final semicolon", () => {
+  it("handles block comments, empty statements and a missing final semicolon", async () => {
     const sql =
       'create table "public"."b" (id int); /* note; here */ ;; $x$ not; sql $x$; -- trailing';
 
-    const files = splitAppTables(
+    const files = await split(
       base,
       `${sql}\ncreate index b_i on public.b (id)`,
       ["b"],
@@ -89,7 +100,7 @@ describe("splitAppTables", () => {
     expect(files.at(-1)?.path).toBe("public/_custom/app_tables.sql");
   });
 
-  it("matches schema-qualified config entries and repeated views", () => {
+  it("matches schema-qualified config entries and repeated views", async () => {
     const qualified = {
       ...base,
       subjects: { a: { table: "a" }, other: { table: "public.a" } },
@@ -102,7 +113,7 @@ describe("splitAppTables", () => {
     const sql =
       'create table "public"."a" (id int); create view public.v as select 1; create index v_i on public.v (n); grant select on public.v to anon;';
 
-    const files = splitAppTables(qualified, sql, ["a"]);
+    const files = await split(qualified, sql, ["a"]);
     const table = files[0]?.contents ?? "";
 
     expect(table).toContain("subject type=other");
@@ -111,7 +122,7 @@ describe("splitAppTables", () => {
     expect(files.some((file) => file.path === "public/views/v.sql")).toBe(true);
   });
 
-  it("writes json, encrypted, lookup and events tags", () => {
+  it("writes json, encrypted, lookup and events tags", async () => {
     const tagged = {
       ...base,
       json: {
@@ -135,7 +146,7 @@ describe("splitAppTables", () => {
     const sql =
       'create table "public"."a" (id int); create table "public"."b" (id int);';
 
-    const files = splitAppTables(tagged, sql, ["a", "b"]);
+    const files = await split(tagged, sql, ["a", "b"]);
     const a = files[0]?.contents ?? "";
     const b = files[1]?.contents ?? "";
 
@@ -147,7 +158,7 @@ describe("splitAppTables", () => {
     expect(b).toContain("events");
   });
 
-  it("keeps a view's grants and comment in its file and drops its drop", () => {
+  it("keeps a view's grants and comment in its file and drops its drop", async () => {
     const sql = [
       'drop trigger if exists "t" on "public"."a";',
       'create trigger "t" before update on "public"."a" for each row execute function f();',
@@ -160,7 +171,7 @@ describe("splitAppTables", () => {
       'drop view if exists "public"."other_view";',
     ].join("\n");
 
-    const files = splitAppTables(base, sql, ["a"]);
+    const files = await split(base, sql, ["a"]);
     const table = files.find((file) => file.path === "public/tables/a.sql");
     const view = files.find((file) => file.path === "public/views/a_view.sql");
     const rest = files.find((file) => file.path.includes("_custom"));
@@ -180,11 +191,11 @@ describe("splitAppTables", () => {
 describe("splitAppTables edges", () => {
   const base = resolveConfig({ blocks: {} }, "/tmp");
 
-  it("keeps unclosed comments, dollar quotes and positional parameters in one statement", () => {
+  it("keeps dollar quotes, trailing comments and positional parameters in one statement", async () => {
     const sql =
-      'create table "public"."c" (id int);\nselect $1;\ncreate function f() as $body$ no end; -- tail';
+      'create table "public"."c" (id int);\nselect $1;\ncreate function f() as $body$ no end; $body$ language sql; -- tail';
 
-    const files = splitAppTables(base, sql, ["c", "missing"]);
+    const files = await split(base, sql, ["c", "missing"]);
 
     expect(files.map((file) => file.path)).toEqual([
       "public/tables/c.sql",
@@ -193,13 +204,14 @@ describe("splitAppTables edges", () => {
     ]);
     expect(files[1]?.contents).not.toContain("create");
     expect(files[2]?.contents).toContain("select $1;");
-    expect(files[2]?.contents).toContain("$body$ no end; -- tail");
+    expect(files[2]?.contents).toContain("$body$ no end; $body$ language sql;");
+    expect(files[2]?.contents).toContain("-- tail");
     expect(
-      splitAppTables(base, "select 1; /* open", [])[0]?.contents,
-    ).toContain("/* open");
+      (await split(base, "select 1; /* note */", []))[0]?.contents,
+    ).toContain("/* note */");
   });
 
-  it("writes search tags and skips subjects and json entries without an argument", () => {
+  it("writes search tags and skips subjects and json entries without an argument", async () => {
     const config = {
       ...base,
       subjects: { watched: { table: "a", search: { watch: ["x"] } } },
@@ -211,7 +223,7 @@ describe("splitAppTables edges", () => {
       },
     } as unknown as Parameters<typeof splitAppTables>[0];
 
-    const files = splitAppTables(
+    const files = await split(
       config,
       'create table "public"."a" (id int); create table "public"."b" (id int);',
       ["a", "b"],

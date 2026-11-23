@@ -40,6 +40,8 @@ const BUNDLED = new Set([
 const PURE = new Set([
   join(SRC, "sql/text-edit.ts"),
   join(SRC, "sql/layout-types.ts"),
+  join(SRC, "sql/bsb-tags.ts"),
+  join(SRC, "sql/table-facts.ts"),
 ]);
 
 // The adoption check walks the module registry and the render pipeline to read

@@ -265,3 +265,54 @@ export function indexSignature(statement: string): string {
 /** A call that has `better_supabase.track_updated_at` create the trigger. */
 export const TRACK_UPDATED_AT_CALL: RegExp =
   /\btrack_updated_at\s*\(\s*'((?:[\w$]+\.)?[\w$]+)'/gi;
+
+/** `text` with comments blanked out, string and identifier quotes kept. */
+export function withoutComments(text: string): string {
+  let out = "";
+  let index = 0;
+
+  while (index < text.length) {
+    const char = text[index]!;
+    const next = text[index + 1];
+
+    if (char === "'" || char === '"') {
+      const end = closing(text, index, char);
+      out += text.slice(index, end);
+      index = end;
+    } else if (char === "-" && next === "-") {
+      const end = text.indexOf("\n", index);
+      index = end === -1 ? text.length : end;
+    } else if (char === "/" && next === "*") {
+      const end = text.indexOf("*/", index + 2);
+      index = end === -1 ? text.length : end + 2;
+      out += " ";
+    } else {
+      out += char;
+      index += 1;
+    }
+  }
+
+  return out;
+}
+
+/**
+ * The index after the quote that closes the one at `start`; doubled quotes
+ * escape.
+ */
+function closing(text: string, start: number, quote: string): number {
+  let index = start + 1;
+
+  while (index < text.length) {
+    if (text[index] === quote) {
+      if (text[index + 1] !== quote) {
+        return index + 1;
+      }
+
+      index += 2;
+    } else {
+      index += 1;
+    }
+  }
+
+  return text.length;
+}

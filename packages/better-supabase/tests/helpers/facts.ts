@@ -1,8 +1,10 @@
 import type { SameTenantLayout } from "../../src/sql/layout-types.ts";
 
 import { adoptedTables, primeAdoption } from "../../src/cli/adopted-columns.ts";
+import { auditRegistrations } from "../../src/cli/audit-registrations.ts";
 import { ownedColumns, duplicateObjects } from "../../src/cli/block-objects.ts";
 import { declaredCheckValues } from "../../src/cli/check-values.ts";
+import { mappingTagsOf } from "../../src/cli/mapping-tags.ts";
 import { sameTenantLayout } from "../../src/cli/same-tenant-layout.ts";
 import {
   declaredIndexes,
@@ -11,6 +13,10 @@ import {
   declaredUpdatedAtTriggers,
   primeSchemaTexts,
 } from "../../src/cli/sql-facts.ts";
+import {
+  columnTagComments,
+  sameTenantTagsOf,
+} from "../../src/cli/tag-comments.ts";
 import { writtenValues } from "../../src/cli/written-values.ts";
 
 type Files = readonly { readonly text: string }[];
@@ -120,4 +126,39 @@ export async function adoptedTablesOf(
   await primeAdoption(modules, ownTables, views?.subjects);
 
   return adoptedTables(modules, ownTables, views);
+}
+
+export async function auditRegistrationsOf(
+  files: Files,
+): Promise<ReturnType<typeof auditRegistrations>> {
+  await primeAll(...files.map((file) => file.text));
+
+  return auditRegistrations(files);
+}
+
+export async function mappingTagsFrom(
+  texts: readonly string[],
+  schemas: readonly string[],
+): Promise<ReturnType<typeof mappingTagsOf>> {
+  await primeAll(...texts);
+
+  return mappingTagsOf(texts, schemas);
+}
+
+export async function columnTagCommentsOf(
+  text: string,
+): Promise<ReturnType<typeof columnTagComments>> {
+  await primeAll(text);
+
+  return columnTagComments(text);
+}
+
+export async function sameTenantTagsFrom(
+  texts: readonly string[],
+  schemas: readonly string[],
+  foreignKeys: Parameters<typeof sameTenantTagsOf>[2],
+): Promise<ReturnType<typeof sameTenantTagsOf>> {
+  await primeAll(...texts);
+
+  return sameTenantTagsOf(texts, schemas, foreignKeys);
 }

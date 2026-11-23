@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { mappingTagsOf, withMappingTags } from "../../src/sql/mapping-tags.ts";
+import { withMappingTags } from "../../src/cli/mapping-tags.ts";
+import { mappingTagsFrom } from "../helpers/facts.ts";
 
 const sql = `comment on table public.members is 'Seats. @bsb block-table=memberships.memberships';
 comment on column public.members.org_id is '@bsb column=tenant';
 comment on table other.skipped is '@bsb block-table=memberships.roles';`;
 
-describe("mapping tags", () => {
-  const tags = mappingTagsOf([sql], ["public"]);
+describe("mapping tags", async () => {
+  const tags = await mappingTagsFrom([sql], ["public"]);
 
   it("reads a table and its tagged columns", () => {
     expect(tags).toEqual({

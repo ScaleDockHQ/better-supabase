@@ -5,7 +5,6 @@ import type { CatalogPolicy } from "../../src/config/snapshot.ts";
 import {
   appTablePolicyNotes,
   canonicalCondition,
-  declaredPolicies,
   parsePolicy,
   widenedCommands,
   withoutAppTablePolicies,
@@ -86,29 +85,6 @@ describe("parsePolicy", () => {
     });
     expect(parsePolicy("create table t (id int);")).toBeUndefined();
     expect(parsePolicy("create policy p on t using (a = (b);")).toBeUndefined();
-  });
-});
-
-describe("declaredPolicies", () => {
-  it("keeps what the files leave, in order, for the listed schemas", () => {
-    expect(
-      declaredPolicies(
-        [
-          {
-            text: `-- create policy hidden on public.t using (false);
-create policy a on public.t for select using (true);
-create policy b on public.t for select using (false);
-create policy c on private.t using (true);`,
-          },
-          {
-            text: "drop policy if exists b on public.t; drop policy x on public.u;",
-          },
-        ],
-        ["public"],
-      ),
-    ).toStrictEqual({
-      "public.t": [policy("a", "true", { roles: ["public"] })],
-    });
   });
 });
 

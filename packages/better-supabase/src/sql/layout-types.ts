@@ -3,6 +3,14 @@ import type { BlockSqlLayout } from "./module-types.ts";
 // Plain data the CLI reads from the schema files with its SQL reader and hands
 // to the render functions (ADR 1300). No parser or scanner is imported here.
 
+/** A table registered with `better_supabase.audit(...)` in a SQL file. */
+export interface AuditedTable {
+  /** `schema.table`, unquoted; an unqualified name is in `public`. */
+  readonly target: string;
+  readonly ignore: readonly string[];
+  readonly redact: readonly string[];
+}
+
 /** Privileges one role gets on a table, from the policies that name it. */
 export interface PolicyGrant {
   /** `schema.table`, unquoted; an unqualified name is in `public`. */

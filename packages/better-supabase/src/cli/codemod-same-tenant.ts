@@ -2,15 +2,12 @@ import type { BlockSqlLayout } from "../sql/index.ts";
 import type { CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 
-import {
-  renderBlocks,
-  sameTenantTagsOf,
-  sameTenantTrigger,
-} from "../sql/index.ts";
+import { renderBlocks, sameTenantTrigger } from "../sql/index.ts";
 import { withoutConfigPaths } from "./codemod-prune.ts";
 import { sameTenantLayout } from "./same-tenant-layout.ts";
 import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 import { layoutFor } from "./sql/providers.ts";
+import { sameTenantTagsOf } from "./tag-comments.ts";
 
 const isRecord = (item: unknown): item is Record<string, unknown> =>
   typeof item === "object" && item !== null && !Array.isArray(item);
