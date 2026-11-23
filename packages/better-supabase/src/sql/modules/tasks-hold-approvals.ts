@@ -24,7 +24,7 @@ export interface HoldApproval {
 }
 
 /** What a hold kind looks like: a short lowercase word. */
-export const HOLD_KIND: RegExp = /^[a-z][a-z_]{0,31}$/;
+const HOLD_KIND: RegExp = /^[a-z][a-z_]{0,31}$/;
 
 /** Reads a list of hold kinds: `hold.kinds` or `hold.approval.kinds`. */
 export function holdKindsOf(
