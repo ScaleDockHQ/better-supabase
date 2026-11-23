@@ -237,9 +237,29 @@ function describeBudget(budget: DbBudget): string {
     .join(" and ");
 }
 
-/** `calls;waves;ms;verifications;adminCalls`, the value of the debug header. */
+/**
+ * `calls;waves;ms;verifications;adminCalls;tagCalls;hits;misses;fillMs`, the
+ * value of the debug header. `hits` counts cached calls served from an entry (a
+ * hit, a stale entry or a wait), `misses` the ones that filled, and `fillMs`
+ * the time those fills took.
+ */
 export function formatStats(stats: DbStats): string {
-  return `${stats.calls};${stats.waves};${stats.ms};${stats.verifications};${stats.adminCalls}`;
+  const entries = stats.entries ?? [];
+  const misses = entries.filter((entry) => entry.outcome === "miss");
+
+  const fillMs = misses.reduce((sum, entry) => sum + (entry.fillMs ?? 0), 0);
+
+  return [
+    stats.calls,
+    stats.waves,
+    stats.ms,
+    stats.verifications,
+    stats.adminCalls,
+    stats.tagCalls ?? 0,
+    entries.length - misses.length,
+    misses.length,
+    Math.round(fillMs * 100) / 100,
+  ].join(";");
 }
 
 /**

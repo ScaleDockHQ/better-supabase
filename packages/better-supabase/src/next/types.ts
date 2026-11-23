@@ -552,6 +552,20 @@ export interface BetterNext<
     options: KeptOptions<Extract<keyof M, string>, A>,
   ): KeptFunction<A, R>;
   /**
+   * A fetch that counts each PostgREST, RPC, Storage and Edge Function call in
+   * the current request's debug stats. Pass it to a Supabase client the app
+   * builds itself, whose calls the request stats can't see otherwise. Without
+   * `debug` it returns `fetch` unchanged; outside a request it sends the call
+   * without recording it.
+   *
+   * ```ts
+   * const client = createClient(url, key, {
+   *   global: { fetch: bsb.statsFetch(fetch) },
+   * });
+   * ```
+   */
+  statsFetch(fetch?: typeof globalThis.fetch): typeof globalThis.fetch;
+  /**
    * One call for a page's user data: runs the sessions module's
    * `bootstrap_<rpc>` wrapper, which checks `session_active()` and returns the
    * caller's authorization version with the app function's data. Call it as the
@@ -1138,6 +1152,11 @@ export interface RemoteOptions<
    * tenant })`.
    */
   readonly tenant?: (...args: A) => string | undefined;
+  /**
+   * Names the function's entry records in request stats. Defaults to the
+   * function's name, which a bundler may rename, then `"remote"`.
+   */
+  readonly name?: string;
 }
 
 export interface KeptOptions<

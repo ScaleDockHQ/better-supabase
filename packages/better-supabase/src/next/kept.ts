@@ -3,6 +3,7 @@ import type { AuthSession } from "../auth/view.ts";
 import type { CacheAdapter } from "../core/cache.ts";
 import type { EventHub } from "../core/events.ts";
 import type { KeptCache, KeptStore } from "../core/kept-cache.ts";
+import type { CacheEntryStat } from "../core/stats.ts";
 import type { TenantShare } from "../server/tenant-share.ts";
 import type {
   CacheScope,
@@ -56,6 +57,11 @@ export interface KeptDeps<Ctx extends KeptContext<C, P>, C, P> {
   readonly waitUntil: (work: Promise<unknown>) => void;
   /** Records the store's tag calls on the current request. */
   readonly onTagCalls?: (calls: number) => void;
+  /** Records how a call was served, on the request `source` came from. */
+  readonly onEntry?: (
+    record: CacheEntryStat,
+    source: SessionHandle | undefined,
+  ) => void;
   /** How a `share: "tenant"` entry of `ctx` that reads `tables` is keyed. */
   readonly tenantShare: (
     ctx: Ctx,
@@ -280,6 +286,16 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
         refuse: reader ? () => reader.guard.refused()?.message : undefined,
         background: deps.waitUntil,
       });
+
+      deps.onEntry?.(
+        {
+          id: options.name,
+          kind: "kept",
+          outcome: served.outcome,
+          ...(served.fillMs === undefined ? {} : { fillMs: served.fillMs }),
+        },
+        source,
+      );
 
       return served.value;
     };

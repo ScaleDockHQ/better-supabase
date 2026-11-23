@@ -38,17 +38,19 @@ export function cacheKeyOf<C>(parts: KeyParts<C>): RemoteCacheKey {
 /**
  * Parks a snapshot under its handle until the response is sent. Outside a
  * request scope `after()` throws; the snapshot is released at once and scopes
- * read the request's own session instead.
+ * read the request's own session instead. `requestId` attributes the calls of a
+ * fill through the handle to the request that made it.
  */
 export function parkUntilResponseEnds<C>(
   handle: RemoteCacheKey,
   snapshot: SessionSnapshot<C> | null,
+  requestId?: string,
 ): void {
   if (!snapshot) {
     return;
   }
 
-  const release = handOff(handle, snapshot);
+  const release = handOff(handle, snapshot, requestId);
 
   try {
     after(release);

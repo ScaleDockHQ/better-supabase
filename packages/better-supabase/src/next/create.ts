@@ -1,6 +1,6 @@
 import { cacheLife, io } from "next/cache.js";
 import { redirect } from "next/dist/client/components/redirect.js";
-import { cookies, headers } from "next/headers.js";
+import { cookies } from "next/headers.js";
 import { cache } from "react";
 
 import type { AuthResolution } from "../auth/resolve.ts";
@@ -99,7 +99,8 @@ import { keptBinding } from "./kept.ts";
 import { proxyHandler } from "./proxy-handler.ts";
 import { proxyRuntime } from "./proxy-runtime.ts";
 import { recordAtServer, recordServer } from "./record.ts";
-import { handOff, handoffRequestId, takeHandoff } from "./remote-handoff.ts";
+import { handOff, noteFill, takeHandoff } from "./remote-handoff.ts";
+import { requestRecording } from "./request-recording.ts";
 import { adminForRequest, verifyOption } from "./request-stats.ts";
 import { resourceRoutes } from "./resources.ts";
 import { cacheKeyOf, parkUntilResponseEnds } from "./session-handle.ts";
@@ -159,28 +160,16 @@ export function createNext<
     flushAfter,
   } = proxyRuntime(betterSupabase, options);
 
-  const statsForId = (id: string | undefined): ContextOptions =>
-    collector && id ? { stats: collector.recorderFor(id) } : {};
+  const recording = requestRecording(collector);
+  const { statsForId, statsForHandle, recordOn } = recording;
 
   const statsFor = (request: Request): ContextOptions =>
     statsForId(collector && requestIdOf(request.headers));
 
   const recordTagCalls = (calls: number): void => {
-    if (!collector) {
-      return;
-    }
-
-    headers()
-      .then((incoming) => {
-        const id = requestIdOf(incoming);
-
-        if (id) {
-          collector.recorderFor(id).tagCalls(calls);
-        }
-      })
-      .catch(() => {
-        // Outside a request there is no request to count the calls on.
-      });
+    recordOn(undefined, (recorder) => {
+      recorder.tagCalls(calls);
+    });
   };
 
   if (collector && !tagCallCollectors.has(collector)) {
@@ -512,10 +501,10 @@ export function createNext<
     const handed = handle ? takeHandoff<C>(handle) : undefined;
 
     if (handle && handed) {
-      const ctx = await base.contextFromSession(
-        handed,
-        handle.tenant === null ? {} : { tenant: handle.tenant },
-      );
+      const ctx = await base.contextFromSession(handed, {
+        ...(handle.tenant === null ? {} : { tenant: handle.tenant }),
+        ...statsForHandle(handle),
+      });
 
       const view = toSession(ctx.auth);
 
@@ -534,11 +523,12 @@ export function createNext<
     const { key } = cachedOptions;
     const tenant = key.tenant ?? undefined;
     const snapshot = takeHandoff<C>(key);
+    noteFill(key);
 
     const ctx = snapshot
       ? await base.contextFromSession(snapshot, {
           ...(tenant === undefined ? {} : { tenant }),
-          ...statsForId(handoffRequestId(key)),
+          ...statsForHandle(key),
         })
       : base.contextFor(
           key.userId === null && key.shared === null && key.support === null
@@ -614,6 +604,11 @@ export function createNext<
 
   const kept = keptBinding<ServerContext<M, F, E, C, P, B>, C, P>({
     tenantShare,
+    onEntry: (record, handle) => {
+      recordOn(handle, (recorder) => {
+        recorder.entry(record);
+      });
+    },
     onTagCalls: recordTagCalls,
     events: betterSupabase.events,
     attach: (adapter) => {
@@ -686,7 +681,11 @@ export function createNext<
         share: "session",
       });
 
-      parkUntilResponseEnds(handle, snapshot);
+      parkUntilResponseEnds(
+        handle,
+        snapshot,
+        snapshot ? await recording.currentId() : undefined,
+      );
 
       return handle;
     },
@@ -735,19 +734,25 @@ export function createNext<
           ? requestIdOf((await incoming()).request.headers)
           : undefined;
 
-        const release = snapshot
-          ? handOff(key, snapshot, requestId)
-          : undefined;
+        const release = handOff(key, snapshot, requestId);
+
+        const id = remoteOptions.name ?? fn.name;
+        const done = recording.remoteCall(key, id, requestId);
 
         try {
-          return await fn(key, ...args);
+          const value = await fn(key, ...args);
+          done();
+
+          return value;
         } finally {
-          release?.();
+          release();
         }
       };
     },
 
     kept: kept.kept,
+
+    statsFetch: recording.statsFetch,
 
     async bootstrap<T, S extends ReadSet = ReadSet>(
       bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,
@@ -813,10 +818,10 @@ export function createNext<
           ? (takeHandoff<C>(accessOptions.key) ?? null)
           : await getClaims();
 
-      const ctx = await base.contextFromSession(
-        snapshot,
-        tenant === undefined ? {} : { tenant },
-      );
+      const ctx = await base.contextFromSession(snapshot, {
+        ...(tenant === undefined ? {} : { tenant }),
+        ...(accessOptions.key ? statsForHandle(accessOptions.key) : {}),
+      });
 
       return accessOf<ServerContext<M, F, E, C, P, B>, C, P, PermissionRef<A>>(
         ctx,
