@@ -40,7 +40,9 @@ describe("StatsCollector", () => {
     expect(log.warn.mock.calls[0]![0]).toMatch(
       /request r1 made 2 database calls in 2 waves, over the budget of 2 calls and 1 waves/,
     );
-    expect(formatStats(collector.get("r1")!)).toMatch(/^2;2;[\d.]+;0;0$/);
+    expect(formatStats(collector.get("r1")!)).toMatch(
+      /^2;2;[\d.]+;0;0;0;0;0;0$/,
+    );
   });
 
   it("stays within budget quietly and forgets old requests", () => {

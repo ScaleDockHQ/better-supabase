@@ -218,7 +218,9 @@ ${nodeColumns}${lockTable(T, { read: true })}
 `
     : "";
 
-  const grantIdentity = ctx.owns("grants")
+  const ownsGrants = kit.grantRows && ctx.owns("grants");
+
+  const grantIdentity = ownsGrants
     ? typed
       ? `  ${g("principalType")} text not null check (${g("principalType")} in ('user', 'team', 'role')),
   ${g("principalId")} text not null,`
@@ -232,11 +234,11 @@ ${nodeColumns}${lockTable(T, { read: true })}
     : "";
 
   const grantUnique =
-    ctx.owns("grants") && typed
+    ownsGrants && typed
       ? `  unique (${g("node")}, ${g("principalType")}, ${g("principalId")})`
       : "";
 
-  const grantIndexes = ctx.owns("grants")
+  const grantIndexes = ownsGrants
     ? typed
       ? `create index if not exists ${sqlIdent(`${ctx.tableName("grants").name}_principal_idx`)} on ${G} (${g("principalType")}, ${g("principalId")});`
       : `create unique index if not exists ${sqlIdent(`${ctx.tableName("grants").name}_user_idx`)} on ${G} (${g("node")}, ${g("user")}) where ${g("user")} is not null;
@@ -249,7 +251,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("grants").name}_team_prin
         }`
     : "";
 
-  const grantTable = ctx.owns("grants")
+  const grantTable = ownsGrants
     ? `create table if not exists ${G} (
   ${g("id")} uuid primary key default gen_random_uuid(),
   ${g("tenant")} ${ctx.idType} not null,

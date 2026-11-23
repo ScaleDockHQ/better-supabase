@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:1f8823d548cf93882ca6f9ddc69bd00fdad1e3f60078fe5f512f14f97426e17a
+-- @bsb-hash sha256:a1cf0af53d2bb501e7dd930bd02aa37cb725f44c17c6c038ac32f7f50f723f3c
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1986,8 +1986,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrat
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_maintenance_plan_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."maintenance_plans"
+  after insert or delete on "better_supabase"."maintenance_plans"
   for each row execute function "better_supabase"."search_index_row"('maintenance_plan', 'id');
+create trigger "bsb_search_maintenance_plan_index_u"
+  after update of "id", "tenant_id", "title" on "better_supabase"."maintenance_plans"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('maintenance_plan', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.maintenance_plans deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"maintenance_plan","event_prefix":"maintenance_plan","archive_column":"archived_at"}');

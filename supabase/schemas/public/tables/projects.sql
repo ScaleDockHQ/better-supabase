@@ -91,7 +91,14 @@ create unique index "projects_organization_id_id_key" on "public"."projects" ("o
 drop trigger if exists "bsb_search_project_index" on "public"."projects";
 
 create trigger "bsb_search_project_index"
-  after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
+  after insert or delete on "public"."projects"
   for each row execute function "better_supabase"."search_index_row"('project', 'id');
+
+drop trigger if exists "bsb_search_project_index_u" on "public"."projects";
+
+create trigger "bsb_search_project_index_u"
+  after update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
+  for each row when (old."id" is distinct from new."id" or old."organization_id" is distinct from new."organization_id" or old."name" is distinct from new."name" or old."deleted_at" is distinct from new."deleted_at")
+  execute function "better_supabase"."search_index_row"('project', 'id');
 
 comment on table public.projects is '@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes';

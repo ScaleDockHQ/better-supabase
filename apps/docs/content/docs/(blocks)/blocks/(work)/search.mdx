@@ -69,8 +69,8 @@ outside their own row:
 | `description` | A column whose value each hit returns as `description` (`SearchHit.description`), such as a SKU or the customer a record belongs to. The index adds a `description` column only once a subject sets it                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `exclude`     | A column that keeps a row out of search while it is set (not null and not `false`), such as `archived_at`. Unlike `deletedAt`, the other blocks still see the row                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `facets`      | Columns of the row (or of `from`) whose non-null values `search_page` filters on, such as `["customer_id", "status"]`. The index keeps them in a `facets` jsonb column with a GIN `jsonb_path_ops` index, and a change to one re-indexes the record                                                                                                                                                                                                                                                                                                                                                                  |
-| `from`        | `{ view, key }`: a view or table with one row per record, keyed by the record's id, that `title`, `body`, `description` and `exclude` read instead of the record's own row. The tenant, `deletedAt` and `url` still come from the record, and any update of the record's row re-indexes it, since the view may read any of its columns, unless `columns` lists them                                                                                                                                                                                                                                                  |
-| `columns`     | With `from`: the columns of the record's own table the view reads. The trigger then fires on an update of those columns (and the id, tenant and `deletedAt` columns) instead of every update, so an unrelated column costs no re-index. The drive's `drive_node` subject sets `["name"]`                                                                                                                                                                                                                                                                                                                             |
+| `from`        | `{ view, key }`: a view or table with one row per record, keyed by the record's id, that `title`, `body`, `description` and `exclude` read instead of the record's own row. The tenant, `deletedAt` and `url` still come from the record. Needs `columns`                                                                                                                                                                                                                                                                                                                                                            |
+| `columns`     | Required with `from`: the columns of the record's own table the view reads. The generator cannot see what a view reads, so the config error names the record type when the list is missing. The update trigger fires only when one of those columns (or the id, tenant or `deletedAt` column) changes value, so an unrelated column costs no re-index. Doctor BS637 reports a column the view reads that the list leaves out. The drive's `drive_node` subject sets `["name"]`                                                                                                                                       |
 | `watch`       | `[{ table, key, via?, through?, columns? }]`: tables whose insert, update or delete re-index the record. The update trigger lists `key` and `columns`, and its `when` clause skips a row when none of them changed. `columns` names the values the title or body reads from that table; without it, only a change to `key` re-indexes the record. `key` holds the record's id, or, with `via`, the value the record's `via` column holds. `through: [{ table, from, to }]` follows `key` across more tables first, such as a junction table: each hop reads `to` from the rows whose `from` holds the previous value |
 
 ```ts title="better-supabase.config.ts"
@@ -86,6 +86,7 @@ records: {
       description: "vat_number",
       exclude: "archived_at",
       from: { view: "public.customer_search_sources", key: "customer_id" },
+      columns: ["number", "name"],
       watch: [
         {
           table: "public.customer_contacts",
@@ -107,6 +108,7 @@ records: {
       title: "label",
       description: "customer_name",
       from: { view: "public.asset_search_sources", key: "asset_id" },
+      columns: ["serial_number", "product_id", "customer_id"],
       watch: [
         {
           table: "public.products",
@@ -122,7 +124,7 @@ records: {
 
 A source view is ordinary schema of the app: it expresses how a record is
 labelled (a number and a title joined, a related name) without the block
-knowing the shape. Changes to the record's own columns still re-index it;
+knowing the shape. A change to one of the record's `columns` re-indexes it;
 `watch` covers the tables behind the view. A `watch` without `columns`
 re-indexes only when its `key` changes, so list the columns the view reads from
 that table.

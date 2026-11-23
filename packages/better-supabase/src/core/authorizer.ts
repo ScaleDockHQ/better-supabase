@@ -72,10 +72,23 @@ export type AuthorizationCallKind =
   | "route"
   | "tool";
 
+/**
+ * How the write a check guards is enforced in the database. `rls`: it runs
+ * through the caller's own client, so row level security checks it again and a
+ * provider may skip its live version read. `definer`: a `security definer`
+ * function or the admin client skips RLS, so the check is the only gate.
+ */
+export type AuthorizationEnforcement = "rls" | "definer";
+
 /** The `intent` and `operation` a call site passes to `requestOf`. */
 export interface AuthorizationPurpose {
   readonly intent?: AuthorizationIntent;
   readonly operation?: AuthorizationCallKind;
+  /**
+   * How the guarded write is enforced. Unset means unknown, and a provider must
+   * treat unknown as `definer`.
+   */
+  readonly enforcement?: AuthorizationEnforcement;
 }
 
 /**
@@ -389,6 +402,9 @@ function contextOf(
     ...(purpose.operation === undefined
       ? {}
       : { operation: purpose.operation }),
+    ...(purpose.enforcement === undefined
+      ? {}
+      : { enforcement: purpose.enforcement }),
     ...(typeof context?.requestId === "string"
       ? { requestId: context.requestId }
       : {}),
@@ -479,6 +495,9 @@ function purposeOf(options: AuthorizationPurpose): AuthorizationPurpose {
     ...(options.operation === undefined
       ? {}
       : { operation: options.operation }),
+    ...(options.enforcement === undefined
+      ? {}
+      : { enforcement: options.enforcement }),
   };
 }
 

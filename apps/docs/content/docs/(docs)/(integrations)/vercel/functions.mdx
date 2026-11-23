@@ -103,3 +103,50 @@ createPostgres({ attachDatabasePool, getDeadline });
 
 `getDeadline` returns `undefined` outside a Vercel invocation, and then the
 pool's own timeouts apply.
+
+## Warm a new instance
+
+A new function instance pays for the JWKS fetch and the first PostgREST, pool
+and flags connections on its first request. Await `warm` from
+`better-supabase/next/instrumentation` in `register()` so the instance opens
+them before it serves:
+
+```ts title="src/instrumentation.ts"
+import { warm } from "better-supabase/next/instrumentation";
+
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { bsb } = await import("./lib/supabase/server");
+    const { pool } = await import("./lib/db");
+
+    await warm(bsb, { postgres: pool });
+  }
+}
+```
+
+`warm` runs the steps in parallel, logs a failed one and never throws. On the
+local stack the first request of a fresh process paid 86 to 90 ms for the JWKS,
+PostgREST and the pool, and the second request about 25 ms.
+[Warm up in `register()`](/docs/auth/server#warm-up-in-register) lists the options.
+
+## Keep reads in the Runtime Cache
+
+`bsb.kept()` keeps a read across requests and deploys. On Vercel, pass the
+Runtime Cache as its store, so every instance in a region reads one entry:
+
+```ts title="src/lib/supabase/server.ts"
+import { getCache } from "@vercel/functions";
+import { createNext } from "better-supabase/next";
+import { vercelRuntimeCacheAdapter } from "better-supabase/server";
+
+import { betterSupabase } from "./index";
+
+export const bsb = createNext(betterSupabase, {
+  kept: { store: vercelRuntimeCacheAdapter(getCache) },
+});
+```
+
+A write expires the entry's tags in the Runtime Cache in batches of 16 tags per
+call. Its fill lease is a best-effort lock entry, so two instances can still
+fill the same entry at once. [Caching](/docs/concepts/caching#keep-reads-across-requests-and-deploys)
+covers the options.

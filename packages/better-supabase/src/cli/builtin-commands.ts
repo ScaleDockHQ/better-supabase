@@ -241,6 +241,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       ),
   ],
   [
+    "config functions",
+    () =>
+      import("./commands/config-listings.ts").then(
+        (m) => m.configFunctionsCommand,
+      ),
+  ],
+  [
     "config policies",
     () =>
       import("./commands/config-listings.ts").then(

@@ -248,7 +248,7 @@
     "security-definer-functions": 80
   },
   "imports": {
-    "security-definer-functions": 150
+    "security-definer-functions": 162
   },
   "inbox": {
     "security-definer-functions": 253,
@@ -273,8 +273,8 @@
     "row-triggers": 6
   },
   "invoices": {
-    "security-definer-functions": 387,
-    "row-triggers": 6
+    "security-definer-functions": 423,
+    "row-triggers": 18
   },
   "knowledge": {
     "security-definer-functions": 85
@@ -470,7 +470,7 @@
   },
   "search": {
     "security-definer-functions": 50,
-    "row-triggers": 3
+    "row-triggers": 4
   },
   "security-events": {
     "security-definer-functions": 78,

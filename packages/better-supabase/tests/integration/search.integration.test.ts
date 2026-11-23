@@ -412,6 +412,7 @@ grant select on search_src_it.customers to authenticated;`);
               body: ["people"],
               description: "vat",
               exclude: "archived_at",
+              columns: ["name", "vat", "archived_at"],
               from: {
                 view: "search_src_it.customer_sources",
                 key: "customer_id",

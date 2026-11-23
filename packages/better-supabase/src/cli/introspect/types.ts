@@ -18,6 +18,7 @@ export type {
   ExtrasHookFunction,
   ExtrasTable,
   ForeignKeyAction,
+  InventoryFunction,
   GeneratorMetadata,
   Snapshot,
   SnapshotBucket,

@@ -405,7 +405,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | --- | --- | --- |
 | `updated-at` | none | none |
 | `created-by` | none | none |
-| `audit` | none | `permissions`, `organizations`, `data-lifecycle` |
+| `audit` | none | `permissions`, `organizations`, `data-lifecycle`, `housekeeping` |
 | `memberships` | `updated-at` | `permissions`, `invitations`, `organizations` |
 | `invitations` | `memberships`, `permissions`, `updated-at` | `organizations`, `profiles`, `teams` |
 | `reserved-slugs` | none | none |
@@ -466,7 +466,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `custom-fields` | `memberships`, `permissions` | `outbox`, `field-encryption`, `audit`, `subjects`, `legal-entities`, `imports` |
 | `share-links` | `memberships`, `permissions` | `outbox`, `versions`, `subjects`, `rate-limit` |
 | `reminders` | `memberships`, `permissions`, `queue` | `notifications`, `outbox`, `subjects` |
-| `imports` | `memberships`, `permissions`, `queue` | `attachments`, `contacts`, `invoices`, `ledger`, `outbox`, `search` |
+| `imports` | `memberships`, `permissions`, `queue` | `attachments`, `contacts`, `invoices`, `ledger`, `outbox`, `search`, `housekeeping` |
 | `subjects` | `permissions` | `teams`, `memberships`, `audit`, `relations` |
 | `rank` | `permissions`, `subjects` | `queue` |
 | `saved-views` | `memberships`, `permissions` | `outbox`, `teams`, `collections` |

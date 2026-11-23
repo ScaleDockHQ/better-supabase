@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:43bb34f48964d9988bfbe9ab85bb6bec6971679606693a292a9fd667da73cde5
+-- @bsb-hash sha256:436d6d0cf00f0046480b2e587d9d7dd878415a3dec1ae44bdcc32169967e12de
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2370,8 +2370,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."quote_tax_lines" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_quote_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."quotes"
+  after insert or delete on "better_supabase"."quotes"
   for each row execute function "better_supabase"."search_index_row"('quote', 'id');
+create trigger "bsb_search_quote_index_u"
+  after update of "id", "tenant_id", "title" on "better_supabase"."quotes"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('quote', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.quotes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"quote","event_prefix":"quote"}');

@@ -817,6 +817,19 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [],
       },
       {
+        name: "functions",
+        description:
+          "Counts the functions of each schema by caller: policy, trigger, app RPC, service only or unreferenced; --all lists each",
+        docs: "/docs/cli/config#list-the-functions",
+        examples: [
+          {
+            command: "better-supabase config functions --all",
+            description: "Lists every function with its caller class",
+          },
+        ],
+        effects: [READS_DATABASE, MANAGEMENT_API],
+      },
+      {
         name: "policies",
         description:
           "Lists the row level security policies the @bsb access tags render, with their key, tenant column and actor guard",

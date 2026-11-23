@@ -1,6 +1,6 @@
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:f1d99a076078079ef2f2ba2dae76f952b987186895d2a0b229f8a2479488ac74
+-- @bsb-hash sha256:800700ea3e72d1a35aafa59b9d2168eb365d13950183713c68af0d878cbe60ea
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -622,8 +622,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_dam_usage_right_index"
-  after insert or delete or update of "id", "tenant_id", "licensee" on "better_supabase"."dam_usage_rights"
+  after insert or delete on "better_supabase"."dam_usage_rights"
   for each row execute function "better_supabase"."search_index_row"('dam_usage_right', 'id');
+create trigger "bsb_search_dam_usage_right_index_u"
+  after update of "id", "tenant_id", "licensee" on "better_supabase"."dam_usage_rights"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."licensee" is distinct from new."licensee")
+  execute function "better_supabase"."search_index_row"('dam_usage_right', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_usage_rights deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_usage_right","event_prefix":"dam_usage_right"}');

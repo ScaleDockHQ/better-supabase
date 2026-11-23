@@ -62,6 +62,8 @@ export interface VercelRuntimeCacheTags {
     options?: { name?: string; tags?: string[]; ttl?: number },
   ): Promise<void>;
   expireTag(tag: string | string[]): Promise<void>;
+  /** Removes one entry; `@vercel/functions` has it, a hand-written stub may not. */
+  delete?(key: string): Promise<void>;
 }
 
 export interface VercelRuntimeCacheAdapterOptions {
@@ -88,6 +90,18 @@ export interface VercelRuntimeCacheAdapter extends CacheAdapter {
     value: unknown,
     options?: RuntimeCacheEntryOptions,
   ): Promise<void>;
+  /** Removes the entry under `key`; a cache without `delete` keeps it. */
+  delete(key: string): Promise<void>;
+  /** Expires `bsb:` tags, encoded, in calls of 16 tags. */
+  expireTags(tags: readonly string[]): Promise<void>;
+  /**
+   * A lock entry under `lease:<key>`. The Runtime Cache has no set-if-absent,
+   * so two instances that read at the same moment can both win: it only narrows
+   * a stampede.
+   */
+  lease(key: string, holder: string, ttlMs: number): Promise<boolean>;
+  /** Removes the lock entry when `holder` still holds it. */
+  release(key: string, holder: string): Promise<void>;
 }
 
 /**
@@ -124,12 +138,41 @@ export function vercelRuntimeCacheAdapter(
         ...(tags.length === 0 ? {} : { tags }),
       });
     },
-    invalidate: async (target) => {
-      const tags = encodedTags(cacheTagsOf(target));
-
+    delete: async (key) => {
+      await open().delete?.(key);
+    },
+    expireTags: async (tags) => {
       await Promise.all(
-        inBatches(tags).map((batch) => open().expireTag(batch)),
+        inBatches(encodedTags(tags)).map((batch) => open().expireTag(batch)),
       );
+    },
+    invalidate: async (target) => {
+      await Promise.all(
+        inBatches(encodedTags(cacheTagsOf(target))).map((batch) =>
+          open().expireTag(batch),
+        ),
+      );
+    },
+    lease: async (key, holder, ttlMs) => {
+      const lock = `lease:${key}`;
+      const current = await open().get(lock);
+
+      if (current !== undefined && current !== null && current !== holder) {
+        return false;
+      }
+
+      await open().set(lock, holder, {
+        ttl: Math.max(1, Math.ceil(ttlMs / 1000)),
+      });
+
+      return (await open().get(lock)) === holder;
+    },
+    release: async (key, holder) => {
+      const lock = `lease:${key}`;
+
+      if ((await open().get(lock)) === holder) {
+        await open().delete?.(lock);
+      }
     },
   };
 }

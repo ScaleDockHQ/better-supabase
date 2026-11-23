@@ -1506,6 +1506,126 @@ describe("createNext", () => {
     }
   });
 
+  it("counts the calls of a session-handle fill for the request that made the handle", async () => {
+    const rest = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => Response.json([]));
+
+    try {
+      const debugged = createNext(createSupabase(schema), {
+        env,
+        cacheTags: false,
+        auth: { jwks: signer.jwks, fetch: fresh },
+        debug: { enabled: true },
+      });
+
+      const token = await signer.sign({ sub: USER });
+      const proxied = await debugged.proxy(page());
+      const id = proxied.headers.get("x-bsb-request-id")!;
+
+      mocks.headers = new Headers({
+        "x-bsb-request-id": id,
+        cookie: cookieFor(token, "refresh-handle"),
+      });
+
+      const handle = await debugged.sessionHandle();
+
+      // A `"use cache: private"` fill has no request headers of its own.
+      mocks.headers = new Headers();
+      const ctx = await debugged.cached({ session: handle });
+      await ctx.db.customers.list();
+
+      const stats = await debugged.debugRoute()(
+        new Request(`https://app.test/api/bsb-stats?id=${id}`),
+      );
+
+      expect(await stats.json()).toMatchObject({
+        calls: 1,
+        tables: ["customers"],
+      });
+    } finally {
+      rest.mockRestore();
+    }
+  });
+
+  it("records kept and remote calls and the calls of statsFetch for the request", async () => {
+    const rest = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => Response.json([]));
+
+    try {
+      const debugged = createNext(createSupabase(schema), {
+        env,
+        cacheTags: false,
+        auth: { jwks: signer.jwks, fetch: fresh },
+        debug: { enabled: true },
+      });
+
+      const token = await signer.sign({ sub: USER });
+      const proxied = await debugged.proxy(page());
+      const id = proxied.headers.get("x-bsb-request-id")!;
+
+      mocks.headers = new Headers({
+        "x-bsb-request-id": id,
+        authorization: `Bearer ${token}`,
+      });
+
+      const list = debugged.kept(
+        async (ctx) => ctx.db.customers.list({ select: ["id"] }),
+        { name: "customer-ids", tables: ["customers"] },
+      );
+
+      await list();
+      await list();
+
+      const remote = debugged.remote(
+        async (key) => {
+          const ctx = await debugged.cached({ scope: "remote", key });
+
+          return ctx.db.customers.count();
+        },
+        { name: "customerCount" },
+      );
+
+      await remote();
+
+      const counted = debugged.statsFetch(globalThis.fetch);
+      await counted(`${PROJECT_URL}/rest/v1/notes?select=id`);
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+
+      const stats = await debugged.debugRoute()(
+        new Request(`https://app.test/api/bsb-stats?id=${id}`),
+      );
+
+      const body = (await stats.json()) as {
+        tables: string[];
+        entries: { id: string; kind: string; outcome: string }[];
+      };
+
+      expect(body.tables).toEqual(
+        expect.arrayContaining(["customers", "notes"]),
+      );
+      expect(body.entries).toEqual([
+        expect.objectContaining({
+          id: "customer-ids",
+          kind: "kept",
+          outcome: "miss",
+        }),
+        { id: "customer-ids", kind: "kept", outcome: "hit" },
+        expect.objectContaining({
+          id: "customerCount",
+          kind: "remote",
+          outcome: "miss",
+        }),
+      ]);
+    } finally {
+      rest.mockRestore();
+    }
+  });
+
   it("logs the stats of a server action when debug is on", async () => {
     const rest = vi
       .spyOn(globalThis, "fetch")

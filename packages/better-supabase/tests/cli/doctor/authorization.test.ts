@@ -1371,3 +1371,98 @@ describe("BS417", () => {
     ).toEqual([]);
   });
 });
+
+describe("BS428", () => {
+  const withSelect = (using: string): { snapshot: Snapshot; name: string } => {
+    const copy = structuredClone(toCatalog(base)) as {
+      -readonly [K in keyof Catalog]: Catalog[K];
+    };
+
+    const [first] = copy.tables;
+    copy.tables = [
+      {
+        ...first!,
+        rls: true,
+        policies: [
+          {
+            name: "members read",
+            command: "select",
+            roles: ["authenticated"],
+            permissive: true,
+            using,
+            check: null,
+          },
+        ],
+      },
+      ...copy.tables.slice(1),
+    ];
+
+    return { snapshot: fromCatalog(copy), name: first!.name };
+  };
+
+  const PINNED =
+    "organization_id in (select authz.ids_organization('customer.read'))";
+
+  const run = (
+    using: string,
+    entry: { share: "tenant" | "row"; permissions: string[] },
+    table?: string,
+  ) => {
+    const { snapshot, name } = withSelect(using);
+
+    return findings(
+      "BS428",
+      {
+        auth: {
+          authorization: withProvider({ tables: { [table ?? name]: entry } }),
+        },
+        blocks: ["memberships", "permissions"],
+      },
+      { snapshot },
+    );
+  };
+
+  it("is silent for a tenant table pinned to the tenant on its listed key", async () => {
+    expect(
+      await run(PINNED, { share: "tenant", permissions: ["customer.read"] }),
+    ).toEqual([]);
+  });
+
+  it("reports a tenant table whose policy filters by the caller", async () => {
+    const [finding] = await run(`${PINNED} and owner_id = auth.uid()`, {
+      share: "tenant",
+      permissions: ["customer.read"],
+    });
+
+    expect(finding?.severity).toBe("error");
+    expect(finding?.message).toContain(
+      'policy "members read" filters by the caller',
+    );
+  });
+
+  it("accepts the same policy declared row", async () => {
+    expect(
+      await run(`${PINNED} and owner_id = auth.uid()`, {
+        share: "row",
+        permissions: ["customer.read"],
+      }),
+    ).toEqual([]);
+  });
+
+  it("reports permissions the policies don't check and a missing table", async () => {
+    const [differs] = await run(PINNED, {
+      share: "tenant",
+      permissions: ["invoice.read"],
+    });
+
+    expect(differs?.message).toContain("select policies check [customer.read]");
+
+    const [missing] = await run(
+      PINNED,
+      { share: "tenant", permissions: ["customer.read"] },
+      "no_such_table",
+    );
+
+    expect(missing?.message).toContain("the database has no such table");
+  });
+});

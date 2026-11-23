@@ -31,7 +31,7 @@ describe("search module", () => {
   it("indexes each searched subject through a trigger on its columns", () => {
     const sql = sqlOf();
     expect(sql).toContain(
-      `after insert or delete or update of "id", "organization_id", "name", "description", "notes", "deleted_at", "board_id" on "app"."tasks"`,
+      `after update of "id", "organization_id", "name", "description", "notes", "deleted_at", "board_id" on "app"."tasks"`,
     );
     expect(sql).toContain(
       `execute function "better_supabase"."search_index_row"('task', 'id')`,
@@ -180,7 +180,7 @@ describe("search module", () => {
       `jsonb_strip_nulls(jsonb_build_object('customer_id', s."customer_id", 'status', s."status"))`,
     );
     expect(sql).toContain(
-      `after insert or delete or update of "id", "organization_id", "name", "customer_id", "status" on "app"."tasks"`,
+      `after update of "id", "organization_id", "name", "customer_id", "status" on "app"."tasks"`,
     );
     expect(sql).toContain(`using gin ("facets" jsonb_path_ops)`);
     expect(sql).toContain(

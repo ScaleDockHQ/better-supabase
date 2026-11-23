@@ -1,11 +1,13 @@
 // `experimental.typedEnv` writes these types only during `next dev`, so the
-// keys `src/env.ts` reads with a literal `process.env.NAME` are declared here
-// for `tsc` in CI too.
+// keys `src/env.ts` and the cache handlers read with a literal
+// `process.env.NAME` are declared here for `tsc` in CI too.
 declare namespace NodeJS {
   interface ProcessEnv {
     readonly NEXT_PUBLIC_SUPABASE_URL?: string;
     readonly NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?: string;
     readonly NEXT_PUBLIC_VAPID_PUBLIC_KEY?: string;
+    readonly SUPABASE_SECRET_KEY?: string;
+    readonly SUPABASE_DB_URL?: string;
   }
 }
 

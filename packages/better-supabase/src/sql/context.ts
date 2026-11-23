@@ -90,6 +90,11 @@ export interface BlockSqlTableSpec {
   /** The app may lack the whole table (`blocks.<name>.tables.<table>: null`). */
   readonly optionalTable?: boolean;
   /**
+   * The block option that removes the table: with `options.<option>` equal to
+   * `value`, the table is `null` as if the app had mapped it so.
+   */
+  readonly omitWhen?: { readonly option: string; readonly value: string };
+  /**
    * How the table can be a table the app already has (ADR 0098). Without it the
    * module always creates the table.
    */
@@ -348,6 +353,8 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   /** The provider's `rowsWith` and `rowsWithFor` templates under `provider`. */
   readonly providerRowsWith: string | undefined;
   readonly providerRowsWithFor: string | undefined;
+  /** The provider's `roleOn` template under `provider`. */
+  readonly providerRoleOn: string | undefined;
   /** The provider's `approverFor` (with `{id}`) and `managedUsers` templates. */
   readonly providerApproverFor: string | undefined;
   readonly providerManagedUsers: string | undefined;
@@ -657,6 +664,8 @@ export interface BlockSqlContextSource {
   /** The provider's `functions.rowsWith` and `rowsWithFor` templates. */
   readonly providerRowsWith?: string;
   readonly providerRowsWithFor?: string;
+  /** The provider's `functions.roleOn` template. */
+  readonly providerRoleOn?: string;
   /** The `provider` model's `can_user` answers only for the caller. */
   readonly providerCallerOnly?: boolean;
   /** `sql.scope`: the scope of a module whose config sets none. */
@@ -787,6 +796,39 @@ function checkIdent(where: string, value: string): string {
   return value;
 }
 
+/** `config` with every table whose `omitWhen` option is set mapped to `null`. */
+function omitTables(
+  config: ResolvedBlock,
+  names: BlockSqlNames,
+  where: string,
+): ResolvedBlock {
+  const omitted = Object.entries(names.tables).filter(
+    ([, spec]) =>
+      spec.omitWhen !== undefined &&
+      config.options[spec.omitWhen.option] === spec.omitWhen.value,
+  );
+
+  if (omitted.length === 0) {
+    return config;
+  }
+
+  for (const [table, spec] of omitted) {
+    if (typeof config.tables[table] === "string") {
+      throw new TypeError(
+        `${where}.tables.${table} can't be mapped with options.${spec.omitWhen?.option} "${spec.omitWhen?.value}", which has no ${table} table`,
+      );
+    }
+  }
+
+  return {
+    ...config,
+    tables: {
+      ...config.tables,
+      ...Object.fromEntries(omitted.map(([table]) => [table, null])),
+    },
+  };
+}
+
 /**
  * Builds the context for `module`. `namesOf` looks up a module's names, so a
  * module can name another module's tables through `of()`.
@@ -806,9 +848,9 @@ export function createModuleContext(
       ? (source.modules ?? {})
       : { ...source.modules, [module]: entry?.config ?? {} };
 
-  const config = resolveBlock(modules[module]);
   const where = `blocks.${instance}`;
   const names = namesOf(module) ?? { tables: {} };
+  const config = omitTables(resolveBlock(modules[module]), names, where);
   checkIdent(`${where}.schema`, config.schema);
 
   for (const [table, name] of Object.entries(config.tables)) {
@@ -1407,6 +1449,7 @@ export function createModuleContext(
     subjects: source.subjects ?? {},
     providerRowsWith: source.providerRowsWith,
     providerRowsWithFor: source.providerRowsWithFor,
+    providerRoleOn: source.providerRoleOn,
     providerApproverFor: source.providerApproverFor,
     providerManagedUsers: source.providerManagedUsers,
     providerApprovals: source.providerApprovals ?? {},

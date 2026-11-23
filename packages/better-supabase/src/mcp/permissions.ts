@@ -1,6 +1,7 @@
 import type { AuthState } from "../auth/resolve.ts";
 import type {
   AnyAuthorizer,
+  AuthorizationEnforcement,
   AuthorizationPurpose,
   AuthorizerRuntime,
 } from "../core/authorizer.ts";
@@ -108,6 +109,7 @@ export function contextOf(db: unknown): RequestContext | undefined {
 export interface CheckedTool {
   readonly info: { readonly name: string } & ToolHints;
   readonly permission?: unknown;
+  readonly enforcement?: AuthorizationEnforcement;
 }
 
 /**
@@ -145,6 +147,9 @@ export async function checkTool(
     },
     context,
     ...toolPurpose(tool.info),
+    ...(tool.enforcement === undefined
+      ? {}
+      : { enforcement: tool.enforcement }),
     ...(runtime ? { runtime } : {}),
   });
 }

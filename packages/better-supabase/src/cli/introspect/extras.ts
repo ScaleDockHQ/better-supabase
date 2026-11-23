@@ -7,6 +7,7 @@ import type {
   ExtrasHookFunction,
   ExtrasTable,
   ForeignKeyAction,
+  InventoryFunction,
   SnapshotBucket,
   SnapshotExtras,
 } from "./types.ts";
@@ -121,6 +122,49 @@ where p.oid in (
     select 1 from unnest(p.proconfig) setting where setting not like 'search_path=%'
   )))
 order by 1, 2, 3`;
+
+// Every function of the read schemas that no extension owns, with its callers.
+const FUNCTION_INVENTORY = (schemas: string) => `
+select n.nspname as schema, p.proname as name,
+  pg_get_function_identity_arguments(p.oid) as signature,
+  array(
+    select r.rolname::text from pg_roles r
+    where r.rolname in ('anon', 'authenticated', 'service_role')
+      and has_function_privilege(r.oid, p.oid, 'EXECUTE')
+    order by array_position(array['anon', 'authenticated', 'service_role'], r.rolname::text)
+  ) as execute,
+  exists (
+    select 1 from pg_depend d
+    where d.classid = 'pg_policy'::regclass and d.refclassid = 'pg_proc'::regclass
+      and d.refobjid = p.oid
+  ) as policy,
+  p.prorettype in ('trigger'::regtype, 'event_trigger'::regtype)
+    or exists (select 1 from pg_trigger t where t.tgfoid = p.oid and not t.tgisinternal) as trigger
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = any(${schemas}) and p.prokind in ('f', 'p')
+  and not exists (
+    select 1 from pg_depend e
+    where e.classid = 'pg_proc'::regclass and e.objid = p.oid and e.deptype = 'e'
+  )
+order by 1, 2, 3`;
+
+/** Reads the function inventory of `schemas` (`config functions`, BS643). */
+export async function readFunctionInventory(
+  db: Queryable,
+  schemas: readonly string[],
+): Promise<InventoryFunction[]> {
+  return (
+    await rows<InventoryFunction>(db, FUNCTION_INVENTORY(literalArray(schemas)))
+  ).map((row) => ({
+    schema: row.schema,
+    name: row.name,
+    signature: row.signature,
+    execute: row.execute,
+    policy: row.policy,
+    trigger: row.trigger,
+  }));
+}
 
 /**
  * Roles the hook checks care about: the one Auth calls it as, and the API
@@ -525,6 +569,7 @@ export async function readExtras(
     viewCommentRows,
     domainRows,
     sourceRows,
+    inventory,
   ] = await Promise.all([
     rows<{
       id: number | string;
@@ -562,6 +607,7 @@ export async function readExtras(
           FUNCTION_SOURCES(literalArray(functionNames)),
         )
       : [],
+    readFunctionInventory(db, schemas),
   ]);
 
   const functionSources: Record<string, string> = {};
@@ -700,6 +746,7 @@ export async function readExtras(
     })),
     ...(hookRows ? { hooks: hookRows } : {}),
     ...(Object.keys(functionSources).length > 0 ? { functionSources } : {}),
+    functionInventory: inventory,
     ...(commentRows.length > 0
       ? {
           functionComments: Object.fromEntries(

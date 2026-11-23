@@ -1,17 +1,18 @@
-// A `"use cache: remote"` handler over Supabase Postgres. Point
-// `remoteCacheHandler` in next.config.ts at this file to use it. Run
-// `postgresCacheSql()` from `better-supabase/cache-postgres` in a migration
-// first; the tables are readable by the service role only.
+// A `"use cache: remote"` handler over Supabase Postgres. next.config.ts uses
+// it when BSB_REMOTE_CACHE_STORE is `postgres`. Run `postgresCacheSql()` from
+// `better-supabase/cache-postgres` in a migration first (the e2e setup does it
+// for the local stack); the tables and functions are granted to the service
+// role only.
 import { createClient } from "@supabase/supabase-js";
 import { postgresCacheHandler } from "better-supabase/cache-postgres";
 import process from "node:process";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env["SUPABASE_SERVICE_ROLE_KEY"];
+const key = process.env.SUPABASE_SECRET_KEY;
 
 if (!url || !key) {
   throw new Error(
-    "The Postgres cache handler needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+    "The Postgres cache handler needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY.",
   );
 }
 

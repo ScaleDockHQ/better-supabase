@@ -169,7 +169,7 @@ describe("astroPostgresCache", () => {
     const provider = astroPostgresCache({
       client: {
         ...store,
-        get: () => Promise.resolve(err(dbError("unexpected", "read down"))),
+        lookup: () => Promise.resolve(err(dbError("unexpected", "read down"))),
       },
     });
 

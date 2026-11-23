@@ -2,12 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@supabase/supabase-js";
 
-import type {
-  PostgresCacheStore,
-  PostgresCacheStoreOptions,
-} from "../store.ts";
+import type { PostgresCacheStore, PostgresCacheTables } from "../store-core.ts";
 
-import { postgresCacheStore } from "../store.ts";
+import { postgresCacheNames } from "../names.ts";
+import { createCacheStore, isStore, restBackend } from "../store-core.ts";
 
 /** The part of Astro's `CacheProvider` this provider implements. */
 export interface AstroCacheProviderLike {
@@ -27,10 +25,7 @@ export interface AstroCacheProviderLike {
   }): Promise<void>;
 }
 
-export interface AstroPostgresCacheConfig extends Omit<
-  PostgresCacheStoreOptions,
-  "client"
-> {
+export interface AstroPostgresCacheConfig extends PostgresCacheTables {
   /** Name of the env variable with the project URL. Default: `SUPABASE_URL`. */
   readonly urlEnv?: string;
   /**
@@ -40,10 +35,8 @@ export interface AstroPostgresCacheConfig extends Omit<
   readonly keyEnv?: string;
 }
 
-export interface AstroPostgresCacheOptions extends Omit<
-  PostgresCacheStoreOptions,
-  "client"
-> {
+export interface AstroPostgresCacheOptions extends PostgresCacheTables {
+  /** A service role client, or a store to share with other code. */
   readonly client: SupabaseClient | PostgresCacheStore;
 }
 
@@ -80,10 +73,14 @@ function keyOf(url: URL): string {
 export function astroPostgresCache(
   options: AstroPostgresCacheOptions,
 ): AstroCacheProviderLike {
-  const store: PostgresCacheStore =
-    "tagStates" in options.client
-      ? options.client
-      : postgresCacheStore({ ...options, client: options.client });
+  const { client } = options;
+
+  const store: PostgresCacheStore = isStore(client)
+    ? client
+    : createCacheStore(
+        restBackend(client, postgresCacheNames(options)),
+        options,
+      );
 
   const render = async (
     key: string,
@@ -142,7 +139,7 @@ export function astroPostgresCache(
 
       const url = new URL(context.request.url);
       const key = keyOf(url);
-      const found = await store.get(key);
+      const found = await store.lookup(key);
 
       if (!found.ok) {
         context.logger.warn(found.error.message);
@@ -150,53 +147,41 @@ export function astroPostgresCache(
         return next();
       }
 
-      const row = found.data;
+      const row = found.data?.entry;
 
-      if (row && row.expiresAt > Date.now()) {
-        const states = await store.tagStates(row.tags);
-
-        const dead =
-          states.ok &&
-          row.tags.some((tag) => {
-            const at = states.data.get(tag)?.expiredAt ?? 0;
-
-            return at > row.storedAt && at <= Date.now();
-          });
-
-        if (states.ok && !dead) {
-          // SAFETY: `render` below wrote `meta` with these fields.
-          const meta = row.meta as {
-            status: number;
-            headers: [string, string][];
-            maxAge: number;
-          };
-
-          const fresh = Date.now() < row.storedAt + meta.maxAge * 1000;
-
-          const response = new Response(new Blob([row.value]), {
-            status: meta.status,
-            headers: meta.headers,
-          });
-
-          response.headers.set("X-Astro-Cache", fresh ? "HIT" : "STALE");
-
-          if (!fresh) {
-            // Without `waitUntil` the refresh runs unawaited on a long-lived
-            // server.
-            const refresh = render(key, url, context, next, "MISS").catch(
-              (error: unknown) => {
-                context.logger.warn(String(error));
-              },
-            );
-
-            context.waitUntil?.(refresh);
-          }
-
-          return response;
-        }
+      if (!row) {
+        return render(key, url, context, next, "MISS");
       }
 
-      return render(key, url, context, next, "MISS");
+      // SAFETY: `render` below wrote `meta` with these fields.
+      const meta = row.meta as {
+        status: number;
+        headers: [string, string][];
+        maxAge: number;
+      };
+
+      const fresh = Date.now() < row.storedAt + meta.maxAge * 1000;
+
+      const response = new Response(new Blob([row.value]), {
+        status: meta.status,
+        headers: meta.headers,
+      });
+
+      response.headers.set("X-Astro-Cache", fresh ? "HIT" : "STALE");
+
+      if (!fresh) {
+        // Without `waitUntil` the refresh runs unawaited on a long-lived
+        // server.
+        const refresh = render(key, url, context, next, "MISS").catch(
+          (error: unknown) => {
+            context.logger.warn(String(error));
+          },
+        );
+
+        context.waitUntil?.(refresh);
+      }
+
+      return response;
     },
 
     async invalidate(invalidateOptions) {

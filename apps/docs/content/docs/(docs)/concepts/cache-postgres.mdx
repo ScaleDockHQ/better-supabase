@@ -26,6 +26,27 @@ console.log(postgresCacheSql({ prune: true }));
 `prune: true` schedules a `pg_cron` job that deletes entries past their hard
 limit each hour. Without it, call `store.prune()` from a job of your own.
 
+The SQL also creates two functions, `bsb_cache_get` and `bsb_cache_mark_tags`,
+and grants them and the tables to `service_role` only. `bsb_cache_get` reads an
+entry and checks its tags and the soft tags in one call. `bsb_cache_mark_tags`
+writes each tag column with `greatest()`, so two instances that expire the same
+tag at once keep the later expiry and never drop one.
+
+The SQL is safe to run again. After an upgrade, add it to a new migration
+instead of editing the one you pushed. Until the functions exist, the store
+reads and writes the tables in two requests, reports this once through
+`onError`, and tries the functions again after a minute.
+
+| Option           | Default             | What it sets                                      |
+| ---------------- | ------------------- | ------------------------------------------------- |
+| `schema`         | `public`            | the schema of the tables and functions            |
+| `entriesTable`   | `bsb_cache_entries` | the table of entries                              |
+| `tagsTable`      | `bsb_cache_tags`    | the table of tag states                           |
+| `functionPrefix` | `bsb_cache`         | the names `<prefix>_get` and `<prefix>_mark_tags` |
+| `prune`          | `false`             | the hourly `pg_cron` job                          |
+
+Pass the same options to the store, the handler and the Astro provider.
+
 ## Next.js
 
 Next.js loads a handler from a file, so the file creates the client and
@@ -50,9 +71,63 @@ served once more while Next.js renders a fresh one, and skips production
 entries with `expire: 0`. Tags are read in chunks of 128, the size
 `applyCacheTags` writes them in.
 
+A miss takes a lease on the key, so one instance renders the entry. Another
+instance that misses the same key waits up to `wait` milliseconds (250 by
+default) for that entry, then renders itself; the lease runs out after
+`leaseMs` (10 000 by default) when a render never stores its entry. The
+`bsb_cache_lease` function hands the lease to exactly one caller, and
+`postgresCacheSql()` creates it with the `bsb_cache_leases` table. On Vercel,
+the remote handler Next.js ships can't be changed, so there only the entries of
+[`bsb.kept()`](#kept-reads) are coordinated across instances.
+
 A database error on a read is a miss, and one on a write skips the write; pass
 `onError` to log it. A failed `updateTag` throws, because a lost invalidation
 would keep serving stale data.
+
+### Connect to Postgres directly
+
+A Node.js server can skip PostgREST. Pass `transport.postgres`, an object with
+a `queryRaw(sql, params)` method that returns the rows, instead of `client`.
+Connect it as a role that owns the tables or has the `service_role` grants,
+with a connection string that stays on the server. On the local stack a hit
+takes about 0.2 to 0.6 ms this way, against 1.8 to 2.8 ms through PostgREST.
+
+```ts title="cache-handlers/postgres-remote.ts"
+import { Pool } from "pg";
+
+import { postgresCacheHandler } from "better-supabase/cache-postgres";
+
+const pool = new Pool({ connectionString: process.env.CACHE_DATABASE_URL });
+
+export default postgresCacheHandler({
+  transport: {
+    postgres: {
+      queryRaw: async (text, params) => (await pool.query(text, params)).rows,
+    },
+  },
+});
+```
+
+### Delete one entry
+
+`postgresCacheStore(options).delete(key)` removes one entry by its key, and
+`deletePath(path)` removes the entries of a path. Use them when you know the
+entry, and a tag when you know what changed.
+
+## Kept reads
+
+`postgresKeptStore()` stores the entries of
+[`bsb.kept()`](/docs/concepts/caching#keep-reads-across-requests-and-deploys)
+in the same tables, under keys that start with `kept:`. It takes the same
+`client`, transport and table options as `postgresCacheStore()`.
+
+```ts title="src/lib/supabase/server.ts"
+import { postgresKeptStore } from "better-supabase/cache-postgres";
+
+export const bsb = createNext(betterSupabase, {
+  kept: { store: postgresKeptStore({ client: cacheClient }) },
+});
+```
 
 ## Astro
 

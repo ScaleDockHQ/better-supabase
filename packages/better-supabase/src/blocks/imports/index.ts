@@ -28,6 +28,7 @@ export {
 
 export {
   createImports,
+  type ImportConflict,
   type Imports,
   type ImportsOptions,
   type ImportEntityCounts,
@@ -49,6 +50,7 @@ export {
   importChunkHandler,
   importChunkSchema,
   runImportWorker,
+  type ImportChunkAttempt,
   type ImportChunkJob,
   type ImportChunkOutcome,
   type ImportChunkProgress,

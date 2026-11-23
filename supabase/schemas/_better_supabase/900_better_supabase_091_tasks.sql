@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@8 managed
--- @bsb-hash sha256:0e1f79cf5143547f869b3d9b9d4241ac5bb6688b7393e0b75dc6839b081e2371
+-- @bsb-hash sha256:a34eead196eacf65dc7278913a2f1360c99dd0f7126e4701b5abeb9621a74018
 -- @bsb-names tasks task=work_item/work_items
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3091,8 +3091,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restr
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_work_item_index"
-  after insert or delete or update of "id", "tenant_id", "title", "identifier", "body", "archived_at" on "better_supabase"."work_items"
+  after insert or delete on "better_supabase"."work_items"
   for each row execute function "better_supabase"."search_index_row"('work_item', 'id');
+create trigger "bsb_search_work_item_index_u"
+  after update of "id", "tenant_id", "title", "identifier", "body", "archived_at" on "better_supabase"."work_items"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."identifier" is distinct from new."identifier" or old."body" is distinct from new."body" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('work_item', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_items deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_item","event_prefix":"work_item","archive_column":"archived_at"}');

@@ -151,6 +151,7 @@ describe("registeredSubjects", () => {
         },
         search: {
           from: { view: "app.order_search", key: "id" },
+          columns: ["status"],
           watch: [
             {
               table: "lines",

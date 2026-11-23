@@ -15,6 +15,7 @@ const SUBJECTS: SubjectsConfig = {
       description: "vat",
       exclude: "archived_at",
       from: { view: "public.customer_search", key: "customer_id" },
+      columns: ["name", "vat"],
       watch: [{ table: "public.customer_contacts", key: "customer_id" }],
     },
   },
@@ -102,6 +103,7 @@ describe("search sources beyond the record's row", () => {
         search: {
           body: ["tag_names"],
           from: { view: "public.customer_search", key: "customer_id" },
+          columns: ["name"],
           watch: [
             {
               table: "public.tags",
@@ -140,6 +142,7 @@ describe("search sources beyond the record's row", () => {
         title: "name",
         search: {
           from: { view: "public.customer_search", key: "customer_id" },
+          columns: ["name"],
         },
       },
     });
@@ -168,21 +171,29 @@ describe("search sources beyond the record's row", () => {
     ).toThrow(/through\[0\]\.from/u);
   });
 
-  it("re-indexes a record read through a view on a change to any of its columns", () => {
-    expect(sqlOf()).toContain(
-      `after insert or delete or update on "public"."customers"`,
+  it("re-indexes a record read through a view only when a listed column changes", () => {
+    const sql = sqlOf();
+
+    expect(sql).toContain(`after insert or delete on "public"."customers"`);
+    expect(sql).toContain(
+      `after update of "id", "organization_id", "name", "vat" on "public"."customers"
+  for each row when (old."id" is distinct from new."id" or old."organization_id" is distinct from new."organization_id" or old."name" is distinct from new."name" or old."vat" is distinct from new."vat")`,
     );
-    expect(
+    expect(sql).not.toContain("or update on");
+  });
+
+  it("refuses a source view without the columns it reads", () => {
+    expect(() =>
       sqlOf({
         customer: {
           table: "public.customers",
           title: "name",
-          search: { body: ["vat"] },
+          search: {
+            from: { view: "public.customer_search", key: "customer_id" },
+          },
         },
       }),
-    ).toContain(
-      `after insert or delete or update of "id", "organization_id", "name", "vat" on "public"."customers"`,
-    );
+    ).toThrow(/subjects\.customer\.search\.columns/u);
   });
 
   it("leaves the index as it was without the new keys", () => {
@@ -228,6 +239,7 @@ describe("search sources beyond the record's row", () => {
           title: "name",
           search: {
             from: { view: "public.customer_search", key: "customer_id" },
+            columns: ["name"],
           },
         },
       },

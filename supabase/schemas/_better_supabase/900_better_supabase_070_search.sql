@@ -1,6 +1,6 @@
 -- better-supabase module: search
--- @bsb-block search@5 managed
--- @bsb-hash sha256:ce4f68ff952470d47257641cd33b39c90153d11ecb5eea7ff39cea5c70832f30
+-- @bsb-block search@6 managed
+-- @bsb-hash sha256:e93a43a090bb93d295d168815210fd28b0b53739a03b032b8def793b32922442
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1151,11 +1151,19 @@ end;
 $$;
 revoke execute on function "better_supabase"."search_index_stmt"() from public, anon, authenticated;
 create trigger "bsb_search_product_index"
-  after insert or delete or update of "id", "tenant_id", "title", "description", "slug" on "better_supabase"."products"
+  after insert or delete on "better_supabase"."products"
   for each row execute function "better_supabase"."search_index_row"('product', 'id');
+create trigger "bsb_search_product_index_u"
+  after update of "id", "tenant_id", "title", "description", "slug" on "better_supabase"."products"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."description" is distinct from new."description" or old."slug" is distinct from new."slug")
+  execute function "better_supabase"."search_index_row"('product', 'id');
 create trigger "bsb_search_product_variant_index"
-  after insert or delete or update of "id", "tenant_id", "sku", "title", "barcode" on "better_supabase"."product_variants"
+  after insert or delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."search_index_row"('product_variant', 'id');
+create trigger "bsb_search_product_variant_index_u"
+  after update of "id", "tenant_id", "sku", "title", "barcode" on "better_supabase"."product_variants"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."sku" is distinct from new."sku" or old."title" is distinct from new."title" or old."barcode" is distinct from new."barcode")
+  execute function "better_supabase"."search_index_row"('product_variant', 'id');
 create trigger "bsb_search_customer_insert"
   after insert on "public"."customers" referencing new table as new_rows
   for each statement execute function "better_supabase"."search_index_stmt"('customer', 'id');
@@ -1166,14 +1174,26 @@ create trigger "bsb_search_customer_delete"
   after delete on "public"."customers" referencing old table as old_rows
   for each statement execute function "better_supabase"."search_index_stmt"('customer', 'id');
 create trigger "bsb_search_drive_node_index"
-  after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."drive_nodes"
+  after insert or delete on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."search_index_row"('drive_node', 'id');
+create trigger "bsb_search_drive_node_index_u"
+  after update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."drive_nodes"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('drive_node', 'id');
 create trigger "bsb_search_project_index"
-  after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
+  after insert or delete on "public"."projects"
   for each row execute function "better_supabase"."search_index_row"('project', 'id');
+create trigger "bsb_search_project_index_u"
+  after update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
+  for each row when (old."id" is distinct from new."id" or old."organization_id" is distinct from new."organization_id" or old."name" is distinct from new."name" or old."deleted_at" is distinct from new."deleted_at")
+  execute function "better_supabase"."search_index_row"('project', 'id');
 create trigger "bsb_search_task_index"
-  after insert or delete or update of "id", "organization_id", "title", "project_id" on "public"."tasks"
+  after insert or delete on "public"."tasks"
   for each row execute function "better_supabase"."search_index_row"('task', 'id');
+create trigger "bsb_search_task_index_u"
+  after update of "id", "organization_id", "title", "project_id" on "public"."tasks"
+  for each row when (old."id" is distinct from new."id" or old."organization_id" is distinct from new."organization_id" or old."title" is distinct from new."title" or old."project_id" is distinct from new."project_id")
+  execute function "better_supabase"."search_index_row"('task', 'id');
 -- A change in better_supabase.drive_node_texts re-indexes the drive_node it points at.
 create or replace function "better_supabase"."search_watch_drive_node_0"()
 returns trigger

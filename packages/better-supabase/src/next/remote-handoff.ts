@@ -2,8 +2,11 @@ import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { RemoteCacheKey } from "./types.ts";
 
 interface Handoff {
-  snapshot: SessionSnapshot;
+  /** `null` for a caller with no token to hand over, such as an anonymous one. */
+  snapshot: SessionSnapshot | null;
   count: number;
+  /** Fills that ran under the key while it was registered. */
+  fills: number;
   /** The debug request id of the latest caller, for its stats. */
   requestId: string | undefined;
 }
@@ -44,7 +47,7 @@ export function handoffKey(key: RemoteCacheKey): string {
  */
 export function handOff<C>(
   key: RemoteCacheKey,
-  snapshot: SessionSnapshot<C>,
+  snapshot: SessionSnapshot<C> | null,
   requestId?: string,
 ): () => void {
   const slot = handoffKey(key);
@@ -56,7 +59,7 @@ export function handOff<C>(
     entry.snapshot = snapshot;
     entry.requestId = requestId;
   } else {
-    map.set(slot, { snapshot, count: 1, requestId });
+    map.set(slot, { snapshot, count: 1, fills: 0, requestId });
   }
 
   let released = false;
@@ -84,9 +87,23 @@ export function takeHandoff<C>(
   key: RemoteCacheKey,
 ): SessionSnapshot<C> | undefined {
   // SAFETY: handOff stored the SessionSnapshot<C> of the server that reads it back.
-  return handoffs().get(handoffKey(key))?.snapshot as
+  return (handoffs().get(handoffKey(key))?.snapshot ?? undefined) as
     | SessionSnapshot<C>
     | undefined;
+}
+
+/** Notes that a fill under the key ran, so its caller can tell a miss. */
+export function noteFill(key: RemoteCacheKey): void {
+  const entry = handoffs().get(handoffKey(key));
+
+  if (entry) {
+    entry.fills += 1;
+  }
+}
+
+/** The fills noted under the key while it is registered. */
+export function fillsOf(key: RemoteCacheKey): number {
+  return handoffs().get(handoffKey(key))?.fills ?? 0;
 }
 
 /** The debug request id of the call that registered the key, if any. */

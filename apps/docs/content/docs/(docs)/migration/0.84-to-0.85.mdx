@@ -1,0 +1,199 @@
+---
+title: From 0.84 to 0.85
+description: What to change when upgrading from better-supabase 0.84 to 0.85. The shared cache tier (bsb.kept, tenant-shared entries, the Postgres cache functions), the authorizer's enforcement context, and the scale changes to search triggers, import chunks, open items, audit retention, doctor rules, staff orders and drive grants.
+---
+
+0.85 adds a cache tier that outlives a request and closes the scale gaps a
+production adopter reported. It is a minor release, and below 1.0 a minor
+version may carry breaking changes. Each change is also in the
+[changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+Run `better-supabase upgrade`, then generate a migration with
+`pnpm supabase:diff <name>` and `better-supabase add --adopt`. The upgrade
+writes the trigger, function and table changes below.
+
+| Section                                           | Needs code                                                             |
+| ------------------------------------------------- | ---------------------------------------------------------------------- |
+| [Provider fields](#provider-fields)               | Optional: declare `tables` and `shareKey` to share cache entries       |
+| [The authorizer context](#the-authorizer-context) | Treat an unset `context.enforcement` as `definer`                      |
+| [Search source views](#search-source-views)       | Add `search.columns` to every record type with `search.from`           |
+| [Import chunks](#import-chunks)                   | Finish a run only when every chunk is done; read `result`, not `items` |
+| [Import batches](#import-batches)                 | None; run `better-supabase upgrade`                                    |
+| [Open items](#open-items)                         | Filter `invoice_open_items` on `document_type` if you query it         |
+| [Audit retention](#audit-retention)               | Optional: set `retention` so `maintenance()` purges the log            |
+| [Doctor rules](#doctor-rules)                     | None; set `doctor.policies.max` to move the BS641 limit                |
+| [Staff orders](#staff-orders)                     | Rename a column of your own that a new block column takes              |
+| [Drive role grants](#drive-role-grants)           | None; set `grants: "roles"` to drop the drive grants table             |
+
+## Provider fields
+
+An `AuthorizationProvider` may declare `tables`: per table, `tenant` when
+every caller who holds the listed permissions in a tenant reads the same rows,
+or `row` when the select policy also filters by row. The provider's hooks may
+add `shareKey`, which names the grant a cache entry is keyed on. With them,
+`share: "tenant"` on `bsb.kept()` or `remote()` stores one entry per tenant and
+grant instead of one per user. The entry is filled through the caller's own
+client under RLS, never the service role, and a table the provider does not
+list always refuses to share. Doctor BS428 checks the declaration against the
+policies. A provider that declares neither changes nothing and stays at
+`apiVersion: 1`.
+
+## The authorizer context
+
+The authorizer's request context gains `enforcement`: `"rls"` when the write
+goes through a caller's client and RLS checks it again, `"definer"` when a
+`security definer` function or the service role does the write. A repository
+write through a caller's db passes `"rls"`, a block verb passes `"definer"`,
+and actions, routes, resource actions and MCP tools declare it. An authorizer
+that reads it must treat an unset value as `"definer"`; the conformance check
+in `better-supabase/testing` forges `"rls"` to prove it decides from the
+subject.
+
+## Search source views
+
+A record type with `search.from` must list `search.columns`, the columns of
+its own table that the view reads. The config error names the record type:
+
+```txt
+subjects.customer.search.columns: list the columns of public.customers that
+public.customer_search reads.
+```
+
+Before 0.84 such a type re-indexed on every update of its row. The index
+trigger is now two triggers: `bsb_search_<type>_index` for inserts and deletes,
+and `bsb_search_<type>_index_u`, which fires on `update of` the listed columns
+(plus the id, tenant and archive columns) only when one of them changes value.
+Doctor BS637 reports a column the view reads that the list leaves out. On 1,000
+rows of a view-backed type, an update of an unlisted column took 71 ms and
+called the index trigger 1,000 times before, and takes 21 ms with no call now.
+
+An app table file that writes its own search trigger (the trigger the search
+block prints for a table it renders before) needs the same split. Copy the two
+triggers from the search module file.
+
+## Import chunks
+
+Three changes to stored import chunks (ADR 1223) break code that relied on the
+old behavior:
+
+| Before                                                     | Now                                                                           |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `runs.finish` finished a run with pending or failed chunks | It refuses with `IMPORT_CHUNKS_OPEN` (PT409) until every chunk is done        |
+| A done chunk kept its items                                | `items` is null on a done chunk; its `result` stays                           |
+| A failed chunk kept its items forever                      | `maintenance()` clears them after `chunks.keepFailedItems` (default `7 days`) |
+| `fail_import_chunk(run, entity, chunk, message)`           | `fail_import_chunk(run, entity, chunk, message, final default false)`         |
+
+A worker that finished a run with failed chunks to close it should cancel the
+run instead (`runs.cancel`), or retry the failed chunks with
+`enqueue_import_chunks` first. `importChunkHandler` now takes the job as its
+second argument and marks the chunk and the run failed on the job's last
+attempt; `runImportWorker` passes it. A handler you call yourself without the
+job keeps the old behavior. The housekeeping block runs the new
+`import_chunks` job; without it, call `import_chunk_maintenance()` from your
+own schedule.
+
+## Import batches
+
+The `party`, `product`, `stock_allocation` and `stock_count` import entities
+write their new rows in one statement per table (ADR 1217). With 2,000 new
+items an import takes 39 to 55 percent less time. Results, counts, errors and
+the record map stay the same; an item the statement can't prove plain (an
+update, a shared email or sku, a lot or bin on a count line) still goes
+through the one-row write. `better-supabase upgrade` adds the four functions.
+The audit log of `stock_levels` gets one change per level a batch touches
+instead of one per item.
+
+## Open items
+
+`invoice_open_items` now holds every open item of today (ADR 1214). The
+invoices block moves to version 4: `better-supabase upgrade` drops the
+table's reference to `invoices`, and the data migration that `add --adopt`
+writes rebuilds the rows of every organization.
+
+| Before                                                      | Now                                                                |
+| ----------------------------------------------------------- | ------------------------------------------------------------------ |
+| Only invoices, by `document_id` referencing `invoices`      | Also unallocated payments, `document_type = 'unallocated_payment'` |
+| A future-dated invoice was never stored                     | It is stored, and the reads filter on `issued_on`                  |
+| A `credited` invoice, a charge or a party change was missed | The triggers and `rebuild_open_items` match the fold               |
+
+`openItems` and `openItemAgeing` return the same items as before. A query of
+your own on `invoice_open_items` that expects only invoices adds
+`where document_type = 'invoice'`. `open_items_drift(tenant)` lists rows that
+differ from the fold, `import_integrity` reports them as `open_items_drift`,
+and doctor rule BS638 names the organizations to run `rebuild_open_items` for.
+
+## Audit retention
+
+Nothing changes until you set `blocks.audit.options.retention`. With
+`{ keep: "1 year" }`, the audit block installs `housekeeping`, and
+`maintenance()` purges entries past a year every hour. If you scheduled
+`purge_audit_log` yourself, remove that job once `maintenance()` runs, or keep
+it and leave `retention` unset. See [Retention](/docs/blocks/audit#retention).
+
+## Doctor rules
+
+Doctor prints three new information rules (ADR 1216). BS641 lists a table with
+more than four policies for one command, with each policy's origin, and
+`doctor.policies.max` moves the limit. BS642 names an index that leads with an
+enum column on a table with RLS. BS643 counts the functions per schema by
+caller, and `better-supabase config functions --all` lists them. Run
+`better-supabase gen --save-snapshot` once so an offline doctor has the
+function inventory.
+
+## Staff orders
+
+The orders block moves to version 5 (ADR 1224). `better-supabase upgrade`
+adds the staff order columns and `page_orders`, and changes the quantity
+columns of order, fulfillment and return lines from `integer` to `numeric`.
+
+| Before                                        | Now                                                                                                                                                                                                                                                                     |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quantities were `integer`                     | `numeric(18, quantityScale)`; scale 0 by default, so stored values don't change                                                                                                                                                                                         |
+| No order list read                            | `orderPage`, `orderFacets` and `orderCount`, from `page_orders`                                                                                                                                                                                                         |
+| Your own `channel`, `source` or `unit` column | The block owns `channel`, `source`, `external_id`, `invoicing_policy`, `delivery_method`, `quote_id`, `order_discount`, `promotion_id`, `payment_required`, `deposit_amount`, `party_type` and `party_id` on orders, and `unit`, `description` and `line_type` on lines |
+| `discountTotal` held the line discounts       | It also holds `orderDiscount`                                                                                                                                                                                                                                           |
+
+An app that added one of those columns to `orders` or `order_lines` in its
+own schema file renames it before it runs `upgrade`, or drops it and lets
+the block's column take its place. SQL of your own that reads a quantity as
+`integer` casts it, and an order made over your own tables maps the new
+columns or leaves them unmapped; a call that sets an unmapped one fails with
+`ORDERS_FIELD_UNSUPPORTED`. See [Staff order fields](/docs/blocks/orders#staff-order-fields).
+
+## Drive role grants
+
+Nothing changes for an app that keeps the default `grants: "table"`. An app whose `roleFunctions.node` already decides every node role can set `grants: "roles"`, run `better-supabase upgrade` and generate a migration: the diff drops `drive_grants`, so move any rows you still need to your role source first. `drive_share` and `drive_unshare` then refuse with `DRIVE_SHARING_EXTERNAL`, so remove share buttons or point them at your own role writes ([Roles without grant rows](/docs/blocks/drive#roles-without-grant-rows)). A provider without permission keys per role adds a `roleOn` template and uses `roleFunctions.node: { rows }`.
+
+## What the changes measure
+
+Measured on the local Supabase stack on one machine, before on `main` at
+`1cad3b1c` and after on this release. The Vercel rows need a preview
+deployment and a maintainer run of `scripts/probe-vercel-tags.ts`.
+
+| Cache tier                                         | Before                            | After                                      |
+| -------------------------------------------------- | --------------------------------- | ------------------------------------------ |
+| `postgresCacheHandler` hit through PostgREST       | two requests, p50 2.0 to 2.7 ms   | one call, p50 1.4 to 1.7 ms                |
+| Same hit, p95                                      | 3.0 to 4.1 ms                     | 1.8 to 3.3 ms                              |
+| Tag mark through PostgREST, p50                    | 1.7 to 2.9 ms (read, then upsert) | 1.2 to 1.3 ms (one call)                   |
+| Hit and tag mark through a pool, p50               | no pool transport                 | 0.1 to 0.2 ms                              |
+| Fills for 20 concurrent misses on two processes    | 20                                | 1                                          |
+| First request of a process (JWKS, PostgREST, pool) | 87 to 97 ms                       | 86 to 90 ms, or about 25 ms after `warm()` |
+| Calls of a session-handle fill in request stats    | 0 (expected 1)                    | 1                                          |
+| Example app, cold page, p50 and p95                | 205 ms and 310 ms                 | 161 ms and 244 ms                          |
+| Example app, warm page, p50 and p95                | 146 ms and 194 ms                 | 112 ms and 156 ms                          |
+| Runtime Cache read and fill on Vercel              | pending maintainer run            | pending maintainer run                     |
+| Tag expiry by method on Vercel                     | pending maintainer run            | pending maintainer run                     |
+
+| Scale change                                                        | Before                           | After                       |
+| ------------------------------------------------------------------- | -------------------------------- | --------------------------- |
+| Update of an unindexed column, 1,000 drive nodes in a search view   | 71 to 74 ms, 1,000 trigger calls | 21 ms, no call              |
+| Bytes the chunks of a done 50,000-item import run hold              | 839,540                          | 0                           |
+| Open items of one party (100 items)                                 | 2.6 ms (fold)                    | 1.4 ms (stored)             |
+| Open items of the whole organization (5,000 invoices)               | 81 ms (fold)                     | 67 ms (stored)              |
+| Import of 2,000 new parties                                         | 547 ms                           | 246 ms                      |
+| Import of 2,000 new products                                        | 406 ms                           | 232 ms                      |
+| Import of 2,000 stock allocations                                   | 328 ms                           | 200 ms                      |
+| Import of 2,000 stock counts                                        | 392 ms                           | 189 ms                      |
+| 1,000-row list read, 9 against 13 policies                          | 0.92 ms                          | 1.00 ms (no fold, ADR 1218) |
+| Session cookie of a member, `user-and-tokens` against `tokens-only` | 3,137 B                          | 1,788 B                     |
+| Session cookie of an admin with many permissions                    | 6,979 B in 3 chunks              | 5,609 B in 2 chunks         |

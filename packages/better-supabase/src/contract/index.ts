@@ -28,6 +28,7 @@ export type {
   AuthorizationCallKind,
   AuthorizationChange,
   AuthorizationContext,
+  AuthorizationEnforcement,
   AuthorizationIntent,
   AuthorizationOutcome,
   AuthorizationPurpose,

@@ -906,7 +906,7 @@ export const INVENTORY: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   upgrades: [
     {
       from: 1,
@@ -929,6 +929,12 @@ export const INVENTORY: BlockSqlDefinition = {
       from: 4,
       description:
         "Stock count documents with counted lines and a variance, posted once as count movements, with an import target for counts.",
+      sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "An imported stock count without a location goes to the organization's only active location.",
       sql: () => "",
     },
   ],

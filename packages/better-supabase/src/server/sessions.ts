@@ -107,8 +107,16 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
     return found;
   };
 
-  /** One context, so one PostgREST client, per parked snapshot and tenant. */
+  /**
+   * One context, so one PostgREST client, per parked snapshot, stats recorder
+   * and tenant. Keyed by recorder too, so each request's fills count for it.
+   */
   const built = new WeakMap<object, Map<string, Promise<Ctx>>>();
+
+  const recorded = new WeakMap<
+    object,
+    WeakMap<object, Map<string, Promise<Ctx>>>
+  >();
 
   const contextFromSession = (
     session: SessionSnapshot<C> | null,
@@ -116,25 +124,37 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
   ): Promise<Ctx> => {
     const auth = session ? authFor<C, P>(session) : ANON;
     const given = contextOptions ?? {};
-    const keys = Object.keys(given);
     const tenant = "tenant" in given ? given.tenant : undefined;
+    const stats = "stats" in given ? given.stats : undefined;
 
-    if (
-      !session ||
-      keys.length > 1 ||
-      (keys.length === 1 && typeof tenant !== "string")
-    ) {
+    const memoizable = Object.keys(given).every(
+      (key) =>
+        (key === "tenant" && typeof tenant === "string") ||
+        (key === "stats" && typeof stats === "object" && stats !== null),
+    );
+
+    if (!session || !memoizable) {
       return Promise.resolve(options.contextFor(auth, given));
     }
 
-    const tenants = built.get(session) ?? new Map<string, Promise<Ctx>>();
+    let tenants: Map<string, Promise<Ctx>> | undefined;
+
+    if (typeof stats === "object" && stats !== null) {
+      const byRecorder = recorded.get(session) ?? new WeakMap();
+      recorded.set(session, byRecorder);
+      tenants = byRecorder.get(stats) ?? new Map<string, Promise<Ctx>>();
+      byRecorder.set(stats, tenants);
+    } else {
+      tenants = built.get(session) ?? new Map<string, Promise<Ctx>>();
+      built.set(session, tenants);
+    }
+
     const slot = typeof tenant === "string" ? tenant : "";
     let found = tenants.get(slot);
 
     if (!found) {
       found = Promise.resolve(options.contextFor(auth, given));
       tenants.set(slot, found);
-      built.set(session, tenants);
     }
 
     return found;

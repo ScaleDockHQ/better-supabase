@@ -83,6 +83,7 @@ export type {
   IdentityRef,
   IdentityTarget,
   PrincipalByIdentity,
+  ShareKeyHook,
   Subscriber,
   SubscriberEvent,
   SubscriberPolicy,
@@ -274,6 +275,7 @@ export type {
   AuthorizationCallKind,
   AuthorizationChange,
   AuthorizationContext,
+  AuthorizationEnforcement,
   AuthorizationIntent,
   AuthorizationOutcome,
   AuthorizationPurpose,
@@ -408,6 +410,16 @@ export type {
   VercelRuntimeCacheAdapterOptions,
   VercelRuntimeCacheTags,
 } from "../core/cache-vercel.ts";
+
+export { KEPT_LIMITS, memoryKeptStore } from "../core/kept-cache.ts";
+
+export type {
+  KeptEnvelope,
+  KeptSetOptions,
+  KeptSkip,
+  KeptSkipReason,
+  KeptStore,
+} from "../core/kept-cache.ts";
 
 export { sessionIdTag, sessionTag, tableTags } from "./cache-tags.ts";
 

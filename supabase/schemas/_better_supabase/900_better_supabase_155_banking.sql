@@ -1,6 +1,6 @@
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:4a1e400ad73eaddf9338b1fcf0fa789e359a9fd047370f1567a14a5d87eff9c8
+-- @bsb-hash sha256:0b87c15056bb84257ec0deab620617f25a23275e1f10cb169a41b3e4b8dbcba0
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2261,8 +2261,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."payment_batch_items"
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_bank_account_index"
-  after insert or delete or update of "id", "tenant_id", "name", "iban", "holder", "archived_at" on "better_supabase"."bank_accounts"
+  after insert or delete on "better_supabase"."bank_accounts"
   for each row execute function "better_supabase"."search_index_row"('bank_account', 'id');
+create trigger "bsb_search_bank_account_index_u"
+  after update of "id", "tenant_id", "name", "iban", "holder", "archived_at" on "better_supabase"."bank_accounts"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name" or old."iban" is distinct from new."iban" or old."holder" is distinct from new."holder" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('bank_account', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_transactions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_transaction","event_prefix":"bank_transaction"}');

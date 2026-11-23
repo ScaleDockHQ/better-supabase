@@ -140,7 +140,14 @@ describe("blocks.<name>.entities in the SQL", () => {
     approvals: ["'approval_floor"],
     memory: ["'/memories'", "'/memories{}'"],
     orders: ["'cartId'", "'orderId'"],
-    promotions: ['"promotions"', "'promotionId'"],
+    // The orders block owns its promotion_id column.
+    promotions: ['"promotions"', "'promotionId'", '"promotion_id"'],
+    // Local CTE names in import_party_batch, not tables.
+    contacts: [
+      "companies as (",
+      "people as (",
+      "from companies union all select * from people",
+    ],
     tax: ["'taxCodeId'"],
     // App tables tagged `@bsb template` keep these column and trigger names.
     templates: [

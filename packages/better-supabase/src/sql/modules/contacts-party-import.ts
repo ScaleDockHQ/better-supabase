@@ -4,6 +4,7 @@ import type { PartyNames } from "./contacts-functions.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, serviceGrant, tenantIdKey } from "../shared.ts";
+import { BATCH_DECLARE, batchRest } from "./imports-batch-targets.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
 const BUSINESS =
@@ -213,7 +214,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("import_party")}(uuid, jsonb, text)`)}
-
+${partyBatchSql(ctx, names, company, person)}
 create or replace function ${fn("party_updated_at")}(subject_id text)
 returns timestamptz
 language sql
@@ -230,6 +231,95 @@ ${linkTarget(ctx, names)}
 ${channelTarget(ctx, names)}
 ${locationTarget(ctx, names)}
 ${bankTarget(ctx, names)}
+`;
+}
+
+/**
+ * The batch form of import_party (ADR 1217). It names its columns after the
+ * write's variables and its row `import_party`, so the field expressions of the
+ * write work unchanged.
+ */
+function partyBatchSql(
+  ctx: BlockSqlContext,
+  names: PartyNames,
+  company: ReturnType<typeof written>,
+  person: ReturnType<typeof written>,
+): string {
+  const { fn, t, c } = names;
+  const co = (column: string): string => c("companies", column);
+  const pe = (column: string): string => c("people", column);
+
+  const roles = (table: string): string =>
+    ctx.has(table, "roles")
+      ? "and jsonb_typeof(import_party.v_data -> 'roles') = 'array'"
+      : "";
+
+  const answer = `jsonb_build_object('subjectId', import_party.id, 'updatedAt', w.updated_at, 'warnings',
+        case when import_party.v_display is null then jsonb_build_array(jsonb_build_object('code', 'IMPORT_NAME_FALLBACK', 'message', 'the party name came from a fallback')) else '[]'::jsonb end)`;
+
+  return `
+-- New parties without archivedAt or billTo, and for a person an email no
+-- other item of the batch and no stored person uses, are written in one
+-- statement per kind. Every other item goes through import_party.
+create or replace function ${fn("import_party_batch")}(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+${BATCH_DECLARE}
+begin
+  for v_row in
+    with src as (
+      select o::int as n, gen_random_uuid() as id, e as item, (e ->> 'tenant')::${ctx.idType} as v_tenant, e -> 'data' as v_data
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where jsonb_typeof(e -> 'data') = 'object'
+    ), named as (
+      select src.*, nullif(btrim(src.v_data ->> 'displayName'), '') as v_display,
+        nullif(btrim(src.v_data ->> 'legalName'), '') as v_legal,
+        nullif(btrim(concat_ws(' ', src.v_data ->> 'givenName', src.v_data ->> 'infix', src.v_data ->> 'lastName')), '') as v_person,
+        nullif(btrim(src.v_data ->> 'number'), '') as v_number,
+        nullif(lower(btrim(src.v_data ->> 'email')), '') as email
+      from src
+    ), kinds as (
+      select named.*, coalesce(named.v_display, named.v_legal, named.v_person, named.v_number) as v_name,
+        count(*) over (partition by named.v_tenant, named.email) as emails
+      from named
+    ), f as (
+      select kinds.*, case coalesce(nullif(kinds.v_data ->> 'kind', ''), 'auto')
+          when 'auto' then case when kinds.v_name ~* '${BUSINESS}' then 'company' else 'person' end
+          else kinds.v_data ->> 'kind' end as kind
+      from kinds
+      where nullif(kinds.item ->> 'subjectId', '') is null and kinds.v_name is not null and length(kinds.v_name) <= 300
+        and nullif(kinds.v_data ->> 'archivedAt', '') is null and nullif(kinds.v_data ->> 'billToId', '') is null
+        and nullif(kinds.item -> 'resolved' ->> 'billTo', '') is null
+    ), companies as (
+      insert into ${t("companies")} as x (${co("id")}, ${co("tenant")}, ${company.cols})
+      select import_party.id, import_party.v_tenant, ${company.vals}
+      from f import_party
+      where import_party.kind = 'company' and length(coalesce(import_party.v_legal, import_party.v_name)) <= 300 ${roles("companies")}
+      returning x.${co("id")} as id, x.${co("updatedAt")} as updated_at
+    ), people as (
+      insert into ${t("people")} as x (${pe("id")}, ${pe("tenant")}, ${person.cols})
+      select import_party.id, import_party.v_tenant, ${person.vals}
+      from f import_party
+      where import_party.kind = 'person' ${roles("people")}
+        and (import_party.email is null or (import_party.emails = 1 and import_party.email ~ '^[^@[:space:]]+@[^@[:space:]]+$'
+          and (select y.${pe("id")} from ${t("people")} y where y.${pe("tenant")} = import_party.v_tenant and y.${pe("email")} = import_party.email and y.${pe("archivedAt")} is null limit 1) is null))
+      returning x.${pe("id")} as id, x.${pe("updatedAt")} as updated_at
+    )
+    select import_party.n, ${answer} as answer
+    from f import_party join (select * from companies union all select * from people) w on w.id = import_party.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+${batchRest(fn("import_party"))}
+end;
+$$;
+${serviceGrant(`${fn("import_party_batch")}(uuid, jsonb)`)}
 `;
 }
 
@@ -608,7 +698,12 @@ export function partyImportTargets(
   });
 
   return [
-    target("party", "import_party", "party_updated_at", { billTo: "party" }),
+    {
+      ...target("party", "import_party", "party_updated_at", {
+        billTo: "party",
+      }),
+      batch: plain(own.fn("import_party_batch")),
+    },
     target(
       "party_contact",
       "import_party_contact",

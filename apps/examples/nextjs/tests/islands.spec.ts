@@ -219,7 +219,15 @@ test("a second instance serves the remote entry and both drop it on evict", asyn
   await expect.poll(() => cachedAt(page), { timeout: 10_000 }).not.toBe(first);
 
   await page.goto("/islands?scope=remote");
-  expect(await cachedAt(page)).not.toBe(first);
+  const second = await cachedAt(page);
+  expect(second).not.toBe(first);
+
+  // The other way round: evict on the first instance, read on the second.
+  await page.getByRole("button", { name: "Evict my cached views" }).click();
+  await expect.poll(() => cachedAt(page), { timeout: 10_000 }).not.toBe(second);
+
+  await page.goto(`${SECOND_ORIGIN}/islands?scope=remote`);
+  expect(await cachedAt(page)).not.toBe(second);
 });
 
 test("a signed-in user on the sign-in page goes to ?next=", async ({

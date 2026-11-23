@@ -1,6 +1,6 @@
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:8b8c5b94d33df759988aa22f3c8271fc1e3646fbe607d50c352d0534d6bba4f1
+-- @bsb-hash sha256:cb96efa9e177465b7031eea98d1632d881ab7f1864ddcb425d704079dee02ff1
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1532,8 +1532,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."course_certificates"
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_course_index"
-  after insert or delete or update of "id", "tenant_id", "title", "summary" on "better_supabase"."courses"
+  after insert or delete on "better_supabase"."courses"
   for each row execute function "better_supabase"."search_index_row"('course', 'id');
+create trigger "bsb_search_course_index_u"
+  after update of "id", "tenant_id", "title", "summary" on "better_supabase"."courses"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."summary" is distinct from new."summary")
+  execute function "better_supabase"."search_index_row"('course', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.courses deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"course","event_prefix":"course"}');

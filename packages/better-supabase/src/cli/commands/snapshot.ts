@@ -286,6 +286,9 @@ export async function parseSnapshot(
       ...(doc.extras.functionComments
         ? { functionComments: doc.extras.functionComments }
         : {}),
+      ...(doc.extras.functionInventory
+        ? { functionInventory: doc.extras.functionInventory }
+        : {}),
       ...(doc.extras.viewColumnComments
         ? { viewColumnComments: doc.extras.viewColumnComments }
         : {}),

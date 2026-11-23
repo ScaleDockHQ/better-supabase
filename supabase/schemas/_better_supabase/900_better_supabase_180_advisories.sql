@@ -1,6 +1,6 @@
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:e72defaf26696aed33ac8eef88a1742a1b8a6bdbf50aae5a18e63c9430950f04
+-- @bsb-hash sha256:ca685705f4da8158d0c54f24119ed8703f628551d439688ed9424ccd45a1b0b1
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1786,14 +1786,26 @@ create policy bsb_tenant_scope_delete on "better_supabase"."advisory_vulnerabili
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_advisory_index"
-  after insert or delete or update of "id", "tenant_id", "title", "tracking_id", "summary" on "better_supabase"."advisories"
+  after insert or delete on "better_supabase"."advisories"
   for each row execute function "better_supabase"."search_index_row"('advisory', 'id');
+create trigger "bsb_search_advisory_index_u"
+  after update of "id", "tenant_id", "title", "tracking_id", "summary" on "better_supabase"."advisories"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."tracking_id" is distinct from new."tracking_id" or old."summary" is distinct from new."summary")
+  execute function "better_supabase"."search_index_row"('advisory', 'id');
 create trigger "bsb_search_advisory_product_index"
-  after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."advisory_products"
+  after insert or delete on "better_supabase"."advisory_products"
   for each row execute function "better_supabase"."search_index_row"('advisory_product', 'id');
+create trigger "bsb_search_advisory_product_index_u"
+  after update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."advisory_products"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('advisory_product', 'id');
 create trigger "bsb_search_vulnerability_index"
-  after insert or delete or update of "id", "tenant_id", "vuln_id", "summary" on "better_supabase"."vulnerabilities"
+  after insert or delete on "better_supabase"."vulnerabilities"
   for each row execute function "better_supabase"."search_index_row"('vulnerability', 'id');
+create trigger "bsb_search_vulnerability_index_u"
+  after update of "id", "tenant_id", "vuln_id", "summary" on "better_supabase"."vulnerabilities"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."vuln_id" is distinct from new."vuln_id" or old."summary" is distinct from new."summary")
+  execute function "better_supabase"."search_index_row"('vulnerability', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.advisories deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"advisory","event_prefix":"advisory"}');

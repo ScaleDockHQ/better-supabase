@@ -17,7 +17,13 @@ import {
   conflict,
 } from "../shared.ts";
 import { batchSql } from "./imports-batch.ts";
-import { chunkFunctions, chunkTable } from "./imports-chunks.ts";
+import {
+  chunkEnqueue,
+  chunkFunctions,
+  chunkMaintenance,
+  chunkSummary,
+  chunkTable,
+} from "./imports-chunks.ts";
 import { importContract as contract } from "./imports-contract.ts";
 import {
   dryRunCleanup,
@@ -88,7 +94,7 @@ function build(ctx: BlockSqlContext): string {
   const unique = `(${x("tenant")}, ${x("source")}, ${x("scope")}, ${x("entity")}, ${x("externalKey")}, ${x("role")})`;
 
   const runJson = (alias: string): string =>
-    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'source', ${alias}.${r("source")}, 'status', ${alias}.${r("status")}, 'outcome', ${alias}.${r("outcome")}, 'plan', ${alias}.${r("plan")}, 'mapping', ${alias}.${r("mapping")}, 'counts', ${alias}.${r("counts")}, 'errors', ${alias}.${r("errors")}, 'dryRun', ${alias}.${r("dryRun")}, 'full', ${alias}.${r("full")}, 'inputChecksum', ${alias}.${r("inputChecksum")}, 'correlationId', ${alias}.${r("correlationId")}, 'mapperVersion', ${alias}.${r("mapperVersion")}, 'scopeAliases', ${alias}.${r("scopeAliases")}, 'leaseUntil', ${alias}.${r("leaseUntil")}, 'heartbeatAt', ${alias}.${r("heartbeatAt")}, 'createdBy', ${alias}.${r("createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'startedAt', ${alias}.${r("startedAt")}, 'finishedAt', ${alias}.${r("finishedAt")}, 'issues', ${importIssueCounts(ctx, `${alias}.${r("id")}`)})`;
+    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'source', ${alias}.${r("source")}, 'status', ${alias}.${r("status")}, 'outcome', ${alias}.${r("outcome")}, 'plan', ${alias}.${r("plan")}, 'mapping', ${alias}.${r("mapping")}, 'counts', ${alias}.${r("counts")}, 'errors', ${alias}.${r("errors")}, 'dryRun', ${alias}.${r("dryRun")}, 'full', ${alias}.${r("full")}, 'inputChecksum', ${alias}.${r("inputChecksum")}, 'correlationId', ${alias}.${r("correlationId")}, 'mapperVersion', ${alias}.${r("mapperVersion")}, 'scopeAliases', ${alias}.${r("scopeAliases")}, 'leaseUntil', ${alias}.${r("leaseUntil")}, 'heartbeatAt', ${alias}.${r("heartbeatAt")}, 'createdBy', ${alias}.${r("createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'startedAt', ${alias}.${r("startedAt")}, 'finishedAt', ${alias}.${r("finishedAt")}, 'issues', ${importIssueCounts(ctx, `${alias}.${r("id")}`)}, 'chunks', ${chunkSummary(ctx, `${alias}.${r("id")}`)})`;
 
   const list = {
     name: "list_import_runs",
@@ -267,18 +273,6 @@ ${writeArms}
   );
 
   const prefetch = recordPrefetch(ctx, records);
-
-  const queue = ctx.enqueue(
-    "imports",
-    `jsonb_build_object('run', v_run.${r("id")}, 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk)`,
-    `v_run.${r("id")}::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text`,
-  );
-
-  const retryQueue = ctx.enqueue(
-    "imports",
-    `jsonb_build_object('run', v_run.${r("id")}, 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk)`,
-    `v_run.${r("id")}::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text || ':retry:' || extract(epoch from clock_timestamp())::text`,
-  );
 
   const bumped = (key: string): string =>
     `'${key}', coalesce(r.${r("counts")} -> v_entity ->> '${key}', '0')::integer + coalesce((v_result ->> '${key}')::integer, 0)`;
@@ -866,6 +860,9 @@ begin
   if v_run.${r("status")} <> 'running' then
     ${conflict("IMPORT_RUN_NOT_RUNNING", "the import is not running")}
   end if;
+  if exists (select 1 from ${ctx.table("chunks")} c where c.${ctx.col("chunks", "run")} = v_run_id and c.${ctx.col("chunks", "status")} <> 'done') then
+    ${conflict("IMPORT_CHUNKS_OPEN", "the import has chunks that are not done")}
+  end if;
   v_counts := v_run.${r("counts")};
 
   if v_run.${r("full")} then
@@ -978,47 +975,7 @@ ${rebaseImportSql(
   ),
 )}
 
--- Queues one job per chunk of an entity's items, so a worker writes a large
--- import in batches; the dedupe key makes a retry harmless.
-create or replace function ${ctx.fn("enqueue_import_chunks")}(run uuid, entity text, chunks integer)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_run ${runs};
-  v_chunk integer;
-  v_failed integer[];
-begin
-  select * into v_run from ${runs} r where r.${r("id")} = enqueue_import_chunks.run;
-  if not found then
-    ${fail("IMPORT_NOT_FOUND", "import not found", "P0002")}
-  end if;
-  if enqueue_import_chunks.chunks is null or enqueue_import_chunks.chunks < 1 then
-    ${fail("IMPORT_ITEM_INVALID", "chunks must be at least 1", "22023")}
-  end if;
-  select coalesce(array_agg(x.${ctx.col("chunks", "chunk")}), '{}') into v_failed from ${ctx.table("chunks")} x
-  where x.${ctx.col("chunks", "run")} = enqueue_import_chunks.run and x.${ctx.col("chunks", "entity")} = enqueue_import_chunks.entity
-    and x.${ctx.col("chunks", "status")} = 'failed';
-  -- A failed chunk goes back to pending, with a new job, so a retry reaches it.
-  update ${ctx.table("chunks")} x set ${ctx.col("chunks", "status")} = 'pending', ${ctx.col("chunks", "claimedAt")} = null,
-    ${ctx.col("chunks", "doneAt")} = null, ${ctx.col("chunks", "result")} = null
-  where x.${ctx.col("chunks", "run")} = enqueue_import_chunks.run and x.${ctx.col("chunks", "entity")} = enqueue_import_chunks.entity
-    and x.${ctx.col("chunks", "status")} = 'failed';
-  for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
-    if v_chunk = any (v_failed) then
-      ${retryQueue}
-    else
-      ${queue}
-    end if;
-  end loop;
-  return enqueue_import_chunks.chunks;
-end;
-$$;
-${serviceGrant(`${ctx.fn("enqueue_import_chunks")}(uuid, text, integer)`)}
-${chunkFunctions(ctx, runs)}${hashFunctions(ctx, runs)}`;
+${chunkEnqueue(ctx, runs)}${chunkFunctions(ctx, runs)}${chunkMaintenance(ctx, runs)}${hashFunctions(ctx, runs)}`;
 }
 
 export const IMPORTS: BlockSqlDefinition = {
@@ -1038,7 +995,27 @@ export const IMPORTS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
+  upgrades: [
+    {
+      from: 3,
+      description:
+        "A done chunk drops its items, finish_import_run refuses open chunks, fail_import_chunk takes final, and import_chunk_maintenance joins maintenance().",
+      sql: () => "",
+    },
+  ],
+  contributes: {
+    housekeeping: (own) =>
+      own.manages
+        ? [
+            {
+              job: "import_chunks",
+              function: own.fn("import_chunk_maintenance"),
+              every: "1 hour",
+            },
+          ]
+        : [],
+  },
   names: IMPORT_NAMES,
   contract,
   build,

@@ -8,7 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { InvoiceNames } from "./invoices-names.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   accountingContributions,
   accountingSourcesSql,
@@ -80,8 +80,12 @@ import {
   allocationTableSql,
   OPEN_ITEM_EVENTS,
   openItemContract,
+  openItemsEnabled,
 } from "./invoices-open-items.ts";
-import { OPEN_ITEMS_TABLE } from "./invoices-open-store.ts";
+import {
+  OPEN_ITEMS_TABLE,
+  rebuildOpenItemsData,
+} from "./invoices-open-store.ts";
 import { PURCHASE_COLUMNS, purchaseNames } from "./invoices-purchase.ts";
 import { repairContract } from "./invoices-repair.ts";
 import {
@@ -830,6 +834,21 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+/** Drops the open-item table's reference to invoices from a v3 install. */
+function openItemsUpgrade(ctx: BlockSqlContext): string {
+  if (!ctx.hasTable("openItems")) {
+    return "";
+  }
+
+  const { name } = ctx.tableName("openItems");
+
+  const constraint = sqlIdent(
+    `${name}_${ctx.colName("openItems", "document")}_fkey`,
+  );
+
+  return `alter table if exists ${ctx.table("openItems")} drop constraint if exists ${constraint};\n`;
+}
+
 export const INVOICES: BlockSqlDefinition = {
   name: "invoices",
   scopes: ["tenant"],
@@ -857,7 +876,7 @@ export const INVOICES: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -865,7 +884,15 @@ export const INVOICES: BlockSqlDefinition = {
         "Moves invoice_payments onto ledger transactions with the same ids and drops the table.",
       sql: invoicePaymentsUpgrade,
     },
+    {
+      from: 3,
+      description:
+        "invoice_open_items keeps unallocated payments and future-dated invoices, so its document_id no longer references invoices. The data migration rebuilds every organization's rows.",
+      sql: openItemsUpgrade,
+      data: true,
+    },
   ],
+  data: (ctx) => (openItemsEnabled(ctx) ? rebuildOpenItemsData(ctx) : ""),
   names: NAMES,
   contributes: {
     accounting: (own) =>

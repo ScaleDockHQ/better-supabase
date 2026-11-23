@@ -379,6 +379,7 @@ describe("parseSnapshot", () => {
       [
         "buckets",
         "functionComments",
+        "functionInventory",
         "functions",
         "hooks",
         "realtime",

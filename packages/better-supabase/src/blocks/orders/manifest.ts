@@ -5,6 +5,7 @@ import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { orderFromQuoteFactory } from "./actions.ts";
 import { ordersEvents } from "./events.ts";
+import { orderListSurface } from "./lists.ts";
 import { ordersSqlOptions } from "./options.ts";
 import { createOrders } from "./orders.ts";
 
@@ -19,7 +20,7 @@ export const ordersBlock: BlockOf<"orders", typeof createOrders, OrdersEvents> =
     category: "commerce",
     importTarget: ["order"],
     entities: {
-      order: { mutability: "state-machine" },
+      order: { ...orderListSurface, mutability: "state-machine" },
       cart: { mutability: "append-only", emits: { create: false } },
     },
     links: [

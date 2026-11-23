@@ -22,6 +22,11 @@ export type OrdersSqlOptions = {
   readonly discountMatrix?: boolean;
   /** Template rows take no number, no stock allocation and no order.placed. ADR 0244. */
   readonly templates?: boolean;
+  /**
+   * The decimals of an order line, fulfillment and return quantity, from 0 to
+   * 6: 2 sells 1.5 hours or 0.25 kg. Default 0, whole quantities. ADR 1224.
+   */
+  readonly quantityScale?: number;
 };
 
 export const ordersSqlOptions: BlockOptionsSchema<OrdersSqlOptions> =
@@ -31,4 +36,5 @@ export const ordersSqlOptions: BlockOptionsSchema<OrdersSqlOptions> =
     kitchen: option.boolean({ default: false }),
     discountMatrix: option.boolean({ default: false }),
     templates: option.boolean({ default: false }),
+    quantityScale: option.number({ default: 0 }),
   });

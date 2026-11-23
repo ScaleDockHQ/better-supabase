@@ -18,6 +18,10 @@ export type {
   PermissionsAuthorizerOptions,
 } from "./authorizer.ts";
 
+export { permissionsShareKey } from "./share-key.ts";
+
+export type { PermissionsShareKeyOptions } from "./share-key.ts";
+
 export {
   can,
   permissionFlags,

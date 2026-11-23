@@ -3,6 +3,7 @@
 - Status: accepted
 - Date: 2026-11-09
 - Amends: 0141
+- Amended by: [1217](1217-built-in-import-entities-write-in-batches.md)
 
 ## Context
 

@@ -335,6 +335,7 @@ const authorization = v.strictObject({
     permitted: v.optional(v.string()),
     rowsWith: v.optional(v.string()),
     rowsWithFor: v.optional(v.string()),
+    roleOn: v.optional(v.string()),
     portalSubjects: v.optional(v.string()),
     portalParties: v.optional(v.string()),
     subject: v.optional(v.string()),
@@ -540,6 +541,15 @@ const authorization = v.strictObject({
     }),
   ),
   wildcards: v.optional(v.picklist(["all", "prefix", "none"])),
+  tables: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({
+        share: v.picklist(["tenant", "row"]),
+        permissions: strings,
+      }),
+    ),
+  ),
   problems: v.optional(strings),
 });
 
@@ -1058,6 +1068,7 @@ const FLAT = {
       file: v.optional(v.string()),
       sources: v.optional(strings),
       policyHelperLimit: v.optional(v.number()),
+      policies: v.optional(v.strictObject({ max: v.optional(v.number()) })),
       parallelReads: v.optional(v.number()),
       sealTriggers: v.optional(strings),
       claimsLimit: v.optional(v.number()),

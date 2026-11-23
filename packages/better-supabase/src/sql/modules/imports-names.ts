@@ -21,7 +21,7 @@ const EVENTS: BlockSqlEvents<ImportsEvents> = {
 /** Tables, events and the source-column migration of the imports module. */
 export const IMPORT_NAMES: BlockSqlNames = {
   events: EVENTS,
-  options: ["targets", "targetConvention", "events", "audit"],
+  options: ["targets", "targetConvention", "events", "audit", "chunks"],
   migrations: [
     {
       from: 1,

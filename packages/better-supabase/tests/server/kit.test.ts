@@ -14,6 +14,10 @@ import {
   rolesAt,
   runAction,
 } from "../../src/server/kit.ts";
+import {
+  recordingAuthorizer,
+  staticAuthorizer,
+} from "../../src/testing/authorizer.ts";
 import { authAs, USER } from "../fixtures/test-server.ts";
 
 const Title: StandardSchemaV1<unknown, { title: string }> = {
@@ -264,6 +268,65 @@ describe("permission", () => {
 
     expect(roles).toMatchObject({ code: "MISSING_ROLE" });
     expect(requests).toHaveLength(3);
+  });
+
+  it("passes the enforcement an action or route declares, and none by default", async () => {
+    const authorizer = recordingAuthorizer(
+      staticAuthorizer({ roles: { authenticated: ["posts.create"] } }),
+    );
+
+    const user = await authAs({ role: "member" });
+
+    await runAction(
+      user,
+      { permission: "posts.create", enforcement: "rls" },
+      {},
+      "o1",
+      () => ok("done"),
+      authorizer,
+    );
+    await runAction(
+      user,
+      { permission: "posts.create" },
+      {},
+      "o1",
+      () => ok("done"),
+      authorizer,
+    );
+    await requireCaller(
+      user,
+      { permission: "posts.create", enforcement: "definer" },
+      undefined,
+      authorizer,
+      undefined,
+      "POST",
+    );
+
+    expect(authorizer.checks).toEqual([
+      {
+        action: "posts.create",
+        resource: "action",
+        operation: "action",
+        intent: "write",
+        enforcement: "rls",
+      },
+      {
+        action: "posts.create",
+        resource: "action",
+        operation: "action",
+        intent: "write",
+      },
+      {
+        action: "posts.create",
+        resource: "route",
+        operation: "route",
+        intent: "write",
+        enforcement: "definer",
+      },
+    ]);
+
+    authorizer.clear();
+    expect(authorizer.checks).toEqual([]);
   });
 
   it("refuses a declared permission without an authorizer", async () => {

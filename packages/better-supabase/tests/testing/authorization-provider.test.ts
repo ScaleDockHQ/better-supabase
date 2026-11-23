@@ -65,6 +65,43 @@ describe("testAuthorizationProvider", () => {
     );
   });
 
+  it("checks that roleOn names one user's role on one row", async () => {
+    const roleOn = withProvider({
+      functions: {
+        ...stubProvider.functions,
+        roleOn: "authz.role_on({user}, '{resource}', {id})",
+      },
+      requires: [
+        ...stubProvider.requires,
+        {
+          function: "authz.role_on",
+          args: "uuid, text, text",
+          role: "authenticated",
+        },
+      ],
+    });
+
+    const report = await testAuthorizationProvider(roleOn);
+
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+    expect(report.checks.map((check) => check.name)).toContain(
+      "answers roleOn for a user on one row",
+    );
+    expect(
+      await failures(
+        withProvider({
+          functions: {
+            ...stubProvider.functions,
+            roleOn: "authz.role_on({user}, '{resource}', null)",
+          },
+          requires: roleOn.requires,
+        }),
+      ),
+    ).toEqual([
+      "answers roleOn for a user on one row: functions.roleOn doesn't use {id}, so it can't name the role one user holds on one row",
+    ]);
+  });
+
   it("refuses another API version and values that aren't JSON", async () => {
     expect(
       await failures({
@@ -572,6 +609,27 @@ describe("testAuthorizationProvider", () => {
       ),
     ).toEqual([
       "actionKeys name listed permissions: actionKeys.blocks.notes.write names no permission",
+    ]);
+  });
+
+  it("checks the tables the provider shares", async () => {
+    expect(
+      await failures(
+        withProvider({
+          tables: { "public.customers": { share: "tenant", permissions: [] } },
+        }),
+      ),
+    ).toEqual([
+      'shares tables per tenant only on listed permissions: tables.public.customers is share: "tenant" with no permissions: every member would read one entry whatever they hold',
+    ]);
+    expect(
+      await failures(
+        withProvider({
+          tables: { "Bad Name": { share: "row", permissions: [] } },
+        }),
+      ),
+    ).toEqual([
+      'shares tables per tenant only on listed permissions: tables key "Bad Name" is not a table or schema.table name',
     ]);
   });
 

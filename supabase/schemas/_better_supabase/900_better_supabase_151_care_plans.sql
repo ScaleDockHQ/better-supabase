@@ -1,6 +1,6 @@
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:028a6dc65cfcdc4bbbdd12abcb2a8e772d7d619fbfe1f136eaaadf3662971e2c
+-- @bsb-hash sha256:8f60b8d8851dc9c860bd6d4f2a2f64e0a8460d15edb6f129ee0e7ed85ca97837
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2234,8 +2234,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."care_plan_evaluation
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_care_plan_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."care_plans"
+  after insert or delete on "better_supabase"."care_plans"
   for each row execute function "better_supabase"."search_index_row"('care_plan', 'id');
+create trigger "bsb_search_care_plan_index_u"
+  after update of "id", "tenant_id", "title" on "better_supabase"."care_plans"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title")
+  execute function "better_supabase"."search_index_row"('care_plan', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plans deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan","event_prefix":"care_plan","archive_column":"archived_at"}');

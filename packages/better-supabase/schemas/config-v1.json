@@ -971,6 +971,9 @@
                 "rowsWithFor": {
                   "type": "string"
                 },
+                "roleOn": {
+                  "type": "string"
+                },
                 "portalSubjects": {
                   "type": "string"
                 },
@@ -1584,6 +1587,26 @@
             "wildcards": {
               "enum": ["all", "prefix", "none"],
               "type": "string"
+            },
+            "tables": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "share": {
+                    "enum": ["tenant", "row"],
+                    "type": "string"
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["share", "permissions"],
+                "additionalProperties": false
+              }
             },
             "problems": {
               "type": "array",
@@ -3825,6 +3848,15 @@
             "policyHelperLimit": {
               "type": "number"
             },
+            "policies": {
+              "type": "object",
+              "properties": {
+                "max": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            },
             "parallelReads": {
               "type": "number"
             },
@@ -5394,6 +5426,7 @@
                 "type": "boolean",
                 "default": false
               },
+              "retention": {},
               "staffClaim": {
                 "type": "string"
               },
@@ -6179,6 +6212,9 @@
                 "default": ["google-drive", "onedrive"]
               },
               "roleFunctions": {},
+              "grants": {
+                "type": "string"
+              },
               "readPolicy": {
                 "type": "boolean",
                 "default": true
@@ -6583,7 +6619,8 @@
               "events": {},
               "audit": {
                 "type": "string"
-              }
+              },
+              "chunks": {}
             }
           }
         }
@@ -7435,6 +7472,10 @@
               "templates": {
                 "type": "boolean",
                 "default": false
+              },
+              "quantityScale": {
+                "type": "number",
+                "default": 0
               }
             }
           }

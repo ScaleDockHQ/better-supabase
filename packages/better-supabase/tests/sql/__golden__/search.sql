@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@5 managed
+-- @bsb-block search@6 managed
 -- @bsb-hash sha256:a27a0b9b1276f5a4da566ba5600b865a37a0ecf7a77e0338841a7b1e2b7eb9cf
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -708,7 +708,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:93aed695cc0d45e7ac9f2707642ab18a805e9638f3bd30b76e4176497a80a901
+-- @bsb-hash sha256:604ac6efd907bb68247f79f296654227dbecf5bf08c5966e1c5b64156e0837ac
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -718,13 +718,13 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 5, 'managed')
+values ('search', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@5 managed
+-- @bsb-block search@6 managed
 -- @bsb-hash sha256:376003494219bd222d8fda35450a1782c8af09fddd9a82d85f4be978546281a3
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1444,7 +1444,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:93aed695cc0d45e7ac9f2707642ab18a805e9638f3bd30b76e4176497a80a901
+-- @bsb-hash sha256:604ac6efd907bb68247f79f296654227dbecf5bf08c5966e1c5b64156e0837ac
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1454,13 +1454,13 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 5, 'managed')
+values ('search', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@5 managed
+-- @bsb-block search@6 managed
 -- @bsb-hash sha256:d635b89df75e5f03c431ef6d49144ed09832005204f5d83204f40d8f1f28cd2c
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2173,7 +2173,7 @@ create policy bsb_tenant_scope_delete on "app_private"."search_documents" as res
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:93aed695cc0d45e7ac9f2707642ab18a805e9638f3bd30b76e4176497a80a901
+-- @bsb-hash sha256:604ac6efd907bb68247f79f296654227dbecf5bf08c5966e1c5b64156e0837ac
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2183,13 +2183,13 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 5, 'managed')
+values ('search', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@5 managed
+-- @bsb-block search@6 managed
 -- @bsb-hash sha256:a2ea894a179f05a02433b0185ef0e815764fa01cbebd7a8177782df7de891848
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2989,7 +2989,7 @@ grant execute on function "api"."search_star"(text, text, boolean) to authentica
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:93aed695cc0d45e7ac9f2707642ab18a805e9638f3bd30b76e4176497a80a901
+-- @bsb-hash sha256:604ac6efd907bb68247f79f296654227dbecf5bf08c5966e1c5b64156e0837ac
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2999,13 +2999,13 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 5, 'managed')
+values ('search', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@5 managed
+-- @bsb-block search@6 managed
 -- @bsb-hash sha256:056a536ac0fbf9f136f67bbc740d1ef4fd4452fa11f34065c0396a583ef64685
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3711,7 +3711,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:93aed695cc0d45e7ac9f2707642ab18a805e9638f3bd30b76e4176497a80a901
+-- @bsb-hash sha256:604ac6efd907bb68247f79f296654227dbecf5bf08c5966e1c5b64156e0837ac
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3721,13 +3721,13 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 5, 'managed')
+values ('search', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@5 managed
+-- @bsb-block search@6 managed
 -- @bsb-hash sha256:30b839dff0960865a171f72e5bc8ae86f3231aea160c279adfee636967b6da07
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4435,7 +4435,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:93aed695cc0d45e7ac9f2707642ab18a805e9638f3bd30b76e4176497a80a901
+-- @bsb-hash sha256:604ac6efd907bb68247f79f296654227dbecf5bf08c5966e1c5b64156e0837ac
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4445,14 +4445,14 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 5, 'managed')
+values ('search', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== searched subject: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@5 managed
--- @bsb-hash sha256:a375dd79b196626b8ed4d138f494adbf0602e9cce1e65eda9c0fcc19af429a9d
+-- @bsb-block search@6 managed
+-- @bsb-hash sha256:91b7d5ac2b09dcd638f9595560736ba379212fe6fba98fdf0e36558935fdd777
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4756,8 +4756,12 @@ end;
 $$;
 revoke execute on function "better_supabase"."search_index_row"() from public, anon, authenticated;
 create trigger "bsb_search_customer_index"
-  after insert or delete or update on "public"."customers"
+  after insert or delete on "public"."customers"
   for each row execute function "better_supabase"."search_index_row"('customer', 'id');
+create trigger "bsb_search_customer_index_u"
+  after update of "id", "organization_id", "name" on "public"."customers"
+  for each row when (old."id" is distinct from new."id" or old."organization_id" is distinct from new."organization_id" or old."name" is distinct from new."name")
+  execute function "better_supabase"."search_index_row"('customer', 'id');
 -- A change in public.orders re-indexes the customer it points at.
 create or replace function "better_supabase"."search_watch_customer_0"()
 returns trigger
@@ -5202,7 +5206,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as
 -- ==== searched subject: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:0c96dfda6659c4f3dbbc867c707e0cd79be991f0ffb690f2d90668daae694052
+-- @bsb-hash sha256:6f62d4518d3b53db3e3cb27d801b0ebfed3ab401d890357d9d6b7453850e97c8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5215,6 +5219,6 @@ create extension if not exists "unaccent" with schema "extensions";
 select "better_supabase"."search_reindex"();
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 5, 'managed')
+values ('search', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

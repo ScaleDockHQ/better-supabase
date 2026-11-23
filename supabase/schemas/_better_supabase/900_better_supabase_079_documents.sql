@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:de571aebcaa4077d7c43e853e6cd33af5982085cb1ca33eeff7da1cc6842b1f9
+-- @bsb-hash sha256:2855b5361f9835570b151d75a5585945aed3d4d587ada0217e9d2f1dd5411898
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2492,8 +2492,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_document_index"
-  after insert or delete or update of "id", "tenant_id", "name" on "better_supabase"."documents"
+  after insert or delete on "better_supabase"."documents"
   for each row execute function "better_supabase"."search_index_row"('document', 'id');
+create trigger "bsb_search_document_index_u"
+  after update of "id", "tenant_id", "name" on "better_supabase"."documents"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name")
+  execute function "better_supabase"."search_index_row"('document', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.documents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document","event_prefix":"document"}');

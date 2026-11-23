@@ -71,6 +71,7 @@ export function driveCoreSql(kit: DriveKit): string {
     directGrant,
     siblings,
     nodeRole,
+    grantRows,
     driveRole,
     readPolicy,
     driveColumn,
@@ -292,7 +293,9 @@ begin
   select x.${n("tenant")}${drives ? `, x.${n("drive")}` : ""} into v_tenant${drives ? ", v_drive" : ""} from ${T} x where x.${n("id")} = drive_role.node;
   if v_tenant is null or v_uid is null or not ${ctx.can("tenant", "v_tenant", read)} then
     return null;
-  end if;${nodeRole === undefined ? "" : `\n  return (select r from (select ${nodeRole.role("drive_role.node", "v_uid")}) x(r) where r = any (${rolesArray}));`}
+  end if;${
+    nodeRole === undefined
+      ? `
   if ${ctx.can("tenant", "v_tenant", manage)} then
     return ${sqlString(roles.top)};
   end if;
@@ -304,7 +307,10 @@ begin
   if coalesce(v_rank, 0) = 0 then
     return null;
   end if;
-  return (${rolesArray})[v_rank];
+  return (${rolesArray})[v_rank];`
+      : `
+  return (select r from (select ${nodeRole.role("drive_role.node", "v_uid")}) x(r) where r = any (${rolesArray}));`
+  }
 end;
 $$;
 ${userGrant(`${fn("drive_role")}(uuid)`)}
@@ -759,7 +765,7 @@ end;
 $$;
 ${userGrant(`${fn("drive_search")}(${ctx.idType}, text, integer)`)}
 
--- Items shared with the caller directly, whose folder they can't open.
+-- Items shared with the caller ${grantRows ? "directly" : "by the role function"}, whose folder they can't open.
 create or replace function ${fn("drive_shared")}(tenant ${ctx.idType}, page_size integer default 100)
 returns jsonb
 language plpgsql
@@ -774,12 +780,16 @@ begin
   from (
     select x as r from ${T} x
     where x.${n("tenant")} = drive_shared.tenant${live("x")}
-      and auth.uid() is not null
+      and auth.uid() is not null${
+        grantRows
+          ? `
       and exists (
         select 1 from ${G} dg
         where dg.${g("node")} = x.${n("id")}${grantLive("dg")}
           and ${principalMatch("dg", "auth.uid()", `x.${n("tenant")}`)}
-      )
+      )`
+          : ""
+      }
       and (x.${n("parent")} is null or not ${canRead(`x.${n("parent")}`)})
       and ${canRead(`x.${n("id")}`)}
     order by x.${n("name")}, x.${n("id")}

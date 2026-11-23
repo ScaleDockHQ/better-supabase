@@ -1,12 +1,8 @@
 import type { DbError } from "../core/errors.ts";
-import type {
-  PostgresCacheStore,
-  PostgresCacheStoreOptions,
-  TagState,
-} from "./store.ts";
+import type { PostgresCacheSource, PostgresCacheTables } from "./store.ts";
 
 import { DbException } from "../core/errors.ts";
-import { postgresCacheStore } from "./store.ts";
+import { storeOf } from "./store.ts";
 
 /** What `get` returns and `set` receives; Next.js's `CacheEntry`, typed here. */
 export interface NextCacheEntry {
@@ -33,26 +29,30 @@ export interface NextCacheHandler {
   updateTags(tags: string[], durations?: { expire?: number }): Promise<void>;
 }
 
-export interface PostgresCacheHandlerOptions extends Omit<
-  PostgresCacheStoreOptions,
-  "client"
-> {
-  /** A service role client, or an existing store. */
-  readonly client: PostgresCacheStoreOptions["client"] | PostgresCacheStore;
-  /**
-   * Called with a store error. The handler treats it as a miss (read) or a
-   * skipped write, so a database outage slows the app and never breaks it.
-   */
-  readonly onError?: ((error: DbError) => void) | undefined;
-  /** Next.js dev server: an entry lives until `expire`, not `revalidate`. */
-  readonly development?: boolean | undefined;
-}
+export type PostgresCacheHandlerOptions = PostgresCacheTables &
+  PostgresCacheSource & {
+    /**
+     * Called with a store error. The handler treats it as a miss (read) or a
+     * skipped write, so a database outage slows the app and never breaks it.
+     */
+    readonly onError?: ((error: DbError) => void) | undefined;
+    /** Next.js dev server: an entry lives until `expire`, not `revalidate`. */
+    readonly development?: boolean | undefined;
+    /**
+     * Milliseconds a miss waits for the render another instance holds the lease
+     * for, before it renders itself. Default: 250.
+     */
+    readonly wait?: number | undefined;
+    /** Milliseconds a render holds its lease at most. Default: 10 000. */
+    readonly leaseMs?: number | undefined;
+  };
 
-function isStore(
-  client: PostgresCacheHandlerOptions["client"],
-): client is PostgresCacheStore {
-  return "tagStates" in client && "markTags" in client;
-}
+const POLL_MS = 25;
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 function streamOf(bytes: Uint8Array<ArrayBuffer>): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
@@ -69,18 +69,6 @@ async function bytesOf(
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-const expiredSince = (
-  states: ReadonlyMap<string, TagState>,
-  tags: readonly string[],
-  since: number,
-  now: number,
-): boolean =>
-  tags.some((tag) => {
-    const at = states.get(tag)?.expiredAt ?? 0;
-
-    return at > since && at <= now;
-  });
-
 /**
  * A Next.js `cacheHandlers` handler that keeps `'use cache'` entries and tag
  * states in Postgres (`postgresCacheSql()` creates the tables), so every
@@ -96,68 +84,92 @@ const expiredSince = (
 export function postgresCacheHandler(
   options: PostgresCacheHandlerOptions,
 ): NextCacheHandler {
-  const store = isStore(options.client)
-    ? options.client
-    : postgresCacheStore({ ...options, client: options.client });
+  const store = storeOf(options);
 
   const dev = options.development ?? false;
+  const wait = options.wait ?? 250;
+  const leaseMs = options.leaseMs ?? 10_000;
   const pending = new Map<string, Promise<void>>();
+  // The lease a miss in this process took, released once its entry is stored.
+  const holders = new Map<string, string>();
 
   const report = (error: DbError): void => {
     options.onError?.(error);
   };
 
+  const read = async (
+    cacheKey: string,
+    softTags: string[],
+  ): Promise<NextCacheEntry | undefined | null> => {
+    await pending.get(cacheKey);
+
+    const found = await store.lookup(cacheKey, softTags);
+
+    if (!found.ok) {
+      report(found.error);
+
+      return null;
+    }
+
+    if (!found.data) {
+      return undefined;
+    }
+
+    const { entry: row, stale: isStale } = found.data;
+
+    // SAFETY: `set` below wrote `meta` with these numbers.
+    const { stale, expire, revalidate } = row.meta as {
+      stale: number;
+      expire: number;
+      revalidate: number;
+    };
+
+    return {
+      value: streamOf(row.value),
+      tags: [...row.tags],
+      stale,
+      timestamp: row.storedAt,
+      expire,
+      revalidate: isStale ? -1 : revalidate,
+    };
+  };
+
   return {
     async get(cacheKey, softTags) {
-      await pending.get(cacheKey);
+      const found = await read(cacheKey, softTags);
 
-      const found = await store.get(cacheKey);
+      if (found !== undefined) {
+        return found ?? undefined;
+      }
 
-      if (!found.ok) {
-        report(found.error);
+      // One instance renders a missing entry; the others wait for it.
+      const holder = crypto.randomUUID();
+      const leased = await store.lease(cacheKey, holder, leaseMs);
+
+      if (!leased.ok) {
+        report(leased.error);
 
         return;
       }
 
-      const row = found.data;
-      const now = Date.now();
-
-      if (!row || row.expiresAt <= now) {
-        return;
-      }
-
-      const tags = [...row.tags, ...softTags];
-      const states = await store.tagStates(tags);
-
-      if (!states.ok) {
-        report(states.error);
+      if (leased.data) {
+        holders.set(cacheKey, holder);
 
         return;
       }
 
-      if (expiredSince(states.data, tags, row.storedAt, now)) {
-        return;
+      let filled: NextCacheEntry | undefined | null;
+
+      for (
+        let polled = 0;
+        filled === undefined && polled < wait;
+        polled += POLL_MS
+      ) {
+        await sleep(POLL_MS);
+        filled = await read(cacheKey, softTags);
       }
 
-      // SAFETY: `set` below wrote `meta` with these numbers.
-      const { stale, expire, revalidate } = row.meta as {
-        stale: number;
-        expire: number;
-        revalidate: number;
-      };
-
-      const isStale = tags.some(
-        (tag) => (states.data.get(tag)?.staleAt ?? 0) > row.storedAt,
-      );
-
-      return {
-        value: streamOf(row.value),
-        tags: [...row.tags],
-        stale,
-        timestamp: row.storedAt,
-        expire,
-        revalidate: isStale ? -1 : revalidate,
-      };
+      return filled ?? undefined;
     },
 
     async set(cacheKey, pendingEntry) {
@@ -199,6 +211,18 @@ export function postgresCacheHandler(
       } finally {
         done();
         pending.delete(cacheKey);
+
+        const holder = holders.get(cacheKey);
+
+        if (holder !== undefined) {
+          holders.delete(cacheKey);
+
+          const released = await store.release(cacheKey, holder);
+
+          if (!released.ok) {
+            report(released.error);
+          }
+        }
       }
     },
 
@@ -216,7 +240,12 @@ export function postgresCacheHandler(
         return 0;
       }
 
-      return Math.max(0, ...[...states.data.values()].map((s) => s.expiredAt));
+      return Math.max(
+        0,
+        ...[...states.data.values()].map((state) =>
+          Math.max(state.expiredAt, state.expireAfter ?? 0),
+        ),
+      );
     },
 
     async updateTags(tags, durations) {

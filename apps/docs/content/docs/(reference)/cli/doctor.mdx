@@ -1863,7 +1863,9 @@ grows with every audited write until something calls
 `better_supabase.purge_audit_log()`. Schedule it nightly with pg_cron or call
 `purgeAuditLog` from the jobs drain route. Doctor accepts a call in the schema
 files, the seeds, the app sources or a pg_cron job (it reads `cron.job` when it
-has a database), and skips projects without an audit table.
+has a database), and skips projects without an audit table. With
+`blocks.audit.options.retention` set, the `audit_retention` job of
+`maintenance()` purges the log and the rule stops.
 
 ### BS390
 
@@ -2518,6 +2520,24 @@ provider's, because the provider's key applies only then.
 `better-supabase codemod config --prune` removes each entry when the render
 stays the same.
 
+### BS428
+
+**Error: a table the provider shares per tenant has row-level reads.** An
+authorization provider's `tables` entry with `share: "tenant"` says every
+caller with the same permissions in a tenant reads the same rows, so
+`bsb.kept` and `bsb.remote` with `share: "tenant"` keep one entry for all of
+them. Doctor reads the table's permissive select policies for `authenticated`
+and reports:
+
+- a `tenant` table whose policy filters by the caller (`auth.uid()`,
+  `auth.jwt()`, `auth.email()`, `better_supabase.current_user_id()` or
+  `current_user`), or whose policies don't pin the tenant column to a tenant
+  the caller acts in. A shared entry would hand one caller's rows to another;
+  declare the table `share: "row"`;
+- a table whose policies pass other keys to the provider's `idsWith` than its
+  `permissions`, so the entry would be keyed on the wrong grant;
+- a name the database has no table for.
+
 ## Env files
 
 ### BS501
@@ -3019,6 +3039,94 @@ the user column and add unique indexes on `(team_id, user_id)` and
 view and follows watch keys on the columns' own type. When the live catalog
 gives the two columns different types, the comparison stays text and cannot use
 the key's index. Make the columns the same type.
+
+### BS637
+
+**Warning: a search source view reads a column `search.columns` leaves out.**
+A record type with `search.from` re-indexes when one of the columns in
+`search.columns` (or its id, tenant or archive column) changes, because the
+generator cannot see what the view reads. Doctor reads
+`information_schema.view_column_usage` for each source view and reports every
+column of the record's own table that the view reads and the list leaves out.
+An update of such a column leaves the search document stale. Add the column to
+`search.columns`.
+
+### BS638
+
+**Warning: stored open items differ from the fold.** `invoice_open_items`
+keeps today's open invoices and unallocated payments, and triggers keep it
+current. A write that skips them, such as a restore or an `update` with
+triggers off, leaves rows that differ from what the invoices and ledger
+entries add up to. Doctor calls `open_items_drift_rows` for each organization
+with stored rows or invoices and lists the ones that differ. Run
+`select better_supabase.rebuild_open_items('<organization id>')` for each.
+Needs a database; saved snapshots skip it.
+
+### BS639
+
+**Info: tables left out of the audit log.** One finding per table that BS315
+skips because `blocks.audit.options.exempt` or an `@bsb audit-exempt` tag names
+it, with the reason and the time of the table's last entry in
+`better_supabase.audit_events`, or `never`. A table that had entries before its
+exemption shows when they stopped. The JSON report carries the same rows, one
+finding each. Review the list when a table's purpose changes. Needs a database;
+saved snapshots skip it.
+
+### BS641
+
+**Info: many policies for one command.** Postgres evaluates every permissive
+policy (or-ed together) and every restrictive policy (and-ed) of a command for
+each row, so each policy adds a condition to every query on the table. Doctor
+reports a table and command with more than `doctor.policies.max` policies for
+`authenticated` (default 4) and lists each with its kind and origin: `library`
+for `bsb_` policies and block tables, `provider` when it calls a function of
+the authorization provider, and `app` otherwise. The library adds one
+restrictive guard and one permissive grant per command, so a long list usually
+points at provider or app policies to fold into fewer conditions:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({ doctor: { policies: { max: 6 } } });
+```
+
+### BS642
+
+**Info: an index leads with an enum column on an RLS table.** Postgres marks
+`enum_eq` as not leakproof (checked on Postgres 17.6), so on a table with RLS
+it can't use `where status = 'open'` as an index condition before the policies
+pass, and the query filters after a wider scan. `text` and `uuid` comparisons
+are leakproof. Store the value as `text` with a check constraint, the way every
+block does:
+
+```sql
+status text not null check (status in ('open', 'paid', 'void'))
+```
+
+Marking `enum_eq` leakproof needs a superuser, which Supabase doesn't grant, so
+the library ships no helper for it.
+
+### BS643
+
+**Info: functions by caller.** One finding per schema with how many of its
+functions a policy calls, a trigger runs, `anon` or `authenticated` may execute
+(app RPC), only `service_role` may execute (service only), or nothing names
+(unreferenced). [`config functions --all`](/docs/cli/config#list-the-functions)
+lists each one. An unreferenced function may still be called by another
+function, so doctor drops nothing. Snapshots saved before 0.85 have no
+inventory and skip the rule.
+
+### BS644
+
+**Info: the session cookie carries the user object.** Neither the browser
+client nor the server sets `tokens-only`, so `@supabase/ssr` writes the user
+object into the session cookie next to the tokens, and every request carries
+it. Doctor finds the two sides the way [BS412](#bs412) does. Set
+`cookies: { encode: 'tokens-only' }` in `createClient` and
+`auth: { cookie: { encode: 'tokens-only' } }` in the server options; `init`
+writes both for a new app. The finding lists the server files that call
+`auth.getSession()`, which read the user from the cookie: move them to
+`bsb.claims()` before you switch. With `--as <user id>` and a database, it adds
+the bytes that user's object takes in the cookie. See
+[Encoding](/docs/auth/sessions#encoding).
 
 ### BS633
 

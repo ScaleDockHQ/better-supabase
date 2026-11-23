@@ -78,6 +78,62 @@ describe("vercelRuntimeCacheAdapter", () => {
     expect(sizes).toEqual([16, 16, 10]);
   });
 
+  it("expires kept tags encoded, in calls of 16", async () => {
+    const cache = fakeCache();
+    const adapter = vercelRuntimeCacheAdapter(() => cache);
+
+    const tags = Array.from(
+      { length: 20 },
+      (_, index) => `bsb:t:a,${String(index)}`,
+    );
+
+    await adapter.expireTags(tags);
+
+    const calls = cache.expireTag.mock.calls.map(([batch]) => batch);
+    expect(calls.map((batch) => batch.length)).toEqual([16, 4]);
+    expect(calls[0]?.[0]).toBe("bsb:t:a~2c0");
+  });
+
+  it("takes a lease as a lock entry, refuses another holder and releases its own", async () => {
+    const entries = new Map<string, unknown>();
+
+    const cache = {
+      get: (key: string) => Promise.resolve(entries.get(key)),
+      set: (key: string, value: unknown) => {
+        entries.set(key, value);
+
+        return Promise.resolve();
+      },
+      delete: (key: string) => {
+        entries.delete(key);
+
+        return Promise.resolve();
+      },
+      expireTag: () => Promise.resolve(),
+    };
+
+    const adapter = vercelRuntimeCacheAdapter(() => cache);
+
+    expect(await adapter.lease("kept:a", "one", 1500)).toBe(true);
+    expect(entries.get("lease:kept:a")).toBe("one");
+    expect(await adapter.lease("kept:a", "two", 1500)).toBe(false);
+
+    await adapter.release("kept:a", "two");
+    expect(entries.has("lease:kept:a")).toBe(true);
+
+    await adapter.release("kept:a", "one");
+    expect(await adapter.lease("kept:a", "two", 1500)).toBe(true);
+  });
+
+  it("sets the lock entry with a ttl in whole seconds", async () => {
+    const cache = fakeCache();
+    const adapter = vercelRuntimeCacheAdapter(() => cache);
+
+    await adapter.lease("kept:a", "one", 1500);
+
+    expect(cache.set).toHaveBeenCalledWith("lease:kept:a", "one", { ttl: 2 });
+  });
+
   it("opens the cache on first use, in its namespace", async () => {
     const cache = fakeCache();
 
@@ -112,6 +168,22 @@ describe("vercelRuntimeCacheAdapter", () => {
     });
 
     expect(cache.set).toHaveBeenNthCalledWith(2, "plain", 1, {});
+  });
+
+  it("deletes an entry by key, and does nothing on a cache without delete", async () => {
+    const remove = vi.fn<(key: string) => Promise<void>>(() =>
+      Promise.resolve(),
+    );
+
+    const withDelete = vercelRuntimeCacheAdapter(() => ({
+      ...fakeCache(),
+      delete: remove,
+    }));
+
+    await withDelete.delete("orders:list");
+    await vercelRuntimeCacheAdapter(() => fakeCache()).delete("orders:list");
+
+    expect(remove).toHaveBeenCalledExactlyOnceWith("orders:list");
   });
 
   it("passes the conformance kit", async () => {

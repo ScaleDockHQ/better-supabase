@@ -1,6 +1,12 @@
 import type { Money } from "../../commerce/money.ts";
 import type { BlockCall } from "../shared.ts";
-import type { Address, Order } from "./codecs.ts";
+import type {
+  Address,
+  InvoicingPolicy,
+  Order,
+  OrderLineType,
+  OrderParty,
+} from "./codecs.ts";
 import type { OrderReads } from "./reads.ts";
 
 import { AsyncResult } from "../../core/result.ts";
@@ -15,8 +21,15 @@ export interface OrderLineInput {
   /** Required without a variant. */
   readonly title?: string;
   readonly sku?: string;
-  /** Whole units. */
+  /** Whole units, or up to `options.quantityScale` decimals. */
   readonly quantity: number;
+  /** The unit the quantity counts, such as `h` or `kg`. */
+  readonly unit?: string;
+  readonly description?: string;
+  /** Default `item`. */
+  readonly lineType?: OrderLineType;
+  /** Values for the extra columns your schema files add to the lines table. */
+  readonly fields?: Readonly<Record<string, unknown>>;
   /** The price per unit. Default: the variant's price in the order currency. */
   readonly unitAmount?: Money;
   /** Off the line total. */
@@ -38,6 +51,16 @@ export interface OrderDocumentInput {
    * until `confirmDraft`. Records `order.drafted` instead of `order.placed`.
    */
   readonly draft?: boolean;
+  /** The sales channel, a lowercase slug such as `phone` or `b2b`. */
+  readonly channel?: string;
+  /** How the order is invoiced. Default `on_order`. */
+  readonly invoicingPolicy?: InvoicingPolicy;
+  readonly deliveryMethod?: string;
+  /** The order ships once `deposit`, or its total without one, is paid. */
+  readonly paymentRequired?: boolean;
+  readonly deposit?: Money;
+  /** The contact or company the order is for, next to `customerId`. */
+  readonly party?: OrderParty;
 }
 
 export interface OrderFromLinesInput extends OrderDocumentInput {
@@ -50,6 +73,15 @@ export interface OrderFromLinesInput extends OrderDocumentInput {
    * once: a second call returns the first order with `created: false`.
    */
   readonly origin?: { readonly type: string; readonly id: string };
+  /**
+   * The system an order from elsewhere comes from, with its id there. A second
+   * call with the same pair returns the first order with `created: false`.
+   */
+  readonly source?: string;
+  readonly externalId?: string;
+  /** A discount on the whole order, after the line discounts. */
+  readonly orderDiscount?: Money;
+  readonly promotionId?: string;
 }
 
 export interface OrderFromDocument<F extends object = Record<never, never>> {
@@ -125,6 +157,12 @@ function attrsOf(input: OrderDocumentInput): Record<string, unknown> {
     billingAddress: input.billingAddress,
     locationId: input.locationId,
     draft: input.draft,
+    channel: input.channel,
+    invoicingPolicy: input.invoicingPolicy,
+    deliveryMethod: input.deliveryMethod,
+    paymentRequired: input.paymentRequired,
+    deposit: amountOf(input.deposit),
+    party: input.party,
   };
 }
 
@@ -138,6 +176,10 @@ function lineOf(line: OrderLineInput): Record<string, unknown> {
     discount: amountOf(line.discount),
     tax: amountOf(line.tax),
     requiresShipping: line.requiresShipping,
+    unit: line.unit,
+    description: line.description,
+    lineType: line.lineType,
+    fields: line.fields,
   };
 }
 
@@ -176,6 +218,10 @@ export function orderDocuments<F extends object>(
               shippingTotal: amountOf(input.shippingTotal),
               taxInclusive: input.taxInclusive,
               origin: input.origin,
+              source: input.source,
+              externalId: input.externalId,
+              orderDiscount: amountOf(input.orderDiscount),
+              promotionId: input.promotionId,
             },
           },
           of("order_from_lines"),

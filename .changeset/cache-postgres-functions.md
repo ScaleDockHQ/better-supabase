@@ -1,0 +1,5 @@
+---
+"better-supabase": minor
+---
+
+`postgresCacheSql()` now creates `bsb_cache_get`, which reads an entry and checks its tags and the soft tags in one call, and `bsb_cache_mark_tags`, which writes each tag column with `greatest()` so concurrent expiries never drop one. It grants the tables and functions to `service_role` and adds an `expire_after` column for delayed expiry. Add the SQL to a new migration after you upgrade; until the functions exist, the store uses the two-request path, reports it once through `onError` and tries again after a minute. The store, the Next.js handler and the Astro provider take `functionPrefix`, and the store and the Next.js handler take `transport: { postgres }` instead of `client` to query through a pool. `postgresCacheStore` gains `lookup(key, softTags)` and `delete(key)`, and the Vercel Runtime Cache adapter gains `delete(key)`. The store rounds the fractional timestamps Next.js passes down to whole milliseconds; before, every write to the `bigint` columns failed. See ADR 1221.

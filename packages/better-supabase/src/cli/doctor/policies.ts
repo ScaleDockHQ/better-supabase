@@ -37,7 +37,7 @@ const ANY_CALL = /(?<![\w."])(?:"?(\w+)"?\s*\.\s*)?"?(\w+)"?\s*\(/g;
  * (`centrakit.authz_{scope}_ids_with({permission})` matches
  * `centrakit.authz_organization_ids_with`), as patterns.
  */
-function providerFunctionPatterns(
+export function providerFunctionPatterns(
   functions: object | undefined,
 ): readonly RegExp[] {
   return Object.values(functions ?? {}).flatMap((template: unknown) => {

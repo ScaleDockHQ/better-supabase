@@ -120,8 +120,6 @@ const config: KnipConfig = {
         "src/lib/supabase/pages/routes.manifest.ts",
         // Copied from the registry, which knip checks as entries.
         "src/hooks/use-*.ts",
-        // Handlers next.config.ts loads by path: the file one is opt-in, the Postgres one is a copy-paste example (ADR 1170).
-        "cache-handlers/postgres-remote.ts",
         // The shadcn code block's highlighter; the block is not on a page yet.
         "src/lib/highlighter.tsx",
       ],

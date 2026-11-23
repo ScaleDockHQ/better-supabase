@@ -32,14 +32,13 @@ each item in one line. This record says, per item that did not become code, why.
 
 ## Still open, with the reason
 
-- **6.2 localized seeds, 1.22 ordered-series warning, 3.1 open-items fast path,
+- **6.2 localized seeds, 1.22 ordered-series warning,
   8.2 notNull and 4.6 `sanitizeText` packs.** The brief now names each one.
   They are still open: 6.2 needs a seed catalog for en, nl and de across every
   seed function; 1.22 needs an ordered-series import warning and a chunk sort;
-  3.1 needs stored invoice balances instead of replaying the ledger for today;
   8.2 needs not-null inferred from function bodies (the config and `@notNull`
   tag remain overrides); 4.6 needs the `better-supabase/normalize` subpath from
-  4.1, which is not shipped. 9.4 `indexes.skip` is `blocks.<name>.indexes.skip`.
+  4.1, which is not shipped. 9.4 `indexes.skip` is `blocks.<name>.indexes.skip`. 3.1, the open-items fast path, is ADR 1214.
 - **The medium items** (7.6, 7.1, 7.2, 1.7, 1.23, 1.24, 1.21, 1.4, 1.10, 1.15 to 1.18,
   4.1, 4.2, 5.3, 3.2, 9.3, 8.1, 8.3, 8.5, 1.27, 6.3, 11.1, 11.3 and the carried
   items), **1.11 to 1.14, 1.19, 3.3, 3.4, 4.3 to 4.5, 5.4, 10.1 to 10.9, 9.5, 9.6 and

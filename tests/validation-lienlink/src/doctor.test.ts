@@ -81,7 +81,9 @@ const seeded = async (
   return doctor(dir, OWNERSHIP);
 };
 
-const TIMEOUT = 60_000;
+// The first doctor run loads the CLI from source: 45.6 to 60.0 s on CI
+// runners in November 2026, against 4.4 s for the run itself.
+const TIMEOUT = 120_000;
 
 describe("doctor on the lienlink fixture", () => {
   it(

@@ -445,6 +445,14 @@ const { db } = await bsb.cached({ tables: ["customers"], stage: "navigation" });
 Prefetching has none. In both cases `stage` is skipped, the read still runs,
 and development logs it once.
 
+### Entries that outlive a deploy
+
+Next.js keys every cache entry by build, so a deploy starts every entry
+again. `bsb.kept()` keeps a read in a store of your choice, keyed by name,
+arguments, user and schema version instead, and expires it on a write. It
+works inside and outside `'use cache: private'`; see
+[Keep reads across requests and deploys](/docs/concepts/caching#keep-reads-across-requests-and-deploys).
+
 ### Remote scope
 
 `'use cache: remote'` keeps an entry on the server, shared across instances,
@@ -845,8 +853,19 @@ export const GET = bsb.debugRoute();
   `bsb.context()` records into it, across all the scopes of that render. A
   `'use cache: private'` fill records on the render that runs it, and a
   `'use cache: remote'` fill called through `bsb.remote()` records on the
-  render that called it. When renders of one session fill the same remote
-  entry at once, the latest caller gets the calls.
+  render that called it. A fill through a handle from `bsb.sessionHandle()`
+  (`bsb.cached({ session })`, `kept.as(session)`, `getAccess` with a key)
+  records on the render that made the handle. When renders of one session
+  fill the same remote entry at once, the latest caller gets the calls.
+- A Supabase client the app builds itself (for example with
+  `@supabase/server/core`) doesn't pass through the recorder. Give it
+  `bsb.statsFetch(fetch)` as its `global.fetch`, and its PostgREST, RPC,
+  Storage and Edge Function requests count for the current request.
+- Each `bsb.kept` and `bsb.remote` call adds an entry record to the stats
+  route's `entries`: `{ id, kind, outcome, fillMs }`, where `kind` is
+  `kept` or `remote`, `outcome` is `hit`, `miss`, `stale` or `wait`, and
+  `fillMs` is the fill time of a miss. A `bsb.remote` call is a `miss` when
+  its fill ran in this process during the call, and a `hit` otherwise.
 - In development, a render that goes over `budget` logs a warning once its
   calls have been idle for 250 ms. A private-cache hit makes no call, so
   warm navigations cost 0.
@@ -859,7 +878,10 @@ export const GET = bsb.debugRoute();
   make no admin calls. In development, a render with admin calls logs a
   warning. Attach an admin call to its render with
   `bsb.admin({}, { request })` (`{ stats }` on the server entry).
-- `bsb.route()` responses carry `x-bsb-db-calls: calls;waves;ms;verifications;adminCalls` directly.
+- `bsb.route()` responses carry
+  `x-bsb-db-calls: calls;waves;ms;verifications;adminCalls;tagCalls;hits;misses;fillMs`
+  directly. The last four are cache tag calls, cached calls served from an
+  entry, cached calls that filled, and the milliseconds those fills took.
   A server action answers with a result, not a `Response`, so with
   `debug.enabled` it logs the same value as `bsb.action x-bsb-db-calls: ...`
   after it settles.
@@ -870,7 +892,7 @@ export const GET = bsb.debugRoute();
   Set `debug.enabled` for e2e runs against `next start`.
 
 In code, `ctx.stats()` and `db.$stats()` return the same numbers for one
-context: `{ calls, waves, tables, ms, verifications, adminCalls }`. The proxy's
+context: `{ calls, waves, tables, ms, verifications, adminCalls, tagCalls, entries }`. The proxy's
 verification is counted on the document response header; the totals of the
 render itself come from the stats route.
 

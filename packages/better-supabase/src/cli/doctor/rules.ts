@@ -74,6 +74,7 @@ import { REALTIME_RULES } from "./realtime.ts";
 import { receiverIsNotClient } from "./receiver-types.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
 import { ROUND_TRIP_RULES } from "./round-trips.ts";
+import { SCALE_RULES } from "./scale-rules.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
 import { SEARCH_KEY_RULES } from "./search-keys.ts";
 import { SEED_RULES } from "./seeds.ts";
@@ -1143,6 +1144,7 @@ export const RULES: readonly Rule[] = [
   ...OWN_RULES,
   ...RLS_RULES,
   ...POLICY_RULES,
+  ...SCALE_RULES,
   ...SCHEMA_DESIGN_RULES,
   ...HOOK_RULES,
   ...COOKIE_RULES,

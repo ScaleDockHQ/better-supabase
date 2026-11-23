@@ -2,6 +2,11 @@ import type { BlockSqlContext } from "../context.ts";
 import type { ImportTargetContribution } from "../contributions.ts";
 
 import { fail, serviceGrant } from "../shared.ts";
+import {
+  BATCH_DECLARE,
+  batchRest,
+  castOrNull,
+} from "./imports-batch-targets.ts";
 
 const plain = (qualified: string): string => qualified.replaceAll('"', "");
 
@@ -118,6 +123,72 @@ end;
 $$;
 ${serviceGrant(`${fn("import_product")}(uuid, jsonb, text)`)}
 
+-- The batch form of import_product (ADR 1217): new products without the price
+-- fallback, whose slug and sku no other item of the batch and no stored
+-- product uses, are written in one statement with their default variant.
+-- Every other item goes through import_product.
+create or replace function ${fn("import_product_batch")}(run uuid, items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+-- CTE row counts are guesses; a nested loop over 2,000 items costs seconds.
+set enable_nestloop = off
+as $$
+declare
+${BATCH_DECLARE}
+begin
+  for v_row in
+    with i as (
+      select o::int as n, gen_random_uuid() as id, e, (e ->> 'tenant')::${ctx.idType} as tenant, e -> 'data' as d,
+        coalesce(e -> 'data' ->> 'name', e -> 'data' ->> 'title', '') as raw,
+        nullif(btrim(e -> 'data' ->> 'sku'), '') as sku
+      from jsonb_array_elements(items) with ordinality t(e, o)
+      where jsonb_typeof(e -> 'data') = 'object'
+    ), named as (
+      select i.*, btrim(regexp_replace(regexp_replace(i.raw, '[[:cntrl:]]', '', 'g'), U&'[\\+00E000-\\+00F8FF]', '', 'g')) as name
+      from i
+    ), slugged as (
+      select named.*, trim(both '-' from lower(regexp_replace(coalesce(nullif(named.d ->> 'slug', ''), named.name), '[^a-zA-Z0-9]+', '-', 'g'))) as slug
+      from named
+    ), counted as (
+      select s.*, count(*) over (partition by s.tenant, s.slug) as slugs,
+        count(*) over (partition by s.tenant, coalesce(s.sku, s.slug)) as skus,
+        count(*) over (partition by s.tenant, s.sku) as own_skus
+      from slugged s
+    ), f as (
+      select c.n, c.id, c.tenant, c.d, c.name, c.slug, c.sku, c.e,
+        coalesce(${castOrNull("nullif(c.d ->> 'price', '')", "bigint")}, ${castOrNull("nullif(c.d ->> 'listPrice', '')", "bigint")}) as price
+      from counted c
+      where nullif(c.e ->> 'subjectId', '') is null
+        and coalesce(c.e -> 'options' ->> 'priceFallback', 'false') = 'false'
+        and pg_input_is_valid(coalesce(nullif(c.d ->> 'price', ''), '0'), 'bigint')
+        and pg_input_is_valid(coalesce(nullif(c.d ->> 'listPrice', ''), '0'), 'bigint')
+        and length(regexp_replace(c.raw, '[[:cntrl:][:space:]]', '', 'g')) * 2 >= length(regexp_replace(c.raw, '[[:space:]]', '', 'g'))
+        and length(c.name) > 0
+        and c.slugs = 1 and c.skus = 1 and (c.sku is null or c.own_skus = 1)
+        and (select x.${p("id")} from ${products} x where x.${p("tenant")} = c.tenant and x.${p("slug")} = c.slug limit 1) is null
+        and (select y.${v("id")} from ${variants} y where y.${v("tenant")} = c.tenant and y.${v("sku")} = coalesce(c.sku, c.slug) limit 1) is null
+    ), written as (
+      insert into ${products} as x (${p("id")}, ${p("tenant")}, ${p("title")}, ${p("slug")}${insertedCol("price")}${insertedCol("manufacturer")}${insertedCol("model")}${insertedCol("taxCode")})
+      select f.id, f.tenant, f.name, f.slug${inserted("price", "f.price")}${inserted("manufacturer", "nullif(btrim(f.d ->> 'manufacturer'), '')")}${inserted("model", "nullif(btrim(f.d ->> 'model'), '')")}${inserted("taxCode", "nullif(coalesce(f.e -> 'resolved' ->> 'tax', f.d ->> 'taxCode'), '')")}
+      from f
+      returning x.${p("id")} as id, x.${p("updatedAt")} as updated_at
+    ), variant as (
+      insert into ${variants} (${v("tenant")}, ${v("product")}, ${v("sku")}${ctx.has("variants", "barcode") ? `, ${v("barcode")}` : ""}${has("variants", "price") ? `, ${v("price")}` : ""})
+      select f.tenant, f.id, coalesce(f.sku, f.slug)${ctx.has("variants", "barcode") ? `, nullif(btrim(f.d ->> 'ean'), '')` : ""}${has("variants", "price") ? ", f.price" : ""}
+      from f
+    )
+    select f.n, jsonb_build_object('subjectId', f.id, 'updatedAt', w.updated_at) as answer
+    from f join written w on w.id = f.id
+  loop
+    v_done[v_row.n] := v_row.answer;
+  end loop;
+${batchRest(fn("import_product"))}
+end;
+$$;
+${serviceGrant(`${fn("import_product_batch")}(uuid, jsonb)`)}
+
 create or replace function ${fn("product_updated_at")}(subject_id text)
 returns timestamptz
 language sql
@@ -196,6 +267,7 @@ export function productImportTargets(
       entity: "product",
       subjectType: "product",
       write: plain(own.fn("import_product")),
+      batch: plain(own.fn("import_product_batch")),
       updatedAt: plain(own.fn("product_updated_at")),
       refs: { tax: "tax_code" },
     },

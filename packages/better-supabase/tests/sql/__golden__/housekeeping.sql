@@ -136,7 +136,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_176_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:095edf229bdc42b2819d741d54e4998cd3c56626a120220a127440b19de5572f
+-- @bsb-hash sha256:214dc9597347187e938fed76ac9cd57eacb4b9387fa22aa5940daeac17c9dff1
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -166,6 +166,7 @@ from (values
     ('expire_approvals', '"better_supabase"."expire_approvals"', interval '15 minutes'),
     ('expire_support_sessions', '"better_supabase"."expire_support_sessions"', interval '5 minutes'),
     ('expire_task_claims', '"better_supabase"."expire_task_claims"', interval '1 minute'),
+    ('import_chunks', '"better_supabase"."import_chunk_maintenance"', interval '1 hour'),
     ('purge_chat_state', '"better_supabase"."purge_chat_state"', interval '15 minutes'),
     ('purge_expired_trash', '"better_supabase"."purge_expired_trash"', interval '1 day'),
     ('purge_idempotency_keys', 'better_supabase.purge_idempotency_keys', interval '1 hour'),

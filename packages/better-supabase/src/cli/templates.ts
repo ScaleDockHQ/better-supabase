@@ -333,6 +333,8 @@ export const bsb = createClient(betterSupabase, {${
     url: ${env.url},
     publishableKey: ${env.key},
   },
+  // The server's \`auth.cookie.encode\` must be the same.
+  cookies: { encode: 'tokens-only' },
 });
 `,
         },
@@ -354,7 +356,7 @@ import { createNext } from 'better-supabase/next';
 
 import { betterSupabase } from '${importLib(context, server)}';
 
-export const bsb = createNext(betterSupabase);
+export const bsb = createNext(betterSupabase, { auth: { cookie: { encode: 'tokens-only' } } });
 `,
         },
         ...nextAppFiles(context, server, (file, to) =>
@@ -438,7 +440,7 @@ import { type HonoEnv, createHono } from 'better-supabase/hono';
 
 import { betterSupabase, type Functions, type Models } from '${importLib(context, path)}';
 
-export const bsb = createHono(betterSupabase);
+export const bsb = createHono(betterSupabase, { auth: { cookie: { encode: 'tokens-only' } } });
 
 const app = new Hono<HonoEnv<Models, Functions, unknown>>()
   .onError(bsb.onError)
@@ -464,7 +466,7 @@ import { createOrpc, type OrpcRequestContext } from 'better-supabase/orpc';
 
 import { betterSupabase } from '${importLib(context, path)}';
 
-export const bsb = createOrpc(betterSupabase);
+export const bsb = createOrpc(betterSupabase, { auth: { cookie: { encode: 'tokens-only' } } });
 
 const base = os.$context<OrpcRequestContext>();
 const authed = base.use(bsb.middleware());
@@ -487,7 +489,7 @@ export const router = {
 
 import { betterSupabase } from '${shared}';
 
-export const bsb = createEdge(betterSupabase, { cors: true });
+export const bsb = createEdge(betterSupabase, { cors: true, auth: { cookie: { encode: 'tokens-only' } } });
 `,
       ),
       {
@@ -521,7 +523,7 @@ Deno.serve(bsb.handler((_request, { auth }) => ({ kind: auth.kind })));
 
 import { betterSupabase } from '${importLib(context, server)}';
 
-export const bsb = createExpo(betterSupabase);
+export const bsb = createExpo(betterSupabase, { auth: { cookie: { encode: 'tokens-only' } } });
 `,
         },
         {

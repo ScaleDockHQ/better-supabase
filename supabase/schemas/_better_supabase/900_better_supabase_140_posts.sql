@@ -1,6 +1,6 @@
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:0e9a967131606c9df2f37f62064615018e5c9472b122f0c7d08c4a7b60b534aa
+-- @bsb-hash sha256:4df89351a32421a29329c550db6a5c2bc60099bc3cb9fee4f44cf2d5ae577db2
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1368,8 +1368,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."posts" as restrictiv
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_post_index"
-  after insert or delete or update of "id", "tenant_id", "title", "body" on "better_supabase"."posts"
+  after insert or delete on "better_supabase"."posts"
   for each row execute function "better_supabase"."search_index_row"('post', 'id');
+create trigger "bsb_search_post_index_u"
+  after update of "id", "tenant_id", "title", "body" on "better_supabase"."posts"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."body" is distinct from new."body")
+  execute function "better_supabase"."search_index_row"('post', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.post_boards deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post_board","event_prefix":"post_board","archive_column":"archived_at"}');

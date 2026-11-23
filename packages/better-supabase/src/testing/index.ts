@@ -164,12 +164,24 @@ export type {
 export { testAuthorizationHooks } from "./authorization-hooks.ts";
 
 export {
+  type ExpectTenantShareOptions,
+  expectTenantShare,
+  type TenantShareCaller,
+} from "./tenant-share.ts";
+
+export {
   type ReceivedDelivery,
   testDeliveryTransport,
   type TestDeliveryTransportOptions,
 } from "./delivery-transport.ts";
 
-export { staticAuthorizer, testAuthorizer } from "./authorizer.ts";
+export type { RecordedCheck, RecordingAuthorizer } from "./authorizer.ts";
+
+export {
+  recordingAuthorizer,
+  staticAuthorizer,
+  testAuthorizer,
+} from "./authorizer.ts";
 
 export { testDocumentFormat } from "./document-format.ts";
 

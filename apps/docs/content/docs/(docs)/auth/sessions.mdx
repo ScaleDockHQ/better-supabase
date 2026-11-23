@@ -58,7 +58,8 @@ auth-js's retries, and the session cookies stay as they are.
 | `tokens-only`               | the access token and refresh token       | `auth.userStorage` (localStorage in the browser, memory elsewhere) |
 
 `tokens-only` keeps the cookie small, often under one chunk, and is the
-recommended setting for new apps. `ssrSession` reads both shapes, so you can
+recommended setting: `better-supabase init` writes it on both sides, and the
+Next.js and Vite examples use it. `ssrSession` reads both shapes, so you can
 switch at any time; a `tokens-only` session has no `user` field. Set the same
 value on the server (`auth.cookie.encode`) and on the browser client:
 
@@ -87,6 +88,37 @@ on every request: they verify locally without a call to the Auth server. Call
 `supabase.auth.getUser()` only in flows that must see a user who was deleted
 or banned since the token was issued, such as changing a password or deleting
 an account.
+
+### What `tokens-only` saves
+
+Measured on the Next.js example against the local stack: each seeded user signs
+in through `createServerClient`, and the table counts the `Cookie` header the
+browser sends back. `@supabase/ssr` splits a value over 3,180 bytes into chunks.
+The admin's access token carries a permission claim, so its tokens alone take
+two chunks.
+
+| User                | `user-and-tokens`       | `tokens-only`           | Saved       |
+| ------------------- | ----------------------- | ----------------------- | ----------- |
+| `admin@acme.test`   | 6,979 bytes in 3 chunks | 5,609 bytes in 2 chunks | 1,370 bytes |
+| `member@acme.test`  | 3,137 bytes in 1 chunk  | 1,788 bytes in 1 chunk  | 1,349 bytes |
+| `owner@globex.test` | 6,693 bytes in 3 chunks | 5,316 bytes in 2 chunks | 1,377 bytes |
+
+The user object grows with identities and metadata, so an app with OAuth
+identities or large `user_metadata` saves more.
+[BS644](/docs/cli/doctor#bs644) reports an app that still writes it, and with
+`--as <user id>` it measures that user's object.
+
+### Switch an existing app
+
+1. Replace `session.user` reads from `supabase.auth.getSession()` in server code
+   with `bsb.claims()`; BS644 lists the files that call `getSession()`.
+2. Set `cookies: { encode: "tokens-only" }` in `createClient`.
+3. Set `auth: { cookie: { encode: "tokens-only" } }` in the options of every
+   server factory (`createNext`, `createHono`, `createOrpc`, `createEdge`,
+   `createExpo` or `createServer`).
+4. Deploy both sides together. Existing cookies keep working: the next refresh
+   writes them without the user object.
+5. Run `better-supabase doctor`; BS412 and BS644 report nothing.
 
 ## Moving the cookie to another domain or path
 

@@ -69,6 +69,18 @@ function checkSearchSources(where: string, entry: SubjectConfig): void {
   if (from !== undefined) {
     table(`${where}.from.view`, from.view);
     column(`${where}.from.key`, from.key);
+
+    const columns = entry.search?.columns;
+
+    if (columns === undefined || columns.length === 0) {
+      throw new TypeError(
+        `${where}.columns: list the columns of ${entry.table} that ${from.view} reads. The generator cannot see what a view reads, so without the list every update of the row would re-index it.`,
+      );
+    }
+
+    for (const [index, name] of columns.entries()) {
+      column(`${where}.columns[${String(index)}]`, name);
+    }
   }
 
   for (const [index, watched] of (entry.search?.watch ?? []).entries()) {

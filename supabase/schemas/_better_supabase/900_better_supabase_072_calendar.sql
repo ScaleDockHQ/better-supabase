@@ -1,6 +1,6 @@
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:48f53b2f30709b323ea0805a7e52be373493302fa0ff13f992071ea6cf9925d2
+-- @bsb-hash sha256:2bbcee3abae4224d2d2744599f1e35bfedb80dd2d69e0ca815dd4b9619ba6339
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2413,8 +2413,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."calendar_working_hou
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_calendar_event_index"
-  after insert or delete or update of "id", "tenant_id", "title", "description", "location" on "better_supabase"."calendar_events"
+  after insert or delete on "better_supabase"."calendar_events"
   for each row execute function "better_supabase"."search_index_row"('calendar_event', 'id');
+create trigger "bsb_search_calendar_event_index_u"
+  after update of "id", "tenant_id", "title", "description", "location" on "better_supabase"."calendar_events"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."description" is distinct from new."description" or old."location" is distinct from new."location")
+  execute function "better_supabase"."search_index_row"('calendar_event', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.calendar_events deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"calendar_event","event_prefix":"calendar_event"}');

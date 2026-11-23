@@ -54,7 +54,26 @@ type AnyRepository = RepositoryOf<AnyModels, string, unknown>;
 
 const READ = { intent: "read" } as const;
 
-const WRITE = { intent: "write" } as const;
+const WRITE = { intent: "write", enforcement: "rls" } as const;
+
+/**
+ * `rls` only holds when the write runs as the caller: an admin client, or a db
+ * with no actor, skips or may skip RLS, so the check is the only gate.
+ */
+function enforcedFor(
+  context: RequestContext,
+  purpose: AuthorizationPurpose,
+): AuthorizationPurpose {
+  const kind = context.actor?.kind;
+
+  if (purpose.enforcement !== "rls" || kind === "user" || kind === "anon") {
+    return purpose;
+  }
+
+  const { enforcement: _, ...rest } = purpose;
+
+  return rest;
+}
 
 /** The scope's memo as the authorizer runtime, when the context has one. */
 function runtimeOf(context: RequestContext): AuthorizerRuntime | undefined {
@@ -146,7 +165,7 @@ export function defineResource<
       permission,
       resource,
       context,
-      ...purpose,
+      ...enforcedFor(context, purpose),
       ...(runtime ? { runtime } : {}),
     });
   };
@@ -766,6 +785,9 @@ export function defineResource<
         operation: "action",
         intent:
           definition.intent ?? (planned.method === "GET" ? "read" : "write"),
+        ...(definition.enforcement === undefined
+          ? {}
+          : { enforcement: definition.enforcement }),
       },
     );
 

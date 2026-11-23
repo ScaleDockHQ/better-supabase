@@ -38,13 +38,13 @@ select is(
   '[1, "done"]'::jsonb, 'and marks it done');
 select is((better_supabase.process_import_chunk(current_setting('bsb.run')::uuid, 'customer', 1) ->> 'done')::boolean, true, 'processing a done chunk is a no-op');
 
--- A failure leaves the chunk pending: the run is finished, so the batch refuses.
+-- A failure leaves the chunk pending: the run is canceled, so the batch refuses.
 select better_supabase.complete_import_chunk(current_setting('bsb.run')::uuid, 'customer', 0, '{}'::jsonb);
 select better_supabase.store_import_chunk(current_setting('bsb.run')::uuid, 'customer', 2, '[]'::jsonb);
-select better_supabase.finish_import_run(current_setting('bsb.run')::uuid);
+select better_supabase.cancel_import_run(current_setting('bsb.run')::uuid);
 select throws_ok(
   format($$select better_supabase.process_import_chunk(%L::uuid, 'customer', 2)$$, current_setting('bsb.run')),
-  'PT409', null, 'a finished run refuses the chunk');
+  'PT409', null, 'a canceled run refuses the chunk');
 select is((select status from better_supabase.import_chunks where run_id = current_setting('bsb.run')::uuid and chunk = 2), 'pending', 'the failed chunk stays pending');
 
 -- A worker that gives up marks the chunk failed; a queue sees it and stops retrying.

@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:f0e464d6192886ffa26c595171de4e1b569149c45cc03f663764dc9778c4964d
+-- @bsb-hash sha256:1b78564664df078f67320e5670a0b342c80778cfb25f7906b4329d7376aff95f
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1897,11 +1897,19 @@ create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations"
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_asset_index"
-  after insert or delete or update of "id", "tenant_id", "name" on "better_supabase"."assets"
+  after insert or delete on "better_supabase"."assets"
   for each row execute function "better_supabase"."search_index_row"('asset', 'id');
+create trigger "bsb_search_asset_index_u"
+  after update of "id", "tenant_id", "name" on "better_supabase"."assets"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name")
+  execute function "better_supabase"."search_index_row"('asset', 'id');
 create trigger "bsb_search_asset_location_index"
-  after insert or delete or update of "id", "tenant_id", "name" on "better_supabase"."asset_locations"
+  after insert or delete on "better_supabase"."asset_locations"
   for each row execute function "better_supabase"."search_index_row"('asset_location', 'id');
+create trigger "bsb_search_asset_location_index_u"
+  after update of "id", "tenant_id", "name" on "better_supabase"."asset_locations"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name")
+  execute function "better_supabase"."search_index_row"('asset_location', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.assets deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset","event_prefix":"asset"}');

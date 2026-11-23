@@ -4,6 +4,7 @@ import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type {
   AnyAuthorizer,
+  AuthorizationEnforcement,
   AuthorizationPurpose,
   AuthorizationResource,
   RequestMemo,
@@ -55,6 +56,13 @@ export interface AuthorizeOptions<
    * refuses with `code: "APPROVAL_REQUIRED"`.
    */
   readonly permission?: Ref;
+  /**
+   * What the authorizer sees as `context.enforcement`: `rls` when the handler
+   * writes only through the caller's client, `definer` when it calls a
+   * `security definer` function or the admin client. Unset by default, which a
+   * provider treats as `definer`: the library cannot see what a handler calls.
+   */
+  readonly enforcement?: AuthorizationEnforcement;
   /**
    * The resource `permission` is checked against, loaded after the session and
    * tenant checks, e.g. the project row with its owner and team. It gets the
@@ -320,6 +328,9 @@ export async function authorizeCaller<I, C, P, X = ResourceLoaderContext<C, P>>(
         ...scopeFields(scope),
       },
       ...purpose,
+      ...(checks.enforcement === undefined
+        ? {}
+        : { enforcement: checks.enforcement }),
       ...(memo ? { runtime: { memo } } : {}),
     });
 

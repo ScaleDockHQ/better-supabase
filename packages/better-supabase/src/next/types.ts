@@ -19,6 +19,7 @@ import type {
 } from "../blocks/block-method.ts";
 import type { AuthzVersionCache } from "../core/authorizer.ts";
 import type { DbError } from "../core/errors.ts";
+import type { KeptSkip, KeptStore } from "../core/kept-cache.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { FunctionSpec, QuerySpec } from "../core/spec.ts";
@@ -98,6 +99,24 @@ export interface NextOptions extends ServerOptions {
    * which forwards the request id the totals are kept under.
    */
   readonly devRoundTripBudget?: number | false;
+  /** Where `bsb.kept()` keeps its entries. */
+  readonly kept?: NextKeptOptions;
+}
+
+export interface NextKeptOptions {
+  /**
+   * `vercelRuntimeCacheAdapter(getCache)`, `postgresKeptStore(...)` or your
+   * own. Defaults to `memoryKeptStore()`, which each instance has on its own.
+   */
+  readonly store?: KeptStore;
+  /** Called for each fill that was not stored, such as one over 2 MB. */
+  readonly onSkip?: (skip: KeptSkip) => void;
+  /**
+   * Milliseconds a miss waits for the fill another instance holds the lease
+   * for, before it fills itself. Only stores with `lease` coordinate instances.
+   * Default: 250.
+   */
+  readonly wait?: number;
 }
 
 export interface NextDebugOptions {
@@ -512,6 +531,40 @@ export interface BetterNext<
     fn: (key: RemoteCacheKey, ...args: A) => Promise<R>,
     options?: RemoteOptions<C, A>,
   ): (...args: A) => Promise<R>;
+  /**
+   * Keeps a read in a store across requests and deploys. The function runs as
+   * the caller, under RLS; each user (with their tenant and authorization
+   * version) has their own entry. A write to one of `tables` expires it, and a
+   * stale entry is served while one call refreshes it. The value goes through
+   * JSON. Inside `"use cache: private"` the entry's tags and life also apply to
+   * the enclosing entry.
+   *
+   * ```ts
+   * export const openInvoices = bsb.kept(
+   *   (ctx, customerId: string) =>
+   *     ctx.db.invoices.list({ where: { customerId, status: "open" } }),
+   *   { name: "open-invoices", tables: ["invoices"] },
+   * );
+   * ```
+   */
+  kept<A extends readonly unknown[], R>(
+    fn: (ctx: ServerContext<M, F, E, C, P, B, D>, ...args: A) => Promise<R>,
+    options: KeptOptions<Extract<keyof M, string>, A>,
+  ): KeptFunction<A, R>;
+  /**
+   * A fetch that counts each PostgREST, RPC, Storage and Edge Function call in
+   * the current request's debug stats. Pass it to a Supabase client the app
+   * builds itself, whose calls the request stats can't see otherwise. Without
+   * `debug` it returns `fetch` unchanged; outside a request it sends the call
+   * without recording it.
+   *
+   * ```ts
+   * const client = createClient(url, key, {
+   *   global: { fetch: bsb.statsFetch(fetch) },
+   * });
+   * ```
+   */
+  statsFetch(fetch?: typeof globalThis.fetch): typeof globalThis.fetch;
   /**
    * One call for a page's user data: runs the sessions module's
    * `bootstrap_<rpc>` wrapper, which checks `session_active()` and returns the
@@ -1073,6 +1126,8 @@ export interface RemoteCacheKey {
   readonly shared: string | null;
   /** The support session the caller acts in. */
   readonly support: string | null;
+  /** The tables a `share: "tenant"` entry may read. */
+  readonly tables?: readonly string[];
 }
 
 /** The serializable handle of a parked session; see `bsb.sessionHandle()`. */
@@ -1082,13 +1137,75 @@ export interface RemoteOptions<
   C = unknown,
   A extends readonly unknown[] = readonly unknown[],
 > {
-  /** Defaults to `"session"`. */
-  readonly share?: CacheShare<C>;
+  /**
+   * Defaults to `"session"`. `"tenant"` keys the entry on the tenant and the
+   * grant the authorization provider's `shareKey` hook names, when every table
+   * in `tables` is one the provider's `tables` shares per tenant, and the
+   * remote scope's context then reads only `tables`, through the first caller's
+   * own client under RLS. Otherwise it falls back to `"user"`.
+   */
+  readonly share?: CacheShare<C> | "tenant";
+  /** The tables a `share: "tenant"` function reads. */
+  readonly tables?: readonly string[];
   /**
    * The active tenant from the function's arguments, as for `bsb.context({
    * tenant })`.
    */
   readonly tenant?: (...args: A) => string | undefined;
+  /**
+   * Names the function's entry records in request stats. Defaults to the
+   * function's name, which a bundler may rename, then `"remote"`.
+   */
+  readonly name?: string;
+}
+
+export interface KeptOptions<
+  T extends string = string,
+  A extends readonly unknown[] = readonly unknown[],
+> {
+  /**
+   * Names the function in the key and in reports. Required: a bundler may
+   * rename the function, and two functions with one name share entries.
+   */
+  readonly name: string;
+  /** Tables the function reads: a write to one expires the entry. */
+  readonly tables?: readonly T[];
+  /** A read set the function reads: its tables are added to `tables`. */
+  readonly readSet?: ReadSet;
+  /** More tags, or a function of the arguments that returns them. */
+  readonly tags?: readonly string[] | ((...args: A) => readonly string[]);
+  /**
+   * Seconds the entry is fresh (`revalidate`, default 300) and kept, stale,
+   * until a call refreshes it (`expire`, default 86400).
+   */
+  readonly life?: { readonly revalidate?: number; readonly expire?: number };
+  /**
+   * Part of the key. Change it when the function's result changes shape.
+   * Defaults to a hash of the generated schema, so a migration starts new
+   * entries; the build id is never part of the key.
+   */
+  readonly version?: string;
+  /** The active tenant from the arguments, as for `bsb.remote()`. */
+  readonly tenant?: (...args: A) => string | undefined;
+  /**
+   * Who shares an entry. `"user"` (the default) keys it on the user. `"tenant"`
+   * keys it on the tenant and the grant the authorization provider's `shareKey`
+   * hook names, when every table in `tables` is one the provider's `tables`
+   * shares per tenant; the fill then reads only those tables, through the
+   * caller's own client under RLS. Without the hook, a tenant or a sharable
+   * table, the entry stays per user.
+   */
+  readonly share?: "user" | "tenant";
+}
+
+/** What `bsb.kept()` returns. */
+export interface KeptFunction<A extends readonly unknown[], R> {
+  (...args: A): Promise<R>;
+  /**
+   * The same function for a session handle or the key `bsb.remote()` passed,
+   * for a call inside a cache scope that can't read the request.
+   */
+  as(source: SessionHandle): (...args: A) => Promise<R>;
 }
 
 interface CachedEntryOptions<T extends string = string> {

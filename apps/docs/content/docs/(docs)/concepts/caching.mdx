@@ -115,6 +115,110 @@ tags automatically (`cacheTags: false` turns it off).
 [read set](/docs/repository/read-sets), and tags the union of the tables
 they read.
 
+## Keep reads across requests and deploys
+
+`bsb.kept(fn, options)` keeps a read in a store that outlives one render and
+one deploy. The function runs with the caller's own context, under RLS: no
+admin client is reachable from it, and each user (with their tenant and
+authorization version) gets their own entry. A write through `db` to one of
+`tables` expires the entry on every instance.
+
+```ts
+export const openInvoices = bsb.kept(
+  (ctx, customerId: string) =>
+    ctx.db.invoices.list({ where: { customerId, status: "open" } }),
+  { name: "open-invoices", tables: ["invoices"], life: { revalidate: 60 } },
+);
+
+const invoices = await openInvoices(customerId);
+```
+
+| Option              | Default                        | What it does                                                                                                                      |
+| ------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `name`              | required                       | Part of the key and the name in reports.                                                                                          |
+| `tables`, `readSet` | none                           | A write to one of these tables expires the entry.                                                                                 |
+| `tags`              | none                           | More tags, or a function of the arguments that returns them.                                                                      |
+| `life.revalidate`   | 300                            | Seconds the entry is fresh. After that a call serves it once more and refreshes it in the background.                             |
+| `life.expire`       | 86400                          | Seconds the store keeps the entry.                                                                                                |
+| `version`           | a hash of the generated schema | Part of the key. Change it when the result changes shape; a migration changes the default. The build id is never part of the key. |
+| `tenant`            | the request's                  | The active tenant from the arguments.                                                                                             |
+| `share`             | `"user"`                       | `"tenant"` keeps one entry for every caller with the same grant in the tenant; see below.                                         |
+
+The value goes through JSON, so a `Date` comes back as a string on a miss and
+on a hit alike. A support session and a token that fails to verify read
+through without the store, and so does a failed `Result`.
+
+Pick the store in `createNext`:
+
+```ts
+import { vercelRuntimeCacheAdapter } from "better-supabase/server";
+import { getCache } from "@vercel/functions";
+
+export const bsb = createNext(betterSupabase, {
+  kept: { store: vercelRuntimeCacheAdapter(getCache) },
+});
+```
+
+| Store                                 | From                                  | Shared between instances                                  |
+| ------------------------------------- | ------------------------------------- | --------------------------------------------------------- |
+| `memoryKeptStore()`                   | `better-supabase/server`, the default | No                                                        |
+| `vercelRuntimeCacheAdapter(getCache)` | `better-supabase/server`              | Yes, per region                                           |
+| `postgresKeptStore({ client })`       | `better-supabase/cache-postgres`      | Yes, in the [cache tables](/docs/concepts/cache-postgres) |
+
+Concurrent misses for one key run one fill per instance; the other calls
+wait for it. Across instances a store with a lease coordinates them: one
+instance fills and the others wait up to `kept.wait` milliseconds (250 by
+default) for its entry, then fill themselves. A stale entry is refreshed by
+the instance that takes the lease, while every instance serves the stale
+value. `postgresKeptStore` takes the lease in one statement, so exactly one
+instance wins. The Runtime Cache has no set-if-absent, so its lease is a lock
+entry that two instances reading at the same moment can both take: it narrows
+a stampede and does not prevent one.
+
+An entry over 2 MB, with more than 128 tags or a tag over 256 bytes is not
+stored: the call still returns the value and `kept.onSkip` gets the reason. A
+store that fails never fails the call; it reads through and logs a warning.
+
+Inside `"use cache: private"` the entry's tags and life also apply to the
+enclosing entry, so a write expires both. In a scope that can't read the
+request, pass the handle from `bsb.sessionHandle()`:
+`openInvoices.as(session)(customerId)`.
+
+### Share an entry per tenant
+
+With `share: "tenant"`, callers who hold the same permissions in a tenant read
+one entry instead of one each. The entry is still filled through the first
+caller's own client, under RLS; nothing reads with the service role. Three
+things must agree before an entry is shared:
+
+- the authorization provider lists every table in `tables` under its
+  `tables` field with `share: "tenant"`, and the permissions its select
+  policies check (doctor BS428 reports a table whose policies filter by the
+  caller);
+- the authorization hooks set `shareKey`, which names the caller's grant on
+  those permissions. `permissionsShareKey()` from
+  `better-supabase/blocks/permissions` reads it from the token's permissions
+  claim and answers `null` for a truncated claim or a stale authorization
+  version;
+- the function reads only `tables`. Inside a shared fill, a read of another
+  table, a function call, `ctx.supabase`, `ctx.storage` or a `db.$` escape
+  hatch answers a `forbidden` `DbError` with code `SHARE_REFUSED`, and the
+  value is returned but not stored.
+
+```ts
+export const customerList = bsb.kept(
+  (ctx) => ctx.db.customers.list({ select: ["id", "name"] }),
+  { name: "customer-list", tables: ["customers"], share: "tenant" },
+);
+```
+
+When any of the three doesn't hold, the entry falls back to one per user,
+`kept.onSkip` gets the reason `"share"`, and the logger warns once.
+`bsb.remote()` takes the same `share: "tenant"` with its `tables`.
+`expectTenantShare` from `better-supabase/testing` checks a provider's hooks:
+two holders get one key and read the same rows, and a caller without the
+grant gets another key.
+
 ## Query specs
 
 A `QuerySpec` is a read described as plain JSON:

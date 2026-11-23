@@ -193,6 +193,34 @@ describe("checkTool", () => {
     );
   });
 
+  it("passes the tool's enforcement", async () => {
+    const evaluate = vi.fn(() => ({ outcome: "granted" }) as const);
+
+    const authorizer = defineAuthorizer({
+      name: "test",
+      key: String,
+      evaluate,
+    });
+
+    await checkTool(
+      authorizer,
+      { info: { name: "send" }, permission: "send", enforcement: "definer" },
+      {},
+      {},
+    );
+
+    expect(evaluate).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        context: {
+          scopes: [],
+          intent: "write",
+          operation: "tool",
+          enforcement: "definer",
+        },
+      }),
+    );
+  });
+
   it("reads a tool with readOnlyHint as a read", async () => {
     const evaluate = vi.fn(() => ({ outcome: "granted" }) as const);
 

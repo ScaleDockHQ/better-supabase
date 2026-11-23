@@ -1,4 +1,5 @@
 import { sqlIdent } from "../core/template.ts";
+import { postgresCacheNames } from "./names.ts";
 
 export interface PostgresCacheSqlOptions {
   /** Default: `public`. */
@@ -7,6 +8,14 @@ export interface PostgresCacheSqlOptions {
   readonly entriesTable?: string;
   /** Default: `bsb_cache_tags`. */
   readonly tagsTable?: string;
+  /** Default: `bsb_cache_leases`. */
+  readonly leasesTable?: string;
+  /**
+   * Prefix of the functions: `<prefix>_get`, `<prefix>_mark_tags` and
+   * `<prefix>_lease`. Change it when one schema holds two sets of cache tables.
+   * Default: `bsb_cache`.
+   */
+  readonly functionPrefix?: string;
   /**
    * Also schedule `pg_cron` to delete entries past their hard limit every hour.
    * Default: false.
@@ -14,25 +23,39 @@ export interface PostgresCacheSqlOptions {
   readonly prune?: boolean;
 }
 
+const NOW_MS = "(extract(epoch from clock_timestamp()) * 1000)::bigint";
+
 /**
- * The SQL for the tables `postgresCacheStore` uses. Both tables enable row
- * level security with no policy and revoke every grant from `anon` and
- * `authenticated`, so only the service role reads or writes them. Put it in a
- * migration of your app.
+ * The SQL for the tables and functions `postgresCacheStore` uses. Both tables
+ * enable row level security with no policy, revoke every grant from `anon` and
+ * `authenticated` and grant the service role, so only the service role reads or
+ * writes them. Put it in a migration of your app; running it again on tables an
+ * earlier release created adds what is new.
  */
 export function postgresCacheSql(
   options: PostgresCacheSqlOptions = {},
 ): string {
-  const schema = sqlIdent(options.schema ?? "public");
-  const entries = `${schema}.${sqlIdent(options.entriesTable ?? "bsb_cache_entries")}`;
-  const tags = `${schema}.${sqlIdent(options.tagsTable ?? "bsb_cache_tags")}`;
+  const names = postgresCacheNames(options);
+  const schema = sqlIdent(names.schema);
+  const entries = `${schema}.${sqlIdent(names.entriesTable)}`;
+  const tags = `${schema}.${sqlIdent(names.tagsTable)}`;
+  const getFn = `${schema}.${sqlIdent(names.getFunction)}`;
+  const markFn = `${schema}.${sqlIdent(names.markTagsFunction)}`;
+  const leases = `${schema}.${sqlIdent(names.leasesTable)}`;
+  const leaseFn = `${schema}.${sqlIdent(names.leaseFunction)}`;
 
   const pruneJob = options.prune
     ? `
 select cron.schedule(
   'bsb-cache-prune',
   '0 * * * *',
-  $$delete from ${entries} where expires_at < (extract(epoch from now()) * 1000)::bigint$$
+  $$delete from ${entries} where expires_at < ${NOW_MS}$$
+);
+
+select cron.schedule(
+  'bsb-cache-prune-leases',
+  '0 * * * *',
+  $$delete from ${leases} where until < ${NOW_MS}$$
 );
 `
     : "";
@@ -53,13 +76,141 @@ create index if not exists ${sqlIdent("bsb_cache_entries_path_idx")} on ${entrie
 create table if not exists ${tags} (
   tag text primary key,
   stale_at bigint not null default 0,
-  expired_at bigint not null default 0
+  expired_at bigint not null default 0,
+  expire_after bigint not null default 0
+);
+
+-- A delayed expiry has its own column, so an immediate one never replaces it.
+alter table ${tags} add column if not exists expire_after bigint not null default 0;
+
+-- Who fills a missing entry: one holder per key, until its lease runs out.
+create table if not exists ${leases} (
+  key text primary key,
+  holder text not null,
+  until bigint not null
 );
 
 alter table ${entries} enable row level security;
 alter table ${tags} enable row level security;
+alter table ${leases} enable row level security;
 
 revoke all on ${entries} from anon, authenticated;
 revoke all on ${tags} from anon, authenticated;
+revoke all on ${leases} from anon, authenticated;
+grant select, insert, update, delete on ${entries} to service_role;
+grant select, insert, update, delete on ${tags} to service_role;
+grant select, insert, update, delete on ${leases} to service_role;
+
+-- One round trip per read: the entry, unless a tag of it or of the request
+-- expired after it was stored, and whether one went stale.
+create or replace function ${getFn}(
+  p_key text,
+  p_soft_tags text[] default '{}',
+  p_now bigint default null
+)
+returns table (
+  key text,
+  value text,
+  tags text[],
+  stored_at bigint,
+  expires_at bigint,
+  path text,
+  meta jsonb,
+  stale boolean
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $fn$
+  with clock as (
+    select coalesce(p_now, ${NOW_MS}) as now
+  ),
+  entry as (
+    select e.key, e.value, e.tags, e.stored_at, e.expires_at, e.path, e.meta
+    from ${entries} as e, clock
+    where e.key = p_key and e.expires_at > clock.now
+  ),
+  states as (
+    select t.stale_at, t.expired_at, t.expire_after
+    from ${tags} as t, entry
+    where t.tag = any(entry.tags || coalesce(p_soft_tags, '{}'))
+  )
+  select
+    entry.key, entry.value, entry.tags, entry.stored_at, entry.expires_at,
+    entry.path, entry.meta,
+    exists (select 1 from states where states.stale_at > entry.stored_at)
+  from entry, clock
+  where not exists (
+    select 1 from states
+    where (states.expired_at > entry.stored_at and states.expired_at <= clock.now)
+       or (states.expire_after > entry.stored_at and states.expire_after <= clock.now)
+  )
+$fn$;
+
+-- One statement per call. Each column only moves forward (greatest), so
+-- concurrent calls never undo each other. Rows are written in tag order, so two
+-- calls over the same tags never deadlock.
+create or replace function ${markFn}(
+  p_tags text[],
+  p_mode text default 'expire',
+  p_expire_seconds bigint default 0,
+  p_now bigint default null
+)
+returns void
+language sql
+volatile
+security invoker
+set search_path = ''
+as $fn$
+  insert into ${tags} as t (tag, stale_at, expired_at, expire_after)
+  select distinct
+    u.tag,
+    clock.now,
+    case when p_mode = 'expire' then clock.now else 0 end,
+    case when p_mode = 'delay' then clock.now + p_expire_seconds * 1000 else 0 end
+  from unnest(p_tags) as u (tag),
+    (select coalesce(p_now, ${NOW_MS}) as now) as clock
+  order by 1
+  on conflict (tag) do update set
+    stale_at = greatest(t.stale_at, excluded.stale_at),
+    expired_at = greatest(t.expired_at, excluded.expired_at),
+    expire_after = greatest(t.expire_after, excluded.expire_after)
+$fn$;
+
+-- True when p_holder now holds the lease on p_key: nobody held it, the last
+-- lease ran out, or p_holder held it already. One statement, so two callers
+-- never both win.
+create or replace function ${leaseFn}(
+  p_key text,
+  p_holder text,
+  p_ttl_ms bigint,
+  p_now bigint default null
+)
+returns boolean
+language sql
+volatile
+security invoker
+set search_path = ''
+as $fn$
+  with clock as (
+    select coalesce(p_now, ${NOW_MS}) as now
+  ),
+  taken as (
+    insert into ${leases} as l (key, holder, until)
+    select p_key, p_holder, clock.now + p_ttl_ms from clock
+    on conflict (key) do update set holder = excluded.holder, until = excluded.until
+    where l.until <= excluded.until - p_ttl_ms or l.holder = excluded.holder
+    returning 1
+  )
+  select exists (select 1 from taken)
+$fn$;
+
+revoke all on function ${getFn}(text, text[], bigint) from public, anon, authenticated;
+revoke all on function ${markFn}(text[], text, bigint, bigint) from public, anon, authenticated;
+grant execute on function ${getFn}(text, text[], bigint) to service_role;
+grant execute on function ${markFn}(text[], text, bigint, bigint) to service_role;
+revoke all on function ${leaseFn}(text, text, bigint, bigint) from public, anon, authenticated;
+grant execute on function ${leaseFn}(text, text, bigint, bigint) to service_role;
 ${pruneJob}`;
 }

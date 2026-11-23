@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, SERVICE_CALLER, serviceGrant, userGrant } from "../shared.ts";
+import { openItemsEnabled } from "./invoices-open-items.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const EVENT_MODES: ReadonlySet<string> = new Set(["skip", "tag", "emit"]);
@@ -73,6 +74,12 @@ export function importIntegritySql(ctx: BlockSqlContext): string {
       `select 'negative_invoice', 'warning', count(*)::integer, coalesce(jsonb_agg(${i("id")}::text), '[]'::jsonb) from ${table} where ${i("tenant")} = import_integrity.tenant and ${i("total")} < 0 and ${i("kind")}::text is distinct from 'credit_note'`,
       `select 'issued_without_number', 'warning', count(*)::integer, coalesce(jsonb_agg(${i("id")}::text), '[]'::jsonb) from ${table} where ${i("tenant")} = import_integrity.tenant and ${i("status")}::text in ('issued', 'partially_paid', 'paid') and nullif(${i("identifier")}::text, '') is null`,
     );
+
+    if (invoices.hasTable("openItems") && openItemsEnabled(invoices)) {
+      checks.push(`select 'open_items_drift', 'error', jsonb_array_length(d.rows)::integer, (
+        select coalesce(jsonb_agg(r ->> 'documentId'), '[]'::jsonb) from jsonb_array_elements(d.rows) r
+      ) from (select ${invoices.fn("open_items_drift_rows")}(import_integrity.tenant) as rows) d`);
+    }
   }
 
   if (ctx.installed("contacts")) {

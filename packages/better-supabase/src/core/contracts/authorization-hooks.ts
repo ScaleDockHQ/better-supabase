@@ -1,4 +1,10 @@
 import type { AuthState } from "../../auth/resolve.ts";
+import type {
+  AnyAuthorizer,
+  AuthorizationContext,
+  AuthorizationSubject,
+  AuthorizerRuntime,
+} from "../authorizer.ts";
 import type { RequestContext } from "../plugin.ts";
 
 /**
@@ -244,7 +250,29 @@ export interface AuthorizationHooks {
    * and `refreshSessionCache` clear them with the session tags.
    */
   readonly sessionTags?: (userId: string) => readonly string[];
+  /**
+   * The part of a `share: "tenant"` cache key that names the caller's grant.
+   * Every caller the hook returns the same string for, in one tenant, reads one
+   * shared entry, so it must answer the same only for callers who hold the same
+   * of `permissions` there. `permissions` is the sorted union of the provider's
+   * `tables` keys for every table the entry reads, and `authorizer` the
+   * request's bound authorizer. `null` (or a throw) keeps the entry per user,
+   * as for a caller whose permission claim is truncated or stale. The entry is
+   * still filled through the caller's own client under RLS.
+   */
+  readonly shareKey?: ShareKeyHook;
 }
+
+/** `AuthorizationHooks.shareKey`. */
+export type ShareKeyHook = (
+  authorizer: AnyAuthorizer | undefined,
+  permissions: readonly string[],
+  request: {
+    readonly subject: AuthorizationSubject;
+    readonly context: AuthorizationContext;
+    readonly runtime?: AuthorizerRuntime;
+  },
+) => string | null | Promise<string | null>;
 
 /** Types `hooks` and freezes it; better-supabase never mutates a provider. */
 export function defineAuthorizationHooks<const H extends AuthorizationHooks>(

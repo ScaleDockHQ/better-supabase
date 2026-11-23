@@ -25,6 +25,7 @@ import { chainSql, partitionedOn } from "./audit-chain.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import { castId, entrySql, tenantFallbackSql } from "./audit-entry.ts";
 import {
+  AUDIT_CONTRACT,
   EVENT_ARGS,
   EVENT_KEYS,
   PREVIOUS_EVENT_ARGS,
@@ -43,7 +44,12 @@ import {
   requestHeader,
   requestIdSql,
 } from "./audit-request.ts";
-import { retention } from "./audit-retention.ts";
+import {
+  retention,
+  retentionDependencies,
+  retentionHousekeeping,
+  retentionJob,
+} from "./audit-retention.ts";
 import { revert } from "./audit-revert.ts";
 import { RECORD_KEY, rowPairs } from "./audit-row.ts";
 import { once, statementFunction } from "./audit-statement.ts";
@@ -90,6 +96,7 @@ const NAMES: BlockSqlNames = {
     "readPolicy",
     "requestIdHeader",
     "restricted",
+    "retention",
     "staffClaim",
     "subjectColumns",
     "tenantColumn",
@@ -1014,6 +1021,7 @@ function auditSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     convertSql(ctx),
     readPolicy(ctx),
     retention(ctx),
+    retentionJob(ctx),
     listEntries(ctx, restricted, metadataColumns(ctx)),
     reveal(ctx, restricted),
     revert(ctx, restricted),
@@ -1028,44 +1036,25 @@ export const AUDIT: BlockSqlDefinition = {
   description:
     "Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.",
   requires: [],
-  integrates: ["permissions", "organizations", "data-lifecycle"],
-  dependencies: (layout) =>
-    layout.modules?.["audit"]?.options?.["readPolicy"] === true
+  integrates: [
+    "permissions",
+    "organizations",
+    "data-lifecycle",
+    "housekeeping",
+  ],
+  dependencies: (layout) => [
+    ...(layout.modules?.["audit"]?.options?.["readPolicy"] === true
       ? ["permissions"]
-      : [],
+      : []),
+    ...retentionDependencies(layout),
+  ],
   target: "schema",
   modes: ["managed"],
-  version: 15,
+  version: 16,
   names: NAMES,
-  contract: () => [
-    {
-      name: "audit",
-      args: [
-        "regclass",
-        "text[]",
-        "boolean",
-        "text[]",
-        "text",
-        "text",
-        "text",
-        "text",
-        "text",
-      ],
-      returns: "void",
-    },
-    {
-      name: "audit_event",
-      args: EVENT_ARGS("{id}").split(", "),
-      returns: "text",
-    },
-    { name: "audit_event_many", args: ["jsonb"], returns: "jsonb" },
-    {
-      name: "purge_audit_log",
-      args: ["interval", "integer", "{id}", "boolean"],
-      returns: "integer",
-    },
-  ],
+  contract: () => AUDIT_CONTRACT,
   upgrades: AUDIT_UPGRADES,
+  contributes: { housekeeping: retentionHousekeeping },
   deprecated: [
     {
       kind: "table",

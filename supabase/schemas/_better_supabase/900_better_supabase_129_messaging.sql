@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@2 managed
--- @bsb-hash sha256:028dc9b549db0143be1275c66ed94d3ce4994dcd66779966afbf02aa6425cede
+-- @bsb-hash sha256:e8d43136a62339634bcb10216e8c4f8ad7640feb5a8b175162285d647bab1317
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2404,11 +2404,19 @@ create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_message_index"
-  after insert or delete or update of "id", "tenant_id", "body", "archived_at" on "better_supabase"."messages"
+  after insert or delete on "better_supabase"."messages"
   for each row execute function "better_supabase"."search_index_row"('message', 'id');
+create trigger "bsb_search_message_index_u"
+  after update of "id", "tenant_id", "body", "archived_at" on "better_supabase"."messages"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."body" is distinct from new."body" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('message', 'id');
 create trigger "bsb_search_conversation_index"
-  after insert or delete or update of "id", "tenant_id", "title", "archived_at" on "better_supabase"."conversations"
+  after insert or delete on "better_supabase"."conversations"
   for each row execute function "better_supabase"."search_index_row"('conversation', 'id');
+create trigger "bsb_search_conversation_index_u"
+  after update of "id", "tenant_id", "title", "archived_at" on "better_supabase"."conversations"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('conversation', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.messages deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"message","event_prefix":"message"}');

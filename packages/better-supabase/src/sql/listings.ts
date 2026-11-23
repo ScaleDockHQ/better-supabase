@@ -1,4 +1,4 @@
-import type { ResolvedConfig } from "../config/index.ts";
+import type { InventoryFunction, ResolvedConfig } from "../config/index.ts";
 import type { AccessPolicy } from "./tag-statements.ts";
 
 import { parseBsbComment } from "./bsb-tags.ts";
@@ -212,4 +212,76 @@ export function listAccessPolicies(
         : [],
     ),
   );
+}
+
+/** Who calls a function, in the order `listFunctions` checks. */
+export type FunctionCaller =
+  | "policy"
+  | "trigger"
+  | "app RPC"
+  | "service only"
+  | "unreferenced";
+
+/** One function of the read schemas and its caller class. */
+export interface FunctionListing {
+  readonly schema: string;
+  readonly name: string;
+  readonly signature: string;
+  readonly caller: FunctionCaller;
+}
+
+/** The caller classes, in the order the listing prints them. */
+export const FUNCTION_CALLERS: readonly FunctionCaller[] = [
+  "policy",
+  "trigger",
+  "app RPC",
+  "service only",
+  "unreferenced",
+];
+
+/**
+ * Gives each function one caller class: a policy calls it, a trigger runs it,
+ * `anon` or `authenticated` may execute it (app RPC), only `service_role` may
+ * (service only), or none of these. A function only other functions call shows
+ * as service only or unreferenced; nothing is dropped.
+ */
+export function listFunctions(
+  inventory: readonly InventoryFunction[],
+): FunctionListing[] {
+  return inventory.map((fn) => ({
+    schema: fn.schema,
+    name: fn.name,
+    signature: fn.signature,
+    caller: fn.policy
+      ? "policy"
+      : fn.trigger
+        ? "trigger"
+        : fn.execute.includes("anon") || fn.execute.includes("authenticated")
+          ? "app RPC"
+          : fn.execute.includes("service_role")
+            ? "service only"
+            : "unreferenced",
+  }));
+}
+
+/** How many functions of each caller class each schema has. */
+export function functionCounts(
+  listing: readonly FunctionListing[],
+): Record<string, Record<FunctionCaller, number>> {
+  const counts: Record<string, Record<FunctionCaller, number>> = {};
+
+  for (const fn of listing) {
+    const row = counts[fn.schema] ?? {
+      policy: 0,
+      trigger: 0,
+      "app RPC": 0,
+      "service only": 0,
+      unreferenced: 0,
+    };
+
+    row[fn.caller] += 1;
+    counts[fn.schema] = row;
+  }
+
+  return counts;
 }

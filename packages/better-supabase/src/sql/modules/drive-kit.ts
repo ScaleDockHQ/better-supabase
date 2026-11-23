@@ -222,6 +222,11 @@ export interface DriveKit {
   readonly pathMode: boolean;
   readonly ranked: boolean;
   readonly binColumn: boolean;
+  /**
+   * False with `options.grants: "roles"`: no grants table, the role function
+   * decides.
+   */
+  readonly grantRows: boolean;
   readonly typed: boolean;
   readonly teamColumn: boolean;
   readonly expiring: boolean;
@@ -359,7 +364,7 @@ export interface DriveKit {
  */
 export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
   const T = ctx.table("nodes");
-  const G = ctx.table("grants");
+  const G = ctx.hasTable("grants") ? ctx.table("grants") : "";
   const n = (column: string): string => ctx.col("nodes", column);
   const g = (column: string): string => ctx.col("grants", column);
   const fn = (name: string): string => ctx.fn(name);
@@ -384,16 +389,30 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
   const pathMode = has("path");
   const ranked = has("rank");
   const binColumn = has("deletedAt");
-  const typed = ctx.has("grants", "principalType");
+  const grantMode = ctx.option("grants") ?? "table";
 
-  if (!typed && !ctx.has("grants", "user")) {
+  if (grantMode !== "table" && grantMode !== "roles") {
+    throw new TypeError('blocks.drive.options.grants is "table" or "roles"');
+  }
+
+  const grantRows = ctx.hasTable("grants");
+
+  if (!grantRows && grantMode !== "roles") {
+    throw new TypeError(
+      'blocks.drive.tables.grants: null needs blocks.drive.options.grants "roles"',
+    );
+  }
+
+  const typed = grantRows && ctx.has("grants", "principalType");
+
+  if (grantRows && !typed && !ctx.has("grants", "user")) {
     throw new TypeError(
       "blocks.drive.columns.grants needs principalType and principalId, or user (and team)",
     );
   }
 
-  const teamColumn = !typed && ctx.has("grants", "team");
-  const expiring = ctx.has("grants", "expiresAt");
+  const teamColumn = grantRows && !typed && ctx.has("grants", "team");
+  const expiring = grantRows && ctx.has("grants", "expiresAt");
 
   const drives = ctx.flag("drives", false);
   // A managed node table only grows the drive column with drives on. An
@@ -453,6 +472,18 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
   if (roleFunctions.drive !== undefined && !drives) {
     throw new TypeError(
       "blocks.drive.options.roleFunctions.drive needs blocks.drive.options.drives",
+    );
+  }
+
+  if (!grantRows && roleFunctions.node === undefined) {
+    throw new TypeError(
+      'blocks.drive.options.grants "roles" needs blocks.drive.options.roleFunctions.node, which decides every role on a node',
+    );
+  }
+
+  if (!grantRows && roles.upload !== undefined) {
+    throw new TypeError(
+      'blocks.drive.options.uploadRole needs the grants table; with options.grants "roles" the role function decides who may upload',
     );
   }
 
@@ -838,13 +869,15 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
   ];
 
   const directGrant = (node: string, role: string, uid: string): string =>
-    typed
-      ? `insert into ${G} (${g("tenant")}, ${g("node")}, ${g("principalType")}, ${g("principalId")}, ${g("role")})
+    grantRows
+      ? typed
+        ? `insert into ${G} (${g("tenant")}, ${g("node")}, ${g("principalType")}, ${g("principalId")}, ${g("role")})
     values (${node}.${n("tenant")}, ${node}.${n("id")}, 'user', ${uid}::text, ${ctx.cast("grants", "role", role)})
     on conflict (${g("node")}, ${g("principalType")}, ${g("principalId")}) do update set ${g("role")} = excluded.${g("role")}${ctx.has("grants", "accessRequest") ? `, ${g("accessRequest")} = false` : ""};`
-      : `delete from ${G} dg where dg.${g("node")} = ${node}.${n("id")} and dg.${g("user")} = ${uid};
+        : `delete from ${G} dg where dg.${g("node")} = ${node}.${n("id")} and dg.${g("user")} = ${uid};
     insert into ${G} (${g("tenant")}, ${g("node")}, ${g("user")}, ${g("role")})
-    values (${node}.${n("tenant")}, ${node}.${n("id")}, ${uid}, ${ctx.cast("grants", "role", role)});`;
+    values (${node}.${n("tenant")}, ${node}.${n("id")}, ${uid}, ${ctx.cast("grants", "role", role)});`
+      : "";
 
   const siblings = (
     alias: string,
@@ -879,6 +912,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     pathMode,
     ranked,
     binColumn,
+    grantRows,
     typed,
     teamColumn,
     expiring,

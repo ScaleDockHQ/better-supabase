@@ -40,10 +40,19 @@ const config = createNextConfig({
 });
 
 /**
- * The e2e test runs two `next start` instances over one directory, so the
- * second reads the first one's `"use cache: remote"` entries.
+ * The e2e test runs two `next start` instances over one directory, or over the
+ * Postgres cache tables with `BSB_REMOTE_CACHE_STORE=postgres`, so the second
+ * reads the first one's `"use cache: remote"` entries.
  */
 function remoteCache(): Pick<NextConfigOverrides, "remoteCacheHandler"> {
+  if (process.env["BSB_REMOTE_CACHE_STORE"] === "postgres") {
+    return {
+      remoteCacheHandler: fileURLToPath(
+        new URL("cache-handlers/postgres-remote.ts", import.meta.url),
+      ),
+    };
+  }
+
   if (!process.env["BSB_REMOTE_CACHE_DIR"]) {
     return {};
   }

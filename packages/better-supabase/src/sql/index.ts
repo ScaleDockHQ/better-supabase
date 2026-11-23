@@ -57,6 +57,7 @@ export { seedDefaultsFunctions } from "./seed-functions.ts";
 export type { SeedDefaultsFunction } from "./seed-functions.ts";
 
 export {
+  blockFunction,
   blockTables,
   type BlockTable,
   type BlockTables,
@@ -296,13 +297,21 @@ export type {
 
 export { accessPolicies } from "./tag-statements.ts";
 
-export { listAccessPolicies, listActions } from "./listings.ts";
+export {
+  FUNCTION_CALLERS,
+  functionCounts,
+  listAccessPolicies,
+  listActions,
+  listFunctions,
+} from "./listings.ts";
 
 export type {
   AccessPolicyListing,
   ActionKeySource,
   ActionKind,
   ActionListing,
+  FunctionCaller,
+  FunctionListing,
   TaggedComment,
 } from "./listings.ts";
 

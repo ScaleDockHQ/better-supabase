@@ -1,5 +1,5 @@
 -- better-supabase module: audit
--- @bsb-block audit@15 managed
+-- @bsb-block audit@16 managed
 -- @bsb-hash sha256:a45ca1551d10900ffba5e464a5c8b1767472c73b90e91a65e7c47f062c6d7d47
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.

@@ -19,7 +19,7 @@ export interface Exemption {
  * class: "no-tenant-column", reason }` for the tables that have no tenant
  * column to audit by.
  */
-function exemptions(value: unknown): Exemption[] {
+export function exemptions(value: unknown): Exemption[] {
   const entries: unknown[] = Array.isArray(value) ? value : [];
 
   return entries.flatMap((entry): Exemption[] => {

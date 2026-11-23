@@ -437,14 +437,17 @@ const SCALE_CHECKS: readonly Rule[] = [
     severity: "info",
     title: "The audit log has no scheduled purge",
     description:
-      "`better_supabase.audit_events` grows with every audited write, and nothing deletes rows until something calls `better_supabase.purge_audit_log()`. Schedule it nightly with pg_cron (`select cron.schedule('purge-audit', '30 3 * * *', 'select better_supabase.purge_audit_log()')`) or from the jobs drain route. Doctor accepts a mention of `purge_audit_log` or `purgeAuditLog` in the schema files, the seeds, the app sources or a pg_cron job, and skips the rule when the project has no audit table.",
+      "`better_supabase.audit_events` grows with every audited write, and nothing deletes rows until something calls `better_supabase.purge_audit_log()`. Schedule it nightly with pg_cron (`select cron.schedule('purge-audit', '30 3 * * *', 'select better_supabase.purge_audit_log()')`) or from the jobs drain route. With `blocks.audit.options.retention` set, the `audit_retention` job of `maintenance()` purges it and the rule stops. Doctor also accepts a mention of `purge_audit_log` or `purgeAuditLog` in the schema files, the seeds, the app sources or a pg_cron job, and skips the rule when the project has no audit table.",
     async check(context) {
       const hasLog = catalogOf(context).tables.some(
         (table) =>
           table.schema === "better_supabase" && table.name === "audit_events",
       );
 
-      if (!hasLog) {
+      if (
+        !hasLog ||
+        context.config.blocks["audit"]?.options?.["retention"] !== undefined
+      ) {
         return [];
       }
 
@@ -499,7 +502,7 @@ const SCALE_CHECKS: readonly Rule[] = [
       return [
         {
           message:
-            "better_supabase.audit_events has no scheduled purge, so the audit log only grows. Schedule `select better_supabase.purge_audit_log()` nightly with pg_cron or the jobs drain route.",
+            "better_supabase.audit_events has no scheduled purge, so the audit log only grows. Set blocks.audit.options.retention ({ keep: '1 year' }) so maintenance() purges it, or schedule `select better_supabase.purge_audit_log()` nightly with pg_cron or the jobs drain route.",
           target: "better_supabase.audit_events",
         },
       ];

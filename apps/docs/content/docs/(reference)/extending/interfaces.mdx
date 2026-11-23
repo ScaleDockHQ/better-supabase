@@ -144,6 +144,33 @@ returned from the mutation.
 tags, and `cacheRoute` calls any adapter when a write comes from outside the process.
 See [Cache invalidation outside the process](/docs/vercel/cache).
 
+## KeptStore
+
+Where [`bsb.kept()`](/docs/concepts/caching#keep-reads-across-requests-and-deploys)
+keeps entries across requests and deploys. Pass it as
+`createNext({ kept: { store } })`. A store has `get(key)`,
+`set(key, value, { ttl, tags })` and `expireTags(tags)`, which receives `bsb:`
+tags before any encoding. `delete(key)` is optional; without it an entry expires.
+`lease(key, holder, ttlMs)` and `release(key, holder)` are optional too: with them
+one instance fills a missing entry while the others wait up to `wait` milliseconds
+for it, and without them every instance fills.
+
+```ts
+import type { KeptStore } from "better-supabase/server";
+
+const store: KeptStore = {
+  get: (key) => redisGetJson(key),
+  set: (key, value, { ttl, tags }) => redisSetWithTags(key, value, ttl, tags),
+  expireTags: (tags) => redisExpireTags(tags),
+};
+```
+
+`get` may return anything; a value that is not the envelope `set` received is a
+miss. `memoryKeptStore()` (`better-supabase/server`), `vercelRuntimeCacheAdapter(getCache)`
+and `postgresKeptStore()` (`better-supabase/cache-postgres`) are the shipped
+stores. Every store gets the Runtime Cache limits (2 MB per entry, 128 tags, 256
+bytes per tag); an entry over them is not stored and is reported to `kept.onSkip`.
+
 ## EventSink
 
 Receives CloudEvents batches. See [CloudEvents](/docs/standards/events) for

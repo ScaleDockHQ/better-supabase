@@ -17,6 +17,25 @@ export interface DbStats {
   readonly verifications: number;
   /** Calls made with the service role while serving a user request. */
   readonly adminCalls: number;
+  /**
+   * Cache tag calls the request made: one per `updateTag` or `revalidateTag`,
+   * one per batch a store expires.
+   */
+  readonly tagCalls?: number;
+  /** One record per `bsb.kept` and `bsb.remote` call the request made. */
+  readonly entries?: readonly CacheEntryStat[];
+}
+
+/**
+ * How one cached call was served. `wait` waited for a fill another call or
+ * instance ran; `fillMs` is the time the fill took on a miss.
+ */
+export interface CacheEntryStat {
+  /** The kept function's `name`, or the remote function's name. */
+  readonly id: string;
+  readonly kind: "remote" | "kept";
+  readonly outcome: "hit" | "miss" | "stale" | "wait";
+  readonly fillMs?: number;
 }
 
 export const EMPTY_STATS: DbStats = {
@@ -26,6 +45,8 @@ export const EMPTY_STATS: DbStats = {
   ms: 0,
   verifications: 0,
   adminCalls: 0,
+  tagCalls: 0,
+  entries: [],
 };
 
 /**
@@ -41,6 +62,8 @@ export class StatsRecorder {
   #waves = 0;
   #verifications = 0;
   #adminCalls = 0;
+  #tagCalls = 0;
+  readonly #entries: CacheEntryStat[] = [];
   #inFlight = 0;
   #first: number | undefined;
   #last: number | undefined;
@@ -65,6 +88,18 @@ export class StatsRecorder {
   verification(): void {
     this.#verifications += 1;
     this.#parent?.verification();
+  }
+
+  /** Records `count` cache tag calls. */
+  tagCalls(count: number): void {
+    this.#tagCalls += count;
+    this.#parent?.tagCalls(count);
+  }
+
+  /** Records how one cached call was served. */
+  entry(record: CacheEntryStat): void {
+    this.#entries.push(record);
+    this.#parent?.entry(record);
   }
 
   /**
@@ -115,6 +150,8 @@ export class StatsRecorder {
           : Math.round((this.#last - this.#first) * 100) / 100,
       verifications: this.#verifications,
       adminCalls: this.#adminCalls,
+      tagCalls: this.#tagCalls,
+      entries: [...this.#entries],
     };
   }
 }

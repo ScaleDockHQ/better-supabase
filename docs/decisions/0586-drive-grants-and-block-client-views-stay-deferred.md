@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Amends ADR 0270, 0393 and 0471.
+Accepted. Amends ADR 0270, 0393 and 0471. The drive `grants` mode part is superseded by [1225](1225-drive-roles-without-grant-rows.md).
 
 ## Context
 

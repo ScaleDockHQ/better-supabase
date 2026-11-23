@@ -94,7 +94,7 @@ export default defineConfig({
 | `database.seed`         | `supabase/seed.ts`, `supabase/seeds/000_better_supabase.sql`                                        | Entry module and output of [`seed`](/docs/cli/db#seed)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `api.specs`             | `src/lib/openapi.ts`, one OpenAPI 3.1 output at `openapi.json`, `failOn: 'error'`                   | Entry module, outputs (`format`, `version`, `output`, `overlays`, `serialize`, `ui`) failure level and `manifest` file of [`spec`](/docs/cli/spec#configure-the-outputs)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `api.openapi`           | `src/lib/openapi.ts`, `openapi.json`                                                                | Deprecated alias of `specs`. Entry module and output of the OpenAPI document; `spec` reads them when `specs` is unset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `tooling.doctor`        | `format: 'text'`                                                                                    | `ignore` finding codes, `strict` mode, `claimsLimit`, `policyHelperLimit`, `parallelReads` (the [BS609](/docs/cli/doctor#bs609) count), `sealTriggers` (the functions that seal secrets, for [BS352](/docs/cli/doctor#bs352)), `migrationSafety.since` (the last migration [BS229 to BS235](/docs/cli/doctor#bs229) skip offline), a [`baseline`](/docs/cli/doctor#baseline) file of accepted findings, and the defaults of `--only`, `--format` and `--out` (`only`, `format`, `output`)                                                                                                                                                                                                               |
+| `tooling.doctor`        | `format: 'text'`                                                                                    | `ignore` finding codes, `strict` mode, `claimsLimit`, `policyHelperLimit`, `policies.max` (the [BS641](/docs/cli/doctor#bs641) count), `parallelReads` (the [BS609](/docs/cli/doctor#bs609) count), `sealTriggers` (the functions that seal secrets, for [BS352](/docs/cli/doctor#bs352)), `migrationSafety.since` (the last migration [BS229 to BS235](/docs/cli/doctor#bs229) skip offline), a [`baseline`](/docs/cli/doctor#baseline) file of accepted findings, and the defaults of `--only`, `--format` and `--out` (`only`, `format`, `output`)                                                                                                                                                   |
 | `gen`                   | every configured task, `watchInterval: 2000`                                                        | `tasks` [`gen`](/docs/cli/gen#tasks) runs (`types`, `sql`, `spec`, `seed`, `env`) and the watch interval, which `dev` and `spec --watch` read                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `tooling.env`           | `output: '.env.local'`, prefix from the framework                                                   | Defaults of [`env`](/docs/cli/dev#env) `--out` and `--prefix` (`output`, `prefix`; `''` for no prefix)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `adapters`              | `[]`                                                                                                | The integrations `init` set up. [`add`](/docs/cli/init#add) with no argument sets up the ones that have no files yet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -286,6 +286,35 @@ From code, `listAccessPolicies(config, comments)` in `better-supabase/sql`
 returns the same rows for the table comments you pass.
 
 Side effects: None.
+
+## List the functions
+
+```bash
+pnpm better-supabase config functions --all
+```
+
+`config functions` gives every function of the read schemas one caller class,
+checked in this order: `policy` (a policy expression calls it), `trigger` (it
+returns `trigger` or a trigger runs it), `app RPC` (`anon` or `authenticated`
+may execute it), `service only` (only `service_role` may) and `unreferenced`.
+Without `--all` it prints the counts per schema:
+
+```text
+better_supabase: 52 policy, 197 trigger, 2285 app RPC, 669 service only, 266 unreferenced
+public: 0 policy, 1 trigger, 17 app RPC, 3 service only, 0 unreferenced
+```
+
+A function that only other functions call shows as `service only` or
+`unreferenced`, so read the list before you drop anything; the command changes
+nothing. It reads the database (`--db-url-stdin` reads the connection string
+from stdin, `--project-ref` a hosted project), or a snapshot saved by this
+release or later with `--snapshot`. Doctor [BS643](/docs/cli/doctor#bs643) prints the same counts.
+The JSON has `version: 1` and a schema in
+[`config-functions-v1.json`](https://unpkg.com/better-supabase/schemas/config-functions-v1.json).
+From code, `listFunctions(snapshot.extras.functionInventory)` in
+`better-supabase/sql` returns the same rows.
+
+Side effects: Reads the database, calls the Supabase Management API with --project-ref.
 
 ## Custom generators
 

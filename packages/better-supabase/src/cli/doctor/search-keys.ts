@@ -185,6 +185,102 @@ async function columnTypes(
   );
 }
 
+/** A source view of a record type, with the columns its config lists. */
+export interface SearchViewSource {
+  readonly subject: string;
+  readonly view: SearchKeyColumn;
+  readonly table: SearchKeyColumn;
+  readonly columns: readonly string[];
+}
+
+/** One base-table column a view reads, from `view_column_usage`. */
+export interface ViewColumnUse {
+  readonly view_schema: string;
+  readonly view_name: string;
+  readonly table_schema: string;
+  readonly table_name: string;
+  readonly column_name: string;
+}
+
+/** The record types that read through `search.from`. */
+export function searchViewSources(
+  subjects: SubjectsConfig,
+): SearchViewSource[] {
+  return Object.entries(subjects).flatMap(([type, subject]) => {
+    const from = subject.search?.from;
+
+    return from === undefined
+      ? []
+      : [
+          {
+            subject: type,
+            view: split(from.view),
+            table: split(subject.table),
+            // The trigger also watches the id, tenant and archive columns.
+            columns: [
+              ...(subject.search?.columns ?? []),
+              subject.id ?? "id",
+              ...(subject.tenant === false
+                ? []
+                : [subject.tenant ?? "organization_id"]),
+              ...(subject.deletedAt === undefined ? [] : [subject.deletedAt]),
+            ],
+          },
+        ];
+  });
+}
+
+/**
+ * The columns of the record's own table that a source view reads and
+ * `search.columns` leaves out. An update of one of them leaves the index
+ * stale.
+ */
+export function unlistedViewColumns(
+  sources: readonly SearchViewSource[],
+  uses: readonly ViewColumnUse[],
+): { readonly source: SearchViewSource; readonly missing: string[] }[] {
+  return sources.flatMap((source) => {
+    const missing = uses
+      .filter(
+        (use) =>
+          use.view_schema === source.view.schema &&
+          use.view_name === source.view.table &&
+          use.table_schema === source.table.schema &&
+          use.table_name === source.table.table &&
+          !source.columns.includes(use.column_name),
+      )
+      .map((use) => use.column_name);
+
+    return missing.length === 0
+      ? []
+      : [{ source, missing: [...new Set(missing)].toSorted() }];
+  });
+}
+
+async function viewColumnUses(
+  context: DoctorContext,
+  sources: readonly SearchViewSource[],
+): Promise<ViewColumnUse[] | undefined> {
+  const db = context.database;
+
+  if (!db || "skipped" in db || sources.length === 0) {
+    return undefined;
+  }
+
+  const list = sources
+    .map(
+      (source) =>
+        `(${literal(source.view.schema)}, ${literal(source.view.table)})`,
+    )
+    .join(", ");
+
+  return db.query<ViewColumnUse>(
+    `select view_schema::text, view_name::text, table_schema::text, table_name::text, column_name::text
+     from information_schema.view_column_usage
+     where (view_schema, view_name) in (${list})`,
+  );
+}
+
 export const SEARCH_KEY_RULES: readonly Rule[] = [
   {
     code: "BS632",
@@ -205,6 +301,29 @@ export const SEARCH_KEY_RULES: readonly Rule[] = [
         target: `${pair.left.schema}.${pair.left.table}.${pair.left.column}`,
         help: "Make the two columns the same type. Search can then compare them without a cast.",
       }));
+    },
+  },
+  {
+    code: "BS637",
+    severity: "warning",
+    title: "A search source view reads a column search.columns leaves out",
+    description:
+      "A record type with `search.from` re-indexes on an update of the columns `search.columns` lists, because the generator cannot see what the view reads. Doctor reads `information_schema.view_column_usage` and reports each column of the record's own table that the view reads and the list leaves out: an update of it leaves the search document stale. Add the column to `search.columns`.",
+    async check(context) {
+      const sources = searchViewSources(context.config.subjects);
+      const uses = await viewColumnUses(context, sources);
+
+      if (uses === undefined) {
+        return [];
+      }
+
+      return unlistedViewColumns(sources, uses).map(
+        ({ source, missing }): FindingInput => ({
+          message: `${quote(source.view.schema)}.${quote(source.view.table)} reads ${missing.map((name) => `"${name}"`).join(", ")} of ${quote(source.table.schema)}.${quote(source.table.table)}, which ${source.subject} search.columns does not list, so an update of ${missing.length === 1 ? "it" : "them"} leaves the search document stale.`,
+          target: `${source.subject}.search.columns`,
+          help: `Add ${missing.map((name) => `"${name}"`).join(", ")} to search.columns of ${source.subject}.`,
+        }),
+      );
     },
   },
 ];

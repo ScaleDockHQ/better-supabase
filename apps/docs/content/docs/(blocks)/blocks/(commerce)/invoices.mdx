@@ -644,6 +644,17 @@ that are not allocated yet as negative balances. `openItemAgeing` sums the
 same items per party, currency and bucket (`notDue`, `days1To30`, `days31To60`,
 `days61To90`, `over90`).
 
+For today, both read the `invoice_open_items` table instead of replaying the
+ledger. It holds one row per open invoice and one per party credit account with
+an unallocated payment. Triggers on invoices, charges and ledger balances keep
+it current, and an invoice issued with a future date shows from its issue date.
+A past or future `asOf` replays invoices and ledger entries. An import calls
+`rebuild_open_items(tenant)` once after the documents are in.
+`open_items_drift(tenant)` returns the rows where the table and the replay
+differ (at most 100), `import_integrity` reports them as `open_items_drift`,
+and doctor rule BS638 lists the organizations to rebuild. Set
+`blocks.invoices.tables.openItems` to `null` to read the replay every time.
+
 `allocatePayment(organizationId, payment)` spreads one payment or credit over
 several documents of a party. An amount below the balance is a partial
 payment, an amount above it stays on the party as credit, and an allocation

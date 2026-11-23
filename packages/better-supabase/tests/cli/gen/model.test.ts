@@ -501,6 +501,33 @@ describe("buildModel claims", () => {
     expect(none.meta.claims?.permissionsTruncated).toBeUndefined();
   });
 
+  it("writes the provider's share facts on the tables it lists", async () => {
+    const shared = await model(() => ({}), {
+      auth: {
+        authorization: {
+          ...provider({}),
+          tables: {
+            "public.customers": {
+              share: "tenant",
+              permissions: ["customer.update", "customer.read"],
+            },
+            notes: { share: "row", permissions: ["customer.read"] },
+          },
+        },
+      },
+    });
+
+    expect(shared.meta.tables["customers"]?.share).toEqual({
+      kind: "tenant",
+      permissions: ["customer.read", "customer.update"],
+    });
+    expect(shared.meta.tables["notes"]?.share).toEqual({
+      kind: "row",
+      permissions: ["customer.read"],
+    });
+    expect(shared.meta.tables["contacts"]?.share).toBeUndefined();
+  });
+
   it("writes the team truncation claim from the sessions hook, then the provider", async () => {
     const fromHook = await model(() => ({}), {
       auth: { authorization: provider({ teamIdsTruncatedClaim: "teams_cut" }) },

@@ -27,6 +27,7 @@ import type {
   ContextOptions,
   ServerContext,
 } from "../server/server-types.ts";
+import type { TenantShare } from "../server/tenant-share.ts";
 import type {
   Bootstrap,
   BootstrapOptions,
@@ -71,6 +72,11 @@ import { resourceRouter } from "../server/resources.ts";
 import { guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import {
+  shareRefusalLogger,
+  sharedReader,
+  tenantShareOf,
+} from "../server/tenant-share.ts";
+import {
   blockActionOf,
   validateBound,
   withReadSetTables,
@@ -80,17 +86,21 @@ import {
   invalidateAll,
   nextCache,
   nextCacheAttached,
+  onTagCalls,
   supportTag,
   tableTags,
+  tagCallCollectors,
 } from "./cache.ts";
 import { logActionStats, requestIdOf, formatStats } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
 import { applyCacheEntry, awaitStage } from "./entry.ts";
 import { incomingRequest } from "./incoming-request.ts";
+import { keptBinding } from "./kept.ts";
 import { proxyHandler } from "./proxy-handler.ts";
 import { proxyRuntime } from "./proxy-runtime.ts";
 import { recordAtServer, recordServer } from "./record.ts";
-import { handOff, handoffRequestId, takeHandoff } from "./remote-handoff.ts";
+import { handOff, noteFill, takeHandoff } from "./remote-handoff.ts";
+import { requestRecording } from "./request-recording.ts";
 import { adminForRequest, verifyOption } from "./request-stats.ts";
 import { resourceRoutes } from "./resources.ts";
 import { cacheKeyOf, parkUntilResponseEnds } from "./session-handle.ts";
@@ -150,11 +160,28 @@ export function createNext<
     flushAfter,
   } = proxyRuntime(betterSupabase, options);
 
-  const statsForId = (id: string | undefined): ContextOptions =>
-    collector && id ? { stats: collector.recorderFor(id) } : {};
+  const recording = requestRecording(collector);
+  const { statsForId, statsForHandle, recordOn } = recording;
 
   const statsFor = (request: Request): ContextOptions =>
     statsForId(collector && requestIdOf(request.headers));
+
+  const recordTagCalls = (calls: number): void => {
+    recordOn(undefined, (recorder) => {
+      recorder.tagCalls(calls);
+    });
+  };
+
+  if (collector && !tagCallCollectors.has(collector)) {
+    tagCallCollectors.add(collector);
+    onTagCalls(recordTagCalls);
+  }
+
+  /** Expires `tags` in Next.js and in the kept store. */
+  const invalidate = (tags: readonly string[]): void => {
+    invalidateAll(tags);
+    kept.expireTags(tags);
+  };
 
   /** Sets the context's cookies (the replica pin) through Next's cookie jar. */
   const writeCookies = async (
@@ -411,7 +438,7 @@ export function createNext<
     userId: string,
     evictOptions: { readonly tags?: readonly string[] } = {},
   ): Promise<void> => {
-    invalidateAll([...userTags(userId), ...(evictOptions.tags ?? [])]);
+    invalidate([...userTags(userId), ...(evictOptions.tags ?? [])]);
     await base.evictSession(userId);
   };
 
@@ -430,7 +457,7 @@ export function createNext<
       ...base[ACCOUNT_PARTS],
       // An account change drops the user's cached reads and session memo.
       after: (userId: string) => {
-        invalidateAll(userTags(userId));
+        invalidate(userTags(userId));
         forget(userId);
       },
     },
@@ -451,7 +478,7 @@ export function createNext<
       scope.generation += 1;
     },
     signedOut: (userId) => {
-      invalidateAll(userTags(userId));
+      invalidate(userTags(userId));
       forget(userId);
     },
   });
@@ -474,10 +501,10 @@ export function createNext<
     const handed = handle ? takeHandoff<C>(handle) : undefined;
 
     if (handle && handed) {
-      const ctx = await base.contextFromSession(
-        handed,
-        handle.tenant === null ? {} : { tenant: handle.tenant },
-      );
+      const ctx = await base.contextFromSession(handed, {
+        ...(handle.tenant === null ? {} : { tenant: handle.tenant }),
+        ...statsForHandle(handle),
+      });
 
       const view = toSession(ctx.auth);
 
@@ -496,11 +523,12 @@ export function createNext<
     const { key } = cachedOptions;
     const tenant = key.tenant ?? undefined;
     const snapshot = takeHandoff<C>(key);
+    noteFill(key);
 
     const ctx = snapshot
       ? await base.contextFromSession(snapshot, {
           ...(tenant === undefined ? {} : { tenant }),
-          ...statsForId(handoffRequestId(key)),
+          ...statsForHandle(key),
         })
       : base.contextFor(
           key.userId === null && key.shared === null && key.support === null
@@ -515,7 +543,12 @@ export function createNext<
               },
         );
 
-    return { ctx, view: toSession(ctx.auth), scope: "remote", tenant };
+    return {
+      ctx: key.tables ? sharedReader(ctx, key.tables).ctx : ctx,
+      view: toSession(ctx.auth),
+      scope: "remote",
+      tenant,
+    };
   };
 
   const stageWarn = development
@@ -548,6 +581,49 @@ export function createNext<
 
   /** The bootstrap calls of one request, by session key, schema, rpc and args. */
   const bootstrapCalls = cache(() => new Map<string, Promise<BootstrapRow>>());
+
+  const tenantShare = (
+    ctx: ServerContext<M, F, E, C, P, B>,
+    tables: readonly string[],
+    tenant: string | undefined,
+  ): Promise<TenantShare> =>
+    tenantShareOf({
+      meta: betterSupabase.meta,
+      tables,
+      tenant,
+      hooks: base.authorization,
+      authorizer: base.authorizer,
+      context: ctx.db.$context,
+      runtime: {
+        ...(base.versions ? { versions: base.versions } : {}),
+        ...(ctx.memo ? { memo: ctx.memo } : {}),
+      },
+    });
+
+  const warnRefusedShare = shareRefusalLogger(betterSupabase.events.logger);
+
+  const kept = keptBinding<ServerContext<M, F, E, C, P, B>, C, P>({
+    tenantShare,
+    onEntry: (record, handle) => {
+      recordOn(handle, (recorder) => {
+        recorder.entry(record);
+      });
+    },
+    onTagCalls: recordTagCalls,
+    events: betterSupabase.events,
+    attach: (adapter) => {
+      betterSupabase.cache(adapter);
+    },
+    options: options.kept,
+    meta: betterSupabase.meta,
+    scopeOf: (source, tenant) =>
+      scopeOf({
+        ...(source ? { session: source } : {}),
+        ...(tenant === undefined ? {} : { tenant }),
+      }),
+    userTags,
+    waitUntil,
+  });
 
   const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B, V> = extendServer<
     BetterNext<M, F, E, C, P, PermissionRef<A>, B, V>
@@ -605,7 +681,11 @@ export function createNext<
         share: "session",
       });
 
-      parkUntilResponseEnds(handle, snapshot);
+      parkUntilResponseEnds(
+        handle,
+        snapshot,
+        snapshot ? await recording.currentId() : undefined,
+      );
 
       return handle;
     },
@@ -618,29 +698,61 @@ export function createNext<
         // scope can't rebuild: its calls get no token.
         const snapshot = ctx.support ? null : snapshotOf(ctx.auth);
 
-        const key = cacheKeyOf({
+        const tenant = tenantFor(ctx, view);
+        const asked = remoteOptions.share ?? "session";
+        const tables = remoteOptions.tables ?? [];
+
+        const decided =
+          asked === "tenant" && !ctx.support
+            ? await tenantShare(ctx, tables, tenant)
+            : undefined;
+
+        const shared = decided?.kind === "shared" ? decided.key : undefined;
+
+        if (decided?.kind === "refused") {
+          warnRefusedShare("bsb.remote()", decided.error);
+        }
+
+        const parts = cacheKeyOf({
           userId: view.kind === "user" ? view.user.id : null,
-          tenant: tenantFor(ctx, view),
+          tenant,
           support: ctx.support?.session.id ?? null,
           snapshot,
-          share: remoteOptions.share ?? "session",
+          share:
+            shared === undefined
+              ? asked === "tenant"
+                ? ctx.support
+                  ? "session"
+                  : "user"
+                : asked
+              : { key: () => `tenant:${shared}` },
         });
+
+        const key = shared === undefined ? parts : { ...parts, tables };
 
         const requestId = collector
           ? requestIdOf((await incoming()).request.headers)
           : undefined;
 
-        const release = snapshot
-          ? handOff(key, snapshot, requestId)
-          : undefined;
+        const release = handOff(key, snapshot, requestId);
+
+        const id = remoteOptions.name ?? fn.name;
+        const done = recording.remoteCall(key, id, requestId);
 
         try {
-          return await fn(key, ...args);
+          const value = await fn(key, ...args);
+          done();
+
+          return value;
         } finally {
-          release?.();
+          release();
         }
       };
     },
+
+    kept: kept.kept,
+
+    statsFetch: recording.statsFetch,
 
     async bootstrap<T, S extends ReadSet = ReadSet>(
       bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,
@@ -706,10 +818,10 @@ export function createNext<
           ? (takeHandoff<C>(accessOptions.key) ?? null)
           : await getClaims();
 
-      const ctx = await base.contextFromSession(
-        snapshot,
-        tenant === undefined ? {} : { tenant },
-      );
+      const ctx = await base.contextFromSession(snapshot, {
+        ...(tenant === undefined ? {} : { tenant }),
+        ...(accessOptions.key ? statsForHandle(accessOptions.key) : {}),
+      });
 
       return accessOf<ServerContext<M, F, E, C, P, B>, C, P, PermissionRef<A>>(
         ctx,
@@ -983,7 +1095,7 @@ export function createNext<
         }
 
         if (settled.ok && actionOptions.invalidates) {
-          invalidateAll(
+          invalidate(
             actionOptions.invalidates.flatMap((table) =>
               tableTags(table, { tenant: "*" }),
             ),
@@ -1044,7 +1156,7 @@ export function createNext<
       });
 
       if (resolution.auth.kind === "user") {
-        invalidateAll(userTags(resolution.auth.user.id));
+        invalidate(userTags(resolution.auth.user.id));
       }
 
       return {
@@ -1071,7 +1183,7 @@ export function createNext<
 
       const stopped = await base.support.stop(resolution.auth, id);
       flushAfter();
-      invalidateAll([
+      invalidate([
         supportTag(id),
         ...(resolution.auth.kind === "user"
           ? userTags(resolution.auth.user.id)

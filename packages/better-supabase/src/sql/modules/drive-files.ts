@@ -72,6 +72,7 @@ export function driveFilesSql(kit: DriveKit): string {
     uploadedOwn,
     roles,
     previewColumn,
+    grantRows,
   } = kit;
 
   const tags = labelTags(own);
@@ -122,7 +123,9 @@ export function driveFilesSql(kit: DriveKit): string {
     A === undefined
       ? ""
       : `delete from ${A} pa where pa.${a("subjectType")} = ${typeLit} and pa.${a("subjectId")} = old.${n("id")}::text;`,
-    `delete from ${G} pg where pg.${g("node")} = old.${n("id")};`,
+    grantRows
+      ? `delete from ${G} pg where pg.${g("node")} = old.${n("id")};`
+      : "",
     versions === undefined
       ? ""
       : `delete from ${versions.table("versions")} pv where pv.${v("subjectType")} = ${typeLit} and pv.${v("subjectId")} = old.${n("id")}::text;`,

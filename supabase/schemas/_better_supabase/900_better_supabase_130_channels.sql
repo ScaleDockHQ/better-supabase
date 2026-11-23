@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:882f2d19dbe6e542fc3f9f9ceb52842ae9c18c52e00e7a82cf0c21617a0104ef
+-- @bsb-hash sha256:5baf88f4fcceac7721b9251493298277690525d1f5e73f2fabd875d6a5953f43
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -756,8 +756,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."channels" as restric
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_channel_index"
-  after insert or delete or update of "id", "tenant_id", "name", "topic", "purpose" on "better_supabase"."channels"
+  after insert or delete on "better_supabase"."channels"
   for each row execute function "better_supabase"."search_index_row"('channel', 'id');
+create trigger "bsb_search_channel_index_u"
+  after update of "id", "tenant_id", "name", "topic", "purpose" on "better_supabase"."channels"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name" or old."topic" is distinct from new."topic" or old."purpose" is distinct from new."purpose")
+  execute function "better_supabase"."search_index_row"('channel', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.channels deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"channel","event_prefix":"channel"}');

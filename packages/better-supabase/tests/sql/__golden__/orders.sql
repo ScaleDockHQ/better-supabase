@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
--- @bsb-block orders@4 managed
--- @bsb-hash sha256:ad9e9cd807b7de0aee8e8a34a2814bf5fa0910844f46371480a3a965fa79c4fb
+-- @bsb-block orders@5 managed
+-- @bsb-hash sha256:b84b992caf846693f33322435731d280b4804f8b791f01a151bc939065f19542
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -121,6 +121,18 @@ create table "better_supabase"."orders" (
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
   "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200),
   "is_selected" boolean not null default true,
+  "channel" text constraint bsb_orders_channel_check check ("channel" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source" text constraint bsb_orders_source_check check ("source" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "external_id" text constraint bsb_orders_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "invoicing_policy" text not null default 'on_order' constraint bsb_orders_invoicing_policy_check check ("invoicing_policy" in ('on_order', 'on_delivery')),
+  "delivery_method" text constraint bsb_orders_delivery_method_check check ("delivery_method" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "quote_id" uuid,
+  "order_discount" bigint not null default 0 constraint bsb_orders_order_discount_check check ("order_discount" >= 0),
+  "promotion_id" uuid,
+  "payment_required" boolean not null default false,
+  "deposit_amount" bigint constraint bsb_orders_deposit_amount_check check ("deposit_amount" >= 0),
+  "party_type" text constraint bsb_orders_party_type_check check ("party_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "party_id" text constraint bsb_orders_party_id_check check (length("party_id") >= 1 and length("party_id") <= 200),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "invoice_number")
@@ -128,6 +140,12 @@ create table "better_supabase"."orders" (
 create index orders_status_idx on "better_supabase"."orders" ("tenant_id", "status", "placed_at");
 create index orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
+create unique index orders_external_idx on "better_supabase"."orders" ("tenant_id", "source", "external_id") where "external_id" is not null;
+alter table "better_supabase"."orders" add constraint bsb_orders_external_source_check check ("external_id" is null or "source" is not null);
+create index orders_channel_idx on "better_supabase"."orders" ("tenant_id", "channel", "placed_at");
+create index orders_quote_idx on "better_supabase"."orders" ("quote_id") where "quote_id" is not null;
+create index orders_party_idx on "better_supabase"."orders" ("tenant_id", "party_type", "party_id") where "party_id" is not null;
+alter table "better_supabase"."orders" add constraint bsb_orders_party_pair_check check (("party_type" is null) = ("party_id" is null));
 create unique index orders_origin_idx on "better_supabase"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
 create index orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
 alter table "better_supabase"."orders" enable row level security;
@@ -147,7 +165,10 @@ create table "better_supabase"."order_lines" (
   "product_id" uuid,
   "sku" text not null,
   "title" text not null,
-  "quantity" integer not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_order_lines_unit_check check (length("unit") >= 1 and length("unit") <= 32),
+  "description" text constraint bsb_order_lines_description_check check (length("description") <= 4000),
+  "line_type" text not null default 'item' constraint bsb_order_lines_line_type_check check ("line_type" in ('item', 'service', 'fee')),
   "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0),
   "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0),
   "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0),
@@ -163,8 +184,8 @@ create table "better_supabase"."order_lines" (
   "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
-  "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
+  "quantity_fulfilled" numeric(18, 0) not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" numeric(18, 0) not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
@@ -227,7 +248,7 @@ create table "better_supabase"."order_fulfillment_lines" (
   "tenant_id" uuid not null,
   "fulfillment_id" uuid not null references "better_supabase"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
   "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
@@ -263,7 +284,7 @@ create table "better_supabase"."order_return_lines" (
   "tenant_id" uuid not null,
   "return_id" uuid not null references "better_supabase"."order_returns" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
   primary key ("return_id", "order_line_id")
 );
 create index order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
@@ -881,7 +902,7 @@ as $$
         'subtotal', l."subtotal"::text, 'discount', l."discount"::text, 'tax', l."tax"::text,
         'total', l."total"::text, 'requiresShipping', l."requires_shipping", 'locationId', l."location_id",
         'reservationId', l."reservation_id", 'fulfilled', l."quantity_fulfilled", 'returned', l."quantity_returned",
-        'backordered', l."backordered") order by l."position")
+        'backordered', l."backordered", 'unit', l."unit", 'description', l."description", 'lineType', l."line_type") order by l."position")
       from "better_supabase"."order_lines" l where l."order_id" = x."id"), '[]'::jsonb),
     'payments', coalesce((select jsonb_agg(jsonb_build_object(
         'id', y."id", 'provider', y."provider", 'reference', y."reference", 'status', y."status",
@@ -905,7 +926,7 @@ as $$
         'id', y."id", 'paymentId', y."payment_id", 'returnId', y."return_id", 'amount', y."amount"::text,
         'status', y."status", 'reason', y."reason", 'providerReference', y."provider_reference",
         'createdAt', y."created_at", 'completedAt', y."completed_at") order by y."created_at")
-      from "better_supabase"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb))
+      from "better_supabase"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text)
   from "better_supabase"."orders" x where x."id" = p_order
 $$;
 revoke execute on function "better_supabase"."order_json"(uuid) from public, anon, authenticated;
@@ -1282,6 +1303,13 @@ begin
       return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
     end if;
   end if;
+  if nullif(p_attrs ->> 'externalId', '') is not null then
+    select x."id" into v_id from "better_supabase"."orders" x
+    where x."tenant_id" = p_tenant and x."source" = p_attrs ->> 'source' and x."external_id" = p_attrs ->> 'externalId';
+    if v_id is not null then
+      return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
+    end if;
+  end if;
   if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
     v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
@@ -1296,17 +1324,17 @@ begin
   end if;
   insert into "better_supabase"."orders" ("tenant_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
-    "shipping_address", "billing_address", "origin_type", "origin_id")
+    "shipping_address", "billing_address", "origin_type", "origin_id", "channel", "source", "external_id", "invoicing_policy", "delivery_method", "quote_id", "order_discount", "promotion_id", "payment_required", "deposit_amount", "party_type", "party_id")
   values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
-    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
+    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}', nullif(p_attrs ->> 'channel', ''), nullif(p_attrs ->> 'source', ''), nullif(p_attrs ->> 'externalId', ''), coalesce(nullif(p_attrs ->> 'invoicingPolicy', ''), 'on_order'), nullif(p_attrs ->> 'deliveryMethod', ''), nullif(p_attrs ->> 'quoteId', '')::uuid, coalesce((p_attrs ->> 'orderDiscount')::bigint, 0), nullif(p_attrs ->> 'promotionId', '')::uuid, coalesce((p_attrs ->> 'paymentRequired')::boolean, false), nullif(p_attrs ->> 'deposit', '')::bigint, nullif(p_attrs #>> '{party,type}', ''), nullif(p_attrs #>> '{party,id}', ''))
   returning "id" into v_id;
   insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title",
-    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping")
+    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "unit", "description", "line_type")
   select p_tenant, v_id, e.n, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, e.l ->> 'sku', e.l ->> 'title',
-    (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
-    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
+    (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
+    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean, nullif(e.l ->> 'unit', ''), nullif(e.l ->> 'description', ''), coalesce(nullif(e.l ->> 'lineType', ''), 'item')
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
   if not coalesce((p_attrs ->> 'draft')::boolean, false) then
@@ -1347,6 +1375,7 @@ declare
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
+  v_order_discount bigint;
 begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', order_from_lines.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
@@ -1360,6 +1389,16 @@ begin
   if (v_attrs ? 'shippingTotal' and case when coalesce(v_attrs ->> 'shippingTotal', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'shippingTotal')::bigint end is null) then
     raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
   end if;
+  if (v_attrs ? 'orderDiscount' and coalesce(v_attrs ->> 'orderDiscount', '') !~ '^[0-9]{1,18}$') or (v_attrs ? 'deposit' and coalesce(v_attrs ->> 'deposit', '') !~ '^[0-9]{1,18}$') then
+    raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  if nullif(v_attrs ->> 'externalId', '') is not null and nullif(v_attrs ->> 'source', '') is null then
+    raise exception 'attrs.externalId needs attrs.source, the system the id comes from' using errcode = '22023', hint = 'ORDERS_SOURCE_REQUIRED';
+  end if;
+  if v_attrs -> 'party' is not null and (nullif(v_attrs #>> '{party,type}', '') is null or nullif(v_attrs #>> '{party,id}', '') is null) then
+    raise exception 'attrs.party is { type, id }' using errcode = '22023', hint = 'ORDERS_PARTY_INVALID';
+  end if;
+  v_order_discount := coalesce(case when coalesce(v_attrs ->> 'orderDiscount', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'orderDiscount')::bigint end, 0);
   for v_item in
     select e as raw, nullif(e ->> 'variantId', '')::uuid as variant, e ->> 'quantity' as quantity,
       cv."id" as found, cv."tenant_id" as variant_tenant, cv."sku" as sku, concat_ws(' / ', cp."title", nullif(cv."title", '')) as title, cp."id" as product, cp."kind" as kind
@@ -1367,8 +1406,11 @@ begin
     left join "better_supabase"."product_variants" cv on cv."id" = nullif(e ->> 'variantId', '')::uuid
     left join "better_supabase"."products" cp on cp."id" = cv."product_id"
   loop
-    if coalesce(v_item.quantity, '') !~ '^[1-9][0-9]{0,8}$' then
+    if not (case when coalesce(v_item.quantity, '') ~ '^[0-9]{1,12}$' then (v_item.quantity)::numeric > 0 else false end) then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
+    end if;
+    if coalesce(v_item.raw ->> 'lineType', 'item') not in ('item', 'service', 'fee') then
+      raise exception 'a line''s lineType is one of item, service, fee' using errcode = '22023', hint = 'ORDERS_LINES_INVALID';
     end if;
     if v_item.variant is not null and (v_item.found is null or v_item.variant_tenant <> order_from_lines.tenant) then
       raise exception 'a line''s variant isn''t in this organization' using errcode = 'P0002', hint = 'ORDERS_VARIANT_NOT_FOUND';
@@ -1389,21 +1431,27 @@ begin
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
     v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
-      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
-    if v_disc > v_unit * v_item.quantity::bigint then
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(round(v_unit * v_item.quantity::numeric)::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > round(v_unit * v_item.quantity::numeric)::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
-      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
+      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (round(v_unit * v_item.quantity::numeric)::bigint)::text,
       'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
-      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
-    v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
+      'total', (round(v_unit * v_item.quantity::numeric)::bigint - v_disc)::text,
+      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end)
+      || jsonb_strip_nulls(jsonb_build_object('unit', v_item.raw -> 'unit', 'description', v_item.raw -> 'description',
+        'lineType', v_item.raw -> 'lineType', 'fields', v_item.raw -> 'fields')));
+    v_subtotal := v_subtotal + round(v_unit * v_item.quantity::numeric)::bigint;
     v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
+  if v_order_discount > v_subtotal - v_discount then
+    raise exception 'attrs.orderDiscount is more than the lines'' net subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  v_discount := v_discount + v_order_discount;
   return "better_supabase"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
     'subtotal', v_subtotal::text, 'discountTotal', v_discount::text, 'shippingTotal', v_shipping::text, 'taxTotal', v_tax::text,
     'total', (v_subtotal - v_discount + v_shipping + case when v_inclusive then 0 else v_tax end)::text),
@@ -1674,6 +1722,10 @@ begin
   if v_order.status::text not in ('paid', 'confirmed') then
     raise exception 'only a paid or confirmed order can be fulfilled' using errcode = '55000', hint = 'ORDERS_NOT_PAID';
   end if;
+  if exists (select 1 from "better_supabase"."orders" x where x."id" = v_order.id and x."payment_required"
+    and x."paid_total" < coalesce(x."deposit_amount", x."total")) then
+    raise exception 'the order ships once its deposit, or its total without one, is paid' using errcode = '55000', hint = 'ORDERS_PAYMENT_REQUIRED';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_fulfillment_create"(uuid)');
   begin
@@ -1694,7 +1746,7 @@ begin
     create_fulfillment.carrier, create_fulfillment.tracking_number, create_fulfillment.tracking_url)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity,
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity,
       case when jsonb_typeof(e -> 'detail') = 'object' then e -> 'detail' end as detail
     from jsonb_array_elements(v_requested) e
   loop
@@ -1902,7 +1954,7 @@ begin
   values (v_order.tenant, v_order.id, request_return.reason)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity from jsonb_array_elements(request_return.lines) e
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity from jsonb_array_elements(request_return.lines) e
   loop
     if v_item.quantity is null or v_item.quantity <= 0 then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
@@ -2212,7 +2264,7 @@ begin
       elsif jsonb_typeof(v_data -> 'lines') = 'array' then
         delete from "better_supabase"."order_lines" l where l."order_id" = v_id;
         insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
         from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
       end if;
     end if;
@@ -2230,7 +2282,7 @@ begin
   end if;
   if exists (
     select 1 from jsonb_array_elements(v_data -> 'lines') l
-    where coalesce(l.value ->> 'title', '') = '' or coalesce(l.value ->> 'quantity', '') !~ '^[1-9][0-9]{0,8}$' or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
+    where coalesce(l.value ->> 'title', '') = '' or not (case when coalesce(l.value ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (l.value ->> 'quantity')::numeric > 0 else false end) or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
   ) then
     raise exception 'a line needs a title, a whole quantity above zero and a unitAmount' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
@@ -2242,7 +2294,7 @@ begin
     raise exception 'a line''s billingParty or costSource is not a known value' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
-  select coalesce(sum((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::bigint), 0),
+  select coalesce(sum(round((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::numeric)::bigint), 0),
     coalesce(sum(coalesce((l.value ->> 'discount')::bigint, 0)), 0),
     coalesce(sum(coalesce((l.value ->> 'tax')::bigint, 0)), 0)
   into v_subtotal, v_discount, v_tax
@@ -2288,7 +2340,7 @@ begin
   returning "id", "updated_at" into v_id, v_updated;
 
   insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
   from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
 
   if jsonb_typeof(v_data -> 'payments') = 'array' then
@@ -2366,6 +2418,360 @@ as $$
 $$;
 revoke execute on function "better_supabase"."order_status_board"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."order_status_board"(uuid, integer) to authenticated, service_role;
+
+-- The organization's orders as a keyset page, newest first (ADR 1077). Row
+-- security decides what the caller sees. filters is { status, customerId,
+-- partyId, channel, source, currency (each a value or a list), from and to
+-- (placed at), search (number, email, external id), sort (placedAt, number,
+-- total), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. Amounts are text.
+create or replace function "better_supabase"."page_orders"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_orders.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'currency', 'channel') then
+      raise exception 'facet is one of status, currency, channel' using errcode = '22023', hint = 'ORDERS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'currency' then (x."currency")::text when 'channel' then (x."channel")::text end) as v
+      from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('placedAt', 'number', 'total') then
+    raise exception 'sort is one of placedAt, number, total' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence" >= (v_after ->> 0)::bigint and ((x."sequence" > (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."sequence" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total" >= (v_after ->> 0)::bigint and ((x."total" > (v_after ->> 0)::bigint) or (x."total" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."total" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."total" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_orders"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_orders"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2550,21 +2956,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as re
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block-data orders
--- @bsb-hash sha256:9e7cf68a92d30df8f4303e95812a9d1f5c8e94508111060e75de394239f87417
+-- @bsb-hash sha256:9ed30d81096c3bdb7513abbef921645a893af561edfc75bb6b9a57d3b4bfb7dc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('orders', 4, 'managed')
+values ('orders', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
--- @bsb-block orders@4 managed
--- @bsb-hash sha256:e65a7d7e8d6f0e1a3130ed8e31de0a67c0cf8a19144cc81fa8a43992256b8429
+-- @bsb-block orders@5 managed
+-- @bsb-hash sha256:cc96c96f3e18ceb6dc73843f5c97c9c154746af4a769b242597c2243f7457bc8
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2684,6 +3090,18 @@ create table "better_supabase"."orders" (
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
   "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200),
   "is_selected" boolean not null default true,
+  "channel" text constraint bsb_orders_channel_check check ("channel" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source" text constraint bsb_orders_source_check check ("source" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "external_id" text constraint bsb_orders_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "invoicing_policy" text not null default 'on_order' constraint bsb_orders_invoicing_policy_check check ("invoicing_policy" in ('on_order', 'on_delivery')),
+  "delivery_method" text constraint bsb_orders_delivery_method_check check ("delivery_method" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "quote_id" uuid,
+  "order_discount" bigint not null default 0 constraint bsb_orders_order_discount_check check ("order_discount" >= 0),
+  "promotion_id" uuid,
+  "payment_required" boolean not null default false,
+  "deposit_amount" bigint constraint bsb_orders_deposit_amount_check check ("deposit_amount" >= 0),
+  "party_type" text constraint bsb_orders_party_type_check check ("party_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "party_id" text constraint bsb_orders_party_id_check check (length("party_id") >= 1 and length("party_id") <= 200),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "invoice_number")
@@ -2691,6 +3109,12 @@ create table "better_supabase"."orders" (
 create index orders_status_idx on "better_supabase"."orders" ("tenant_id", "status", "placed_at");
 create index orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
+create unique index orders_external_idx on "better_supabase"."orders" ("tenant_id", "source", "external_id") where "external_id" is not null;
+alter table "better_supabase"."orders" add constraint bsb_orders_external_source_check check ("external_id" is null or "source" is not null);
+create index orders_channel_idx on "better_supabase"."orders" ("tenant_id", "channel", "placed_at");
+create index orders_quote_idx on "better_supabase"."orders" ("quote_id") where "quote_id" is not null;
+create index orders_party_idx on "better_supabase"."orders" ("tenant_id", "party_type", "party_id") where "party_id" is not null;
+alter table "better_supabase"."orders" add constraint bsb_orders_party_pair_check check (("party_type" is null) = ("party_id" is null));
 create unique index orders_origin_idx on "better_supabase"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
 create index orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
 alter table "better_supabase"."orders" enable row level security;
@@ -2710,7 +3134,10 @@ create table "better_supabase"."order_lines" (
   "product_id" uuid,
   "sku" text not null,
   "title" text not null,
-  "quantity" integer not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_order_lines_unit_check check (length("unit") >= 1 and length("unit") <= 32),
+  "description" text constraint bsb_order_lines_description_check check (length("description") <= 4000),
+  "line_type" text not null default 'item' constraint bsb_order_lines_line_type_check check ("line_type" in ('item', 'service', 'fee')),
   "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0),
   "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0),
   "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0),
@@ -2726,8 +3153,8 @@ create table "better_supabase"."order_lines" (
   "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
-  "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
+  "quantity_fulfilled" numeric(18, 0) not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" numeric(18, 0) not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
@@ -2790,7 +3217,7 @@ create table "better_supabase"."order_fulfillment_lines" (
   "tenant_id" uuid not null,
   "fulfillment_id" uuid not null references "better_supabase"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
   "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
@@ -2826,7 +3253,7 @@ create table "better_supabase"."order_return_lines" (
   "tenant_id" uuid not null,
   "return_id" uuid not null references "better_supabase"."order_returns" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
   primary key ("return_id", "order_line_id")
 );
 create index order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
@@ -3452,7 +3879,7 @@ as $$
         'subtotal', l."subtotal"::text, 'discount', l."discount"::text, 'tax', l."tax"::text,
         'total', l."total"::text, 'requiresShipping', l."requires_shipping", 'locationId', l."location_id",
         'reservationId', l."reservation_id", 'fulfilled', l."quantity_fulfilled", 'returned', l."quantity_returned",
-        'backordered', l."backordered") order by l."position")
+        'backordered', l."backordered", 'unit', l."unit", 'description', l."description", 'lineType', l."line_type") order by l."position")
       from "better_supabase"."order_lines" l where l."order_id" = x."id"), '[]'::jsonb),
     'payments', coalesce((select jsonb_agg(jsonb_build_object(
         'id', y."id", 'provider', y."provider", 'reference', y."reference", 'status', y."status",
@@ -3476,7 +3903,7 @@ as $$
         'id', y."id", 'paymentId', y."payment_id", 'returnId', y."return_id", 'amount', y."amount"::text,
         'status', y."status", 'reason', y."reason", 'providerReference', y."provider_reference",
         'createdAt', y."created_at", 'completedAt', y."completed_at") order by y."created_at")
-      from "better_supabase"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb))
+      from "better_supabase"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text)
   from "better_supabase"."orders" x where x."id" = p_order
 $$;
 revoke execute on function "better_supabase"."order_json"(uuid) from public, anon, authenticated;
@@ -3946,6 +4373,13 @@ begin
       return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
     end if;
   end if;
+  if nullif(p_attrs ->> 'externalId', '') is not null then
+    select x."id" into v_id from "better_supabase"."orders" x
+    where x."tenant_id" = p_tenant and x."source" = p_attrs ->> 'source' and x."external_id" = p_attrs ->> 'externalId';
+    if v_id is not null then
+      return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
+    end if;
+  end if;
   if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
     v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
@@ -3960,17 +4394,17 @@ begin
   end if;
   insert into "better_supabase"."orders" ("tenant_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
-    "shipping_address", "billing_address", "origin_type", "origin_id")
+    "shipping_address", "billing_address", "origin_type", "origin_id", "channel", "source", "external_id", "invoicing_policy", "delivery_method", "quote_id", "order_discount", "promotion_id", "payment_required", "deposit_amount", "party_type", "party_id")
   values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
-    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
+    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}', nullif(p_attrs ->> 'channel', ''), nullif(p_attrs ->> 'source', ''), nullif(p_attrs ->> 'externalId', ''), coalesce(nullif(p_attrs ->> 'invoicingPolicy', ''), 'on_order'), nullif(p_attrs ->> 'deliveryMethod', ''), nullif(p_attrs ->> 'quoteId', '')::uuid, coalesce((p_attrs ->> 'orderDiscount')::bigint, 0), nullif(p_attrs ->> 'promotionId', '')::uuid, coalesce((p_attrs ->> 'paymentRequired')::boolean, false), nullif(p_attrs ->> 'deposit', '')::bigint, nullif(p_attrs #>> '{party,type}', ''), nullif(p_attrs #>> '{party,id}', ''))
   returning "id" into v_id;
   insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title",
-    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping")
+    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "unit", "description", "line_type")
   select p_tenant, v_id, e.n, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, e.l ->> 'sku', e.l ->> 'title',
-    (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
-    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
+    (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
+    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean, nullif(e.l ->> 'unit', ''), nullif(e.l ->> 'description', ''), coalesce(nullif(e.l ->> 'lineType', ''), 'item')
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
   if not coalesce((p_attrs ->> 'draft')::boolean, false) then
@@ -4025,6 +4459,7 @@ declare
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
+  v_order_discount bigint;
 begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', order_from_lines.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
@@ -4038,6 +4473,16 @@ begin
   if (v_attrs ? 'shippingTotal' and case when coalesce(v_attrs ->> 'shippingTotal', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'shippingTotal')::bigint end is null) then
     raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
   end if;
+  if (v_attrs ? 'orderDiscount' and coalesce(v_attrs ->> 'orderDiscount', '') !~ '^[0-9]{1,18}$') or (v_attrs ? 'deposit' and coalesce(v_attrs ->> 'deposit', '') !~ '^[0-9]{1,18}$') then
+    raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  if nullif(v_attrs ->> 'externalId', '') is not null and nullif(v_attrs ->> 'source', '') is null then
+    raise exception 'attrs.externalId needs attrs.source, the system the id comes from' using errcode = '22023', hint = 'ORDERS_SOURCE_REQUIRED';
+  end if;
+  if v_attrs -> 'party' is not null and (nullif(v_attrs #>> '{party,type}', '') is null or nullif(v_attrs #>> '{party,id}', '') is null) then
+    raise exception 'attrs.party is { type, id }' using errcode = '22023', hint = 'ORDERS_PARTY_INVALID';
+  end if;
+  v_order_discount := coalesce(case when coalesce(v_attrs ->> 'orderDiscount', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'orderDiscount')::bigint end, 0);
   for v_item in
     select e as raw, nullif(e ->> 'variantId', '')::uuid as variant, e ->> 'quantity' as quantity,
       cv."id" as found, cv."tenant_id" as variant_tenant, cv."sku" as sku, concat_ws(' / ', cp."title", nullif(cv."title", '')) as title, cp."id" as product, cp."kind" as kind
@@ -4045,8 +4490,11 @@ begin
     left join "better_supabase"."product_variants" cv on cv."id" = nullif(e ->> 'variantId', '')::uuid
     left join "better_supabase"."products" cp on cp."id" = cv."product_id"
   loop
-    if coalesce(v_item.quantity, '') !~ '^[1-9][0-9]{0,8}$' then
+    if not (case when coalesce(v_item.quantity, '') ~ '^[0-9]{1,12}$' then (v_item.quantity)::numeric > 0 else false end) then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
+    end if;
+    if coalesce(v_item.raw ->> 'lineType', 'item') not in ('item', 'service', 'fee') then
+      raise exception 'a line''s lineType is one of item, service, fee' using errcode = '22023', hint = 'ORDERS_LINES_INVALID';
     end if;
     if v_item.variant is not null and (v_item.found is null or v_item.variant_tenant <> order_from_lines.tenant) then
       raise exception 'a line''s variant isn''t in this organization' using errcode = 'P0002', hint = 'ORDERS_VARIANT_NOT_FOUND';
@@ -4067,21 +4515,27 @@ begin
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
     v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
-      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
-    if v_disc > v_unit * v_item.quantity::bigint then
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(round(v_unit * v_item.quantity::numeric)::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > round(v_unit * v_item.quantity::numeric)::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
-      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
+      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (round(v_unit * v_item.quantity::numeric)::bigint)::text,
       'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
-      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
-    v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
+      'total', (round(v_unit * v_item.quantity::numeric)::bigint - v_disc)::text,
+      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end)
+      || jsonb_strip_nulls(jsonb_build_object('unit', v_item.raw -> 'unit', 'description', v_item.raw -> 'description',
+        'lineType', v_item.raw -> 'lineType', 'fields', v_item.raw -> 'fields')));
+    v_subtotal := v_subtotal + round(v_unit * v_item.quantity::numeric)::bigint;
     v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
+  if v_order_discount > v_subtotal - v_discount then
+    raise exception 'attrs.orderDiscount is more than the lines'' net subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  v_discount := v_discount + v_order_discount;
   return "better_supabase"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
     'subtotal', v_subtotal::text, 'discountTotal', v_discount::text, 'shippingTotal', v_shipping::text, 'taxTotal', v_tax::text,
     'total', (v_subtotal - v_discount + v_shipping + case when v_inclusive then 0 else v_tax end)::text),
@@ -4112,17 +4566,29 @@ begin
   if v_quote."status" <> 'accepted' then
     raise exception 'only an accepted quote becomes an order' using errcode = '55000', hint = 'ORDERS_QUOTE_NOT_ACCEPTED';
   end if;
+  if (v_attrs ? 'orderDiscount' and coalesce(v_attrs ->> 'orderDiscount', '') !~ '^[0-9]{1,18}$') or (v_attrs ? 'deposit' and coalesce(v_attrs ->> 'deposit', '') !~ '^[0-9]{1,18}$') then
+    raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  if nullif(v_attrs ->> 'externalId', '') is not null and nullif(v_attrs ->> 'source', '') is null then
+    raise exception 'attrs.externalId needs attrs.source, the system the id comes from' using errcode = '22023', hint = 'ORDERS_SOURCE_REQUIRED';
+  end if;
+  if v_attrs -> 'party' is not null and (nullif(v_attrs #>> '{party,type}', '') is null or nullif(v_attrs #>> '{party,id}', '') is null) then
+    raise exception 'attrs.party is { type, id }' using errcode = '22023', hint = 'ORDERS_PARTY_INVALID';
+  end if;
+  if v_attrs ? 'orderDiscount' then
+    raise exception 'an order from a quote takes the quote''s discounts, not attrs.orderDiscount' using errcode = '22023', hint = 'ORDERS_FIELD_UNSUPPORTED';
+  end if;
   if (v_quote."variant_of" is not null or exists (select 1 from "better_supabase"."quotes" s where s."variant_of" = v_quote."id"))
     and not v_quote."is_selected" then
     raise exception 'this quote is one of several variants; select a variant first' using errcode = '55000', hint = 'QUOTE_VARIANT_NOT_SELECTED';
   end if;
   if exists (select 1 from "better_supabase"."quote_lines" x where x."parent_id" = v_quote."id" and (not x."optional" or x."selected")
-    and x."quantity" <> trunc(x."quantity")) then
-    raise exception 'an order line is a whole quantity; the quote has a fractional one' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
+    and x."quantity" <> round(x."quantity", 0)) then
+    raise exception 'an order line has at most 0 decimals (options.quantityScale); the quote has a line with more' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object(
       'variantId', cv."id", 'productId', cp."id", 'sku', coalesce(cv."sku", ''), 'title', x."description",
-      'quantity', x."quantity"::integer, 'unitAmount', x."unit_amount"::text,
+      'quantity', x."quantity", 'unitAmount', x."unit_amount"::text,
       'subtotal', s.subtotal::text, 'discount', s.discount::text,
       'tax', (case when v_quote."prices_include_tax" then (s.subtotal - s.discount) - round((s.subtotal - s.discount) * 10000.0 / (10000 + s.rate))
         else round((s.subtotal - s.discount) * s.rate / 10000.0) end)::bigint::text,
@@ -4143,7 +4609,7 @@ begin
     'currency', v_quote."currency", 'taxInclusive', v_quote."prices_include_tax",
     'subtotal', v_quote."list_total"::text, 'discountTotal', v_quote."discount_total"::text, 'shippingTotal', '0',
     'taxTotal', v_quote."tax_total"::text, 'total', v_quote."total"::text,
-    'origin', jsonb_build_object('type', 'quote', 'id', v_quote."id"::text)),
+    'origin', jsonb_build_object('type', 'quote', 'id', v_quote."id"::text), 'quoteId', v_quote."id"),
     v_lines, nullif(v_attrs ->> 'locationId', '')::uuid);
 end;
 $$;
@@ -4465,6 +4931,10 @@ begin
   if v_order.status::text not in ('paid', 'confirmed') then
     raise exception 'only a paid or confirmed order can be fulfilled' using errcode = '55000', hint = 'ORDERS_NOT_PAID';
   end if;
+  if exists (select 1 from "better_supabase"."orders" x where x."id" = v_order.id and x."payment_required"
+    and x."paid_total" < coalesce(x."deposit_amount", x."total")) then
+    raise exception 'the order ships once its deposit, or its total without one, is paid' using errcode = '55000', hint = 'ORDERS_PAYMENT_REQUIRED';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_fulfillment_create"(uuid)');
   begin
@@ -4485,7 +4955,7 @@ begin
     create_fulfillment.carrier, create_fulfillment.tracking_number, create_fulfillment.tracking_url)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity,
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity,
       case when jsonb_typeof(e -> 'detail') = 'object' then e -> 'detail' end as detail
     from jsonb_array_elements(v_requested) e
   loop
@@ -4705,7 +5175,7 @@ begin
   values (v_order.tenant, v_order.id, request_return.reason)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity from jsonb_array_elements(request_return.lines) e
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity from jsonb_array_elements(request_return.lines) e
   loop
     if v_item.quantity is null or v_item.quantity <= 0 then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
@@ -5019,7 +5489,7 @@ begin
       elsif jsonb_typeof(v_data -> 'lines') = 'array' then
         delete from "better_supabase"."order_lines" l where l."order_id" = v_id;
         insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
         from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
       end if;
     end if;
@@ -5037,7 +5507,7 @@ begin
   end if;
   if exists (
     select 1 from jsonb_array_elements(v_data -> 'lines') l
-    where coalesce(l.value ->> 'title', '') = '' or coalesce(l.value ->> 'quantity', '') !~ '^[1-9][0-9]{0,8}$' or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
+    where coalesce(l.value ->> 'title', '') = '' or not (case when coalesce(l.value ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (l.value ->> 'quantity')::numeric > 0 else false end) or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
   ) then
     raise exception 'a line needs a title, a whole quantity above zero and a unitAmount' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
@@ -5049,7 +5519,7 @@ begin
     raise exception 'a line''s billingParty or costSource is not a known value' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
-  select coalesce(sum((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::bigint), 0),
+  select coalesce(sum(round((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::numeric)::bigint), 0),
     coalesce(sum(coalesce((l.value ->> 'discount')::bigint, 0)), 0),
     coalesce(sum(coalesce((l.value ->> 'tax')::bigint, 0)), 0)
   into v_subtotal, v_discount, v_tax
@@ -5095,7 +5565,7 @@ begin
   returning "id", "updated_at" into v_id, v_updated;
 
   insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
   from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
 
   if jsonb_typeof(v_data -> 'payments') = 'array' then
@@ -5173,6 +5643,360 @@ as $$
 $$;
 revoke execute on function "better_supabase"."order_status_board"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."order_status_board"(uuid, integer) to authenticated, service_role;
+
+-- The organization's orders as a keyset page, newest first (ADR 1077). Row
+-- security decides what the caller sees. filters is { status, customerId,
+-- partyId, channel, source, currency (each a value or a list), from and to
+-- (placed at), search (number, email, external id), sort (placedAt, number,
+-- total), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. Amounts are text.
+create or replace function "better_supabase"."page_orders"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_orders.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'currency', 'channel') then
+      raise exception 'facet is one of status, currency, channel' using errcode = '22023', hint = 'ORDERS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'currency' then (x."currency")::text when 'channel' then (x."channel")::text end) as v
+      from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('placedAt', 'number', 'total') then
+    raise exception 'sort is one of placedAt, number, total' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence" >= (v_after ->> 0)::bigint and ((x."sequence" > (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."sequence" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total" >= (v_after ->> 0)::bigint and ((x."total" > (v_after ->> 0)::bigint) or (x."total" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."total" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."total" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_orders"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_orders"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -5361,21 +6185,21 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block-data orders
--- @bsb-hash sha256:9e7cf68a92d30df8f4303e95812a9d1f5c8e94508111060e75de394239f87417
+-- @bsb-hash sha256:9ed30d81096c3bdb7513abbef921645a893af561edfc75bb6b9a57d3b4bfb7dc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('orders', 4, 'managed')
+values ('orders', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
--- @bsb-block orders@4 managed
--- @bsb-hash sha256:41d0f47a570777b9692a8c55ee1b4942e4dcf800f1859ee51e43fec7b2d12055
+-- @bsb-block orders@5 managed
+-- @bsb-hash sha256:b0f6fcc16039eedae068fc88cce510e36fe2fcbe900d10d82b71536b43691526
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5500,6 +6324,18 @@ create table "app_private"."orders" (
   "variant_of" uuid references "app_private"."orders" ("id") on delete set null,
   "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200),
   "is_selected" boolean not null default true,
+  "channel" text constraint bsb_orders_channel_check check ("channel" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source" text constraint bsb_orders_source_check check ("source" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "external_id" text constraint bsb_orders_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "invoicing_policy" text not null default 'on_order' constraint bsb_orders_invoicing_policy_check check ("invoicing_policy" in ('on_order', 'on_delivery')),
+  "delivery_method" text constraint bsb_orders_delivery_method_check check ("delivery_method" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "quote_id" uuid,
+  "order_discount" bigint not null default 0 constraint bsb_orders_order_discount_check check ("order_discount" >= 0),
+  "promotion_id" uuid,
+  "payment_required" boolean not null default false,
+  "deposit_amount" bigint constraint bsb_orders_deposit_amount_check check ("deposit_amount" >= 0),
+  "party_type" text constraint bsb_orders_party_type_check check ("party_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "party_id" text constraint bsb_orders_party_id_check check (length("party_id") >= 1 and length("party_id") <= 200),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "invoice_number")
@@ -5507,6 +6343,12 @@ create table "app_private"."orders" (
 create index orders_status_idx on "app_private"."orders" ("tenant_id", "status", "placed_at");
 create index orders_customer_idx on "app_private"."orders" ("customer_id");
 create index orders_sequence_idx on "app_private"."orders" ("tenant_id", "sequence");
+create unique index orders_external_idx on "app_private"."orders" ("tenant_id", "source", "external_id") where "external_id" is not null;
+alter table "app_private"."orders" add constraint bsb_orders_external_source_check check ("external_id" is null or "source" is not null);
+create index orders_channel_idx on "app_private"."orders" ("tenant_id", "channel", "placed_at");
+create index orders_quote_idx on "app_private"."orders" ("quote_id") where "quote_id" is not null;
+create index orders_party_idx on "app_private"."orders" ("tenant_id", "party_type", "party_id") where "party_id" is not null;
+alter table "app_private"."orders" add constraint bsb_orders_party_pair_check check (("party_type" is null) = ("party_id" is null));
 create unique index orders_origin_idx on "app_private"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
 create index orders_variant_idx on "app_private"."orders" ("variant_of") where "variant_of" is not null;
 alter table "app_private"."orders" enable row level security;
@@ -5526,7 +6368,10 @@ create table "app_private"."order_lines" (
   "product_id" uuid,
   "sku" text not null,
   "title" text not null,
-  "quantity" integer not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_order_lines_unit_check check (length("unit") >= 1 and length("unit") <= 32),
+  "description" text constraint bsb_order_lines_description_check check (length("description") <= 4000),
+  "line_type" text not null default 'item' constraint bsb_order_lines_line_type_check check ("line_type" in ('item', 'service', 'fee')),
   "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0),
   "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0),
   "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0),
@@ -5542,8 +6387,8 @@ create table "app_private"."order_lines" (
   "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
-  "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
+  "quantity_fulfilled" numeric(18, 0) not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" numeric(18, 0) not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index order_lines_order_idx on "app_private"."order_lines" ("order_id");
@@ -5606,7 +6451,7 @@ create table "app_private"."order_fulfillment_lines" (
   "tenant_id" uuid not null,
   "fulfillment_id" uuid not null references "app_private"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "app_private"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
   "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
@@ -5642,7 +6487,7 @@ create table "app_private"."order_return_lines" (
   "tenant_id" uuid not null,
   "return_id" uuid not null references "app_private"."order_returns" ("id") on delete cascade,
   "order_line_id" uuid not null references "app_private"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
   primary key ("return_id", "order_line_id")
 );
 create index order_return_lines_line_idx on "app_private"."order_return_lines" ("order_line_id");
@@ -6260,7 +7105,7 @@ as $$
         'subtotal', l."subtotal"::text, 'discount', l."discount"::text, 'tax', l."tax"::text,
         'total', l."total"::text, 'requiresShipping', l."requires_shipping", 'locationId', l."location_id",
         'reservationId', l."reservation_id", 'fulfilled', l."quantity_fulfilled", 'returned', l."quantity_returned",
-        'backordered', l."backordered") order by l."position")
+        'backordered', l."backordered", 'unit', l."unit", 'description', l."description", 'lineType', l."line_type") order by l."position")
       from "app_private"."order_lines" l where l."order_id" = x."id"), '[]'::jsonb),
     'payments', coalesce((select jsonb_agg(jsonb_build_object(
         'id', y."id", 'provider', y."provider", 'reference', y."reference", 'status', y."status",
@@ -6284,7 +7129,7 @@ as $$
         'id', y."id", 'paymentId', y."payment_id", 'returnId', y."return_id", 'amount', y."amount"::text,
         'status', y."status", 'reason', y."reason", 'providerReference', y."provider_reference",
         'createdAt', y."created_at", 'completedAt', y."completed_at") order by y."created_at")
-      from "app_private"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb))
+      from "app_private"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text)
   from "app_private"."orders" x where x."id" = p_order
 $$;
 revoke execute on function "app_private"."order_json"(uuid) from public, anon, authenticated;
@@ -6661,6 +7506,13 @@ begin
       return "app_private"."order_json"(v_id) || jsonb_build_object('created', false);
     end if;
   end if;
+  if nullif(p_attrs ->> 'externalId', '') is not null then
+    select x."id" into v_id from "app_private"."orders" x
+    where x."tenant_id" = p_tenant and x."source" = p_attrs ->> 'source' and x."external_id" = p_attrs ->> 'externalId';
+    if v_id is not null then
+      return "app_private"."order_json"(v_id) || jsonb_build_object('created', false);
+    end if;
+  end if;
   if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
     v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
@@ -6675,17 +7527,17 @@ begin
   end if;
   insert into "app_private"."orders" ("tenant_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
-    "shipping_address", "billing_address", "origin_type", "origin_id")
+    "shipping_address", "billing_address", "origin_type", "origin_id", "channel", "source", "external_id", "invoicing_policy", "delivery_method", "quote_id", "order_discount", "promotion_id", "payment_required", "deposit_amount", "party_type", "party_id")
   values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
-    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
+    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}', nullif(p_attrs ->> 'channel', ''), nullif(p_attrs ->> 'source', ''), nullif(p_attrs ->> 'externalId', ''), coalesce(nullif(p_attrs ->> 'invoicingPolicy', ''), 'on_order'), nullif(p_attrs ->> 'deliveryMethod', ''), nullif(p_attrs ->> 'quoteId', '')::uuid, coalesce((p_attrs ->> 'orderDiscount')::bigint, 0), nullif(p_attrs ->> 'promotionId', '')::uuid, coalesce((p_attrs ->> 'paymentRequired')::boolean, false), nullif(p_attrs ->> 'deposit', '')::bigint, nullif(p_attrs #>> '{party,type}', ''), nullif(p_attrs #>> '{party,id}', ''))
   returning "id" into v_id;
   insert into "app_private"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title",
-    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping")
+    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "unit", "description", "line_type")
   select p_tenant, v_id, e.n, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, e.l ->> 'sku', e.l ->> 'title',
-    (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
-    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
+    (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
+    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean, nullif(e.l ->> 'unit', ''), nullif(e.l ->> 'description', ''), coalesce(nullif(e.l ->> 'lineType', ''), 'item')
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "app_private"."orders" x where x."id" = v_id;
   if not coalesce((p_attrs ->> 'draft')::boolean, false) then
@@ -6726,6 +7578,7 @@ declare
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
+  v_order_discount bigint;
 begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', order_from_lines.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
@@ -6739,6 +7592,16 @@ begin
   if (v_attrs ? 'shippingTotal' and case when coalesce(v_attrs ->> 'shippingTotal', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'shippingTotal')::bigint end is null) then
     raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
   end if;
+  if (v_attrs ? 'orderDiscount' and coalesce(v_attrs ->> 'orderDiscount', '') !~ '^[0-9]{1,18}$') or (v_attrs ? 'deposit' and coalesce(v_attrs ->> 'deposit', '') !~ '^[0-9]{1,18}$') then
+    raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  if nullif(v_attrs ->> 'externalId', '') is not null and nullif(v_attrs ->> 'source', '') is null then
+    raise exception 'attrs.externalId needs attrs.source, the system the id comes from' using errcode = '22023', hint = 'ORDERS_SOURCE_REQUIRED';
+  end if;
+  if v_attrs -> 'party' is not null and (nullif(v_attrs #>> '{party,type}', '') is null or nullif(v_attrs #>> '{party,id}', '') is null) then
+    raise exception 'attrs.party is { type, id }' using errcode = '22023', hint = 'ORDERS_PARTY_INVALID';
+  end if;
+  v_order_discount := coalesce(case when coalesce(v_attrs ->> 'orderDiscount', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'orderDiscount')::bigint end, 0);
   for v_item in
     select e as raw, nullif(e ->> 'variantId', '')::uuid as variant, e ->> 'quantity' as quantity,
       cv."id" as found, cv."tenant_id" as variant_tenant, cv."sku" as sku, concat_ws(' / ', cp."title", nullif(cv."title", '')) as title, cp."id" as product, cp."kind" as kind
@@ -6746,8 +7609,11 @@ begin
     left join "better_supabase"."product_variants" cv on cv."id" = nullif(e ->> 'variantId', '')::uuid
     left join "better_supabase"."products" cp on cp."id" = cv."product_id"
   loop
-    if coalesce(v_item.quantity, '') !~ '^[1-9][0-9]{0,8}$' then
+    if not (case when coalesce(v_item.quantity, '') ~ '^[0-9]{1,12}$' then (v_item.quantity)::numeric > 0 else false end) then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
+    end if;
+    if coalesce(v_item.raw ->> 'lineType', 'item') not in ('item', 'service', 'fee') then
+      raise exception 'a line''s lineType is one of item, service, fee' using errcode = '22023', hint = 'ORDERS_LINES_INVALID';
     end if;
     if v_item.variant is not null and (v_item.found is null or v_item.variant_tenant <> order_from_lines.tenant) then
       raise exception 'a line''s variant isn''t in this organization' using errcode = 'P0002', hint = 'ORDERS_VARIANT_NOT_FOUND';
@@ -6768,21 +7634,27 @@ begin
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
     v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
-      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
-    if v_disc > v_unit * v_item.quantity::bigint then
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(round(v_unit * v_item.quantity::numeric)::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > round(v_unit * v_item.quantity::numeric)::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
-      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
+      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (round(v_unit * v_item.quantity::numeric)::bigint)::text,
       'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
-      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
-    v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
+      'total', (round(v_unit * v_item.quantity::numeric)::bigint - v_disc)::text,
+      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end)
+      || jsonb_strip_nulls(jsonb_build_object('unit', v_item.raw -> 'unit', 'description', v_item.raw -> 'description',
+        'lineType', v_item.raw -> 'lineType', 'fields', v_item.raw -> 'fields')));
+    v_subtotal := v_subtotal + round(v_unit * v_item.quantity::numeric)::bigint;
     v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
+  if v_order_discount > v_subtotal - v_discount then
+    raise exception 'attrs.orderDiscount is more than the lines'' net subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  v_discount := v_discount + v_order_discount;
   return "app_private"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
     'subtotal', v_subtotal::text, 'discountTotal', v_discount::text, 'shippingTotal', v_shipping::text, 'taxTotal', v_tax::text,
     'total', (v_subtotal - v_discount + v_shipping + case when v_inclusive then 0 else v_tax end)::text),
@@ -7053,6 +7925,10 @@ begin
   if v_order.status::text not in ('paid', 'confirmed') then
     raise exception 'only a paid or confirmed order can be fulfilled' using errcode = '55000', hint = 'ORDERS_NOT_PAID';
   end if;
+  if exists (select 1 from "app_private"."orders" x where x."id" = v_order.id and x."payment_required"
+    and x."paid_total" < coalesce(x."deposit_amount", x."total")) then
+    raise exception 'the order ships once its deposit, or its total without one, is paid' using errcode = '55000', hint = 'ORDERS_PAYMENT_REQUIRED';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_fulfillment_create"(uuid)');
   begin
@@ -7073,7 +7949,7 @@ begin
     create_fulfillment.carrier, create_fulfillment.tracking_number, create_fulfillment.tracking_url)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity,
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity,
       case when jsonb_typeof(e -> 'detail') = 'object' then e -> 'detail' end as detail
     from jsonb_array_elements(v_requested) e
   loop
@@ -7281,7 +8157,7 @@ begin
   values (v_order.tenant, v_order.id, request_return.reason)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity from jsonb_array_elements(request_return.lines) e
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity from jsonb_array_elements(request_return.lines) e
   loop
     if v_item.quantity is null or v_item.quantity <= 0 then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
@@ -7591,7 +8467,7 @@ begin
       elsif jsonb_typeof(v_data -> 'lines') = 'array' then
         delete from "app_private"."order_lines" l where l."order_id" = v_id;
         insert into "app_private"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
         from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
       end if;
     end if;
@@ -7609,7 +8485,7 @@ begin
   end if;
   if exists (
     select 1 from jsonb_array_elements(v_data -> 'lines') l
-    where coalesce(l.value ->> 'title', '') = '' or coalesce(l.value ->> 'quantity', '') !~ '^[1-9][0-9]{0,8}$' or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
+    where coalesce(l.value ->> 'title', '') = '' or not (case when coalesce(l.value ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (l.value ->> 'quantity')::numeric > 0 else false end) or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
   ) then
     raise exception 'a line needs a title, a whole quantity above zero and a unitAmount' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
@@ -7621,7 +8497,7 @@ begin
     raise exception 'a line''s billingParty or costSource is not a known value' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
-  select coalesce(sum((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::bigint), 0),
+  select coalesce(sum(round((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::numeric)::bigint), 0),
     coalesce(sum(coalesce((l.value ->> 'discount')::bigint, 0)), 0),
     coalesce(sum(coalesce((l.value ->> 'tax')::bigint, 0)), 0)
   into v_subtotal, v_discount, v_tax
@@ -7667,7 +8543,7 @@ begin
   returning "id", "updated_at" into v_id, v_updated;
 
   insert into "app_private"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
   from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
 
   if jsonb_typeof(v_data -> 'payments') = 'array' then
@@ -7745,6 +8621,360 @@ as $$
 $$;
 revoke execute on function "app_private"."order_status_board"(uuid, integer) from public, anon;
 grant execute on function "app_private"."order_status_board"(uuid, integer) to authenticated, service_role;
+
+-- The organization's orders as a keyset page, newest first (ADR 1077). Row
+-- security decides what the caller sees. filters is { status, customerId,
+-- partyId, channel, source, currency (each a value or a list), from and to
+-- (placed at), search (number, email, external id), sort (placedAt, number,
+-- total), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. Amounts are text.
+create or replace function "app_private"."page_orders"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_orders.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'currency', 'channel') then
+      raise exception 'facet is one of status, currency, channel' using errcode = '22023', hint = 'ORDERS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'currency' then (x."currency")::text when 'channel' then (x."channel")::text end) as v
+      from "app_private"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('placedAt', 'number', 'total') then
+    raise exception 'sort is one of placedAt, number, total' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence" >= (v_after ->> 0)::bigint and ((x."sequence" > (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."sequence" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total" >= (v_after ->> 0)::bigint and ((x."total" > (v_after ->> 0)::bigint) or (x."total" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."total" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."total" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_orders"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_orders"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -7929,21 +9159,21 @@ create policy bsb_tenant_scope_delete on "app_private"."order_refunds" as restri
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block-data orders
--- @bsb-hash sha256:9e7cf68a92d30df8f4303e95812a9d1f5c8e94508111060e75de394239f87417
+-- @bsb-hash sha256:9ed30d81096c3bdb7513abbef921645a893af561edfc75bb6b9a57d3b4bfb7dc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('orders', 4, 'managed')
+values ('orders', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
--- @bsb-block orders@4 managed
--- @bsb-hash sha256:21eac7f5d7f890369cb2c648a46d151da825b4e2f673b18792df639af5c93981
+-- @bsb-block orders@5 managed
+-- @bsb-hash sha256:e8c29ed8ba073557065aece2e5980d8baf16813b252425d4fe6872cbbcd831c3
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8063,6 +9293,18 @@ create table "better_supabase"."orders" (
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
   "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200),
   "is_selected" boolean not null default true,
+  "channel" text constraint bsb_orders_channel_check check ("channel" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source" text constraint bsb_orders_source_check check ("source" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "external_id" text constraint bsb_orders_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "invoicing_policy" text not null default 'on_order' constraint bsb_orders_invoicing_policy_check check ("invoicing_policy" in ('on_order', 'on_delivery')),
+  "delivery_method" text constraint bsb_orders_delivery_method_check check ("delivery_method" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "quote_id" uuid,
+  "order_discount" bigint not null default 0 constraint bsb_orders_order_discount_check check ("order_discount" >= 0),
+  "promotion_id" uuid,
+  "payment_required" boolean not null default false,
+  "deposit_amount" bigint constraint bsb_orders_deposit_amount_check check ("deposit_amount" >= 0),
+  "party_type" text constraint bsb_orders_party_type_check check ("party_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "party_id" text constraint bsb_orders_party_id_check check (length("party_id") >= 1 and length("party_id") <= 200),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "invoice_number")
@@ -8070,6 +9312,12 @@ create table "better_supabase"."orders" (
 create index orders_status_idx on "better_supabase"."orders" ("tenant_id", "status", "placed_at");
 create index orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
+create unique index orders_external_idx on "better_supabase"."orders" ("tenant_id", "source", "external_id") where "external_id" is not null;
+alter table "better_supabase"."orders" add constraint bsb_orders_external_source_check check ("external_id" is null or "source" is not null);
+create index orders_channel_idx on "better_supabase"."orders" ("tenant_id", "channel", "placed_at");
+create index orders_quote_idx on "better_supabase"."orders" ("quote_id") where "quote_id" is not null;
+create index orders_party_idx on "better_supabase"."orders" ("tenant_id", "party_type", "party_id") where "party_id" is not null;
+alter table "better_supabase"."orders" add constraint bsb_orders_party_pair_check check (("party_type" is null) = ("party_id" is null));
 create unique index orders_origin_idx on "better_supabase"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
 create index orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
 alter table "better_supabase"."orders" enable row level security;
@@ -8089,7 +9337,10 @@ create table "better_supabase"."order_lines" (
   "product_id" uuid,
   "sku" text not null,
   "title" text not null,
-  "quantity" integer not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_order_lines_unit_check check (length("unit") >= 1 and length("unit") <= 32),
+  "description" text constraint bsb_order_lines_description_check check (length("description") <= 4000),
+  "line_type" text not null default 'item' constraint bsb_order_lines_line_type_check check ("line_type" in ('item', 'service', 'fee')),
   "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0),
   "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0),
   "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0),
@@ -8105,8 +9356,8 @@ create table "better_supabase"."order_lines" (
   "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
-  "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
+  "quantity_fulfilled" numeric(18, 0) not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" numeric(18, 0) not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
@@ -8169,7 +9420,7 @@ create table "better_supabase"."order_fulfillment_lines" (
   "tenant_id" uuid not null,
   "fulfillment_id" uuid not null references "better_supabase"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
   "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
@@ -8205,7 +9456,7 @@ create table "better_supabase"."order_return_lines" (
   "tenant_id" uuid not null,
   "return_id" uuid not null references "better_supabase"."order_returns" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
   primary key ("return_id", "order_line_id")
 );
 create index order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
@@ -8823,7 +10074,7 @@ as $$
         'subtotal', l."subtotal"::text, 'discount', l."discount"::text, 'tax', l."tax"::text,
         'total', l."total"::text, 'requiresShipping', l."requires_shipping", 'locationId', l."location_id",
         'reservationId', l."reservation_id", 'fulfilled', l."quantity_fulfilled", 'returned', l."quantity_returned",
-        'backordered', l."backordered") order by l."position")
+        'backordered', l."backordered", 'unit', l."unit", 'description', l."description", 'lineType', l."line_type") order by l."position")
       from "better_supabase"."order_lines" l where l."order_id" = x."id"), '[]'::jsonb),
     'payments', coalesce((select jsonb_agg(jsonb_build_object(
         'id', y."id", 'provider', y."provider", 'reference', y."reference", 'status', y."status",
@@ -8847,7 +10098,7 @@ as $$
         'id', y."id", 'paymentId', y."payment_id", 'returnId', y."return_id", 'amount', y."amount"::text,
         'status', y."status", 'reason', y."reason", 'providerReference', y."provider_reference",
         'createdAt', y."created_at", 'completedAt', y."completed_at") order by y."created_at")
-      from "better_supabase"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb))
+      from "better_supabase"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text)
   from "better_supabase"."orders" x where x."id" = p_order
 $$;
 revoke execute on function "better_supabase"."order_json"(uuid) from public, anon, authenticated;
@@ -9224,6 +10475,13 @@ begin
       return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
     end if;
   end if;
+  if nullif(p_attrs ->> 'externalId', '') is not null then
+    select x."id" into v_id from "better_supabase"."orders" x
+    where x."tenant_id" = p_tenant and x."source" = p_attrs ->> 'source' and x."external_id" = p_attrs ->> 'externalId';
+    if v_id is not null then
+      return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
+    end if;
+  end if;
   if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
     v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
@@ -9238,17 +10496,17 @@ begin
   end if;
   insert into "better_supabase"."orders" ("tenant_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
-    "shipping_address", "billing_address", "origin_type", "origin_id")
+    "shipping_address", "billing_address", "origin_type", "origin_id", "channel", "source", "external_id", "invoicing_policy", "delivery_method", "quote_id", "order_discount", "promotion_id", "payment_required", "deposit_amount", "party_type", "party_id")
   values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
-    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
+    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}', nullif(p_attrs ->> 'channel', ''), nullif(p_attrs ->> 'source', ''), nullif(p_attrs ->> 'externalId', ''), coalesce(nullif(p_attrs ->> 'invoicingPolicy', ''), 'on_order'), nullif(p_attrs ->> 'deliveryMethod', ''), nullif(p_attrs ->> 'quoteId', '')::uuid, coalesce((p_attrs ->> 'orderDiscount')::bigint, 0), nullif(p_attrs ->> 'promotionId', '')::uuid, coalesce((p_attrs ->> 'paymentRequired')::boolean, false), nullif(p_attrs ->> 'deposit', '')::bigint, nullif(p_attrs #>> '{party,type}', ''), nullif(p_attrs #>> '{party,id}', ''))
   returning "id" into v_id;
   insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title",
-    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping")
+    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "unit", "description", "line_type")
   select p_tenant, v_id, e.n, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, e.l ->> 'sku', e.l ->> 'title',
-    (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
-    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
+    (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
+    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean, nullif(e.l ->> 'unit', ''), nullif(e.l ->> 'description', ''), coalesce(nullif(e.l ->> 'lineType', ''), 'item')
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
   if not coalesce((p_attrs ->> 'draft')::boolean, false) then
@@ -9289,6 +10547,7 @@ declare
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
+  v_order_discount bigint;
 begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', order_from_lines.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
@@ -9302,6 +10561,16 @@ begin
   if (v_attrs ? 'shippingTotal' and case when coalesce(v_attrs ->> 'shippingTotal', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'shippingTotal')::bigint end is null) then
     raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
   end if;
+  if (v_attrs ? 'orderDiscount' and coalesce(v_attrs ->> 'orderDiscount', '') !~ '^[0-9]{1,18}$') or (v_attrs ? 'deposit' and coalesce(v_attrs ->> 'deposit', '') !~ '^[0-9]{1,18}$') then
+    raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  if nullif(v_attrs ->> 'externalId', '') is not null and nullif(v_attrs ->> 'source', '') is null then
+    raise exception 'attrs.externalId needs attrs.source, the system the id comes from' using errcode = '22023', hint = 'ORDERS_SOURCE_REQUIRED';
+  end if;
+  if v_attrs -> 'party' is not null and (nullif(v_attrs #>> '{party,type}', '') is null or nullif(v_attrs #>> '{party,id}', '') is null) then
+    raise exception 'attrs.party is { type, id }' using errcode = '22023', hint = 'ORDERS_PARTY_INVALID';
+  end if;
+  v_order_discount := coalesce(case when coalesce(v_attrs ->> 'orderDiscount', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'orderDiscount')::bigint end, 0);
   for v_item in
     select e as raw, nullif(e ->> 'variantId', '')::uuid as variant, e ->> 'quantity' as quantity,
       cv."id" as found, cv."tenant_id" as variant_tenant, cv."sku" as sku, concat_ws(' / ', cp."title", nullif(cv."title", '')) as title, cp."id" as product, cp."kind" as kind
@@ -9309,8 +10578,11 @@ begin
     left join "better_supabase"."product_variants" cv on cv."id" = nullif(e ->> 'variantId', '')::uuid
     left join "better_supabase"."products" cp on cp."id" = cv."product_id"
   loop
-    if coalesce(v_item.quantity, '') !~ '^[1-9][0-9]{0,8}$' then
+    if not (case when coalesce(v_item.quantity, '') ~ '^[0-9]{1,12}$' then (v_item.quantity)::numeric > 0 else false end) then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
+    end if;
+    if coalesce(v_item.raw ->> 'lineType', 'item') not in ('item', 'service', 'fee') then
+      raise exception 'a line''s lineType is one of item, service, fee' using errcode = '22023', hint = 'ORDERS_LINES_INVALID';
     end if;
     if v_item.variant is not null and (v_item.found is null or v_item.variant_tenant <> order_from_lines.tenant) then
       raise exception 'a line''s variant isn''t in this organization' using errcode = 'P0002', hint = 'ORDERS_VARIANT_NOT_FOUND';
@@ -9331,21 +10603,27 @@ begin
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
     v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
-      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
-    if v_disc > v_unit * v_item.quantity::bigint then
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(round(v_unit * v_item.quantity::numeric)::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > round(v_unit * v_item.quantity::numeric)::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
-      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
+      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (round(v_unit * v_item.quantity::numeric)::bigint)::text,
       'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
-      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
-    v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
+      'total', (round(v_unit * v_item.quantity::numeric)::bigint - v_disc)::text,
+      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end)
+      || jsonb_strip_nulls(jsonb_build_object('unit', v_item.raw -> 'unit', 'description', v_item.raw -> 'description',
+        'lineType', v_item.raw -> 'lineType', 'fields', v_item.raw -> 'fields')));
+    v_subtotal := v_subtotal + round(v_unit * v_item.quantity::numeric)::bigint;
     v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
+  if v_order_discount > v_subtotal - v_discount then
+    raise exception 'attrs.orderDiscount is more than the lines'' net subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  v_discount := v_discount + v_order_discount;
   return "better_supabase"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
     'subtotal', v_subtotal::text, 'discountTotal', v_discount::text, 'shippingTotal', v_shipping::text, 'taxTotal', v_tax::text,
     'total', (v_subtotal - v_discount + v_shipping + case when v_inclusive then 0 else v_tax end)::text),
@@ -9616,6 +10894,10 @@ begin
   if v_order.status::text not in ('paid', 'confirmed') then
     raise exception 'only a paid or confirmed order can be fulfilled' using errcode = '55000', hint = 'ORDERS_NOT_PAID';
   end if;
+  if exists (select 1 from "better_supabase"."orders" x where x."id" = v_order.id and x."payment_required"
+    and x."paid_total" < coalesce(x."deposit_amount", x."total")) then
+    raise exception 'the order ships once its deposit, or its total without one, is paid' using errcode = '55000', hint = 'ORDERS_PAYMENT_REQUIRED';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_fulfillment_create"(uuid)');
   begin
@@ -9636,7 +10918,7 @@ begin
     create_fulfillment.carrier, create_fulfillment.tracking_number, create_fulfillment.tracking_url)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity,
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity,
       case when jsonb_typeof(e -> 'detail') = 'object' then e -> 'detail' end as detail
     from jsonb_array_elements(v_requested) e
   loop
@@ -9844,7 +11126,7 @@ begin
   values (v_order.tenant, v_order.id, request_return.reason)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity from jsonb_array_elements(request_return.lines) e
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity from jsonb_array_elements(request_return.lines) e
   loop
     if v_item.quantity is null or v_item.quantity <= 0 then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
@@ -10154,7 +11436,7 @@ begin
       elsif jsonb_typeof(v_data -> 'lines') = 'array' then
         delete from "better_supabase"."order_lines" l where l."order_id" = v_id;
         insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
         from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
       end if;
     end if;
@@ -10172,7 +11454,7 @@ begin
   end if;
   if exists (
     select 1 from jsonb_array_elements(v_data -> 'lines') l
-    where coalesce(l.value ->> 'title', '') = '' or coalesce(l.value ->> 'quantity', '') !~ '^[1-9][0-9]{0,8}$' or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
+    where coalesce(l.value ->> 'title', '') = '' or not (case when coalesce(l.value ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (l.value ->> 'quantity')::numeric > 0 else false end) or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
   ) then
     raise exception 'a line needs a title, a whole quantity above zero and a unitAmount' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
@@ -10184,7 +11466,7 @@ begin
     raise exception 'a line''s billingParty or costSource is not a known value' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
-  select coalesce(sum((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::bigint), 0),
+  select coalesce(sum(round((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::numeric)::bigint), 0),
     coalesce(sum(coalesce((l.value ->> 'discount')::bigint, 0)), 0),
     coalesce(sum(coalesce((l.value ->> 'tax')::bigint, 0)), 0)
   into v_subtotal, v_discount, v_tax
@@ -10230,7 +11512,7 @@ begin
   returning "id", "updated_at" into v_id, v_updated;
 
   insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
   from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
 
   if jsonb_typeof(v_data -> 'payments') = 'array' then
@@ -10308,6 +11590,360 @@ as $$
 $$;
 revoke execute on function "better_supabase"."order_status_board"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."order_status_board"(uuid, integer) to authenticated, service_role;
+
+-- The organization's orders as a keyset page, newest first (ADR 1077). Row
+-- security decides what the caller sees. filters is { status, customerId,
+-- partyId, channel, source, currency (each a value or a list), from and to
+-- (placed at), search (number, email, external id), sort (placedAt, number,
+-- total), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. Amounts are text.
+create or replace function "better_supabase"."page_orders"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_orders.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'currency', 'channel') then
+      raise exception 'facet is one of status, currency, channel' using errcode = '22023', hint = 'ORDERS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'currency' then (x."currency")::text when 'channel' then (x."channel")::text end) as v
+      from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('placedAt', 'number', 'total') then
+    raise exception 'sort is one of placedAt, number, total' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence" >= (v_after ->> 0)::bigint and ((x."sequence" > (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."sequence" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total" >= (v_after ->> 0)::bigint and ((x."total" > (v_after ->> 0)::bigint) or (x."total" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."total" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."total" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_orders"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_orders"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -10821,24 +12457,34 @@ as $$ select "better_supabase"."order_status_board"($1, $2) $$;
 revoke execute on function "api"."order_status_board"(uuid, integer) from public, anon;
 grant execute on function "api"."order_status_board"(uuid, integer) to authenticated, service_role;
 
+create or replace function "api"."page_orders"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_orders"($1, $2) $$;
+revoke execute on function "api"."page_orders"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_orders"(uuid, jsonb) to authenticated, service_role;
+
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block-data orders
--- @bsb-hash sha256:9e7cf68a92d30df8f4303e95812a9d1f5c8e94508111060e75de394239f87417
+-- @bsb-hash sha256:9ed30d81096c3bdb7513abbef921645a893af561edfc75bb6b9a57d3b4bfb7dc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('orders', 4, 'managed')
+values ('orders', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
--- @bsb-block orders@4 managed
--- @bsb-hash sha256:b536ae534fcc4cc8d869a9bf3ef2690e5b349d21eb71ed84fa5156a8bc1ad6fc
+-- @bsb-block orders@5 managed
+-- @bsb-hash sha256:966040ee3f83eb0531268988cf34f52af56855a140e33283e4671df192cb1c19
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10952,10 +12598,26 @@ alter table "better_supabase"."orders" add column if not exists "buyer" jsonb;
 alter table "better_supabase"."orders" add column if not exists "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null;
 alter table "better_supabase"."orders" add column if not exists "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200);
 alter table "better_supabase"."orders" add column if not exists "is_selected" boolean not null default true;
+alter table "better_supabase"."orders" add column if not exists "channel" text constraint bsb_orders_channel_check check ("channel" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."orders" add column if not exists "source" text constraint bsb_orders_source_check check ("source" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."orders" add column if not exists "external_id" text constraint bsb_orders_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200);
+alter table "better_supabase"."orders" add column if not exists "invoicing_policy" text not null default 'on_order' constraint bsb_orders_invoicing_policy_check check ("invoicing_policy" in ('on_order', 'on_delivery'));
+alter table "better_supabase"."orders" add column if not exists "delivery_method" text constraint bsb_orders_delivery_method_check check ("delivery_method" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."orders" add column if not exists "quote_id" uuid;
+alter table "better_supabase"."orders" add column if not exists "order_discount" bigint not null default 0 constraint bsb_orders_order_discount_check check ("order_discount" >= 0);
+alter table "better_supabase"."orders" add column if not exists "promotion_id" uuid;
+alter table "better_supabase"."orders" add column if not exists "payment_required" boolean not null default false;
+alter table "better_supabase"."orders" add column if not exists "deposit_amount" bigint constraint bsb_orders_deposit_amount_check check ("deposit_amount" >= 0);
+alter table "better_supabase"."orders" add column if not exists "party_type" text constraint bsb_orders_party_type_check check ("party_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."orders" add column if not exists "party_id" text constraint bsb_orders_party_id_check check (length("party_id") >= 1 and length("party_id") <= 200);
 alter table "better_supabase"."orders" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists orders_status_idx on "better_supabase"."orders" ("tenant_id", "status", "placed_at");
 create index if not exists orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index if not exists orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
+create unique index if not exists orders_external_idx on "better_supabase"."orders" ("tenant_id", "source", "external_id") where "external_id" is not null;
+create index if not exists orders_channel_idx on "better_supabase"."orders" ("tenant_id", "channel", "placed_at");
+create index if not exists orders_quote_idx on "better_supabase"."orders" ("quote_id") where "quote_id" is not null;
+create index if not exists orders_party_idx on "better_supabase"."orders" ("tenant_id", "party_type", "party_id") where "party_id" is not null;
 create unique index if not exists orders_origin_idx on "better_supabase"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
 create index if not exists orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
 alter table "better_supabase"."orders" enable row level security;
@@ -10974,7 +12636,10 @@ alter table "better_supabase"."order_lines" add column if not exists "variant_id
 alter table "better_supabase"."order_lines" add column if not exists "product_id" uuid;
 alter table "better_supabase"."order_lines" add column if not exists "sku" text;
 alter table "better_supabase"."order_lines" add column if not exists "title" text;
-alter table "better_supabase"."order_lines" add column if not exists "quantity" integer constraint bsb_order_lines_quantity_check check ("quantity" > 0);
+alter table "better_supabase"."order_lines" add column if not exists "quantity" numeric(18, 0) constraint bsb_order_lines_quantity_check check ("quantity" > 0);
+alter table "better_supabase"."order_lines" add column if not exists "unit" text constraint bsb_order_lines_unit_check check (length("unit") >= 1 and length("unit") <= 32);
+alter table "better_supabase"."order_lines" add column if not exists "description" text constraint bsb_order_lines_description_check check (length("description") <= 4000);
+alter table "better_supabase"."order_lines" add column if not exists "line_type" text not null default 'item' constraint bsb_order_lines_line_type_check check ("line_type" in ('item', 'service', 'fee'));
 alter table "better_supabase"."order_lines" add column if not exists "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0);
 alter table "better_supabase"."order_lines" add column if not exists "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0);
 alter table "better_supabase"."order_lines" add column if not exists "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0);
@@ -10990,8 +12655,8 @@ alter table "better_supabase"."order_lines" add column if not exists "bin_id" uu
 alter table "better_supabase"."order_lines" add column if not exists "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account'));
 alter table "better_supabase"."order_lines" add column if not exists "billing_party_id" text;
 alter table "better_supabase"."order_lines" add column if not exists "billing_account_id" uuid;
-alter table "better_supabase"."order_lines" add column if not exists "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity");
-alter table "better_supabase"."order_lines" add column if not exists "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity");
+alter table "better_supabase"."order_lines" add column if not exists "quantity_fulfilled" numeric(18, 0) not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity");
+alter table "better_supabase"."order_lines" add column if not exists "quantity_returned" numeric(18, 0) not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity");
 alter table "better_supabase"."order_lines" add column if not exists "backordered" boolean not null default false;
 create index if not exists order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
 create index if not exists order_lines_variant_idx on "better_supabase"."order_lines" ("variant_id");
@@ -11048,7 +12713,7 @@ create policy bsb_order_fulfillments_select on "better_supabase"."order_fulfillm
 alter table "better_supabase"."order_fulfillment_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."order_fulfillment_lines" add column if not exists "fulfillment_id" uuid references "better_supabase"."order_fulfillments" ("id") on delete cascade;
 alter table "better_supabase"."order_fulfillment_lines" add column if not exists "order_line_id" uuid references "better_supabase"."order_lines" ("id") on delete cascade;
-alter table "better_supabase"."order_fulfillment_lines" add column if not exists "quantity" integer constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0);
+alter table "better_supabase"."order_fulfillment_lines" add column if not exists "quantity" numeric(18, 0) constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0);
 alter table "better_supabase"."order_fulfillment_lines" add column if not exists "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object');
 create unique index if not exists "order_fulfillment_lines_fulfillment_id_order_line_id_key" on "better_supabase"."order_fulfillment_lines" ("fulfillment_id", "order_line_id");
 create index if not exists "order_fulfillment_lines_line_idx" on "better_supabase"."order_fulfillment_lines" ("order_line_id");
@@ -11080,7 +12745,7 @@ create policy bsb_order_returns_select on "better_supabase"."order_returns"
 alter table "better_supabase"."order_return_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."order_return_lines" add column if not exists "return_id" uuid references "better_supabase"."order_returns" ("id") on delete cascade;
 alter table "better_supabase"."order_return_lines" add column if not exists "order_line_id" uuid references "better_supabase"."order_lines" ("id") on delete cascade;
-alter table "better_supabase"."order_return_lines" add column if not exists "quantity" integer constraint bsb_order_return_lines_quantity_check check ("quantity" > 0);
+alter table "better_supabase"."order_return_lines" add column if not exists "quantity" numeric(18, 0) constraint bsb_order_return_lines_quantity_check check ("quantity" > 0);
 create unique index if not exists "order_return_lines_return_id_order_line_id_key" on "better_supabase"."order_return_lines" ("return_id", "order_line_id");
 create index if not exists order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
 alter table "better_supabase"."order_return_lines" enable row level security;
@@ -11694,7 +13359,7 @@ as $$
         'subtotal', l."subtotal"::text, 'discount', l."discount"::text, 'tax', l."tax"::text,
         'total', l."total"::text, 'requiresShipping', l."requires_shipping", 'locationId', l."location_id",
         'reservationId', l."reservation_id", 'fulfilled', l."quantity_fulfilled", 'returned', l."quantity_returned",
-        'backordered', l."backordered") order by l."position")
+        'backordered', l."backordered", 'unit', l."unit", 'description', l."description", 'lineType', l."line_type") order by l."position")
       from "better_supabase"."order_lines" l where l."order_id" = x."id"), '[]'::jsonb),
     'payments', coalesce((select jsonb_agg(jsonb_build_object(
         'id', y."id", 'provider', y."provider", 'reference', y."reference", 'status', y."status",
@@ -11718,7 +13383,7 @@ as $$
         'id', y."id", 'paymentId', y."payment_id", 'returnId', y."return_id", 'amount', y."amount"::text,
         'status', y."status", 'reason', y."reason", 'providerReference', y."provider_reference",
         'createdAt', y."created_at", 'completedAt', y."completed_at") order by y."created_at")
-      from "better_supabase"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb))
+      from "better_supabase"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text)
   from "better_supabase"."orders" x where x."id" = p_order
 $$;
 revoke execute on function "better_supabase"."order_json"(uuid) from public, anon, authenticated;
@@ -12095,6 +13760,13 @@ begin
       return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
     end if;
   end if;
+  if nullif(p_attrs ->> 'externalId', '') is not null then
+    select x."id" into v_id from "better_supabase"."orders" x
+    where x."tenant_id" = p_tenant and x."source" = p_attrs ->> 'source' and x."external_id" = p_attrs ->> 'externalId';
+    if v_id is not null then
+      return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
+    end if;
+  end if;
   if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
     v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
@@ -12109,17 +13781,17 @@ begin
   end if;
   insert into "better_supabase"."orders" ("tenant_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
-    "shipping_address", "billing_address", "origin_type", "origin_id")
+    "shipping_address", "billing_address", "origin_type", "origin_id", "channel", "source", "external_id", "invoicing_policy", "delivery_method", "quote_id", "order_discount", "promotion_id", "payment_required", "deposit_amount", "party_type", "party_id")
   values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
-    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
+    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}', nullif(p_attrs ->> 'channel', ''), nullif(p_attrs ->> 'source', ''), nullif(p_attrs ->> 'externalId', ''), coalesce(nullif(p_attrs ->> 'invoicingPolicy', ''), 'on_order'), nullif(p_attrs ->> 'deliveryMethod', ''), nullif(p_attrs ->> 'quoteId', '')::uuid, coalesce((p_attrs ->> 'orderDiscount')::bigint, 0), nullif(p_attrs ->> 'promotionId', '')::uuid, coalesce((p_attrs ->> 'paymentRequired')::boolean, false), nullif(p_attrs ->> 'deposit', '')::bigint, nullif(p_attrs #>> '{party,type}', ''), nullif(p_attrs #>> '{party,id}', ''))
   returning "id" into v_id;
   insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title",
-    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping")
+    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "unit", "description", "line_type")
   select p_tenant, v_id, e.n, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, e.l ->> 'sku', e.l ->> 'title',
-    (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
-    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
+    (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
+    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean, nullif(e.l ->> 'unit', ''), nullif(e.l ->> 'description', ''), coalesce(nullif(e.l ->> 'lineType', ''), 'item')
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
   if not coalesce((p_attrs ->> 'draft')::boolean, false) then
@@ -12160,6 +13832,7 @@ declare
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
+  v_order_discount bigint;
 begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', order_from_lines.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
@@ -12173,6 +13846,16 @@ begin
   if (v_attrs ? 'shippingTotal' and case when coalesce(v_attrs ->> 'shippingTotal', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'shippingTotal')::bigint end is null) then
     raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
   end if;
+  if (v_attrs ? 'orderDiscount' and coalesce(v_attrs ->> 'orderDiscount', '') !~ '^[0-9]{1,18}$') or (v_attrs ? 'deposit' and coalesce(v_attrs ->> 'deposit', '') !~ '^[0-9]{1,18}$') then
+    raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  if nullif(v_attrs ->> 'externalId', '') is not null and nullif(v_attrs ->> 'source', '') is null then
+    raise exception 'attrs.externalId needs attrs.source, the system the id comes from' using errcode = '22023', hint = 'ORDERS_SOURCE_REQUIRED';
+  end if;
+  if v_attrs -> 'party' is not null and (nullif(v_attrs #>> '{party,type}', '') is null or nullif(v_attrs #>> '{party,id}', '') is null) then
+    raise exception 'attrs.party is { type, id }' using errcode = '22023', hint = 'ORDERS_PARTY_INVALID';
+  end if;
+  v_order_discount := coalesce(case when coalesce(v_attrs ->> 'orderDiscount', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'orderDiscount')::bigint end, 0);
   for v_item in
     select e as raw, nullif(e ->> 'variantId', '')::uuid as variant, e ->> 'quantity' as quantity,
       cv."id" as found, cv."tenant_id" as variant_tenant, cv."sku" as sku, concat_ws(' / ', cp."title", nullif(cv."title", '')) as title, cp."id" as product, cp."kind" as kind
@@ -12180,8 +13863,11 @@ begin
     left join "better_supabase"."product_variants" cv on cv."id" = nullif(e ->> 'variantId', '')::uuid
     left join "better_supabase"."products" cp on cp."id" = cv."product_id"
   loop
-    if coalesce(v_item.quantity, '') !~ '^[1-9][0-9]{0,8}$' then
+    if not (case when coalesce(v_item.quantity, '') ~ '^[0-9]{1,12}$' then (v_item.quantity)::numeric > 0 else false end) then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
+    end if;
+    if coalesce(v_item.raw ->> 'lineType', 'item') not in ('item', 'service', 'fee') then
+      raise exception 'a line''s lineType is one of item, service, fee' using errcode = '22023', hint = 'ORDERS_LINES_INVALID';
     end if;
     if v_item.variant is not null and (v_item.found is null or v_item.variant_tenant <> order_from_lines.tenant) then
       raise exception 'a line''s variant isn''t in this organization' using errcode = 'P0002', hint = 'ORDERS_VARIANT_NOT_FOUND';
@@ -12202,21 +13888,27 @@ begin
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
     v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
-      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
-    if v_disc > v_unit * v_item.quantity::bigint then
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(round(v_unit * v_item.quantity::numeric)::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > round(v_unit * v_item.quantity::numeric)::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
-      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
+      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (round(v_unit * v_item.quantity::numeric)::bigint)::text,
       'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
-      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
-    v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
+      'total', (round(v_unit * v_item.quantity::numeric)::bigint - v_disc)::text,
+      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end)
+      || jsonb_strip_nulls(jsonb_build_object('unit', v_item.raw -> 'unit', 'description', v_item.raw -> 'description',
+        'lineType', v_item.raw -> 'lineType', 'fields', v_item.raw -> 'fields')));
+    v_subtotal := v_subtotal + round(v_unit * v_item.quantity::numeric)::bigint;
     v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
+  if v_order_discount > v_subtotal - v_discount then
+    raise exception 'attrs.orderDiscount is more than the lines'' net subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  v_discount := v_discount + v_order_discount;
   return "better_supabase"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
     'subtotal', v_subtotal::text, 'discountTotal', v_discount::text, 'shippingTotal', v_shipping::text, 'taxTotal', v_tax::text,
     'total', (v_subtotal - v_discount + v_shipping + case when v_inclusive then 0 else v_tax end)::text),
@@ -12487,6 +14179,10 @@ begin
   if v_order.status::text not in ('paid', 'confirmed') then
     raise exception 'only a paid or confirmed order can be fulfilled' using errcode = '55000', hint = 'ORDERS_NOT_PAID';
   end if;
+  if exists (select 1 from "better_supabase"."orders" x where x."id" = v_order.id and x."payment_required"
+    and x."paid_total" < coalesce(x."deposit_amount", x."total")) then
+    raise exception 'the order ships once its deposit, or its total without one, is paid' using errcode = '55000', hint = 'ORDERS_PAYMENT_REQUIRED';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_fulfillment_create"(uuid)');
   begin
@@ -12507,7 +14203,7 @@ begin
     create_fulfillment.carrier, create_fulfillment.tracking_number, create_fulfillment.tracking_url)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity,
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity,
       case when jsonb_typeof(e -> 'detail') = 'object' then e -> 'detail' end as detail
     from jsonb_array_elements(v_requested) e
   loop
@@ -12715,7 +14411,7 @@ begin
   values (v_order.tenant, v_order.id, request_return.reason)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity from jsonb_array_elements(request_return.lines) e
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity from jsonb_array_elements(request_return.lines) e
   loop
     if v_item.quantity is null or v_item.quantity <= 0 then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
@@ -13025,7 +14721,7 @@ begin
       elsif jsonb_typeof(v_data -> 'lines') = 'array' then
         delete from "better_supabase"."order_lines" l where l."order_id" = v_id;
         insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
         from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
       end if;
     end if;
@@ -13043,7 +14739,7 @@ begin
   end if;
   if exists (
     select 1 from jsonb_array_elements(v_data -> 'lines') l
-    where coalesce(l.value ->> 'title', '') = '' or coalesce(l.value ->> 'quantity', '') !~ '^[1-9][0-9]{0,8}$' or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
+    where coalesce(l.value ->> 'title', '') = '' or not (case when coalesce(l.value ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (l.value ->> 'quantity')::numeric > 0 else false end) or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
   ) then
     raise exception 'a line needs a title, a whole quantity above zero and a unitAmount' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
@@ -13055,7 +14751,7 @@ begin
     raise exception 'a line''s billingParty or costSource is not a known value' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
-  select coalesce(sum((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::bigint), 0),
+  select coalesce(sum(round((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::numeric)::bigint), 0),
     coalesce(sum(coalesce((l.value ->> 'discount')::bigint, 0)), 0),
     coalesce(sum(coalesce((l.value ->> 'tax')::bigint, 0)), 0)
   into v_subtotal, v_discount, v_tax
@@ -13101,7 +14797,7 @@ begin
   returning "id", "updated_at" into v_id, v_updated;
 
   insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
   from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
 
   if jsonb_typeof(v_data -> 'payments') = 'array' then
@@ -13179,6 +14875,360 @@ as $$
 $$;
 revoke execute on function "better_supabase"."order_status_board"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."order_status_board"(uuid, integer) to authenticated, service_role;
+
+-- The organization's orders as a keyset page, newest first (ADR 1077). Row
+-- security decides what the caller sees. filters is { status, customerId,
+-- partyId, channel, source, currency (each a value or a list), from and to
+-- (placed at), search (number, email, external id), sort (placedAt, number,
+-- total), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. Amounts are text.
+create or replace function "better_supabase"."page_orders"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_orders.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'currency', 'channel') then
+      raise exception 'facet is one of status, currency, channel' using errcode = '22023', hint = 'ORDERS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'currency' then (x."currency")::text when 'channel' then (x."channel")::text end) as v
+      from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('placedAt', 'number', 'total') then
+    raise exception 'sort is one of placedAt, number, total' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence" >= (v_after ->> 0)::bigint and ((x."sequence" > (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."sequence" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total" >= (v_after ->> 0)::bigint and ((x."total" > (v_after ->> 0)::bigint) or (x."total" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."total" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."total" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."orders" x
+      where x."tenant_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_orders"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_orders"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -13363,21 +15413,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as re
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block-data orders
--- @bsb-hash sha256:9e7cf68a92d30df8f4303e95812a9d1f5c8e94508111060e75de394239f87417
+-- @bsb-hash sha256:9ed30d81096c3bdb7513abbef921645a893af561edfc75bb6b9a57d3b4bfb7dc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('orders', 4, 'managed')
+values ('orders', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
--- @bsb-block orders@4 managed
--- @bsb-hash sha256:c34474011409b7c089a6bb3f35df91cd2c3ae4994c4e8c1de5a511f0959b5ff4
+-- @bsb-block orders@5 managed
+-- @bsb-hash sha256:47db609953bbd2b4e24886278d7454d8b8c9a78e95a54ae051374cb293a97946
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13497,6 +15547,18 @@ create table "better_supabase"."orders" (
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
   "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200),
   "is_selected" boolean not null default true,
+  "channel" text constraint bsb_orders_channel_check check ("channel" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source" text constraint bsb_orders_source_check check ("source" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "external_id" text constraint bsb_orders_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "invoicing_policy" text not null default 'on_order' constraint bsb_orders_invoicing_policy_check check ("invoicing_policy" in ('on_order', 'on_delivery')),
+  "delivery_method" text constraint bsb_orders_delivery_method_check check ("delivery_method" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "quote_id" uuid,
+  "order_discount" bigint not null default 0 constraint bsb_orders_order_discount_check check ("order_discount" >= 0),
+  "promotion_id" uuid,
+  "payment_required" boolean not null default false,
+  "deposit_amount" bigint constraint bsb_orders_deposit_amount_check check ("deposit_amount" >= 0),
+  "party_type" text constraint bsb_orders_party_type_check check ("party_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "party_id" text constraint bsb_orders_party_id_check check (length("party_id") >= 1 and length("party_id") <= 200),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "number"),
   unique ("org_id", "invoice_number")
@@ -13504,6 +15566,12 @@ create table "better_supabase"."orders" (
 create index orders_status_idx on "better_supabase"."orders" ("org_id", "status", "placed_at");
 create index orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index orders_sequence_idx on "better_supabase"."orders" ("org_id", "sequence");
+create unique index orders_external_idx on "better_supabase"."orders" ("org_id", "source", "external_id") where "external_id" is not null;
+alter table "better_supabase"."orders" add constraint bsb_orders_external_source_check check ("external_id" is null or "source" is not null);
+create index orders_channel_idx on "better_supabase"."orders" ("org_id", "channel", "placed_at");
+create index orders_quote_idx on "better_supabase"."orders" ("quote_id") where "quote_id" is not null;
+create index orders_party_idx on "better_supabase"."orders" ("org_id", "party_type", "party_id") where "party_id" is not null;
+alter table "better_supabase"."orders" add constraint bsb_orders_party_pair_check check (("party_type" is null) = ("party_id" is null));
 create unique index orders_origin_idx on "better_supabase"."orders" ("org_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
 create index orders_variant_idx on "better_supabase"."orders" ("variant_of") where "variant_of" is not null;
 alter table "better_supabase"."orders" enable row level security;
@@ -13523,7 +15591,10 @@ create table "better_supabase"."order_lines" (
   "product_id" uuid,
   "sku" text not null,
   "title" text not null,
-  "quantity" integer not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_order_lines_unit_check check (length("unit") >= 1 and length("unit") <= 32),
+  "description" text constraint bsb_order_lines_description_check check (length("description") <= 4000),
+  "line_type" text not null default 'item' constraint bsb_order_lines_line_type_check check ("line_type" in ('item', 'service', 'fee')),
   "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0),
   "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0),
   "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0),
@@ -13539,8 +15610,8 @@ create table "better_supabase"."order_lines" (
   "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
-  "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
+  "quantity_fulfilled" numeric(18, 0) not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" numeric(18, 0) not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
@@ -13603,7 +15674,7 @@ create table "better_supabase"."order_fulfillment_lines" (
   "org_id" uuid not null,
   "fulfillment_id" uuid not null references "better_supabase"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
   "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
@@ -13639,7 +15710,7 @@ create table "better_supabase"."order_return_lines" (
   "org_id" uuid not null,
   "return_id" uuid not null references "better_supabase"."order_returns" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
+  "quantity" numeric(18, 0) not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
   primary key ("return_id", "order_line_id")
 );
 create index order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
@@ -14257,7 +16328,7 @@ as $$
         'subtotal', l."subtotal"::text, 'discount', l."discount"::text, 'tax', l."tax"::text,
         'total', l."total"::text, 'requiresShipping', l."requires_shipping", 'locationId', l."location_id",
         'reservationId', l."reservation_id", 'fulfilled', l."quantity_fulfilled", 'returned', l."quantity_returned",
-        'backordered', l."backordered") order by l."position")
+        'backordered', l."backordered", 'unit', l."unit", 'description', l."description", 'lineType', l."line_type") order by l."position")
       from "better_supabase"."order_lines" l where l."order_id" = x."id"), '[]'::jsonb),
     'payments', coalesce((select jsonb_agg(jsonb_build_object(
         'id', y."id", 'provider', y."provider", 'reference', y."reference", 'status', y."status",
@@ -14281,7 +16352,7 @@ as $$
         'id', y."id", 'paymentId', y."payment_id", 'returnId', y."return_id", 'amount', y."amount"::text,
         'status', y."status", 'reason', y."reason", 'providerReference', y."provider_reference",
         'createdAt', y."created_at", 'completedAt', y."completed_at") order by y."created_at")
-      from "better_supabase"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb))
+      from "better_supabase"."order_refunds" y where y."order_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text)
   from "better_supabase"."orders" x where x."id" = p_order
 $$;
 revoke execute on function "better_supabase"."order_json"(uuid) from public, anon, authenticated;
@@ -14658,6 +16729,13 @@ begin
       return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
     end if;
   end if;
+  if nullif(p_attrs ->> 'externalId', '') is not null then
+    select x."id" into v_id from "better_supabase"."orders" x
+    where x."org_id" = p_tenant and x."source" = p_attrs ->> 'source' and x."external_id" = p_attrs ->> 'externalId';
+    if v_id is not null then
+      return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
+    end if;
+  end if;
   if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
     v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
@@ -14672,17 +16750,17 @@ begin
   end if;
   insert into "better_supabase"."orders" ("org_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
-    "shipping_address", "billing_address", "origin_type", "origin_id")
+    "shipping_address", "billing_address", "origin_type", "origin_id", "channel", "source", "external_id", "invoicing_policy", "delivery_method", "quote_id", "order_discount", "promotion_id", "payment_required", "deposit_amount", "party_type", "party_id")
   values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
-    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
+    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}', nullif(p_attrs ->> 'channel', ''), nullif(p_attrs ->> 'source', ''), nullif(p_attrs ->> 'externalId', ''), coalesce(nullif(p_attrs ->> 'invoicingPolicy', ''), 'on_order'), nullif(p_attrs ->> 'deliveryMethod', ''), nullif(p_attrs ->> 'quoteId', '')::uuid, coalesce((p_attrs ->> 'orderDiscount')::bigint, 0), nullif(p_attrs ->> 'promotionId', '')::uuid, coalesce((p_attrs ->> 'paymentRequired')::boolean, false), nullif(p_attrs ->> 'deposit', '')::bigint, nullif(p_attrs #>> '{party,type}', ''), nullif(p_attrs #>> '{party,id}', ''))
   returning "id" into v_id;
   insert into "better_supabase"."order_lines" ("org_id", "order_id", "position", "variant_id", "product_id", "sku", "title",
-    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping")
+    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "unit", "description", "line_type")
   select p_tenant, v_id, e.n, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, e.l ->> 'sku', e.l ->> 'title',
-    (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
-    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
+    (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
+    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean, nullif(e.l ->> 'unit', ''), nullif(e.l ->> 'description', ''), coalesce(nullif(e.l ->> 'lineType', ''), 'item')
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."org_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
   if not coalesce((p_attrs ->> 'draft')::boolean, false) then
@@ -14723,6 +16801,7 @@ declare
   v_subtotal bigint := 0;
   v_discount bigint := 0;
   v_tax bigint := 0;
+  v_order_discount bigint;
 begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', order_from_lines.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
@@ -14736,6 +16815,16 @@ begin
   if (v_attrs ? 'shippingTotal' and case when coalesce(v_attrs ->> 'shippingTotal', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'shippingTotal')::bigint end is null) then
     raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
   end if;
+  if (v_attrs ? 'orderDiscount' and coalesce(v_attrs ->> 'orderDiscount', '') !~ '^[0-9]{1,18}$') or (v_attrs ? 'deposit' and coalesce(v_attrs ->> 'deposit', '') !~ '^[0-9]{1,18}$') then
+    raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  if nullif(v_attrs ->> 'externalId', '') is not null and nullif(v_attrs ->> 'source', '') is null then
+    raise exception 'attrs.externalId needs attrs.source, the system the id comes from' using errcode = '22023', hint = 'ORDERS_SOURCE_REQUIRED';
+  end if;
+  if v_attrs -> 'party' is not null and (nullif(v_attrs #>> '{party,type}', '') is null or nullif(v_attrs #>> '{party,id}', '') is null) then
+    raise exception 'attrs.party is { type, id }' using errcode = '22023', hint = 'ORDERS_PARTY_INVALID';
+  end if;
+  v_order_discount := coalesce(case when coalesce(v_attrs ->> 'orderDiscount', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'orderDiscount')::bigint end, 0);
   for v_item in
     select e as raw, nullif(e ->> 'variantId', '')::uuid as variant, e ->> 'quantity' as quantity,
       cv."id" as found, cv."org_id" as variant_tenant, cv."sku" as sku, concat_ws(' / ', cp."title", nullif(cv."title", '')) as title, cp."id" as product, cp."kind" as kind
@@ -14743,8 +16832,11 @@ begin
     left join "better_supabase"."product_variants" cv on cv."id" = nullif(e ->> 'variantId', '')::uuid
     left join "better_supabase"."products" cp on cp."id" = cv."product_id"
   loop
-    if coalesce(v_item.quantity, '') !~ '^[1-9][0-9]{0,8}$' then
+    if not (case when coalesce(v_item.quantity, '') ~ '^[0-9]{1,12}$' then (v_item.quantity)::numeric > 0 else false end) then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
+    end if;
+    if coalesce(v_item.raw ->> 'lineType', 'item') not in ('item', 'service', 'fee') then
+      raise exception 'a line''s lineType is one of item, service, fee' using errcode = '22023', hint = 'ORDERS_LINES_INVALID';
     end if;
     if v_item.variant is not null and (v_item.found is null or v_item.variant_tenant <> order_from_lines.tenant) then
       raise exception 'a line''s variant isn''t in this organization' using errcode = 'P0002', hint = 'ORDERS_VARIANT_NOT_FOUND';
@@ -14765,21 +16857,27 @@ begin
       raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
     end if;
     v_disc := coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end,
-      case when v_rule is not null and not v_item.raw ? 'discount' then round(v_unit * v_item.quantity::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
-    if v_disc > v_unit * v_item.quantity::bigint then
+      case when v_rule is not null and not v_item.raw ? 'discount' then round(round(v_unit * v_item.quantity::numeric)::bigint * (v_rule ->> 'discountBps')::integer / 10000.0)::bigint end, 0);
+    if v_disc > round(v_unit * v_item.quantity::numeric)::bigint then
       raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
     end if;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'variantId', v_item.variant, 'productId', v_item.product,
       'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
-      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
+      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (round(v_unit * v_item.quantity::numeric)::bigint)::text,
       'discount', v_disc::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
-      'total', (v_unit * v_item.quantity::bigint - v_disc)::text,
-      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
-    v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
+      'total', (round(v_unit * v_item.quantity::numeric)::bigint - v_disc)::text,
+      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end)
+      || jsonb_strip_nulls(jsonb_build_object('unit', v_item.raw -> 'unit', 'description', v_item.raw -> 'description',
+        'lineType', v_item.raw -> 'lineType', 'fields', v_item.raw -> 'fields')));
+    v_subtotal := v_subtotal + round(v_unit * v_item.quantity::numeric)::bigint;
     v_discount := v_discount + v_disc;
     v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
   end loop;
+  if v_order_discount > v_subtotal - v_discount then
+    raise exception 'attrs.orderDiscount is more than the lines'' net subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  v_discount := v_discount + v_order_discount;
   return "better_supabase"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
     'subtotal', v_subtotal::text, 'discountTotal', v_discount::text, 'shippingTotal', v_shipping::text, 'taxTotal', v_tax::text,
     'total', (v_subtotal - v_discount + v_shipping + case when v_inclusive then 0 else v_tax end)::text),
@@ -15050,6 +17148,10 @@ begin
   if v_order.status::text not in ('paid', 'confirmed') then
     raise exception 'only a paid or confirmed order can be fulfilled' using errcode = '55000', hint = 'ORDERS_NOT_PAID';
   end if;
+  if exists (select 1 from "better_supabase"."orders" x where x."id" = v_order.id and x."payment_required"
+    and x."paid_total" < coalesce(x."deposit_amount", x."total")) then
+    raise exception 'the order ships once its deposit, or its total without one, is paid' using errcode = '55000', hint = 'ORDERS_PAYMENT_REQUIRED';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_fulfillment_create"(uuid)');
   begin
@@ -15070,7 +17172,7 @@ begin
     create_fulfillment.carrier, create_fulfillment.tracking_number, create_fulfillment.tracking_url)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity,
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity,
       case when jsonb_typeof(e -> 'detail') = 'object' then e -> 'detail' end as detail
     from jsonb_array_elements(v_requested) e
   loop
@@ -15278,7 +17380,7 @@ begin
   values (v_order.tenant, v_order.id, request_return.reason)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity from jsonb_array_elements(request_return.lines) e
+    select (e ->> 'lineId')::uuid as line, case when (case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (e ->> 'quantity')::numeric > 0 else false end) then (e ->> 'quantity')::numeric end as quantity from jsonb_array_elements(request_return.lines) e
   loop
     if v_item.quantity is null or v_item.quantity <= 0 then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
@@ -15588,7 +17690,7 @@ begin
       elsif jsonb_typeof(v_data -> 'lines') = 'array' then
         delete from "better_supabase"."order_lines" l where l."order_id" = v_id;
         insert into "better_supabase"."order_lines" ("org_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
         from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
       end if;
     end if;
@@ -15606,7 +17708,7 @@ begin
   end if;
   if exists (
     select 1 from jsonb_array_elements(v_data -> 'lines') l
-    where coalesce(l.value ->> 'title', '') = '' or coalesce(l.value ->> 'quantity', '') !~ '^[1-9][0-9]{0,8}$' or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
+    where coalesce(l.value ->> 'title', '') = '' or not (case when coalesce(l.value ->> 'quantity', '') ~ '^[0-9]{1,12}$' then (l.value ->> 'quantity')::numeric > 0 else false end) or coalesce(l.value ->> 'unitAmount', '') !~ '^[0-9]{1,18}$'
   ) then
     raise exception 'a line needs a title, a whole quantity above zero and a unitAmount' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
@@ -15618,7 +17720,7 @@ begin
     raise exception 'a line''s billingParty or costSource is not a known value' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
-  select coalesce(sum((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::bigint), 0),
+  select coalesce(sum(round((l.value ->> 'unitAmount')::bigint * (l.value ->> 'quantity')::numeric)::bigint), 0),
     coalesce(sum(coalesce((l.value ->> 'discount')::bigint, 0)), 0),
     coalesce(sum(coalesce((l.value ->> 'tax')::bigint, 0)), 0)
   into v_subtotal, v_discount, v_tax
@@ -15664,7 +17766,7 @@ begin
   returning "id", "updated_at" into v_id, v_updated;
 
   insert into "better_supabase"."order_lines" ("org_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
-  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+  select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::numeric, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, round((e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::numeric)::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
   from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
 
   if jsonb_typeof(v_data -> 'payments') = 'array' then
@@ -15742,6 +17844,360 @@ as $$
 $$;
 revoke execute on function "better_supabase"."order_status_board"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."order_status_board"(uuid, integer) to authenticated, service_role;
+
+-- The organization's orders as a keyset page, newest first (ADR 1077). Row
+-- security decides what the caller sees. filters is { status, customerId,
+-- partyId, channel, source, currency (each a value or a list), from and to
+-- (placed at), search (number, email, external id), sort (placedAt, number,
+-- total), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. Amounts are text.
+create or replace function "better_supabase"."page_orders"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_orders.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'currency', 'channel') then
+      raise exception 'facet is one of status, currency, channel' using errcode = '22023', hint = 'ORDERS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'currency' then (x."currency")::text when 'channel' then (x."channel")::text end) as v
+      from "better_supabase"."orders" x
+      where x."org_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."orders" x
+      where x."org_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('placedAt', 'number', 'total') then
+    raise exception 'sort is one of placedAt, number, total' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."org_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."org_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."org_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at" >= (v_after ->> 0)::timestamptz and ((x."placed_at" > (v_after ->> 0)::timestamptz) or (x."placed_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."placed_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'placedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."placed_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."org_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."placed_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."placed_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."org_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence" >= (v_after ->> 0)::bigint and ((x."sequence" > (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."sequence" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."org_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."org_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total" >= (v_after ->> 0)::bigint and ((x."total" > (v_after ->> 0)::bigint) or (x."total" = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by x."total" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'total' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ORDERS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'number', x."number", 'status', x."status",
+      'customerId', x."customer_id", 'currency', x."currency", 'total', x."total"::text,
+      'paidTotal', x."paid_total"::text, 'placedAt', x."placed_at") || jsonb_build_object('party', case when x."party_id" is not null then jsonb_build_object('type', x."party_type", 'id', x."party_id") end, 'channel', x."channel", 'source', x."source", 'externalId', x."external_id", 'invoicingPolicy', x."invoicing_policy", 'deliveryMethod', x."delivery_method", 'quoteId', x."quote_id", 'orderDiscount', x."order_discount"::text, 'promotionId', x."promotion_id", 'paymentRequired', x."payment_required", 'deposit', x."deposit_amount"::text) as j, jsonb_build_array((x."total")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."orders" x
+      where x."org_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+        and (v_after is null or (x."total", x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."total" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."orders" x
+      where x."org_id" = page_orders.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or x."customer_id" = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::uuid[]))
+        and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or (x."party_id")::text = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (not (v_filters -> 'channel' is not null and jsonb_typeof(v_filters -> 'channel') <> 'null' and not (jsonb_typeof(v_filters -> 'channel') = 'array' and jsonb_array_length(v_filters -> 'channel') = 0)) or (x."channel")::text = any((case when jsonb_typeof(v_filters -> 'channel') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'channel')) else array[v_filters ->> 'channel'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or (x."source")::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."placed_at" >= (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."placed_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (v_search is null or x."number" ilike v_search or x."email" ilike v_search or x."external_id" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_orders"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_orders"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -15926,13 +18382,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as re
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block-data orders
--- @bsb-hash sha256:9e7cf68a92d30df8f4303e95812a9d1f5c8e94508111060e75de394239f87417
+-- @bsb-hash sha256:9ed30d81096c3bdb7513abbef921645a893af561edfc75bb6b9a57d3b4bfb7dc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('orders', 4, 'managed')
+values ('orders', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -1,6 +1,6 @@
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:ab0e2ac3450378f00de44ae669db56e09a20bc73935abffb040cf9af0f8dd8bb
+-- @bsb-hash sha256:6b83a3580b41c8153a2145aafae5e9da4c7d67c098283345dde8b49f50ce32a8
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2648,11 +2648,19 @@ create policy bsb_tenant_scope_delete on "better_supabase"."stock_lot_links" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_production_order_index"
-  after insert or delete or update of "id", "tenant_id", "number", "note" on "better_supabase"."production_orders"
+  after insert or delete on "better_supabase"."production_orders"
   for each row execute function "better_supabase"."search_index_row"('production_order', 'id');
+create trigger "bsb_search_production_order_index_u"
+  after update of "id", "tenant_id", "number", "note" on "better_supabase"."production_orders"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."number" is distinct from new."number" or old."note" is distinct from new."note")
+  execute function "better_supabase"."search_index_row"('production_order', 'id');
 create trigger "bsb_search_work_center_index"
-  after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."work_centers"
+  after insert or delete on "better_supabase"."work_centers"
   for each row execute function "better_supabase"."search_index_row"('work_center', 'id');
+create trigger "bsb_search_work_center_index_u"
+  after update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."work_centers"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('work_center', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.production_orders deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"production_order","event_prefix":"production_order"}');

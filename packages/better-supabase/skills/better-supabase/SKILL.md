@@ -95,6 +95,7 @@ Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runt
 - Next.js: `const { db } = await bsb.context()`, `bsb.route(...)`, `bsb.action(...)`
 - Next.js Cache Components: keep layouts synchronous; read `bsb.claims()` in a `'use cache: private'` function inside `<Suspense>`, pass the promise to `<SessionProvider>` and read it with `useSession()`
 - Next.js with the tenant in the route (`/[organizationId]/...`): `bsb.context({ tenant: organizationId })`, `bsb.cached({ tenant })` inside a `'use cache: private'` function that takes the tenant as an argument, and `bsb.action({ input, tenant: (input) => input.organizationId }, fn)`. The tenant gets the resolver's membership checks. Client Components get the id as a prop and pass it to actions and to `useLiveQuery(spec, { tenant })`; the browser client only knows the claim's tenant
+- Next.js reads that should outlive a request and a deploy (dashboard counts, settings): `bsb.kept(fn, { name, tables, life })`. It runs as the caller under RLS, one entry per user, tenant and authorization version, and a write to one of `tables` expires it. Add `share: "tenant"` only for tables the authorization provider lists as shared. Never fill a cache with a service-role client
 - Hono: `c.var.db` after `bsb.middleware()`
 - oRPC: `context.db` after `bsb.middleware()`
 - Edge Functions: `bsb.handler((request, { db }) => ...)`

@@ -1,6 +1,6 @@
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:971fea4da51f3520550334dfce9bbb4e07e7834f8f298e56c91c6194972cca19
+-- @bsb-hash sha256:34cde3bb53afba80c060acbb9c0cf43b0328610b40899c606f8bf4a58c044d32
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1297,8 +1297,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."till_deposits" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_till_index"
-  after insert or delete or update of "id", "tenant_id", "name" on "better_supabase"."tills"
+  after insert or delete on "better_supabase"."tills"
   for each row execute function "better_supabase"."search_index_row"('till', 'id');
+create trigger "bsb_search_till_index_u"
+  after update of "id", "tenant_id", "name" on "better_supabase"."tills"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name")
+  execute function "better_supabase"."search_index_row"('till', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.tills deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till","event_prefix":"till","archive_column":"archived_at"}');

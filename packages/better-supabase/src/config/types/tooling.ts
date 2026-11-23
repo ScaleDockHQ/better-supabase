@@ -298,6 +298,11 @@ export interface DoctorConfig {
    */
   readonly policyHelperLimit?: number;
   /**
+   * Policies per table and command. `max` is how many apply to one command of
+   * one table before BS641 lists them with their origin. Defaults to 4.
+   */
+  readonly policies?: { readonly max?: number };
+  /**
    * How many database reads one `Promise.all` may await before BS609 suggests a
    * read set. Defaults to 3.
    */

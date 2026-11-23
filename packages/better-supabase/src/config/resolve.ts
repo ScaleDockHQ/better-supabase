@@ -579,6 +579,10 @@ export function resolveConfig(
       policyHelperLimit:
         config.doctor?.policyHelperLimit ??
         CONFIG_DEFAULTS.doctor.policyHelperLimit,
+      policies: {
+        max:
+          config.doctor?.policies?.max ?? CONFIG_DEFAULTS.doctor.policies.max,
+      },
       parallelReads:
         config.doctor?.parallelReads ?? CONFIG_DEFAULTS.doctor.parallelReads,
       sealTriggers: config.doctor?.sealTriggers ?? [],

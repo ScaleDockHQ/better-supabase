@@ -188,6 +188,7 @@ describe("shipped JSON Schemas", () => {
       "cli-commands-v2.json",
       "cli-result-v2.json",
       "config-actions-v1.json",
+      "config-functions-v1.json",
       "config-policies-v1.json",
       "config-v1.json",
       "design-v1.json",
@@ -447,6 +448,29 @@ describe("shipped JSON Schemas", () => {
             action: "read",
             key: null,
             source: "default",
+          },
+        ],
+      }),
+    ).toEqual([]);
+
+    expect(
+      await errorsFor("config-functions-v1.json", {
+        version: 1,
+        counts: {
+          public: {
+            policy: 0,
+            trigger: 1,
+            "app RPC": 2,
+            "service only": 0,
+            unreferenced: 0,
+          },
+        },
+        functions: [
+          {
+            schema: "public",
+            name: "my_rpc",
+            signature: "tenant uuid",
+            caller: "app RPC",
           },
         ],
       }),

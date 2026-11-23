@@ -1,6 +1,6 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:1c0ba3a47b7598ec509eb2250b07578a6c1f943782cf1e287a5e0e43a307d774
+-- @bsb-hash sha256:85638afd8d07119bc13d96c7165f145ee2d5aac32ada7a3442fa1c87f2234495
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1617,8 +1617,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."intrastat_lines" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_shipment_index"
-  after insert or delete or update of "id", "tenant_id", "reference" on "better_supabase"."shipments"
+  after insert or delete on "better_supabase"."shipments"
   for each row execute function "better_supabase"."search_index_row"('shipment', 'id');
+create trigger "bsb_search_shipment_index_u"
+  after update of "id", "tenant_id", "reference" on "better_supabase"."shipments"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."reference" is distinct from new."reference")
+  execute function "better_supabase"."search_index_row"('shipment', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.shipments deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shipment","event_prefix":"shipment","archive_column":"archived_at"}');

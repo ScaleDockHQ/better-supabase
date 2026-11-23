@@ -810,6 +810,11 @@ function toTableModels(
         relationMeta[relation.name] = relation.meta;
       }
 
+      const shares = config.authorization?.tables;
+
+      const share =
+        shares?.[`${table.schema}.${table.name}`] ?? shares?.[table.name];
+
       return {
         key,
         snapshot: table,
@@ -827,6 +832,14 @@ function toTableModels(
           relations: relationMeta,
           flags,
           ...commentMeta(table.comment),
+          ...(share
+            ? {
+                share: {
+                  kind: share.share,
+                  permissions: [...share.permissions].toSorted(),
+                },
+              }
+            : {}),
         },
       };
     },

@@ -28,9 +28,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "permissions",
         "organizations",
-        "data-lifecycle"
+        "data-lifecycle",
+        "housekeeping"
       ],
-      "manifest": "audit"
+      "manifest": "audit",
+      "contributes": [
+        "housekeeping"
+      ]
     },
     {
       "name": "memberships",
@@ -2110,11 +2114,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "invoices",
         "ledger",
         "outbox",
-        "search"
+        "search",
+        "housekeeping"
       ],
       "manifest": "imports",
       "scopes": [
         "tenant"
+      ],
+      "contributes": [
+        "housekeeping"
       ]
     },
     {
@@ -3464,6 +3472,18 @@ export const PRESET_CATALOG: PresetCatalog = {
               "variantOf": "variant_of",
               "variantLabel": "variant_label",
               "isSelected": "is_selected",
+              "channel": "channel",
+              "source": "source",
+              "externalId": "external_id",
+              "invoicingPolicy": "invoicing_policy",
+              "deliveryMethod": "delivery_method",
+              "quote": "quote_id",
+              "orderDiscount": "order_discount",
+              "promotion": "promotion_id",
+              "paymentRequired": "payment_required",
+              "deposit": "deposit_amount",
+              "partyType": "party_type",
+              "partyId": "party_id",
               "updatedAt": "updated_at"
             }
           },
@@ -34221,10 +34241,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "OrderLineInput"
         },
         {
+          "name": "OrderLineType"
+        },
+        {
           "name": "OrderMetrics"
         },
         {
           "name": "OrderMetricsOptions"
+        },
+        {
+          "name": "OrderParty"
         },
         {
           "name": "OrderPayment"
@@ -34267,10 +34293,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "OrderStatusTotal"
         },
         {
+          "name": "OrderSummary"
+        },
+        {
           "name": "OrderVariants"
         },
         {
           "name": "PricedCart"
+        },
+        {
+          "name": "StaffOrderFields"
         }
       ],
       "events": {
@@ -34316,7 +34348,36 @@ export const PRESET_CATALOG: PresetCatalog = {
           "kind": "orders.from_quote",
           "title": "Order the accepted quote"
         }
-      ]
+      ],
+      "entityLists": {
+        "order": {
+          "sorts": [
+            "placedAt",
+            "number",
+            "total"
+          ],
+          "facets": [
+            "status",
+            "currency",
+            "channel"
+          ],
+          "filters": [
+            "status",
+            "customerId",
+            "partyId",
+            "channel",
+            "source",
+            "currency",
+            "from",
+            "to"
+          ],
+          "search": [
+            "number",
+            "email",
+            "externalId"
+          ]
+        }
+      }
     },
     {
       "name": "organizations",

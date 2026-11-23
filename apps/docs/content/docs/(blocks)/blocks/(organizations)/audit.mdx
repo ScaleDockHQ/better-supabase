@@ -687,7 +687,29 @@ Delete; anything else is Other (99) with the event type as `activity_name`.
 
 ## Retention
 
-`purgeAuditLog` deletes entries past their retention and returns how many.
+Nothing is deleted until you choose a retention. `options.retention` keeps
+entries for an interval and adds an `audit_retention` job to the
+[housekeeping](/docs/extending/maintenance) block's `maintenance()`, which it
+installs:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { audit: { options: { retention: { keep: "1 year" } } } },
+});
+```
+
+Each run deletes up to `batch` entries (default 10,000) past `keep` through
+`purge_audit_log`, so the hooks and legal holds below still apply. On a
+partitioned log it also creates the coming months. With
+`onExpire: "detach"`, a month wholly past `keep` is detached from a
+partitioned log the block owns and stays as its own table
+(`audit_events_p202401`) for you to archive and drop; its restricted rows
+stay too. An adopted log (`tables.log` names your table) gets the batched
+deletes only, because partitioning needs a log the block creates. The job
+returns `{ purged, detached, partitionsCreated }`, and
+`better_supabase.maintenance_jobs` shows when it last ran.
+
+You can also run the purge yourself. `purgeAuditLog` deletes entries past their retention and returns how many.
 Without `retention` it calls `purge_audit_log`, which honours an
 `audit_retention` SQL hook; with it, each tenant is purged with its own
 number of days. `setAuditRetention` reads those days from a column:

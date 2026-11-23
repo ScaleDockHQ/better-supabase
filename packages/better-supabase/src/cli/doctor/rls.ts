@@ -540,7 +540,7 @@ function onlyWrapped(
   return calls > 0 && calls === wraps;
 }
 
-interface TenantPins {
+export interface TenantPins {
   readonly sets: readonly string[];
   readonly platform: readonly string[];
 }
@@ -553,7 +553,7 @@ const templateName = (template: string | undefined): string[] => {
 
 const NO_PINS: TenantPins = { sets: [], platform: [] };
 
-function tenantPins(context: DoctorContext): TenantPins {
+export function tenantPins(context: DoctorContext): TenantPins {
   const functions = context.config.authorization?.functions;
 
   return {
@@ -664,10 +664,10 @@ function holds(
  * (column, ...) in (select g.tenant ... portal_subjects(...) g)`) pins it to a
  * tenant the caller is a guest of.
  */
-function pinnedToTenant(
+export function pinnedToTenant(
   table: CatalogTable,
   column: string,
-  command: (typeof WRITES)[number],
+  command: (typeof WRITES)[number] | "select",
   role: string,
   pins: TenantPins = NO_PINS,
 ): boolean {

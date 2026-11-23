@@ -5,6 +5,7 @@ import type {
 } from "../../config/index.ts";
 import type { BlockSqlEntitlementsProvider } from "../../sql/index.ts";
 import type { ProviderRequirement } from "../authorization.ts";
+import type { ProviderCall } from "./provider-calls.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import {
@@ -33,8 +34,10 @@ import {
 } from "../authorization.ts";
 import { mergeRestated, probeRestated } from "../restated-probe.ts";
 import { accessModule, adoptionContext, appViewsOf } from "./app-tables.ts";
+import { providerCalls } from "./provider-calls.ts";
 import { withoutStrings } from "./rls.ts";
 import { catalogOf, policyObject, qualified } from "./shared.ts";
+import { tableShares } from "./table-shares.ts";
 
 const TEMPLATE_EFFECT: Readonly<
   Partial<Record<keyof AuthorizationProvider["functions"], string>>
@@ -154,87 +157,6 @@ const POLICY =
 
 const unquote = (name: string): string =>
   name.replaceAll(/^"|"$/g, "").replaceAll('""', '"');
-
-const escapeRegExp = (text: string): string =>
-  text.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-
-/**
- * A pattern for a filled template: `{permission}` captures the key literal
- * (optionally passed by name), `{scope}` captures the scope name, and
- * whitespace may differ.
- */
-function templatePattern(template: string): RegExp {
-  const source = template
-    .split(/(\{\w+\})/)
-    .map((part) => {
-      if (part === "{permission}") {
-        return String.raw`(?:\w+\s*=>\s*)?'((?:[^']|'')*)'`;
-      }
-
-      if (part === "{scope}") {
-        return "([a-z][a-z0-9_]*)";
-      }
-
-      if (/^\{\w+\}$/.test(part)) {
-        return String.raw`[\s\S]*?`;
-      }
-
-      return escapeRegExp(part.trim()).replaceAll(/\s+/g, String.raw`\s*`);
-    })
-    .filter((part) => part !== "")
-    .join(String.raw`\s*`);
-
-  return new RegExp(source, "gi");
-}
-
-interface ProviderCall {
-  readonly key: string;
-  /** `platform` for `isPlatform`. */
-  readonly scope: string;
-}
-
-/**
- * The keys and scopes a policy body passes to the provider's `idsWith` and
- * `isPlatform`.
- */
-function providerCalls(
-  provider: AuthorizationProvider,
-  body: string,
-): ProviderCall[] {
-  const calls: ProviderCall[] = [];
-  const { idsWith, isPlatform } = provider.functions;
-
-  const groups = (template: string): readonly string[] =>
-    [...template.matchAll(/\{(permission|scope)\}/g)].map((match) => match[1]!);
-
-  const idsGroups = groups(idsWith);
-
-  for (const match of body.matchAll(templatePattern(idsWith))) {
-    const key = match[idsGroups.indexOf("permission") + 1];
-
-    if (key === undefined) {
-      continue;
-    }
-
-    const scopeIndex = idsGroups.indexOf("scope");
-    calls.push({
-      key: key.replaceAll("''", "'"),
-      scope: scopeIndex === -1 ? provider.tenantScope : match[scopeIndex + 1]!,
-    });
-  }
-
-  const platformGroups = groups(isPlatform);
-
-  for (const match of body.matchAll(templatePattern(isPlatform))) {
-    const key = match[platformGroups.indexOf("permission") + 1];
-
-    if (key !== undefined) {
-      calls.push({ key: key.replaceAll("''", "'"), scope: "platform" });
-    }
-  }
-
-  return calls;
-}
 
 interface ProviderPolicy {
   readonly name: string;
@@ -536,6 +458,14 @@ function providerKeyCount(context: DoctorContext): FindingInput[] {
 }
 
 export const AUTHORIZATION_RULES: readonly Rule[] = [
+  {
+    code: "BS428",
+    severity: "error",
+    title: "A table the provider shares per tenant has row-level reads",
+    description:
+      'An authorization provider\'s `tables` says which tables every caller with the same permissions in a tenant reads alike (`share: "tenant"`), so `bsb.kept` and `bsb.remote` with `share: "tenant"` key one entry on the tenant and the grant instead of the user. Doctor reads each table\'s select policies for `authenticated` and reports a `tenant` table whose policies filter by the caller (`auth.uid()`, `auth.jwt()`, `current_user_id()`) or don\'t pin the tenant column to a tenant the caller acts in, a table whose policies check other provider keys than its `permissions`, and a name the database lacks.',
+    check: tableShares,
+  },
   {
     code: "BS427",
     severity: "warning",
