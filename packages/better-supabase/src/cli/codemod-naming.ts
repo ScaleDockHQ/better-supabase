@@ -106,11 +106,11 @@ export function renameEnvFileNames(
 /**
  * Renames environment variables, hint codes and event names in TypeScript or
  * TSX through the syntax tree. An environment variable changes where code names
- * it: `process.env.NAME`, `env.NAME`, a key or a binding. A hint code, an event
- * name and an environment variable changes in a string only when the whole
- * string is the name, so `"LEDGER_OLD_CODE"` stays. Comments never change. A
- * string that holds an environment variable name among other words is listed
- * for review, because only the author knows whether it is a message or a
+ * it: a `process.env` or `env` member read, a key or a binding. A hint code, an
+ * event name and an environment variable changes in a string only when the
+ * whole string is the name, so `"LEDGER_OLD_CODE"` stays. Comments never
+ * change. A string that holds an environment variable name among other words is
+ * listed for review, because only the author knows whether it is a message or a
  * lookup. A file that does not parse is listed, not skipped.
  */
 export function renameNames(

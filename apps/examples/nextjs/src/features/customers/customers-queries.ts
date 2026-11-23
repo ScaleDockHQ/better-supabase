@@ -1,10 +1,7 @@
 import "server-only";
-import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { CRM_TAG } from "@/features/crm/crm-cache";
-import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { bsb } from "@/lib/supabase/server";
 
 import type { Loaded } from "../records/records-queries";
@@ -16,7 +13,6 @@ import {
   visible,
 } from "../records/records-queries";
 import { customerPage } from "./customer-record";
-import { CUSTOMERS_TAG } from "./customers-cache";
 
 export interface ShareLinkRow {
   readonly id: string;
@@ -121,24 +117,21 @@ export interface SharedCustomer {
 /**
  * The customer a share link points to, for a visitor without a session.
  * `resolve` checks the token's hash, revocation and expiry; only then does the
- * service role read the two columns the page shows.
+ * service role read the two columns the page shows. It is not cached: the
+ * result is a visitor's, not a user's, and a revoked link must stop at once.
  */
 export async function getSharedCustomer(
   token: string,
 ): Promise<SharedCustomer | null> {
-  "use cache: private";
-  const { db } = await bsb.cached();
-  cacheTag(CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG);
-
-  const link = await db.shareLinks.resolve({ token }).orThrow();
+  const admin = bsb.admin();
+  const link = await admin.shareLinks.resolve({ token }).orThrow();
 
   if (link?.subject.type !== "customer") {
     return null;
   }
 
-  const { data, error } = await bsb
-    .admin()
-    .$client.from("customers")
+  const { data, error } = await admin.$client
+    .from("customers")
     .select("name, status")
     .eq("id", link.subject.id)
     .eq("organization_id", link.organizationId)
