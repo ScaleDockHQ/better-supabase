@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:cdbe9365eb1bd1829e4f1c6a12598b2e1246dc69653f42e1ea861713b3135f37
+-- @bsb-hash sha256:caf376e29e6eb3c4d72fe1ba662c29e3bf70c5d35a726c490259659be30cc1dc
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,7 +90,7 @@ create table "better_supabase"."import_chunks" (
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "entity", "chunk")
 );
--- A done chunk keeps its result and drops its items (ADR 1213).
+-- A done chunk keeps its result and drops its items (ADR 1223).
 alter table "better_supabase"."import_chunks" alter column "items" drop not null;
 alter table "better_supabase"."import_chunks" add constraint "bsb_import_chunks_status"
   check ("status" in ('pending', 'claimed', 'done', 'failed'));
@@ -1927,7 +1927,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:5912790b3046204ef39e30c9462cca130a093b5c4f865d1a5c83bfd1d2ca52e0
+-- @bsb-hash sha256:ac1d962e3ecb7c5141c1b2a6c8232aadab5bf170513e60fab08867631f871341
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2016,7 +2016,7 @@ create table "better_supabase"."import_chunks" (
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "entity", "chunk")
 );
--- A done chunk keeps its result and drops its items (ADR 1213).
+-- A done chunk keeps its result and drops its items (ADR 1223).
 alter table "better_supabase"."import_chunks" alter column "items" drop not null;
 alter table "better_supabase"."import_chunks" add constraint "bsb_import_chunks_status"
   check ("status" in ('pending', 'claimed', 'done', 'failed'));
@@ -4515,7 +4515,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:671cb656a49d3bd2bbdf67c4e874c998c84e3f314bf4b2340029db2c21db3836
+-- @bsb-hash sha256:6a64bcda3bcf251f0855eee585e6c5f0cc12fa2646f0ce4b57811b1fa7b05f01
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4609,7 +4609,7 @@ create table "app_private"."import_chunks" (
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "entity", "chunk")
 );
--- A done chunk keeps its result and drops its items (ADR 1213).
+-- A done chunk keeps its result and drops its items (ADR 1223).
 alter table "app_private"."import_chunks" alter column "items" drop not null;
 alter table "app_private"."import_chunks" add constraint "bsb_import_chunks_status"
   check ("status" in ('pending', 'claimed', 'done', 'failed'));
@@ -6446,7 +6446,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:748d306cdd1e4e1ef105ea84aa0ce87838a772c739296113d17681fec2ab3c42
+-- @bsb-hash sha256:79c7d71ad28c81762ff883d61e92cd8b1f59893a8c841e2aaf34df800ee22180
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6535,7 +6535,7 @@ create table "better_supabase"."import_chunks" (
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "entity", "chunk")
 );
--- A done chunk keeps its result and drops its items (ADR 1213).
+-- A done chunk keeps its result and drops its items (ADR 1223).
 alter table "better_supabase"."import_chunks" alter column "items" drop not null;
 alter table "better_supabase"."import_chunks" add constraint "bsb_import_chunks_status"
   check ("status" in ('pending', 'claimed', 'done', 'failed'));
@@ -8713,7 +8713,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:9429e9a0255548ff6b87b8396f21ae548c1c9c86aabca2f48cfadf92fe635544
+-- @bsb-hash sha256:fa05384d077b24432bb6531b10531301e384cb299407ff90715449d83d29ee93
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8792,7 +8792,7 @@ alter table "better_supabase"."import_chunks" add column if not exists "result" 
 alter table "better_supabase"."import_chunks" add column if not exists "claimed_at" timestamptz;
 alter table "better_supabase"."import_chunks" add column if not exists "done_at" timestamptz;
 alter table "better_supabase"."import_chunks" add column if not exists "created_at" timestamptz not null default now();
--- A done chunk keeps its result and drops its items (ADR 1213).
+-- A done chunk keeps its result and drops its items (ADR 1223).
 alter table "better_supabase"."import_chunks" enable row level security;
 grant all on "better_supabase"."import_chunks" to service_role;
 create index if not exists "import_chunks_tenant_idx" on "better_supabase"."import_chunks" ("tenant_id");
@@ -10620,7 +10620,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:7c1b6cd5bd14084e2e1c02394166b6a18dd56854d7492a9979f592864ebba92d
+-- @bsb-hash sha256:3009fb70b231481786bda444a57e7dcfeab07f886d82caebd8e3dfc24eba6ad8
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10709,7 +10709,7 @@ create table "better_supabase"."import_chunks" (
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "entity", "chunk")
 );
--- A done chunk keeps its result and drops its items (ADR 1213).
+-- A done chunk keeps its result and drops its items (ADR 1223).
 alter table "better_supabase"."import_chunks" alter column "items" drop not null;
 alter table "better_supabase"."import_chunks" add constraint "bsb_import_chunks_status"
   check ("status" in ('pending', 'claimed', 'done', 'failed'));
