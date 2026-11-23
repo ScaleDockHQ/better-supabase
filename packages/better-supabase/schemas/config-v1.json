@@ -971,6 +971,9 @@
                 "rowsWithFor": {
                   "type": "string"
                 },
+                "roleOn": {
+                  "type": "string"
+                },
                 "portalSubjects": {
                   "type": "string"
                 },
@@ -6209,6 +6212,9 @@
                 "default": ["google-drive", "onedrive"]
               },
               "roleFunctions": {},
+              "grants": {
+                "type": "string"
+              },
               "readPolicy": {
                 "type": "boolean",
                 "default": true
@@ -7466,6 +7472,10 @@
               "templates": {
                 "type": "boolean",
                 "default": false
+              },
+              "quantityScale": {
+                "type": "number",
+                "default": 0
               }
             }
           }

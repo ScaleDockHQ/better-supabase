@@ -1970,6 +1970,10 @@
     "message": "this organization has turned off share links"
   },
   {
+    "code": "DRIVE_SHARING_EXTERNAL",
+    "message": "sharing is off: options.roleFunctions.node names the role of each member, so change it there"
+  },
+  {
     "code": "DRIVE_TARGET_INVALID",
     "message": "downloads can be blocked on a drive only"
   },
@@ -4055,6 +4059,10 @@
     "message": "this cart table has no email column"
   },
   {
+    "code": "ORDERS_FIELD_UNSUPPORTED",
+    "message": "an order from a quote takes the quote"
+  },
+  {
     "code": "ORDERS_FORBIDDEN",
     "message": "not allowed to return this order"
   },
@@ -4115,8 +4123,16 @@
     "message": "a line is out of stock"
   },
   {
+    "code": "ORDERS_PARTY_INVALID",
+    "message": "attrs.party is { type, id }"
+  },
+  {
     "code": "ORDERS_PAYMENT_CONFLICT",
     "message": "this payment reference belongs to another order"
+  },
+  {
+    "code": "ORDERS_PAYMENT_REQUIRED",
+    "message": "the order ships once its deposit, or its total without one, is paid"
   },
   {
     "code": "ORDERS_PAYMENT_STATUS_INVALID",
@@ -4140,7 +4156,7 @@
   },
   {
     "code": "ORDERS_QUANTITY_INVALID",
-    "message": "each quantity is a whole number above zero"
+    "message": "the quantity must be a positive whole number"
   },
   {
     "code": "ORDERS_QUOTE_NOT_ACCEPTED",
@@ -4185,6 +4201,10 @@
   {
     "code": "ORDERS_SIGN_IN_REQUIRED",
     "message": "sign in (anonymously is enough) to keep a cart"
+  },
+  {
+    "code": "ORDERS_SOURCE_REQUIRED",
+    "message": "attrs.externalId needs attrs.source, the system the id comes from"
   },
   {
     "code": "ORDERS_TAX_INVALID",
