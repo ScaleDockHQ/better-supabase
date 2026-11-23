@@ -78,18 +78,21 @@ numbering default, template clone and import functions, and the render comments.
 come from block fixes and features that landed between 0.82.0 and this release, not from the
 codemods:
 
-| File                                                                       | Change                                                                                       |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `module_145_tax.sql`                                                       | the tax data module is at version 2                                                          |
-| `module_023_outbox.sql`                                                    | a consumer's start never passes the snapshot's xmax                                          |
-| `module_034_attachments.sql`                                               | a subject id that is not a uuid reads as not found instead of failing the cast               |
-| `module_064_imports.sql`                                                   | supplier and customer entities resolve earlier records; a dry run's cancel clears chunks     |
-| `module_069_catalog.sql`                                                   | a supplier item takes its supplier from an earlier imported entity                           |
-| `module_077_approvals.sql`                                                 | cancelling an approval calls the timesheet and expense cancel functions                      |
-| `module_088_time_entries.sql`                                              | `timesheet_approval_cancelled` returns a submitted week to open                              |
-| `module_121_expenses.sql`                                                  | `expense_approval_cancelled`; a rejected expense stays visible to an employee without a user |
-| `module_091_tasks.sql`, `module_097_quotes.sql`, `module_098_invoices.sql` | a clone may move to another tenant with `tenantId`, checked against the target               |
-| `module_110_leave.sql`                                                     | a request that was approved and later rejected is no longer treated as rejected              |
+| File                                                                       | Change                                                                                                                                   |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `module_000_prelude.sql`                                                   | `better_supabase.declared_defaults` and its lookup `declared_defaults_of` hold declared rows                                             |
+| `module_092_pipelines.sql`, `module_184_option_sets.sql`                   | the default stages and items come from declared rows when a declaration exists; with none, the lookup returns null and the old rows seed |
+| `module_004_memberships.sql`                                               | `inventory_level_signals` and `inventory_reorder_rules` gain a same-tenant check on `variant_id`, one trigger on each table              |
+| `module_145_tax.sql`                                                       | the tax data module is at version 2                                                                                                      |
+| `module_023_outbox.sql`                                                    | a consumer's start never passes the snapshot's xmax                                                                                      |
+| `module_034_attachments.sql`                                               | a subject id that is not a uuid reads as not found instead of failing the cast                                                           |
+| `module_064_imports.sql`                                                   | supplier and customer entities resolve earlier records; a dry run's cancel clears chunks                                                 |
+| `module_069_catalog.sql`                                                   | a supplier item takes its supplier from an earlier imported entity                                                                       |
+| `module_077_approvals.sql`                                                 | cancelling an approval calls the timesheet and expense cancel functions                                                                  |
+| `module_088_time_entries.sql`                                              | `timesheet_approval_cancelled` returns a submitted week to open                                                                          |
+| `module_121_expenses.sql`                                                  | `expense_approval_cancelled`; a rejected expense stays visible to an employee without a user                                             |
+| `module_091_tasks.sql`, `module_097_quotes.sql`, `module_098_invoices.sql` | a clone may move to another tenant with `tenantId`, checked against the target                                                           |
+| `module_110_leave.sql`                                                     | a request that was approved and later rejected is no longer treated as rejected                                                          |
 
 The report found one regression of this branch and fixed it: the `table-tags` codemod appends
 `; grant ...` after a `@bsb fields` list, and the list reader dropped its last column

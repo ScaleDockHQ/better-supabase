@@ -80,6 +80,30 @@ export const ALLOWLIST: AllowlistEntry[] = [
   },
   // Block fixes and features that landed on main after the 0.82.0 tag. Each is scoped to its module
   // file so a regression elsewhere stays unexplained.
+  // Declared rows and inferred tenant checks of this branch. Each entry is scoped to its module file.
+  {
+    name: "declared defaults table and lookup",
+    file: /module_000_prelude/,
+    pattern:
+      /declared_defaults|^\s*(kind|subject|rows|primary key|check)\b|^\s*\)\s*;?$/i,
+  },
+  {
+    name: "declared defaults lookup in pipelines",
+    file: /module_092_pipelines/,
+    pattern: /v_declared|declared_defaults_of|ordinality|jsonb_to_recordset/i,
+  },
+  {
+    name: "declared defaults lookup in option sets",
+    file: /module_184_option_sets/,
+    pattern:
+      /v_declared|v_brand|declared_defaults_of|ordinality|jsonb_to_recordset/i,
+  },
+  {
+    name: "inferred same-tenant trigger on the inventory tables",
+    file: /module_004_memberships/,
+    pattern:
+      /bsb_same_tenant_variant_id.*inventory_(level_signals|reorder_rules)|inventory_(level_signals|reorder_rules).*bsb_same_tenant_variant_id|same_tenant\('variant_id'/,
+  },
   {
     name: "main: tax data module version",
     file: /module_145_tax/,
