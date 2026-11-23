@@ -105,10 +105,19 @@ describe("doctor on the declarative fixture", () => {
 
       expect(
         data.findings.filter(
-          (finding) => (finding as { severity?: string }).severity !== "info",
+          (finding) =>
+            (finding as { severity?: string }).severity !== "info" &&
+            // The 0.85 migration drops the one-argument sole_owned_organizations
+            // on purpose: it gains an optional organization argument. That
+            // warning is also why the exit code is not checked here.
+            !(
+              (finding as { code?: string }).code === "BS235" &&
+              String((finding as { message?: string }).message).includes(
+                "sole_owned_organizations",
+              )
+            ),
         ),
       ).toStrictEqual([]);
-      expect(result.code).toBe(0);
     },
   );
 
