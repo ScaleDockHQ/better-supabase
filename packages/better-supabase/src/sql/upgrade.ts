@@ -6,11 +6,7 @@ import type {
 } from "./module-types.ts";
 
 import { createModuleContext } from "./context.ts";
-import {
-  providerGuests,
-  providerIdType,
-  withProviderDefaults,
-} from "./module-context.ts";
+import { moduleContextSource } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
 import { rerunnableDdl } from "./pipeline/static.ts";
 import {
@@ -82,8 +78,6 @@ export function upgradePlan(
     ...new Set(installed.map((entry) => entry.block ?? entry.module)),
   ];
 
-  const defaults = withProviderDefaults(layout);
-
   return installed.flatMap((entry): BlockSqlUpgradePlan[] => {
     const block = entry.block ?? entry.module;
     const module = modules[block];
@@ -98,23 +92,17 @@ export function upgradePlan(
       return [];
     }
 
-    const options = {
-      ...(defaults ? { modules: defaults } : {}),
-      ...(layout.claims ? { claims: layout.claims } : {}),
-      ...(layout.instances ? { instances: layout.instances } : {}),
-      ...(entry.module === block ? {} : { instance: entry.module }),
-      installed: names,
-      ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
-      ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
-      ...providerIdType(layout),
-      ...providerGuests(layout),
-    };
-
-    const ctx = createModuleContext(
+    // A step moves data of modules it never renders with, so the render's
+    // integrates check stays off.
+    const { integrations: _, ...options } = moduleContextSource(
       block,
-      (name) => modules[name]?.names,
-      options,
+      layout,
+      names,
+      entry.module === block ? undefined : entry.module,
     );
+
+    const namesOf = (name: string) => modules[name]?.names;
+    const ctx = createModuleContext(block, namesOf, options);
 
     if (ctx.mode === "custom") {
       return [];
@@ -144,7 +132,7 @@ export function upgradePlan(
 
       return createModuleContext(
         block,
-        (name) => (name === block ? before : modules[name]?.names),
+        (name) => (name === block ? before : namesOf(name)),
         options,
       );
     };
