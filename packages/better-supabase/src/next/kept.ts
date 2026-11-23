@@ -67,6 +67,8 @@ export interface KeptDeps<Ctx extends KeptContext<C, P>, C, P> {
     record: CacheEntryStat,
     source: SessionHandle | undefined,
   ) => void;
+  /** The `anon` context a `share: "public"` entry fills with. */
+  readonly publicScope: () => KeptScope<Ctx, C, P>;
   /** How a `share: "tenant"` entry of `ctx` that reads `tables` is keyed. */
   readonly tenantShare: (
     ctx: Ctx,
@@ -189,10 +191,13 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
       source: SessionHandle | undefined,
       args: A,
     ): Promise<R> => {
-      const { ctx, view, scope, tenant } = await deps.scopeOf(
-        source,
-        options.tenant?.(...args),
-      );
+      const open = options.share === "public";
+
+      // A public entry never reads the request, so it runs in a plain
+      // "use cache" scope too.
+      const { ctx, view, scope, tenant } = open
+        ? deps.publicScope()
+        : await deps.scopeOf(source, options.tenant?.(...args));
 
       const appTags =
         typeof options.tags === "function"
@@ -240,7 +245,11 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
           ? await deps.tenantShare(ctx, tables, tenant, options.functions)
           : { kind: "user" };
 
-      const shared = decided.kind === "shared" ? decided.key : undefined;
+      const shared = open
+        ? "public"
+        : decided.kind === "shared"
+          ? decided.key
+          : undefined;
 
       const share = canonicalJson(
         cacheKeyOf({
@@ -249,7 +258,9 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
           support: null,
           snapshot: snapshotOf(ctx.auth),
           share:
-            shared === undefined ? "user" : { key: () => `tenant:${shared}` },
+            shared === undefined
+              ? "user"
+              : { key: () => (open ? "public" : `tenant:${shared}`) },
         }),
       );
 

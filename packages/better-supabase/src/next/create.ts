@@ -617,6 +617,16 @@ export function createNext<
         ...(source ? { session: source } : {}),
         ...(tenant === undefined ? {} : { tenant }),
       }),
+    publicScope: () => {
+      const ctx = base.contextFor({ kind: "none", reason: "none" }, {});
+
+      return {
+        ctx,
+        view: toSession(ctx.auth),
+        scope: "remote",
+        tenant: undefined,
+      };
+    },
     userTags,
     waitUntil,
   });

@@ -142,7 +142,7 @@ const invoices = await openInvoices(customerId);
 | `life.expire`       | 86400                          | Seconds the store keeps the entry.                                                                                                |
 | `version`           | a hash of the generated schema | Part of the key. Change it when the result changes shape; a migration changes the default. The build id is never part of the key. |
 | `tenant`            | the request's                  | The active tenant from the arguments.                                                                                             |
-| `share`             | `"user"`                       | `"tenant"` keeps one entry for every caller with the same grant in the tenant; see below.                                         |
+| `share`             | `"user"`                       | `"tenant"` keeps one entry for every caller with the same grant in the tenant, `"public"` one for every visitor; see below.       |
 
 The value goes through JSON, so a `Date` comes back as a string on a miss and
 on a hit alike. A support session and a token that fails to verify read
@@ -233,6 +233,31 @@ When any of the three doesn't hold, the entry falls back to one per user,
 `expectTenantShare` from `better-supabase/testing` checks a provider's hooks:
 two holders get one key and read the same rows, and a caller without the
 grant gets another key.
+
+### Keep public data for every visitor
+
+With `share: "public"`, one entry serves every visitor, signed in or not. The
+fill runs as the `anon` role through the anon client, as `bsb.public()` does:
+it never reads the request, never uses the service role, and RLS decides which
+rows it returns. The key carries no user and no tenant, and the tags carry
+none either, so a write to one of `tables` expires the one entry. As in a
+tenant fill, the function reads only `tables` and `functions`; another read
+answers `SHARE_REFUSED` and the value is not stored.
+
+```ts
+export const plans = bsb.kept((ctx) => ctx.db.plans.list(), {
+  name: "plans",
+  tables: ["plans"],
+  share: "public",
+});
+```
+
+Use it for data with no tenant, such as plans, currencies or published
+articles. A lookup that maps a public slug to an organization id works only
+when an `anon` select policy exposes those rows; without one the fill keeps an
+empty result for everyone. Doctor rule [BS645](/docs/cli/doctor#bs645) reports
+a public entry on a table that `anon` can't select. For tenant data, use
+`share: "tenant"`.
 
 #### Run your own services in a shared fill
 

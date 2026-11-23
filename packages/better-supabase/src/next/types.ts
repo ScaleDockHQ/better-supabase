@@ -1197,9 +1197,12 @@ export interface KeptOptions<
    * hook names, when every table in `tables` is one the provider's `tables`
    * shares per tenant; the fill then reads only those tables, through the
    * caller's own client under RLS. Without the hook, a tenant or a sharable
-   * table, the entry stays per user.
+   * table, the entry stays per user. `"public"` keeps one entry for every
+   * visitor and fills it as the `anon` role, under RLS, without reading the
+   * request: for data with no tenant, such as plans or currencies. The fill
+   * reads only `tables`, and `tenant` is ignored.
    */
-  readonly share?: "user" | "tenant";
+  readonly share?: "user" | "tenant" | "public";
   /**
    * Functions the function calls with `$rpc`, by database name. Each needs an
    * entry in the authorization provider's `sharedFunctions`: the tables it

@@ -6,6 +6,7 @@ import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { lineColumn, parseSource } from "../config-document/parse.ts";
 import { CLIENT_BARREL_RULES } from "./client-barrels.ts";
+import { PUBLIC_KEPT_RULES } from "./public-kept.ts";
 
 /** The `next.config` file names Next.js loads, in its order. */
 export const NEXT_CONFIG_FILES = [
@@ -353,4 +354,5 @@ export const NEXT_CACHE_RULES: readonly Rule[] = [
     check: requestInPlainCache,
   },
   ...CLIENT_BARREL_RULES,
+  ...PUBLIC_KEPT_RULES,
 ];

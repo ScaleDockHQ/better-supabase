@@ -3171,6 +3171,17 @@ writes both for a new app. The finding lists the server files that call
 the bytes that user's object takes in the cookie. See
 [Encoding](/docs/auth/sessions#encoding).
 
+### BS645
+
+**Warning: a public kept entry reads a table `anon` can't select.**
+`bsb.kept(fn, { share: "public" })` fills as the `anon` role and keeps one
+entry for every visitor. Doctor reads the `tables` of each such call in the
+app's sources and reports a table without an `anon` select grant, or with RLS
+and no permissive select policy that applies to `anon`. The fill would keep an
+empty read for everyone until the entry expires. Add an `anon` select policy
+that exposes only the public rows, or keep the read per user. See
+[Keep public data for every visitor](/docs/concepts/caching#keep-public-data-for-every-visitor).
+
 ### BS633
 
 **Info: an app row trigger has no `importing()` guard.** An import writes many
