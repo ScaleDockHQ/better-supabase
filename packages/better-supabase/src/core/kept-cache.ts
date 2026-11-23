@@ -171,7 +171,7 @@ export async function keptVersionOf(meta: unknown): Promise<string> {
   return (await sha256(canonicalJson(meta))).slice(0, 16);
 }
 
-export function isKeptEnvelope(value: unknown): value is KeptEnvelope {
+function isKeptEnvelope(value: unknown): value is KeptEnvelope {
   return (
     isRecord(value) &&
     typeof value["storedAt"] === "number" &&

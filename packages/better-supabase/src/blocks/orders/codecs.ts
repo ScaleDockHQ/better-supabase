@@ -607,7 +607,7 @@ const when = (
 };
 
 /** The staff order fields of an order or order summary row. */
-export function staffFieldsOf(
+function staffFieldsOf(
   row: Readonly<Record<string, unknown>>,
   currency: string,
 ): StaffOrderFields {
