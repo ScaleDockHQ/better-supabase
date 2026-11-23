@@ -1,4 +1,4 @@
-# 1226: Keep the read time next to each version in the shared version store
+# 1227: Keep the read time next to each version in the shared version store
 
 - Status: accepted
 - Date: 2026-11-23

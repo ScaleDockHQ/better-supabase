@@ -11,7 +11,7 @@ import { exposed, qualified, tableObject } from "./shared.ts";
 export type PolicyOrigin = "library" | "provider" | "app";
 
 /** Library, provider or app: by name, by schema, then by the functions it calls. */
-export function policyOrigin(
+function policyOrigin(
   context: DoctorContext,
 ): (table: CatalogTable, policy: CatalogPolicy) => PolicyOrigin {
   const owned = moduleOwned(context);

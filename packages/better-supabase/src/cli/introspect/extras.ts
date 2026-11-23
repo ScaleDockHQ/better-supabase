@@ -150,7 +150,7 @@ where n.nspname = any(${schemas}) and p.prokind in ('f', 'p')
 order by 1, 2, 3`;
 
 /** Reads the function inventory of `schemas` (`config functions`, BS643). */
-export async function readFunctionInventory(
+async function readFunctionInventory(
   db: Queryable,
   schemas: readonly string[],
 ): Promise<InventoryFunction[]> {

@@ -108,7 +108,7 @@ function toolWrites(definition: ObjectExpression): boolean {
 }
 
 /** Write definitions in `file` that check a permission and set no `enforcement`. */
-export function unsetEnforcement(file: TextFile): readonly Unset[] {
+function unsetEnforcement(file: TextFile): readonly Unset[] {
   const found: Unset[] = [];
 
   walk(parseSource(file.text).program, {

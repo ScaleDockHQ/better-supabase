@@ -1,6 +1,7 @@
 import type { ScanToken } from "@supabase/pg-parser";
 
 import { Source } from "./source.ts";
+import { statementEnds } from "./statement-ends.ts";
 
 /**
  * One token of the code of a SQL text. Comments are gone, a string literal is
@@ -122,6 +123,20 @@ export async function codeStatementsFrom(
 
   await expand(text, scan, 1, 0, tokens);
 
+  const top = tokens.flatMap((token, at) =>
+    token.depth === 0 ? [{ token, at }] : [],
+  );
+
+  const ends = new Set(
+    [
+      ...statementEnds(
+        top.map(({ token }) =>
+          token.kind === "word" || token.kind === "punct" ? token.text : "",
+        ),
+      ),
+    ].map((index) => top[index]!.at),
+  );
+
   const statements: CodeStatement[] = [];
   let current: CodeToken[] = [];
 
@@ -135,8 +150,8 @@ export async function codeStatementsFrom(
     current = [];
   };
 
-  for (const token of tokens) {
-    if (token.depth === 0 && token.text === ";") {
+  for (const [at, token] of tokens.entries()) {
+    if (ends.has(at)) {
       close();
     } else {
       current.push(token);

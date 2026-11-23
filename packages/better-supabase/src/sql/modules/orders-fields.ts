@@ -18,7 +18,7 @@ import { columns } from "./orders-shared.ts";
 const MAX_QUANTITY_SCALE = 6;
 
 /** How staff orders are invoiced: when the order is placed, or as it ships. */
-export const INVOICING_POLICIES = ["on_order", "on_delivery"] as const;
+const INVOICING_POLICIES = ["on_order", "on_delivery"] as const;
 
 /** What an order line is. */
 export const LINE_TYPES = ["item", "service", "fee"] as const;

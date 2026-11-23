@@ -18,9 +18,7 @@ const KEEP = /^[1-9]\d* (?:days?|weeks?|months?|years?)$/u;
  * `blocks.audit.options.retention`: how long entries stay, and what happens to
  * a month past it. Unset keeps every entry.
  */
-export function auditRetention(
-  ctx: BlockSqlContext,
-): AuditRetention | undefined {
+function auditRetention(ctx: BlockSqlContext): AuditRetention | undefined {
   const raw = ctx.option("retention");
   const where = "blocks.audit.options.retention";
 

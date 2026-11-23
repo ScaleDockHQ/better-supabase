@@ -43,38 +43,3 @@ export function strings(value: unknown): readonly string[] {
     return text === undefined ? [] : [text];
   });
 }
-
-/** Every column a tree names, in source order, without repeats. */
-export function columnRefs(node: unknown): readonly string[] {
-  const found: string[] = [];
-
-  const walk = (value: unknown): void => {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        walk(item);
-      }
-
-      return;
-    }
-
-    if (!isObj(value)) {
-      return;
-    }
-
-    for (const [key, child] of Object.entries(value)) {
-      if (key === "ColumnRef") {
-        const last = strings(obj(child)["fields"]).at(-1);
-
-        if (last !== undefined && !found.includes(last)) {
-          found.push(last);
-        }
-      } else {
-        walk(child);
-      }
-    }
-  };
-
-  walk(node);
-
-  return found;
-}
