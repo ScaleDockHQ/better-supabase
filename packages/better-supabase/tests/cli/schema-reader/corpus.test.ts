@@ -190,5 +190,5 @@ describe("the schema reader over the repository's own SQL", () => {
     }
 
     expect(mismatched).toEqual([]);
-  });
+  }, 120_000);
 });

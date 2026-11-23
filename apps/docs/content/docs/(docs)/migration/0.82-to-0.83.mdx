@@ -45,7 +45,7 @@ pnpm better-supabase gen sql
 | [Hold kinds](#hold-kinds)                                                 | None; new options                                                                         |
 | [Reserve a task for a profile](#reserve-a-task)                           | Read `delegateProfile` if you stored the old label                                        |
 | [before_task_close on every close](#before-task-close)                    | Check a hook that relied on running only in close                                         |
-| [SQL reading](#sql-reading)                                               | Replace `splitStatements` from `better-supabase/sql` if you call it                       |
+| [SQL reading](#sql-reading)                                               | Stop importing the SQL text readers from `better-supabase/sql`                            |
 | [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`                                                             |
 
 ## What the codemods did to CentraKit
@@ -464,15 +464,21 @@ inserted already closed.
 ## SQL reading
 
 The CLI reads every SQL file with one reader on `@supabase/pg-parser`. This is
-a breaking change for code that imports from `better-supabase/sql`: the
-statement splitter `splitStatements` and its `SqlStatement` type are removed.
-The other text scanners of that entry stay for now and move to internal modules
-as each render function takes facts as plain data (ADR 1300).
+a breaking change for code that imports from `better-supabase/sql`: the text
+readers are removed from that entry, and the CLI no longer calls them (ADR
+1300). The render functions take what a file declares as plain data, so they
+still run on every runtime without the parser.
 
-| Removed                | Replace with                                        |
-| ---------------------- | --------------------------------------------------- |
-| `splitStatements(sql)` | Your own splitter, or run `doctor`, `gen` or `sync` |
-| `SqlStatement`         | `{ text: string; line: number }`                    |
+| Removed from `better-supabase/sql`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Replace with                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `addedColumnTypes`, `adoptedColumnProblems`, `adoptedTables`, `adoptedViews`, `appColumnsOf`, `auditRegistrations`, `buildModel`, `checkValues`, `columnTagComments`, `conflicts`, `declaredCheckValues`, `declaredColumnTypes`, `declaredForeignKeys`, `declaredIndexes`, `declaredPolicies`, `declaredTableColumns`, `declaredTables`, `declaredUpdatedAtTriggers`, `declaredViews`, `duplicateObjects`, `duplicatePolicies`, `extensionSchema`, `mappingTagsOf`, `moduleWritesText`, `ownedColumns`, `ownerOf`, `parseDeclared`, `policyGrants`, `rlsTables`, `sameTenantLayout`, `sameTenantTagsOf`, `setParseStore`, `splitStatements`, `widenedCommands`, `withMappingTags`, `writtenValues` and the types `AdoptedTable`, `AdoptedView`, `CheckValues`, `ColumnTagComment`, `Declaration`, `DuplicateObject`, `OwnedColumn`, `ParseStore`, `SameTenantTags`, `SchemaModel`, `SqlStatement`, `TableCheckValues` | Run `doctor`, `gen` or `sync`; the reader is not a public API          |
+| `splitStatements(sql)`, `SqlStatement`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Your own splitter. `SqlStatement` was `{ text: string; line: number }` |
+
+The project codemods (`table-tags`, `extra-columns`, `same-tenant`,
+`naming-pins`) edit SQL by the reader's facts and token positions instead of
+regular expressions. A file the scanner cannot read (an unterminated quote or
+dollar tag) is listed in the codemod's review and left as it is, where the old
+codemod rewrote it by pattern. The naming codemod no longer rewrites comments.
 
 `sync` compares statements by their canonical text, so a statement that differs
 only in spacing, keyword case or quoting is not written again. The migration
