@@ -197,6 +197,7 @@ export type {
   AuthorizationRequirement,
   AuthorizationRoleSource,
   AuthorizationScope,
+  AuthorizationTableShare,
   AuthorizationTokenHook,
   AuthorizationVersions,
 } from "./authorization.ts";

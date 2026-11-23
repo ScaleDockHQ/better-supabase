@@ -527,6 +527,32 @@ export function testAuthorizationProvider(
         );
       },
     ],
+    provider.tables && [
+      "shares tables per tenant only on listed permissions",
+      () => {
+        const listed = new Set(
+          (provider.permissions ?? []).map((entry) => entry.key),
+        );
+
+        for (const [table, entry] of Object.entries(provider.tables ?? {})) {
+          expect(
+            /^(?:[a-z_][a-z0-9_$]*\.)?[a-z_][a-z0-9_$]*$/.test(table),
+            `tables key "${table}" is not a table or schema.table name`,
+          );
+          expect(
+            entry.share !== "tenant" || entry.permissions.length > 0,
+            `tables.${table} is share: "tenant" with no permissions: every member would read one entry whatever they hold`,
+          );
+
+          for (const key of entry.permissions) {
+            expect(
+              listed.size === 0 || listed.has(key),
+              `tables.${table} names "${key}", which permissions doesn't list`,
+            );
+          }
+        }
+      },
+    ],
     ...versionChecks(provider, options.postgres),
   ]);
 }

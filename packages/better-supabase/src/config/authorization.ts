@@ -508,6 +508,13 @@ export interface AuthorizationVersions {
   readonly function: string;
 }
 
+/** One entry of `AuthorizationProvider.tables`. */
+export interface AuthorizationTableShare<Key extends string = string> {
+  readonly share: "tenant" | "row";
+  /** The keys the table's select policy checks in the tenant. */
+  readonly permissions: readonly Key[];
+}
+
 /**
  * An authorization system the SQL modules, the policies and doctor delegate to.
  * It is plain data, usually built from the provider's own output files.
@@ -609,6 +616,15 @@ export interface AuthorizationProvider<Key extends string = string> {
    * never hold a wildcard sets `none`, so a stray `*` row can't widen access.
    */
   readonly wildcards?: "all" | "prefix" | "none";
+  /**
+   * Who reads the same rows of a table, by table name (`orders` or
+   * `public.orders`). `tenant` means every caller who holds `permissions` in a
+   * tenant reads the same rows, so `bsb.kept` and `bsb.remote` with `share:
+   * "tenant"` may share one entry between them. `row` means the select policy
+   * also filters by row, so no entry is shared. `gen` copies it into the
+   * generated table metadata, and doctor BS428 checks it against the policies.
+   */
+  readonly tables?: Readonly<Record<string, AuthorizationTableShare<Key>>>;
   /** What the provider found wrong while building this, for doctor. */
   readonly problems?: readonly string[];
 }

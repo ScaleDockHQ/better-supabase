@@ -1585,6 +1585,26 @@
               "enum": ["all", "prefix", "none"],
               "type": "string"
             },
+            "tables": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "share": {
+                    "enum": ["tenant", "row"],
+                    "type": "string"
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["share", "permissions"],
+                "additionalProperties": false
+              }
+            },
             "problems": {
               "type": "array",
               "items": {

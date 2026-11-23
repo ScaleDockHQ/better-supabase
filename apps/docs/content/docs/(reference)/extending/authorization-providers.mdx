@@ -1000,8 +1000,33 @@ over the provider's.
 | `suspension.user` as a column name                                                                   | `userKey` matches that column when the provider's user is the one in use                                      | 0.58    |
 | `functions.canIn`                                                                                    | the permission check the `@bsb access` tag renders into its policies; the tag falls back to `tenant_ids_with` | 0.58    |
 | `seed.tenant` (`AuthzSubjectSeed`)                                                                   | the tenant a seeded subject belongs to, so `accessOf` and `testAuthorizer` keep it out of other tenants       | 0.58    |
+| `tables`                                                                                             | `share: "tenant"` or `"row"` per table, with the permissions its reads check, for shared cache entries        | 0.84    |
 
 Doctor reports a config value equal to the provider's (BS427).
+
+`tables` says which tables every caller with the same permissions in a tenant
+reads alike. `share: "tenant"` lets `bsb.kept` and `bsb.remote` with
+`share: "tenant"` keep one entry for those callers; `share: "row"` (or no
+entry) keeps one per user. The hooks' `shareKey` names the caller's grant, and
+`permissionsShareKey()` reads it from the permissions claim. Doctor BS428
+fails a `tenant` table whose select policies filter by the caller.
+
+```ts
+import type { AuthorizationProvider } from "better-supabase/config";
+import { permissionsShareKey } from "better-supabase/blocks/permissions";
+import { defineAuthorizationHooks } from "better-supabase/server";
+
+export const tables: AuthorizationProvider["tables"] = {
+  "public.customers": { share: "tenant", permissions: ["customer.read"] },
+  "public.notes": { share: "row", permissions: ["customer.read"] },
+};
+
+export const authorization = defineAuthorizationHooks({
+  apiVersion: 1,
+  name: "my-provider",
+  shareKey: permissionsShareKey(),
+});
+```
 
 ## Test a provider
 

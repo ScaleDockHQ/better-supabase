@@ -125,6 +125,19 @@ export interface TableMeta {
   readonly description?: string;
   /** The table's comment has a `@deprecated` line. */
   readonly deprecated?: true;
+  /**
+   * Who reads the same rows, from the authorization provider's `tables`:
+   * `tenant` when every caller who holds `permissions` in a tenant does, `row`
+   * when the select policy also filters by row. Absent when the provider
+   * doesn't list the table.
+   */
+  readonly share?: TableShare;
+}
+
+/** `TableMeta.share`. */
+export interface TableShare {
+  readonly kind: "tenant" | "row";
+  readonly permissions: readonly string[];
 }
 
 export interface FunctionMeta extends FunctionSignature {

@@ -83,6 +83,7 @@ export type {
   IdentityRef,
   IdentityTarget,
   PrincipalByIdentity,
+  ShareKeyHook,
   Subscriber,
   SubscriberEvent,
   SubscriberPolicy,

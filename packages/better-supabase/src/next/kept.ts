@@ -3,6 +3,7 @@ import type { AuthSession } from "../auth/view.ts";
 import type { CacheAdapter } from "../core/cache.ts";
 import type { EventHub } from "../core/events.ts";
 import type { KeptCache, KeptStore } from "../core/kept-cache.ts";
+import type { TenantShare } from "../server/tenant-share.ts";
 import type {
   CacheScope,
   KeptFunction,
@@ -20,6 +21,7 @@ import {
   memoryKeptStore,
 } from "../core/kept-cache.ts";
 import { cacheTagsOf } from "../core/tags.ts";
+import { sharedReader } from "../server/tenant-share.ts";
 import { withReadSetTables } from "./action-bound.ts";
 import { tableTags } from "./cache.ts";
 import { applyCacheEntry } from "./entry.ts";
@@ -54,6 +56,12 @@ export interface KeptDeps<Ctx extends KeptContext<C, P>, C, P> {
   readonly waitUntil: (work: Promise<unknown>) => void;
   /** Records the store's tag calls on the current request. */
   readonly onTagCalls?: (calls: number) => void;
+  /** How a `share: "tenant"` entry of `ctx` that reads `tables` is keyed. */
+  readonly tenantShare: (
+    ctx: Ctx,
+    tables: readonly string[],
+    tenant: string | undefined,
+  ) => Promise<TenantShare>;
 }
 
 export interface KeptBinding<Ctx> {
@@ -85,6 +93,8 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
 ): KeptBinding<Ctx> {
   let cache: KeptCache | undefined;
   let version: Promise<string> | undefined;
+  /** Functions whose `share: "tenant"` refusal was logged. */
+  const warned = new Set<string>();
 
   const cacheOf = (): KeptCache => {
     if (cache) {
@@ -203,13 +213,23 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
         return fn(ctx, ...args);
       }
 
+      const tables = entry.tables ?? [];
+
+      const decided: TenantShare =
+        options.share === "tenant"
+          ? await deps.tenantShare(ctx, tables, tenant)
+          : { kind: "user" };
+
+      const shared = decided.kind === "shared" ? decided.key : undefined;
+
       const share = canonicalJson(
         cacheKeyOf({
           userId: view.kind === "user" ? view.user.id : null,
           tenant,
           support: null,
           snapshot: snapshotOf(ctx.auth),
-          share: "user",
+          share:
+            shared === undefined ? "user" : { key: () => `tenant:${shared}` },
         }),
       );
 
@@ -220,10 +240,32 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
         version: options.version ?? (await schemaVersion()),
       });
 
+      if (decided.kind === "refused") {
+        if (!warned.has(options.name)) {
+          warned.add(options.name);
+          deps.events.logger.warn(
+            `bsb.kept("${options.name}") keeps its entries per user: ${decided.error.message}`,
+            { error: decided.error },
+          );
+        }
+
+        deps.options?.onSkip?.({
+          name: options.name,
+          key,
+          reason: "share",
+          detail: decided.error.message,
+        });
+      }
+
+      const reader =
+        shared === undefined ? undefined : sharedReader(ctx, tables);
+
       const tags = [
-        ...(view.kind === "user" ? deps.userTags(view.user.id) : []),
+        ...(view.kind === "user" && shared === undefined
+          ? deps.userTags(view.user.id)
+          : []),
         ...appTags,
-        ...(entry.tables ?? []).flatMap((table) =>
+        ...tables.flatMap((table) =>
           tableTags(table, tenant === undefined ? {} : { tenant }),
         ),
       ];
@@ -234,7 +276,8 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
         tags,
         revalidate,
         expire,
-        fill: () => fn(ctx, ...args),
+        fill: () => fn(reader?.ctx ?? ctx, ...args),
+        refuse: reader ? () => reader.guard.refused()?.message : undefined,
         background: deps.waitUntil,
       });
 

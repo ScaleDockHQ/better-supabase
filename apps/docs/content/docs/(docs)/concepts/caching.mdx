@@ -142,6 +142,7 @@ const invoices = await openInvoices(customerId);
 | `life.expire`       | 86400                          | Seconds the store keeps the entry.                                                                                                |
 | `version`           | a hash of the generated schema | Part of the key. Change it when the result changes shape; a migration changes the default. The build id is never part of the key. |
 | `tenant`            | the request's                  | The active tenant from the arguments.                                                                                             |
+| `share`             | `"user"`                       | `"tenant"` keeps one entry for every caller with the same grant in the tenant; see below.                                         |
 
 The value goes through JSON, so a `Date` comes back as a string on a miss and
 on a hit alike. A support session and a token that fails to verify read
@@ -182,6 +183,41 @@ Inside `"use cache: private"` the entry's tags and life also apply to the
 enclosing entry, so a write expires both. In a scope that can't read the
 request, pass the handle from `bsb.sessionHandle()`:
 `openInvoices.as(session)(customerId)`.
+
+### Share an entry per tenant
+
+With `share: "tenant"`, callers who hold the same permissions in a tenant read
+one entry instead of one each. The entry is still filled through the first
+caller's own client, under RLS; nothing reads with the service role. Three
+things must agree before an entry is shared:
+
+- the authorization provider lists every table in `tables` under its
+  `tables` field with `share: "tenant"`, and the permissions its select
+  policies check (doctor BS428 reports a table whose policies filter by the
+  caller);
+- the authorization hooks set `shareKey`, which names the caller's grant on
+  those permissions. `permissionsShareKey()` from
+  `better-supabase/blocks/permissions` reads it from the token's permissions
+  claim and answers `null` for a truncated claim or a stale authorization
+  version;
+- the function reads only `tables`. Inside a shared fill, a read of another
+  table, a function call, `ctx.supabase`, `ctx.storage` or a `db.$` escape
+  hatch answers a `forbidden` `DbError` with code `SHARE_REFUSED`, and the
+  value is returned but not stored.
+
+```ts
+export const customerList = bsb.kept(
+  (ctx) => ctx.db.customers.list({ select: ["id", "name"] }),
+  { name: "customer-list", tables: ["customers"], share: "tenant" },
+);
+```
+
+When any of the three doesn't hold, the entry falls back to one per user,
+`kept.onSkip` gets the reason `"share"`, and the logger warns once.
+`bsb.remote()` takes the same `share: "tenant"` with its `tables`.
+`expectTenantShare` from `better-supabase/testing` checks a provider's hooks:
+two holders get one key and read the same rows, and a caller without the
+grant gets another key.
 
 ## Query specs
 

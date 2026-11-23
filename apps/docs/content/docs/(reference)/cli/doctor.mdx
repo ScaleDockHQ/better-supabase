@@ -2518,6 +2518,24 @@ provider's, because the provider's key applies only then.
 `better-supabase codemod config --prune` removes each entry when the render
 stays the same.
 
+### BS428
+
+**Error: a table the provider shares per tenant has row-level reads.** An
+authorization provider's `tables` entry with `share: "tenant"` says every
+caller with the same permissions in a tenant reads the same rows, so
+`bsb.kept` and `bsb.remote` with `share: "tenant"` keep one entry for all of
+them. Doctor reads the table's permissive select policies for `authenticated`
+and reports:
+
+- a `tenant` table whose policy filters by the caller (`auth.uid()`,
+  `auth.jwt()`, `auth.email()`, `better_supabase.current_user_id()` or
+  `current_user`), or whose policies don't pin the tenant column to a tenant
+  the caller acts in. A shared entry would hand one caller's rows to another;
+  declare the table `share: "row"`;
+- a table whose policies pass other keys to the provider's `idsWith` than its
+  `permissions`, so the entry would be keyed on the wrong grant;
+- a name the database has no table for.
+
 ## Env files
 
 ### BS501

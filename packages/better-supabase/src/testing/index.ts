@@ -164,6 +164,12 @@ export type {
 export { testAuthorizationHooks } from "./authorization-hooks.ts";
 
 export {
+  type ExpectTenantShareOptions,
+  expectTenantShare,
+  type TenantShareCaller,
+} from "./tenant-share.ts";
+
+export {
   type ReceivedDelivery,
   testDeliveryTransport,
   type TestDeliveryTransportOptions,

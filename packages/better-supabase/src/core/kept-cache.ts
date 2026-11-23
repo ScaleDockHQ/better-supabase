@@ -61,7 +61,12 @@ export type KeptSkipReason =
   /** The value is not JSON (a `bigint`, a cycle). */
   | "value"
   /** The value is a failed `Result`, which is never stored. */
-  | "error";
+  | "error"
+  /**
+   * A `share: "tenant"` fill read a table outside the entry's `tables`, or one
+   * the authorization provider doesn't share per tenant.
+   */
+  | "share";
 
 export interface KeptSkip {
   readonly name: string;
@@ -85,6 +90,11 @@ export interface KeptCall<T> {
   readonly expire: number;
   /** Runs the function as the caller. */
   readonly fill: () => Promise<T>;
+  /**
+   * Why the value the fill just returned must not be stored, checked after each
+   * fill; `undefined` stores it.
+   */
+  readonly refuse?: (() => string | undefined) | undefined;
   /**
    * Keeps a refresh alive after the response, such as `waitUntil`. Without it
    * the refresh runs unawaited.
@@ -275,7 +285,12 @@ export function createKeptCache(options: KeptCacheOptions): KeptCache {
       ...(value === undefined ? {} : { value }),
     };
 
-    const written = tagProblem(call.tags) ?? serialize(envelope);
+    const refused = call.refuse?.();
+
+    const written: { readonly ok: true; readonly text: string } | Refusal =
+      refused === undefined
+        ? (tagProblem(call.tags) ?? serialize(envelope))
+        : { ok: false, reason: "share", detail: refused };
 
     if (!written.ok) {
       options.onSkip?.({

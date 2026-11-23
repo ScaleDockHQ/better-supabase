@@ -575,6 +575,27 @@ describe("testAuthorizationProvider", () => {
     ]);
   });
 
+  it("checks the tables the provider shares", async () => {
+    expect(
+      await failures(
+        withProvider({
+          tables: { "public.customers": { share: "tenant", permissions: [] } },
+        }),
+      ),
+    ).toEqual([
+      'shares tables per tenant only on listed permissions: tables.public.customers is share: "tenant" with no permissions: every member would read one entry whatever they hold',
+    ]);
+    expect(
+      await failures(
+        withProvider({
+          tables: { "Bad Name": { share: "row", permissions: [] } },
+        }),
+      ),
+    ).toEqual([
+      'shares tables per tenant only on listed permissions: tables key "Bad Name" is not a table or schema.table name',
+    ]);
+  });
+
   it("accepts any action key when permissions are unlisted", async () => {
     const report = await testAuthorizationProvider(
       withProvider({

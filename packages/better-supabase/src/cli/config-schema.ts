@@ -540,6 +540,15 @@ const authorization = v.strictObject({
     }),
   ),
   wildcards: v.optional(v.picklist(["all", "prefix", "none"])),
+  tables: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({
+        share: v.picklist(["tenant", "row"]),
+        permissions: strings,
+      }),
+    ),
+  ),
   problems: v.optional(strings),
 });
 

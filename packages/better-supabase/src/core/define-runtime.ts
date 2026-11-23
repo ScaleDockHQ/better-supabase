@@ -46,6 +46,26 @@ let extras: DbExtras | undefined;
 
 const FULL_RUNTIME_SLOT = Symbol.for("better-supabase.connection-runtime.full");
 
+type ExecutorWrap = (executor: Executor) => Executor;
+
+/** Rebuilds a db over its own executor wrapped once more, under the plugins. */
+const rewraps = new WeakMap<object, (wrap: ExecutorWrap) => object>();
+
+/**
+ * The same db, with `wrap` around the executor beneath its plugins, so every
+ * operation the plugins produce passes through it. `undefined` for an object no
+ * connection built.
+ */
+export function rewrapDb<T extends object>(
+  db: T,
+  wrap: ExecutorWrap,
+): T | undefined {
+  const rebuild = rewraps.get(db);
+
+  // SAFETY: the rebuild connects the same source, context and plugins as `db`.
+  return rebuild ? (rebuild(wrap) as T) : undefined;
+}
+
 /**
  * Turns one definition into a `db`. Lives apart from the definition class so
  * entries that only read the definition (the proxy, the sessions runtime) do
@@ -190,6 +210,9 @@ class Connector {
     // SAFETY: the prototype only adds the table getters; the own properties
     // below are the $ methods.
     const db = Object.create(this.#tablePrototype()) as Record<string, unknown>;
+    rewraps.set(db, (wrap) =>
+      this.#db(source, wrap(base), given, plugins, recorder, tuning, events),
+    );
     dbStates.set(db, { runner, plugins, repositories: new Map() });
     const { client } = source;
     Object.defineProperty(db, "$storage", {

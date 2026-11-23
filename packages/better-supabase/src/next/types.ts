@@ -1112,6 +1112,8 @@ export interface RemoteCacheKey {
   readonly shared: string | null;
   /** The support session the caller acts in. */
   readonly support: string | null;
+  /** The tables a `share: "tenant"` entry may read. */
+  readonly tables?: readonly string[];
 }
 
 /** The serializable handle of a parked session; see `bsb.sessionHandle()`. */
@@ -1121,8 +1123,16 @@ export interface RemoteOptions<
   C = unknown,
   A extends readonly unknown[] = readonly unknown[],
 > {
-  /** Defaults to `"session"`. */
-  readonly share?: CacheShare<C>;
+  /**
+   * Defaults to `"session"`. `"tenant"` keys the entry on the tenant and the
+   * grant the authorization provider's `shareKey` hook names, when every table
+   * in `tables` is one the provider's `tables` shares per tenant, and the
+   * remote scope's context then reads only `tables`, through the first caller's
+   * own client under RLS. Otherwise it falls back to `"user"`.
+   */
+  readonly share?: CacheShare<C> | "tenant";
+  /** The tables a `share: "tenant"` function reads. */
+  readonly tables?: readonly string[];
   /**
    * The active tenant from the function's arguments, as for `bsb.context({
    * tenant })`.
@@ -1158,6 +1168,15 @@ export interface KeptOptions<
   readonly version?: string;
   /** The active tenant from the arguments, as for `bsb.remote()`. */
   readonly tenant?: (...args: A) => string | undefined;
+  /**
+   * Who shares an entry. `"user"` (the default) keys it on the user. `"tenant"`
+   * keys it on the tenant and the grant the authorization provider's `shareKey`
+   * hook names, when every table in `tables` is one the provider's `tables`
+   * shares per tenant; the fill then reads only those tables, through the
+   * caller's own client under RLS. Without the hook, a tenant or a sharable
+   * table, the entry stays per user.
+   */
+  readonly share?: "user" | "tenant";
 }
 
 /** What `bsb.kept()` returns. */
