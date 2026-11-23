@@ -4687,6 +4687,25 @@ describe("session cookie encoding (BS412)", () => {
       "the browser side (src/lib/client.ts, src/ssr.ts)",
     );
   });
+
+  it("ignores tokens-only and client calls that sit in comments or strings", async () => {
+    const commented = {
+      path: "src/lib/notes.ts",
+      text: '// encode: "tokens-only" and createServerClient(url, key)\nconst doc = `import { x } from "better-supabase/server"; encode: "tokens-only"`;\nimport { createClient } from "better-supabase/client";\n',
+    };
+
+    expect(
+      await run(
+        "BS412",
+        context(base, {
+          sources: [commented, server("tokens-only"), browser()],
+        }),
+      ),
+    ).toMatchObject([{ target: "src/lib/server.ts:encode" }]);
+    expect(
+      await run("BS412", context(base, { sources: [commented, browser()] })),
+    ).toEqual([]);
+  });
 });
 
 describe("pg-delta schema files (BS317, BS318, BS321)", () => {

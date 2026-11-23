@@ -1,31 +1,96 @@
-import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
+import { walk } from "oxc-walker";
 
-import { lineOf } from "./shared.ts";
+import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-const TOKENS_ONLY = /\bencode\s*:\s*["'`]tokens-only["'`]/;
+import { lineColumn, parseSource } from "../config-document/parse.ts";
 
 /**
- * Imports that create the browser client, which writes the session cookie in
+ * Specifiers that import the browser client, which writes the session cookie in
  * the browser.
  */
-const BROWSER_SIDE =
-  /from\s+["']better-supabase\/client["']|\bcreateBrowserClient\s*\(/;
+const BROWSER_MODULES: ReadonlySet<string> = new Set([
+  "better-supabase/client",
+]);
 
-/** Imports that read or refresh the session cookie on the server. */
-const SERVER_SIDE =
-  /from\s+["']better-supabase\/(?:server|next|ssr|hono|orpc|edge|expo)["']|\bcreateServerClient\s*\(/;
+/** Specifiers that read or refresh the session cookie on the server. */
+const SERVER_MODULES: ReadonlySet<string> = new Set([
+  "better-supabase/server",
+  "better-supabase/next",
+  "better-supabase/ssr",
+  "better-supabase/hono",
+  "better-supabase/orpc",
+  "better-supabase/edge",
+  "better-supabase/expo",
+]);
 
 type CookieSide = "browser" | "server";
 
-function cookieSide(file: TextFile): CookieSide | undefined {
-  const browser = BROWSER_SIDE.test(file.text);
-  const server = SERVER_SIDE.test(file.text);
+/** What the syntax tree of a file says about the session cookie. */
+interface CookieFacts {
+  readonly browser: boolean;
+  readonly server: boolean;
+  /** The line of the first `encode: "tokens-only"` property. */
+  readonly tokensOnlyLine: number | undefined;
+}
 
-  if (browser === server) {
+/**
+ * Reads the imports that name a client, the `createBrowserClient(` and
+ * `createServerClient(` calls and the `encode: "tokens-only"` property from the
+ * tree, so a comment, a string or a type annotation never counts.
+ */
+function cookieFacts(text: string): CookieFacts {
+  let browser = false;
+  let server = false;
+  let tokensOnlyLine: number | undefined;
+
+  const module = (source: string): void => {
+    browser ||= BROWSER_MODULES.has(source);
+    server ||= SERVER_MODULES.has(source);
+  };
+
+  walk(parseSource(text).program, {
+    enter(node) {
+      if (
+        node.type === "ImportDeclaration" &&
+        node.specifiers.length > 0 &&
+        typeof node.source.value === "string"
+      ) {
+        module(node.source.value);
+      } else if (
+        (node.type === "ExportNamedDeclaration" ||
+          node.type === "ExportAllDeclaration") &&
+        node.source !== null &&
+        typeof node.source.value === "string"
+      ) {
+        module(node.source.value);
+      } else if (
+        node.type === "CallExpression" &&
+        node.callee.type === "Identifier"
+      ) {
+        browser ||= node.callee.name === "createBrowserClient";
+        server ||= node.callee.name === "createServerClient";
+      } else if (
+        node.type === "Property" &&
+        !node.computed &&
+        ((node.key.type === "Identifier" && node.key.name === "encode") ||
+          (node.key.type === "Literal" && node.key.value === "encode")) &&
+        node.value.type === "Literal" &&
+        node.value.value === "tokens-only"
+      ) {
+        tokensOnlyLine ??= lineColumn(text, node.start).line;
+      }
+    },
+  });
+
+  return { browser, server, tokensOnlyLine };
+}
+
+function cookieSide(facts: CookieFacts): CookieSide | undefined {
+  if (facts.browser === facts.server) {
     return undefined;
   }
 
-  return browser ? "browser" : "server";
+  return facts.browser ? "browser" : "server";
 }
 
 /**
@@ -34,10 +99,18 @@ function cookieSide(file: TextFile): CookieSide | undefined {
  */
 function encodingDrift(context: DoctorContext): FindingInput[] {
   const sides = context.sources.flatMap((file) => {
-    const side = cookieSide(file);
+    const facts = cookieFacts(file.text);
+    const side = cookieSide(facts);
 
     return side
-      ? [{ file, side, tokensOnly: TOKENS_ONLY.test(file.text) }]
+      ? [
+          {
+            file,
+            side,
+            tokensOnly: facts.tokensOnlyLine !== undefined,
+            line: facts.tokensOnlyLine,
+          },
+        ]
       : [];
   });
 
@@ -66,7 +139,7 @@ function encodingDrift(context: DoctorContext): FindingInput[] {
       continue;
     }
 
-    const line = lineOf(set.file.text, TOKENS_ONLY) ?? 1;
+    const line = set.line ?? 1;
     findings.push({
       message: `${set.file.path} writes the session cookie with \`encode: 'tokens-only'\`, but the ${other} side (${unset.map((entry) => entry.file.path).join(", ")}) uses the default \`user-and-tokens\`. Set the same \`encode\` on both sides.`,
       target: `${set.file.path}:encode`,
