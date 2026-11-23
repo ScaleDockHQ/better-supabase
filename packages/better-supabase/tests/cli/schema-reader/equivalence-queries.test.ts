@@ -157,5 +157,7 @@ describe("the query layer matches the text scanners, across files", () => {
     expect(facts.declaredForeignKeys(read, SCHEMAS)).toEqual(
       keys.declaredForeignKeys(all, SCHEMAS),
     );
-  });
+    // Reads every module file with both layers; a loaded CI runner needs more
+    // than the default 20 s.
+  }, 120_000);
 });

@@ -147,12 +147,12 @@ function findings(
     return [];
   }
 
-  // The module files the library renders under `_better_supabase/` replace
+  // The module files the library renders (`_better_supabase/` or `900_better_supabase_*.sql`) replace
   // their own functions and triggers and read dynamic sequences; the app can
   // only act on the findings in its own files.
   const own = (diagnostic: Diagnostic): boolean =>
-    !(locate(analysis, diagnostic.statementId)?.file ?? "").includes(
-      "/_better_supabase/",
+    !/(?:\/_better_supabase\/|(?:^|\/)900_better_supabase_[^/]*$)/.test(
+      locate(analysis, diagnostic.statementId)?.file ?? "",
     );
 
   return analysis.result.diagnostics
@@ -249,10 +249,15 @@ export const PG_TOPO_RULES: readonly Rule[] = [
         ["DUPLICATE_PRODUCER"],
         // Every module file opens with `create schema if not exists` and
         // `create extension if not exists`, which are idempotent, so repeats
-        // of those are not a copied definition.
+        // of those are not a copied definition. A unique constraint an app
+        // adds next to the module's unique index of the same columns is the
+        // same key, which pg-topo reads as a second producer.
         (diagnostic) =>
           !(diagnostic.objectRefs ?? []).every(
-            (ref) => ref.kind === "schema" || ref.kind === "extension",
+            (ref) =>
+              ref.kind === "schema" ||
+              ref.kind === "extension" ||
+              ref.kind === "constraint",
           ) || (diagnostic.objectRefs ?? []).length === 0,
         (diagnostic, where) =>
           `${where}: ${diagnostic.message.split(". This statement")[0] ?? diagnostic.message}. Keep one definition.`,
