@@ -192,13 +192,23 @@ export function subscribeAuthzVersions(
   return subscription;
 }
 
+/** A version in a `VersionStore`, with the time it was read. */
+export interface VersionStoreEntry {
+  readonly version: number;
+  /** When the version was read from the database, in epoch milliseconds. */
+  readonly at: number;
+}
+
 /**
  * A shared store behind `createVersionCache`, such as Redis or Vercel Runtime
- * Cache.
+ * Cache. It keeps the read time next to the version, so `maxStaleMs` counts
+ * from the database read on every instance, whatever the store's own expiry.
  */
 export interface VersionStore {
-  get(userId: string): number | undefined | PromiseLike<number | undefined>;
-  set(userId: string, version: number): void | PromiseLike<void>;
+  get(
+    userId: string,
+  ): VersionStoreEntry | undefined | PromiseLike<VersionStoreEntry | undefined>;
+  set(userId: string, version: number, at: number): void | PromiseLike<void>;
   delete(userId: string): void | PromiseLike<void>;
 }
 
@@ -226,9 +236,18 @@ export interface VersionCache extends AuthzVersionCache {
   evict(userId: string): Promise<void>;
 }
 
-interface VersionEntry {
-  readonly version: number;
-  readonly at: number;
+/** A store value with a finite version and read time; anything else is a miss. */
+function isEntry(value: unknown): value is VersionStoreEntry {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "version" in value &&
+    "at" in value &&
+    typeof value.version === "number" &&
+    typeof value.at === "number" &&
+    Number.isFinite(value.version) &&
+    Number.isFinite(value.at)
+  );
 }
 
 /**
@@ -239,13 +258,13 @@ interface VersionEntry {
 export function createVersionCache(
   options: CreateVersionCacheOptions,
 ): VersionCache {
-  const local = new Map<string, VersionEntry>();
+  const local = new Map<string, VersionStoreEntry>();
   const { store, maxStaleMs } = options;
   const maxEntries = Math.max(1, options.maxEntries ?? DEFAULT_MAX_ENTRIES);
 
   // Map keeps insertion order, so deleting before setting makes the last key
   // the most recently used and the first key the one to drop.
-  const remember = (userId: string, entry: VersionEntry): void => {
+  const remember = (userId: string, entry: VersionStoreEntry): void => {
     local.delete(userId);
     local.set(userId, entry);
 
@@ -270,24 +289,35 @@ export function createVersionCache(
 
       local.delete(userId);
 
-      const shared = await store?.get(userId);
+      const shared: unknown = await store?.get(userId);
+      const now = Date.now();
 
-      if (shared !== undefined) {
-        remember(userId, { version: shared, at: Date.now() });
+      if (!isEntry(shared)) {
+        return;
       }
 
-      return shared;
+      // Another instance's clock may run ahead; never date a read in the future.
+      const at = Math.min(shared.at, now);
+
+      if (now - at > maxStaleMs) {
+        return;
+      }
+
+      remember(userId, { version: shared.version, at });
+
+      return shared.version;
     },
     async seed(userId, version) {
+      const now = Date.now();
       const current = local.get(userId);
 
-      const keep =
-        current && Date.now() - current.at <= maxStaleMs
-          ? Math.max(current.version, version)
-          : version;
+      const entry =
+        current && now - current.at <= maxStaleMs && current.version > version
+          ? current
+          : { version, at: now };
 
-      remember(userId, { version: keep, at: Date.now() });
-      await store?.set(userId, keep);
+      remember(userId, entry);
+      await store?.set(userId, entry.version, entry.at);
     },
     async evict(userId) {
       local.delete(userId);

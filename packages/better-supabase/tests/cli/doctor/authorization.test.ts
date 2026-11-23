@@ -629,6 +629,66 @@ describe("BS409", () => {
     ]);
   });
 
+  it("warns when blocks.permissions.disabled overrides the suspension with the other form", async () => {
+    const provider = withProvider({
+      suspension: {
+        user: { table: "authz.users", id: "id", disabledAt: "disabled_at" },
+        tenant: {
+          table: "authz.tenants",
+          id: "id",
+          status: "state",
+          active: ["on"],
+        },
+      },
+    });
+
+    expect(
+      await findings("BS409", {
+        auth: { authorization: provider },
+        blocks: {
+          permissions: {
+            model: "provider",
+            disabled: { user: "public.profiles.banned_at", userKey: "user_id" },
+          },
+        },
+      }),
+    ).toEqual([
+      {
+        severity: "warning",
+        target: "blocks.permissions.disabled.user",
+        message: expect.stringMatching(
+          /column form "public\.profiles\.banned_at".*a user with no row in public\.profiles gets through\..*row form on authz\.users.*a user with no row there is disabled/su,
+        ),
+      },
+    ]);
+    expect(
+      await findings("BS409", {
+        auth: { authorization: provider },
+        blocks: {
+          permissions: {
+            model: "provider",
+            disabled: {
+              tenant: { table: "public.orgs", id: "id", disabledAt: "off_at" },
+            },
+          },
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      await findings("BS409", {
+        auth: { authorization: provider },
+        blocks: {
+          permissions: {
+            model: "roles",
+            disabled: { user: "public.profiles.banned_at" },
+          },
+        },
+      }),
+    ).toEqual([
+      expect.objectContaining({ target: "authorization.suspension" }),
+    ]);
+  });
+
   it("notes the ignored approval fields and a placeholder a template does not take", async () => {
     expect(
       await findings("BS409", {

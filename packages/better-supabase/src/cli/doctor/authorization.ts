@@ -1,6 +1,7 @@
 import type {
   ActiveTenantSource,
   AuthorizationProvider,
+  DisabledRow,
   ResolvedConfig,
 } from "../../config/index.ts";
 import type { BlockSqlEntitlementsProvider } from "../../sql/index.ts";
@@ -51,6 +52,20 @@ const TEMPLATE_EFFECT: Readonly<
   canAssignFor:
     "better_supabase.can_assign_as is not written and the inviter's right to assign the role is not checked again when the invitation is accepted",
 };
+
+function describeDisabledForm(
+  owner: string,
+  key: "user" | "tenant",
+  form: string | DisabledRow,
+): string {
+  if (typeof form === "string") {
+    const table = form.split(".").slice(0, -1).join(".");
+
+    return `${owner} uses the column form "${form}": it disables a ${key} only when that column is set, so a ${key} with no row in ${table} gets through.`;
+  }
+
+  return `${owner} uses the row form on ${form.table}: it needs an active row, so a ${key} with no row there is disabled.`;
+}
 
 function activeTenantLabel(source: ActiveTenantSource): string {
   if (source === "claim") {
@@ -678,7 +693,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "The authorization provider and the better-supabase config disagree",
     description:
-      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.tenant.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, warns when the provider's `tokenHook.activeOrganizationFrom` differs from `blocks.permissions.activeTenant` (where `switch_organization` writes the active organization), notes when the provider sets `suspension` or `roleSources` but `blocks.permissions.model` is not `provider` (only that model reads them), notes when `functions.canApprove` or `approvals.distinctApprover` is set (both are ignored; `isApprover` decides), warns when a function template uses a placeholder it does not take, and reports the `problems` the provider found while it was built.",
+      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.tenant.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, warns when the provider's `tokenHook.activeOrganizationFrom` differs from `blocks.permissions.activeTenant` (where `switch_organization` writes the active organization), notes when the provider sets `suspension` or `roleSources` but `blocks.permissions.model` is not `provider` (only that model reads them), warns under that model when `blocks.permissions.disabled.user` or `.tenant` overrides the provider's `suspension` with the other form (the column form `schema.table.column` lets a user or tenant with no row through, the row form disables it), notes when `functions.canApprove` or `approvals.distinctApprover` is set (both are ignored; `isApprover` decides), warns when a function template uses a placeholder it does not take, and reports the `problems` the provider found while it was built.",
     check: (context) => {
       const provider = context.config.authorization;
 
@@ -748,6 +763,28 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           message: `${label} sets ${unread.join(" and ")}, but blocks.permissions.model is "${model}", so the SQL modules ignore ${unread.length > 1 ? "them" : "it"}. Set blocks.permissions.model to "provider" to use them, or set blocks.permissions.disabled yourself.`,
           target: `authorization.${unread[0]!}`,
         });
+      }
+
+      if (model === "provider" && provider.suspension) {
+        const disabled = context.config.blocks.permissions?.disabled ?? {};
+
+        for (const key of ["user", "tenant"] as const) {
+          const ours = disabled[key];
+          const theirs = provider.suspension[key];
+
+          if (
+            ours === undefined ||
+            theirs === undefined ||
+            typeof ours === typeof theirs
+          ) {
+            continue;
+          }
+
+          findings.push({
+            message: `blocks.permissions.disabled.${key} overrides the suspension.${key} of ${label} with another check. ${describeDisabledForm("The config", key, ours)} ${describeDisabledForm("The provider", key, theirs)} Remove blocks.permissions.disabled.${key} to use the provider's check, or give both the same form.`,
+            target: `blocks.permissions.disabled.${key}`,
+          });
+        }
       }
 
       // oxlint-disable-next-line typescript/no-deprecated -- reports the ignored v1 field

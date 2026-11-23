@@ -22,6 +22,7 @@ writes the trigger, function and table changes below.
 | [Open items](#open-items)                         | Filter `invoice_open_items` on `document_type` if you query it         |
 | [Audit retention](#audit-retention)               | Optional: set `retention` so `maintenance()` purges the log            |
 | [Doctor rules](#doctor-rules)                     | None; set `doctor.policies.max` to move the BS641 limit                |
+| [Version store](#version-store)                   | Return `{ version, at }` from `get`, and take `at` in `set`            |
 | [Staff orders](#staff-orders)                     | Rename a column of your own that a new block column takes              |
 | [Drive role grants](#drive-role-grants)           | None; set `grants: "roles"` to drop the drive grants table             |
 
@@ -139,6 +140,41 @@ enum column on a table with RLS. BS643 counts the functions per schema by
 caller, and `better-supabase config functions --all` lists them. Run
 `better-supabase gen --save-snapshot` once so an offline doctor has the
 function inventory.
+
+BS429 lists the actions, write routes, resource actions and MCP tools that set
+no `enforcement`, BS409 warns when `blocks.permissions.disabled` and the
+provider's `suspension` disagree on what a missing row means, and BS731 reports
+a SQL file the schema reader rejects, with the Postgres version whose grammar
+rejected it.
+
+## Version store
+
+A `store` passed to `createVersionCache` keeps the read time next to each
+version (ADR 1227). `get` returns `{ version, at }` instead of a number, and
+`set` takes the read time as a third argument:
+
+```ts
+// 0.84
+const store = {
+  get: (userId: string) => redis.get(userId).then(Number),
+  set: (userId: string, version: number) => redis.set(userId, version),
+  delete: (userId: string) => redis.del(userId),
+};
+
+// 0.85
+const store: VersionStore = {
+  get: async (userId) =>
+    JSON.parse((await redis.get(userId)) ?? "null") ?? undefined,
+  set: (userId, version, at) =>
+    redis.set(userId, JSON.stringify({ version, at })),
+  delete: (userId) => redis.del(userId),
+};
+```
+
+The cache now counts `maxStaleMs` from `at`. Before, it dated a version at the
+time it read the store, so a store whose keys never expire could serve an old
+version again and again. A store that still returns a number is read as a miss,
+and the cache falls back to the live read.
 
 ## Staff orders
 
