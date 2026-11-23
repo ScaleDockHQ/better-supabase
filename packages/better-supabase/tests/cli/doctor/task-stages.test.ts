@@ -83,14 +83,17 @@ describe("BS245", () => {
   it("matches a category", async () => {
     const seen: string[] = [];
 
-    await run(
+    const findings = await run(
       context(
-        database(() => [], seen),
+        database(() => [{ key: "sales" }], seen),
         { claims: { startStage: { category: "active" } } },
       ),
     );
 
     expect(seen[0]).toContain("::text = 'active'");
+    expect(findings[0]?.message).toContain(
+      "claims.startStage names the category active, which sales has no live stage for",
+    );
   });
 
   it("stays silent without options, rows or a database", async () => {
@@ -111,5 +114,50 @@ describe("BS245", () => {
       ),
     ).toEqual([]);
     expect(await run(context(undefined, { hold: { stage: "x" } }))).toEqual([]);
+  });
+
+  it("joins several pipelines and skips malformed options", async () => {
+    const findings = await run(
+      context(
+        database(() => [{ key: "a" }, { key: "b" }]),
+        {
+          hold: "x",
+          claims: { startStage: { category: 1 }, expiredStage: "done" },
+        },
+      ),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain(
+      "claims.expiredStage names the stage done, which a, b have no live stage for",
+    );
+  });
+
+  it.each([
+    ["a missing table stays silent", "relation x does not exist", []],
+    [
+      "another error is a finding",
+      "permission denied",
+      [
+        {
+          message:
+            "Could not read the task pipelines (test database): permission denied",
+        },
+      ],
+    ],
+  ])("%s", async (_name, text, expected) => {
+    const failing = database(() => {
+      throw new Error(text);
+    });
+
+    expect(await run(context(failing, { hold: { stage: "x" } }))).toMatchObject(
+      expected,
+    );
+  });
+
+  it("stays silent for a skipped database", async () => {
+    const skipped = { skipped: "saved snapshot" } as unknown as LiveDatabase;
+
+    expect(await run(context(skipped, { hold: { stage: "x" } }))).toEqual([]);
   });
 });

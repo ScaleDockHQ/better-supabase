@@ -59,6 +59,98 @@ describe("probeRestated", () => {
   });
 });
 
+describe("probeRestated by kind", () => {
+  it.each([
+    [
+      {
+        blocks: { invitations: { permissions: { invite: "members.invite" } } },
+      },
+      [
+        [
+          "permission",
+          "blocks.invitations.permissions.invite",
+          "names the key the block would use anyway",
+        ],
+      ],
+    ],
+    [
+      { blocks: { tags: { api: false } } },
+      [
+        [
+          "api",
+          "blocks.tags.api",
+          "equals the exposure the block gets without it",
+        ],
+      ],
+    ],
+    [
+      {
+        blocks: { tags: { api: "api" }, memberships: { api: "api" } },
+        sql: { api: "api" },
+      },
+      [],
+    ],
+    [
+      {
+        recordTypes: {
+          task: { table: "public.tasks", idType: "uuid", cascade: true },
+        },
+        blocks: { tags: { on: { task: {} } } },
+      },
+      [
+        [
+          "recordType",
+          "recordTypes.task.cascade",
+          "is the value the block derives without it",
+        ],
+      ],
+    ],
+    [
+      {
+        blocks: {
+          memberships: {
+            tables: { memberships: "better_supabase.memberships" },
+            hooks: { schema: "public" },
+            columns: {
+              memberships: {
+                tenant: "organization_id",
+                user: "member_id",
+                role: "team_role",
+                lastUsedAt: null,
+              },
+            },
+          },
+        },
+      },
+      [
+        [
+          "hook",
+          "blocks.memberships.callbacks.schema",
+          "names the hook function the block looks up anyway",
+        ],
+        [
+          "table",
+          "blocks.memberships.tables.memberships",
+          "names the table or column the catalog gives without it",
+        ],
+        [
+          "column",
+          "blocks.memberships.columns.memberships.tenant",
+          "names the table or column the catalog gives without it",
+        ],
+      ],
+    ],
+  ])("reports %j", async (input, expected) => {
+    const entries = await probeRestated(
+      resolveConfig(input as never, "/project"),
+    );
+
+    expect(
+      entries.map((entry) => [entry.kind, entry.path, entry.reason]),
+    ).toEqual(expected);
+  });
+});
+
 describe("mergeRestated", () => {
   it("keeps structural entries and drops probed ones on the same path", () => {
     const entry = (path: string, reason: string) => ({

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { planRows } from "../../../src/cli/rows/plan.ts";
-import { readDeclaredFile } from "../../../src/cli/rows/read.ts";
+import {
+  DeclaredRowsError,
+  deleteStatement,
+  readDeclaredFile,
+} from "../../../src/cli/rows/read.ts";
 
 const NOW = new Date("2026-11-22T10:00:00Z");
 
@@ -55,8 +59,72 @@ describe("readDeclaredFile", () => {
       "a non literal key",
       "insert into t (a) values (random()) on conflict (a) do update set a = excluded.a;",
     ],
+    [
+      "a with clause",
+      "with s as (select 1) insert into t (a) values (1) on conflict (a) do update set a = 1;",
+    ],
+    [
+      "a returning clause",
+      "insert into t (a) values (1) on conflict (a) do update set a = 1 returning a;",
+    ],
+    [
+      "a constraint target",
+      "insert into t (a) values (1) on conflict on constraint t_pkey do update set a = 1;",
+    ],
+    [
+      "a key it does not insert",
+      "insert into t (b) values (1) on conflict (a) do update set b = 1;",
+    ],
+    [
+      "a short row",
+      "insert into t (a, b) values (1) on conflict (a) do update set b = 1;",
+    ],
+    [
+      "a subquery",
+      "insert into t (a, b) values (1, (select 2)) on conflict (a) do update set b = 1;",
+    ],
+    [
+      "an expression key",
+      "insert into t (a) values ('x') on conflict ((lower(a))) do update set a = 1;",
+    ],
+    [
+      "a nested function",
+      "insert into t (a, b) values (1, jsonb_build_object('at', now())) on conflict (a) do update set b = 1;",
+    ],
+    [
+      "a null key",
+      "insert into t (a) values (null) on conflict (a) do update set a = 1;",
+    ],
   ])("rejects %s", async (_name, sql) => {
-    await expect(readDeclaredFile("bad", sql)).rejects.toThrow(/bad: /);
+    await expect(readDeclaredFile("bad", sql)).rejects.toThrow(
+      DeclaredRowsError,
+    );
+  });
+
+  it("reads every literal kind, through casts, without a closing semicolon", async () => {
+    const file = await readDeclaredFile(
+      "kinds",
+      "-- lead\ninsert into s.t (a, b, c, d, e) values ('x'::text, 2, 1.5, true, to_jsonb(1)) on conflict (a, b, c, d) do update set e = excluded.e",
+    );
+
+    expect(file.upserts[0]).toMatchObject({
+      table: "s.t",
+      text: expect.stringMatching(/^insert into s\.t/),
+      rows: [{ keyColumns: ["a", "b", "c", "d"], key: ["x", 2, 1.5, true] }],
+    });
+    expect(file.deleteRemoved).toBe(false);
+  });
+});
+
+describe("deleteStatement", () => {
+  it("quotes identifiers and string keys", () => {
+    expect(
+      deleteStatement({
+        table: 'pub.t"x',
+        keyColumns: ["a", "b"],
+        key: ["it's", 3],
+      }),
+    ).toBe(`delete from "pub"."t""x" where "a" = 'it''s' and "b" = 3;`);
   });
 });
 

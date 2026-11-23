@@ -7,6 +7,7 @@ import type { PgQueryable } from "../../src/cli/db.ts";
 import type { PgDelta } from "../../src/cli/in-stack-diff.ts";
 
 import {
+  cloneStackDatabase,
   inStackDiff,
   isShadowFailure,
   loadPgDelta,
@@ -523,5 +524,158 @@ describe("inStackDiff", () => {
       "supabase/migrations/20250101000000_older.sql",
       "supabase/migrations/20260101000000_init.sql",
     ]);
+  });
+
+  const clone = () =>
+    Promise.resolve({
+      url: "postgresql://clone",
+      cleanup: () => Promise.resolve(),
+    });
+
+  it.each([
+    [{ applyError: new Error("boom") }, ["an action failed: boom"]],
+    [{ driftDeltas: [1, 2] }, ["2 difference(s) remain after the plan runs"]],
+    [
+      { rewriteViolations: [{ table: { schema: "public", name: "b" } }] },
+      ["public.b was rewritten by an action that did not declare it"],
+    ],
+    [{}, ["the plan did not converge"]],
+  ])("words the proof's finding %o", async (verdict, problems) => {
+    const result = await inStackDiff({
+      ...harness({ verdict: { ok: false, ...verdict } }).base,
+      prove: true,
+      cloneStack: clone,
+    });
+
+    expect(result.proof).toEqual({ status: "failed", problems });
+  });
+
+  it("names a clone failure that is not an Error", async () => {
+    const result = await inStackDiff({
+      ...harness().base,
+      prove: true,
+      cloneStack: () => Promise.reject("no template"),
+    });
+
+    expect(result.proof).toEqual({
+      status: "skipped",
+      reason: "the stack could not be cloned (no template)",
+    });
+  });
+
+  it("clones through the pools it opens when no cloneStack is given", async () => {
+    const queries: string[] = [];
+    const h = harness();
+
+    const result = await inStackDiff({
+      ...h.base,
+      prove: true,
+      openPool: () =>
+        Promise.resolve({
+          query: (text: string) => {
+            queries.push(text);
+
+            return Promise.resolve({ rows: [] });
+          },
+          end: () => Promise.resolve(),
+        } as never),
+    });
+
+    expect(result.proof).toEqual({ status: "proved" });
+    expect(queries.some((text) => text.startsWith("create database"))).toBe(
+      true,
+    );
+    expect(queries.at(-1)).toMatch(
+      /^drop database if exists "bsb_proof_\w+" with \(force\)$/u,
+    );
+  });
+
+  it("reads _custom/ files with pg-delta's own frontends", async () => {
+    const custom = join(root, "supabase/schemas/_custom");
+
+    await mkdir(custom, { recursive: true });
+    await writeFile(join(custom, "bare.sql"), "create cast (a as b);");
+
+    const result = await inStackDiff(harness().base);
+
+    expect(result.custom).toEqual([
+      { path: expect.stringContaining("bare.sql"), status: "undelivered" },
+    ]);
+  });
+});
+
+describe("cloneStackDatabase", () => {
+  function fakePool(failures: number) {
+    const calls: string[] = [];
+    let left = failures;
+
+    const pool = {
+      query: (text: string, values?: unknown[]) => {
+        calls.push(values === undefined ? text : `${text} ${String(values)}`);
+
+        if (text.startsWith("create database") && left > 0) {
+          left -= 1;
+
+          return Promise.reject(new Error("source database is being accessed"));
+        }
+
+        if (text.startsWith("drop database")) {
+          return Promise.reject(new Error("database is in use"));
+        }
+
+        return Promise.resolve({ rows: [] });
+      },
+      end: () => {
+        calls.push("end");
+
+        return Promise.resolve();
+      },
+    };
+
+    const open = (url: string) => {
+      calls.push(url);
+
+      return Promise.resolve(pool as never);
+    };
+
+    return { calls, open };
+  }
+
+  it("copies the database from the admin database, retrying once, and drops it even when the drop fails", async () => {
+    const { calls, open } = fakePool(1);
+
+    const cloned = await cloneStackDatabase(
+      "postgresql://postgres:pw@127.0.0.1:54322/my%20db",
+      open,
+    );
+
+    const name = /\/(bsb_proof_\w+)$/u.exec(cloned.url)?.[1];
+
+    expect(cloned.url).toMatch(
+      /^postgresql:\/\/postgres:pw@127\.0\.0\.1:54322\/bsb_proof_/u,
+    );
+    expect(calls[0]).toBe("postgresql://postgres:pw@127.0.0.1:54322/postgres");
+    expect(calls.filter((call) => call.startsWith("create database"))).toEqual([
+      `create database "${String(name)}" template "my db"`,
+      `create database "${String(name)}" template "my db"`,
+    ]);
+    expect(calls[1]).toContain("pg_terminate_backend");
+    expect(calls[1]).toContain(" my db");
+
+    await expect(cloned.cleanup()).resolves.toBeUndefined();
+
+    expect(calls.slice(-2)).toEqual([
+      `drop database if exists "${String(name)}" with (force)`,
+      "end",
+    ]);
+  });
+
+  it("ends the pool and rethrows when the copy fails twice", async () => {
+    const { calls, open } = fakePool(2);
+
+    await expect(cloneStackDatabase(STACK_URL, open)).rejects.toThrow(
+      "source database is being accessed",
+    );
+    expect(calls.at(-1)).toBe("end");
   });
 });

@@ -150,6 +150,136 @@ describe("hookGrantBlock", () => {
   });
 });
 
+describe("hookGrantBlock forms", () => {
+  const fn = hookFn();
+
+  const name =
+    "rbac.custom_access_token_hook(event jsonb) ([auth.hook.custom_access_token])";
+
+  it("says so when every hook has its grants", () => {
+    expect(hookGrantBlock([])).toBe(
+      "-- Every configured Auth hook function has its grants.",
+    );
+  });
+
+  it.each([
+    [
+      "pg-delta",
+      { kind: "sql", sql: ["grant x;"] },
+      ["", `-- ${name}`, "grant x;"],
+      "schema file",
+    ],
+    [
+      "migrations",
+      { kind: "provider", name: "authz" },
+      ["", `-- ${name} is the hook of authz`],
+      "new migration",
+    ],
+    [
+      "pg-delta",
+      { kind: "migration", file: "schemas/hook.sql" },
+      [
+        "",
+        `-- ${name}: schemas/hook.sql grants it; run \`supabase db schema declarative sync\`, then \`supabase migration up\`.`,
+      ],
+      "schema file",
+    ],
+  ] as const)(
+    "writes a %s block for a %j fix",
+    (workflow, fix, tail, header) => {
+      const block = hookGrantBlock(
+        [{ hook: "custom_access_token", fn, problems: ["p"], fix }],
+        workflow,
+      ).split("\n");
+
+      expect(block[1]).toContain(header);
+      expect(block.slice(2)).toEqual(tail);
+    },
+  );
+
+  const provider = (tokenHook: Record<string, unknown> | undefined) =>
+    resolveConfig(
+      {
+        database: { sql: { workflow: "migrations" } },
+        auth: {
+          authorization: withProvider({
+            // SAFETY: the tests patch only the fields the hook checks read.
+            tokenHook: tokenHook as never,
+          }),
+        },
+      },
+      "/project",
+    );
+
+  it.each([
+    ["no token hook", undefined, "sql"],
+    [
+      "a hook without markers",
+      { ...stubProvider.tokenHook, markers: undefined },
+      "sql",
+    ],
+    [
+      "a marked hook without a command",
+      { ...stubProvider.tokenHook, grantsCommand: undefined },
+      "provider",
+    ],
+  ])("picks the fix for a provider with %s", (_, tokenHook, kind) => {
+    const problems = hookGrantProblems(
+      context(withHook([ungranted]), {
+        config: provider(tokenHook),
+        sqlFiles: [
+          {
+            path: "supabase/schemas/hook.sql",
+            text: "-- authz: access token hook\ncreate function rbac.custom_access_token_hook(event jsonb) returns jsonb as $$ select event $$;",
+          },
+        ],
+      }),
+    );
+
+    expect(problems.map((problem) => problem.fix.kind)).toEqual([kind]);
+  });
+
+  it("tells the provider's hook without a command and a migrations project how to fix grants", async () => {
+    const migration = "supabase/migrations/1_hook.sql";
+
+    const run = (
+      tokenHook: Record<string, unknown>,
+      sqlFiles: DoctorContext["sqlFiles"],
+    ) =>
+      runRules(
+        context(withHook([ungranted]), {
+          config: provider(tokenHook),
+          ...(sqlFiles ? { sqlFiles } : {}),
+        }),
+        only("BS404"),
+      );
+
+    const [own] = await run(
+      {
+        ...stubProvider.tokenHook,
+        function: "rbac.custom_access_token_hook",
+        grantsCommand: undefined,
+      },
+      undefined,
+    );
+
+    const [behind] = await run(
+      { ...stubProvider.tokenHook, markers: undefined },
+      [
+        {
+          path: migration,
+          text: "create function rbac.custom_access_token_hook(event jsonb) returns jsonb as $$ select event $$;\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;",
+        },
+      ],
+    );
+
+    expect(own?.message).toMatch(/so let the provider write the grants\.$/);
+    expect(behind?.message).toContain(
+      `${migration} grants it, so the database is behind the migrations: apply them (\`supabase migration up\`).`,
+    );
+  });
+});
+
 describe("BS308 tenant claim", () => {
   const hookDatabase = (
     claims: unknown,
@@ -422,6 +552,75 @@ describe("BS407", () => {
     expect(finding?.message).toContain(
       "calls better_supabase.permission_claims",
     );
+  });
+});
+
+describe("BS407 provider shapes", () => {
+  const bare = resolveConfig(
+    {
+      auth: {
+        authorization: withProvider({
+          tokenHook: {
+            function: "authz.access_token_hook",
+            ownedClaims: ["memberships"],
+          },
+        }),
+      },
+    },
+    "/project",
+  );
+
+  const writer = hookFn({
+    source:
+      "begin return jsonb_build_object('memberships', better_supabase.membership_claims(uid)); end",
+  });
+
+  it("reports a writer for a provider without a tenant or registered claims, and skips other hooks", async () => {
+    const [finding] = await runRules(
+      context(withHook([writer]), { config: bare }),
+      only("BS407"),
+    );
+
+    expect(finding?.message).toContain(
+      "calls better_supabase.membership_claims and writes memberships",
+    );
+    expect(finding?.location).toMatchObject({ line: 1 });
+
+    const toml = `[auth.hook.send_email]\nenabled = true\nuri = "pg-functions://postgres/rbac/custom_access_token_hook"\n`;
+
+    const snap: Snapshot = {
+      ...base,
+      extras: {
+        ...base.extras,
+        hooks: [
+          {
+            hook: "send_email",
+            schema: "rbac",
+            name: "custom_access_token_hook",
+            functions: [writer],
+          },
+        ],
+      },
+    };
+
+    expect(
+      await runRules(
+        context(snap, {
+          config: bare,
+          configToml: supabaseConfigFromText(toml),
+        }),
+        only("BS407"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("reads no hooks from a snapshot without hook introspection", async () => {
+    const { hooks: _, ...extras } = base.extras;
+    const snap: Snapshot = { ...base, extras };
+
+    expect(
+      await runRules(context(snap, { config: bare }), only("BS404")),
+    ).toEqual([]);
   });
 });
 

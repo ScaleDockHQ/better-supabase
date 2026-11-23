@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { SameTenantEntry } from "../../src/blocks/memberships/options.ts";
+import type { SameTenantOption } from "../../src/blocks/memberships/options.ts";
 import type { CodemodProject } from "../../src/cli/codemod.ts";
 import type { BetterSupabaseConfig } from "../../src/config/index.ts";
 
 import {
+  projectSameTenantMoves,
   sameTenantMoves,
   withColumnTag,
 } from "../../src/cli/codemod-same-tenant.ts";
@@ -64,27 +65,38 @@ const CONFIG_TEXT = `export default defineConfig({
 });
 `;
 
-const input = (entries: SameTenantEntry[]): BetterSupabaseConfig => ({
-  blocks: { memberships: { options: { sameTenant: entries } } },
+const input = (sameTenant: unknown): BetterSupabaseConfig => ({
+  // SAFETY: the tests also pass malformed options to reach the codemod's guards.
+  blocks: {
+    memberships: { options: { sameTenant: sameTenant as SameTenantOption } },
+  },
+});
+
+const projectOf = (
+  sameTenant: unknown,
+  extra: Partial<CodemodProject> = {},
+): CodemodProject => ({
+  config: resolveConfig(input(sameTenant), "/project"),
+  sql: [
+    { path: "/project/supabase/schemas/tasks.sql", text: SCHEMA },
+    { path: "/project/supabase/migrations/1_init.sql", text: SCHEMA },
+  ],
+  configFile: "/project/better-supabase.config.ts",
+  configText: CONFIG_TEXT,
+  ...extra,
 });
 
 async function run(
-  entries: SameTenantEntry[],
-  text: string = SCHEMA,
+  entries: unknown,
+  extra: Partial<CodemodProject> = {},
+  rendered: unknown = entries,
 ): ReturnType<typeof sameTenantMoves> {
-  const sql = [{ path: "/project/supabase/schemas/tasks.sql", text }];
+  const project = projectOf(entries, extra);
 
-  await primeSchemaFacts(sql, "/project");
-
-  const project: CodemodProject = {
-    config: resolveConfig(input(entries), "/project"),
-    sql,
-    configFile: "/project/better-supabase.config.ts",
-    configText: CONFIG_TEXT,
-  };
+  await primeSchemaFacts(project.sql, "/project");
 
   return sameTenantMoves(project, {
-    modules: { memberships: { options: { sameTenant: entries } } },
+    modules: { memberships: { options: { sameTenant: rendered } } },
   });
 }
 
@@ -108,6 +120,17 @@ describe("withColumnTag", () => {
         "@bsb y=2",
       ),
     ).toContain(`is '@bsb x=1; y=2'`);
+  });
+});
+
+describe("withColumnTag on a comment without tags", () => {
+  it.each([
+    ["is 'note';", "@bsb y=2", "is 'note\n@bsb y=2';"],
+    ["is '';", "@bsb y='a'", "is '@bsb y=''a''';"],
+  ])("%s takes %s", (tail, line, expected) => {
+    expect(
+      withColumnTag(`comment on column a.b.c ${tail}`, "a.b", "c", line),
+    ).toBe(`comment on column a.b.c ${expected}`);
   });
 });
 
@@ -166,5 +189,85 @@ describe("sameTenantMoves", () => {
       expect.stringContaining("no foreign key holds the column"),
       expect.stringContaining("no schema file creates the table"),
     ]);
+  });
+
+  it("reads the entries form and reports a path the config text lacks", async () => {
+    const result = await run({ auto: true, entries: [ENTRIES[0]] });
+
+    expect(result.moved).toBe(1);
+    expect(result.files.map((file) => file.path)).toEqual([
+      "/project/supabase/schemas/tasks.sql",
+    ]);
+    expect(result.review[0]?.message).toContain(
+      "sameTenant.entries[0] moved to a tag, but the codemod could not find it",
+    );
+  });
+
+  it("asks for a hand edit without a config file", async () => {
+    const { configFile: _, ...project } = projectOf([ENTRIES[0]]);
+
+    await primeSchemaFacts(project.sql, "/project");
+
+    const result = await sameTenantMoves(project, {
+      modules: { memberships: { options: { sameTenant: [ENTRIES[0]] } } },
+    });
+
+    expect(result.moved).toBe(1);
+    expect(result.review).toEqual([
+      {
+        message: "No config file was found; remove the moved entries by hand.",
+      },
+    ]);
+  });
+
+  it.each([
+    [{ table: "public.tasks" }, "it has no table and column"],
+    [
+      {
+        table: "public.tasks",
+        column: "project_id",
+        references: "public.projects",
+        through: { p: { table: "public.projects", column: "id" } },
+      },
+      "a through hop with its own key column does not fit a tag",
+    ],
+    [
+      {
+        table: "public.tasks",
+        column: "project_id",
+        references: { table: "public.projects", tenant: "organization_id" },
+        tenant: "organization_id",
+        match: { region: "region", project_id: "id" },
+        through: { p: "public.projects" },
+      },
+      '@bsb same-tenant tenant=organization_id parent-tenant=organization_id match="region=region,project_id=id" through=p=public.projects',
+    ],
+  ])("keeps %o", async (entry, reason) => {
+    // The rendered layout leaves out the entries its parser refuses.
+    const result = await run(["junk", entry], {}, []);
+
+    expect(result.moved).toBe(0);
+    expect(result.review).toEqual([
+      { message: expect.stringContaining(reason) },
+    ]);
+  });
+});
+
+describe("projectSameTenantMoves", () => {
+  it.each([
+    ["no memberships block", { config: resolveConfig({}, "/project") }],
+    ["no entries", { config: resolveConfig(input(false), "/project") }],
+  ])("does nothing with %s", async (_, extra) => {
+    expect(await projectSameTenantMoves(projectOf([], extra))).toEqual({
+      files: [],
+      review: [],
+      moved: 0,
+    });
+  });
+
+  it("renders the project's own layout and moves the entries", async () => {
+    const result = await projectSameTenantMoves(projectOf(ENTRIES.slice(0, 2)));
+
+    expect(result.moved).toBe(2);
   });
 });
