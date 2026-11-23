@@ -92,12 +92,13 @@ async function limit(
 /**
  * Answers how tag invalidation behaves on this deployment, for
  * scripts/probe-vercel-tags.ts. Needs `Authorization: Bearer
- * $BSB_TAG_PROBE_SECRET`; without the key the route does not exist.
+ * $BSB_TAG_PROBE_SECRET`; without the key, or with one shorter than 32
+ * characters, the route does not exist.
  */
 export async function POST(request: Request): Promise<Response> {
   const secret = env.BSB_TAG_PROBE_SECRET;
 
-  if (!secret) {
+  if (!secret || secret.length < 32) {
     return new Response(null, { status: 404 });
   }
 

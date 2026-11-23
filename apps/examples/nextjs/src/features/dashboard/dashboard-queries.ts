@@ -36,48 +36,54 @@ const DAY_MS = 86_400_000;
 /**
  * New customers over the last 30 days against the 30 before, and how many of
  * them are leads or active (the metrics SQL module, read live with `rollup:
- * false`).
+ * false`). `bsb.kept` keeps the three counts per user and organization across
+ * requests and deploys; a write through `db` to `customers` expires them.
  */
-export async function getCustomerCounts(
-  organizationId: string,
-): Promise<CustomerCounts> {
-  "use cache: private";
-  const { db } = await bsb.cached();
-  cacheTag(CUSTOMERS_TAG);
-  const until = Temporal.Now.instant();
+export const getCustomerCounts = bsb.kept(
+  async ({ db }, organizationId: string): Promise<CustomerCounts> => {
+    const until = Temporal.Now.instant();
 
-  const range = { from: until.subtract({ milliseconds: 30 * DAY_MS }), until };
+    const range = {
+      from: until.subtract({ milliseconds: 30 * DAY_MS }),
+      until,
+    };
 
-  const { metrics } = db;
+    const { metrics } = db;
 
-  const [total, lead, active] = await Promise.all([
-    metrics
-      .kpi({
-        metric: "customers",
-        range,
-        options: { organizationId, compare: "previous" },
-      })
-      .orThrow(),
-    metrics
-      .kpi({
-        metric: "customers",
-        range,
-        options: { organizationId, filter: { status: "lead" } },
-      })
-      .orThrow(),
-    metrics
-      .kpi({
-        metric: "customers",
-        range,
-        options: { organizationId, filter: { status: "active" } },
-      })
-      .orThrow(),
-  ]);
+    const [total, lead, active] = await Promise.all([
+      metrics
+        .kpi({
+          metric: "customers",
+          range,
+          options: { organizationId, compare: "previous" },
+        })
+        .orThrow(),
+      metrics
+        .kpi({
+          metric: "customers",
+          range,
+          options: { organizationId, filter: { status: "lead" } },
+        })
+        .orThrow(),
+      metrics
+        .kpi({
+          metric: "customers",
+          range,
+          options: { organizationId, filter: { status: "active" } },
+        })
+        .orThrow(),
+    ]);
 
-  return {
-    total: total.value ?? 0,
-    previous: total.previous ?? 0,
-    lead: lead.value ?? 0,
-    active: active.value ?? 0,
-  };
-}
+    return {
+      total: total.value ?? 0,
+      previous: total.previous ?? 0,
+      lead: lead.value ?? 0,
+      active: active.value ?? 0,
+    };
+  },
+  {
+    name: "customer-counts",
+    tables: ["customers"],
+    tenant: (organizationId) => organizationId,
+  },
+);

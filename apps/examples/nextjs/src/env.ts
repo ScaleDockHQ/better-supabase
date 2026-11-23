@@ -88,8 +88,9 @@ export const env = createEnv({
       v.picklist(["file", "postgres"]),
       "file",
     ),
-    // Turns on /api/probe/vercel-tags; without it the route answers 404.
-    BSB_TAG_PROBE_SECRET: v.optional(v.pipe(v.string(), v.minLength(32))),
+    // Turns on /api/probe/vercel-tags at 32 characters or more; the route
+    // checks the length, since this schema also ships to the browser.
+    BSB_TAG_PROBE_SECRET: v.optional(v.string()),
     // The billing block's Stripe calls and webhook; the billing screens read
     // without them, Checkout, the portal and seat sync need them.
     STRIPE_SECRET_KEY: v.optional(v.string()),
