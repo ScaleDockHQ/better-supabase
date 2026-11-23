@@ -18,6 +18,7 @@ writes the trigger, function and table changes below.
 | [The authorizer context](#the-authorizer-context) | Treat an unset `context.enforcement` as `definer`                      |
 | [Search source views](#search-source-views)       | Add `search.columns` to every record type with `search.from`           |
 | [Import chunks](#import-chunks)                   | Finish a run only when every chunk is done; read `result`, not `items` |
+| [Open items](#open-items)                         | Filter `invoice_open_items` on `document_type` if you query it         |
 
 ## Provider fields
 
@@ -85,3 +86,22 @@ attempt; `runImportWorker` passes it. A handler you call yourself without the
 job keeps the old behavior. The housekeeping block runs the new
 `import_chunks` job; without it, call `import_chunk_maintenance()` from your
 own schedule.
+
+## Open items
+
+`invoice_open_items` now holds every open item of today (ADR 1214). The
+invoices block moves to version 4: `better-supabase upgrade` drops the
+table's reference to `invoices`, and the data migration that `add --adopt`
+writes rebuilds the rows of every organization.
+
+| Before                                                      | Now                                                                |
+| ----------------------------------------------------------- | ------------------------------------------------------------------ |
+| Only invoices, by `document_id` referencing `invoices`      | Also unallocated payments, `document_type = 'unallocated_payment'` |
+| A future-dated invoice was never stored                     | It is stored, and the reads filter on `issued_on`                  |
+| A `credited` invoice, a charge or a party change was missed | The triggers and `rebuild_open_items` match the fold               |
+
+`openItems` and `openItemAgeing` return the same items as before. A query of
+your own on `invoice_open_items` that expects only invoices adds
+`where document_type = 'invoice'`. `open_items_drift(tenant)` lists rows that
+differ from the fold, `import_integrity` reports them as `open_items_drift`,
+and doctor rule BS638 names the organizations to run `rebuild_open_items` for.

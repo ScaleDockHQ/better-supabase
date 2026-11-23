@@ -138,3 +138,26 @@ export function blockTables(config: ResolvedConfig): BlockTables {
     byBlock,
   };
 }
+
+/**
+ * The qualified, quoted name of one block function as `config` renders it, or
+ * `undefined` when the block isn't installed.
+ */
+export function blockFunction(
+  config: ResolvedConfig,
+  block: string,
+  name: string,
+): string | undefined {
+  if (!config.blocks[block] || !SQL_MODULES[block]) {
+    return undefined;
+  }
+
+  const ctx = moduleContext(
+    block,
+    moduleLayout(config),
+    Object.keys(config.blocks),
+    block,
+  );
+
+  return ctx.fn(name);
+}

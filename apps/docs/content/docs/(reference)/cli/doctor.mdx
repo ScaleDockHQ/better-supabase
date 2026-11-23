@@ -3049,6 +3049,17 @@ column of the record's own table that the view reads and the list leaves out.
 An update of such a column leaves the search document stale. Add the column to
 `search.columns`.
 
+### BS638
+
+**Warning: stored open items differ from the fold.** `invoice_open_items`
+keeps today's open invoices and unallocated payments, and triggers keep it
+current. A write that skips them, such as a restore or an `update` with
+triggers off, leaves rows that differ from what the invoices and ledger
+entries add up to. Doctor calls `open_items_drift_rows` for each organization
+with stored rows or invoices and lists the ones that differ. Run
+`select better_supabase.rebuild_open_items('<organization id>')` for each.
+Needs a database; saved snapshots skip it.
+
 ### BS633
 
 **Info: an app row trigger has no `importing()` guard.** An import writes many

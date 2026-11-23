@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:34712997fb66785c4cafc0b179c6ed14febf83230c20961297638c178edbb9d9
+-- @bsb-hash sha256:28eb7b232780fecb51250161eb4ba21d25db9caa88597c6dd7be6369de70af69
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -893,6 +893,10 @@ begin
     select 'negative_invoice', 'warning', count(*)::integer, coalesce(jsonb_agg("id"::text), '[]'::jsonb) from "better_supabase"."invoices" where "tenant_id" = import_integrity.tenant and "total" < 0 and "kind"::text is distinct from 'credit_note'
     union all
     select 'issued_without_number', 'warning', count(*)::integer, coalesce(jsonb_agg("id"::text), '[]'::jsonb) from "better_supabase"."invoices" where "tenant_id" = import_integrity.tenant and "status"::text in ('issued', 'partially_paid', 'paid') and nullif("identifier"::text, '') is null
+    union all
+    select 'open_items_drift', 'error', jsonb_array_length(d.rows)::integer, (
+        select coalesce(jsonb_agg(r ->> 'documentId'), '[]'::jsonb) from jsonb_array_elements(d.rows) r
+      ) from (select "better_supabase"."open_items_drift_rows"(import_integrity.tenant) as rows) d
     union all
     select 'archived_without_date', 'warning', count(*)::integer, coalesce(jsonb_agg("id"::text), '[]'::jsonb) from "better_supabase"."companies" where "tenant_id" = import_integrity.tenant and "lifecycle"::text = 'archived' and "archived_at" is null
   loop

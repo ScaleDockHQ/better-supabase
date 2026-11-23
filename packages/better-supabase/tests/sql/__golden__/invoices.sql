@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
--- @bsb-block invoices@3 managed
--- @bsb-hash sha256:cbe99a917f7ac494938153bc9f068275962235c6db75f86979c8ba1e776f4958
+-- @bsb-block invoices@4 managed
+-- @bsb-hash sha256:701592af4d28eddd3f7afb2d9b089c41a01acf51e8f107da9475a0a5b9e9e42f
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3217,8 +3217,8 @@ create table "better_supabase"."invoice_open_items" (
   "tenant_id" uuid not null,
   "party_id" text,
   "side" text not null constraint bsb_invoice_open_items_side_check check ("side" in ('customer', 'supplier')),
-  "document_type" text not null default 'invoice',
-  "document_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "document_type" text not null default 'invoice' constraint bsb_invoice_open_items_document_type_check check ("document_type" in ('invoice', 'unallocated_payment')),
+  "document_id" uuid not null,
   "currency" text not null,
   "due_on" date,
   "issued_on" date,
@@ -3237,34 +3237,110 @@ create policy bsb_invoice_open_items_read on "better_supabase"."invoice_open_ite
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
+-- Writes the stored row of one invoice again from the invoice as it stands.
+create or replace function "better_supabase"."refresh_open_item_of"(invoice uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."invoice_open_items" e
+  where e."document_id" = refresh_open_item_of.invoice and e."document_type" = 'invoice';
+  insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select x."tenant_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
+    x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
+  from "better_supabase"."invoices" x
+  where x."id" = refresh_open_item_of.invoice
+    and x."kind" = 'invoice'
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_item_of"(uuid) from public, anon, authenticated;
+
 create or replace function "better_supabase"."refresh_open_item"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_balance bigint;
 begin
-  v_balance := (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total" - new."paid_total");
-  delete from "better_supabase"."invoice_open_items" x
-  where x."document_id" = new."id" and x."document_type" = 'invoice';
-  if new."status"::text in ('issued', 'partially_paid', 'paid') and v_balance <> 0 and new."issued_on" <= current_date then
-    insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
-    values (new."tenant_id", coalesce(new."company_id"::text, new."contact_id"::text), case when new."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', new."id", new."currency"::text,
-      new."due_on", new."issued_on", (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total")::bigint, v_balance);
+  if tg_op = 'DELETE' then
+    delete from "better_supabase"."invoice_open_items" e
+    where e."document_id" = old."id" and e."document_type" = 'invoice';
+    return null;
+  end if;
+  perform "better_supabase"."refresh_open_item_of"(new."id");
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_item"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_refresh"
+after insert or delete or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on", "kind", "currency", "company_id", "contact_id", "direction"
+on "better_supabase"."invoices"
+for each row execute function "better_supabase"."refresh_open_item"();
+
+create or replace function "better_supabase"."refresh_open_item_charge"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op in ('UPDATE', 'DELETE') then
+    perform "better_supabase"."refresh_open_item_of"(old."invoice_id");
+  end if;
+  if tg_op in ('INSERT', 'UPDATE') then
+    perform "better_supabase"."refresh_open_item_of"(new."invoice_id");
   end if;
   return null;
 end;
 $$;
-create trigger "bsb_invoice_open_items_refresh"
-after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
-on "better_supabase"."invoices"
-for each row execute function "better_supabase"."refresh_open_item"();
+revoke execute on function "better_supabase"."refresh_open_item_charge"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_charge"
+after insert or update or delete on "better_supabase"."invoice_charges"
+for each row execute function "better_supabase"."refresh_open_item_charge"();
 
--- Rebuilds today's open items for one organization. An import calls it once
--- after the documents are in, instead of once per row.
-create or replace function "better_supabase"."rebuild_open_items"(tenant uuid)
+-- Keeps the unallocated row of a party credit account next to its balance.
+create or replace function "better_supabase"."refresh_open_credit"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (
+    select 1 from "better_supabase"."ledger_accounts" a
+    where a."id" = new."account_id"
+      and a."managed_by" = 'invoices' and a."holder_type" = 'invoice_party'
+  ) then
+    return null;
+  end if;
+  delete from "better_supabase"."invoice_open_items" e
+  where e."document_id" = new."account_id" and e."document_type" = 'unallocated_payment';
+  insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select a."tenant_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."id" = new."account_id"
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_credit"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_credit"
+after insert or update of "balance" on "better_supabase"."ledger_balances"
+for each row execute function "better_supabase"."refresh_open_credit"();
+
+
+-- Writes every stored row of one organization again. No permission check:
+-- rebuild_open_items and the module's data migration call it.
+create or replace function "better_supabase"."rebuild_open_items_of"(tenant uuid)
 returns integer
 language plpgsql
 security definer
@@ -3273,30 +3349,120 @@ as $$
 declare
   v_count integer;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false) then
-    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
-  end if;
-  delete from "better_supabase"."invoice_open_items" x where x."tenant_id" = rebuild_open_items.tenant and x."document_type" = 'invoice';
+  delete from "better_supabase"."invoice_open_items" e where e."tenant_id" = rebuild_open_items_of.tenant;
   insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
   select x."tenant_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
     x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
   from "better_supabase"."invoices" x
-  where x."tenant_id" = rebuild_open_items.tenant
+  where x."tenant_id" = rebuild_open_items_of.tenant
     and x."kind" = 'invoice'
-    and x."status"::text in ('issued', 'partially_paid', 'paid')
-    and x."issued_on" <= current_date
-    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+  union all
+  select a."tenant_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."tenant_id" = rebuild_open_items_of.tenant
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."rebuild_open_items_of"(uuid) from public, anon, authenticated;
+
+-- Rebuilds the open items of one organization. An import calls it once after
+-- the documents are in, and doctor names it as the fix for drift.
+create or replace function "better_supabase"."rebuild_open_items"(tenant uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "better_supabase"."rebuild_open_items_of"(rebuild_open_items.tenant);
 end;
 $$;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to service_role;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to authenticated, service_role;
+
+-- The stored rows that differ from the fold, at most 100. No permission
+-- check: open_items_drift and import_integrity call it.
+create or replace function "better_supabase"."open_items_drift_rows"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := open_items_drift_rows.tenant;
+begin
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+        'documentType', coalesce(s.document_type, f.document_type), 'documentId', coalesce(s.document, f.document),
+        'stored', s.balance::text, 'fold', f.balance::text)
+      order by coalesce(s.document_type, f.document_type), coalesce(s.document, f.document))
+    from (
+      select e."document_type" as document_type, e."document_id" as document, e."party_id" as party,
+        e."gross" as gross, e."balance" as balance
+      from "better_supabase"."invoice_open_items" e where e."tenant_id" = v_tenant
+    ) s
+    full join (select 'invoice'::text as document_type, x."id" as document, coalesce(x."company_id"::text, x."contact_id"::text) as party,
+      (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint as gross, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint as balance
+    from "better_supabase"."invoices" x
+    where x."tenant_id" = v_tenant
+      and x."kind" = 'invoice'
+      and x."status" in ('issued', 'partially_paid', 'paid')
+      and x."issued_on" is not null
+      and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+    union all
+    select 'unallocated_payment'::text, a."id", a."holder_id", c.amount, c.amount
+    from "better_supabase"."ledger_accounts" a
+    cross join lateral (
+      select coalesce(sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
+      join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+      where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= current_date
+    ) c
+    where a."tenant_id" = v_tenant and a."managed_by" = 'invoices'
+      and a."holder_type" = 'invoice_party' and c.amount < 0) f
+      on f.document_type = s.document_type and f.document = s.document
+    where s.document is null or f.document is null
+      or s.balance <> f.balance or s.gross <> f.gross or s.party is distinct from f.party
+    limit 100
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_items_drift_rows"(uuid) from public, anon, authenticated;
+
+-- Where the stored open items of one organization differ from the fold over
+-- invoices and ledger entries. An empty array means none.
+create or replace function "better_supabase"."open_items_drift"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_drift.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "better_supabase"."open_items_drift_rows"(open_items_drift.tenant);
+end;
+$$;
+revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."open_items_drift"(uuid) to service_role;
+revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon;
+grant execute on function "better_supabase"."open_items_drift"(uuid) to authenticated, service_role;
 
 -- One page of today's open items, with a total that stops at count_cap.
 create or replace function "better_supabase"."open_items_page"(
@@ -3317,12 +3483,13 @@ declare
   v_total integer;
   v_rows jsonb;
 begin
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
   select count(*) into v_total from "better_supabase"."invoice_open_items" e
   where e."tenant_id" = open_items_page.tenant
     and e."balance" <> 0
+    and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
     and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
     and (open_items_page.side is null or e."side" = open_items_page.side);
   select coalesce(jsonb_agg(row_to_json(p)), '[]'::jsonb) into v_rows from (
@@ -3332,6 +3499,7 @@ begin
     from "better_supabase"."invoice_open_items" e
     where e."tenant_id" = open_items_page.tenant
       and e."balance" <> 0
+      and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
       and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
       and (open_items_page.side is null or e."side" = open_items_page.side)
     order by e."due_on" nulls last, e."document_id"
@@ -3378,36 +3546,19 @@ begin
             'currency', e."currency", 'issuedOn', e."issued_on", 'dueOn', e."due_on",
             'amount', e."gross"::text, 'balance', e."balance"::text,
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
-            'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
-              when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            'bucket', case when e."document_type" = 'unallocated_payment' then 'unallocated'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 0 then 'current'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 30 then 'days1To30' when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 60 then 'days31To60'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 90 then 'days61To90' else 'over90' end)
             || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "better_supabase"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "better_supabase"."invoice_open_items" e
         left join "better_supabase"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."tenant_id" = open_items_for_party.tenant
           and e."balance" <> 0
+          and (e."document_type" = 'unallocated_payment' or e."issued_on" <= v_as_of)
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)
           and (open_items_for_party.side is null or e."side" = open_items_for_party.side)
-        union all
-        
-        select jsonb_build_object(
-            'side', 'customer', 'partyId', a."holder_id", 'documentType', 'unallocated_payment', 'documentId', a."id",
-            'currency', a."unit"::text, 'issuedOn', null, 'dueOn', null,
-            'amount', (-c.amount)::text, 'balance', (-c.amount)::text,
-            'daysOverdue', 0, 'bucket', 'unallocated') as item,
-          'customer'::text as ord_side, a."holder_id" as ord_party, null::date as ord_due, a."id" as ord_document
-        from "better_supabase"."ledger_accounts" a
-        cross join lateral (
-          select coalesce(-sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
-          join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-          where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= v_as_of
-        ) c
-        where a."tenant_id" = open_items_for_party.tenant and a."managed_by" = 'invoices'
-          and a."holder_type" = 'invoice_party'
-          and (open_items_for_party.party_id is null or a."holder_id" = open_items_for_party.party_id)
-          and (open_items_for_party.side is null or open_items_for_party.side = 'customer')
-          and c.amount > 0
       ) s
     ), '[]'::jsonb);
   end if;
@@ -4642,21 +4793,28 @@ create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block-data invoices
--- @bsb-hash sha256:d19b11c884bd81b40f1d9c8429a45b7091ac097304bbdaeaa86bfcf562ccd146
+-- @bsb-hash sha256:4cee0a048ddd856428aef75144221ad55d0d384991b77983988f435dd6af2d1c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+-- Open items store v4: rows for unallocated payments and future issue dates.
+select "better_supabase"."rebuild_open_items_of"(x.tenant) from (
+  select "tenant_id" as tenant from "better_supabase"."invoices"
+  union
+  select "tenant_id" from "better_supabase"."ledger_accounts" where "managed_by" = 'invoices' and "holder_type" = 'invoice_party'
+) x;
+
 insert into better_supabase.blocks (name, version, mode)
-values ('invoices', 3, 'managed')
+values ('invoices', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
--- @bsb-block invoices@3 managed
--- @bsb-hash sha256:92f17985c0f3896cef2f9750c204aaf51ff12ef17a4722b7bbbbb03a1eff01cc
+-- @bsb-block invoices@4 managed
+-- @bsb-hash sha256:69e1d01b136666c567fa9106929a7932e363b29f270127cd9bfc27ab3ddd908f
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8258,8 +8416,8 @@ create table "better_supabase"."invoice_open_items" (
   "tenant_id" uuid not null,
   "party_id" text,
   "side" text not null constraint bsb_invoice_open_items_side_check check ("side" in ('customer', 'supplier')),
-  "document_type" text not null default 'invoice',
-  "document_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "document_type" text not null default 'invoice' constraint bsb_invoice_open_items_document_type_check check ("document_type" in ('invoice', 'unallocated_payment')),
+  "document_id" uuid not null,
   "currency" text not null,
   "due_on" date,
   "issued_on" date,
@@ -8278,34 +8436,110 @@ create policy bsb_invoice_open_items_read on "better_supabase"."invoice_open_ite
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
+-- Writes the stored row of one invoice again from the invoice as it stands.
+create or replace function "better_supabase"."refresh_open_item_of"(invoice uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."invoice_open_items" e
+  where e."document_id" = refresh_open_item_of.invoice and e."document_type" = 'invoice';
+  insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select x."tenant_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
+    x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
+  from "better_supabase"."invoices" x
+  where x."id" = refresh_open_item_of.invoice
+    and x."kind" = 'invoice'
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_item_of"(uuid) from public, anon, authenticated;
+
 create or replace function "better_supabase"."refresh_open_item"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_balance bigint;
 begin
-  v_balance := (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total" - new."paid_total");
-  delete from "better_supabase"."invoice_open_items" x
-  where x."document_id" = new."id" and x."document_type" = 'invoice';
-  if new."status"::text in ('issued', 'partially_paid', 'paid') and v_balance <> 0 and new."issued_on" <= current_date then
-    insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
-    values (new."tenant_id", coalesce(new."company_id"::text, new."contact_id"::text), case when new."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', new."id", new."currency"::text,
-      new."due_on", new."issued_on", (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total")::bigint, v_balance);
+  if tg_op = 'DELETE' then
+    delete from "better_supabase"."invoice_open_items" e
+    where e."document_id" = old."id" and e."document_type" = 'invoice';
+    return null;
+  end if;
+  perform "better_supabase"."refresh_open_item_of"(new."id");
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_item"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_refresh"
+after insert or delete or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on", "kind", "currency", "company_id", "contact_id", "direction"
+on "better_supabase"."invoices"
+for each row execute function "better_supabase"."refresh_open_item"();
+
+create or replace function "better_supabase"."refresh_open_item_charge"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op in ('UPDATE', 'DELETE') then
+    perform "better_supabase"."refresh_open_item_of"(old."invoice_id");
+  end if;
+  if tg_op in ('INSERT', 'UPDATE') then
+    perform "better_supabase"."refresh_open_item_of"(new."invoice_id");
   end if;
   return null;
 end;
 $$;
-create trigger "bsb_invoice_open_items_refresh"
-after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
-on "better_supabase"."invoices"
-for each row execute function "better_supabase"."refresh_open_item"();
+revoke execute on function "better_supabase"."refresh_open_item_charge"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_charge"
+after insert or update or delete on "better_supabase"."invoice_charges"
+for each row execute function "better_supabase"."refresh_open_item_charge"();
 
--- Rebuilds today's open items for one organization. An import calls it once
--- after the documents are in, instead of once per row.
-create or replace function "better_supabase"."rebuild_open_items"(tenant uuid)
+-- Keeps the unallocated row of a party credit account next to its balance.
+create or replace function "better_supabase"."refresh_open_credit"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (
+    select 1 from "better_supabase"."ledger_accounts" a
+    where a."id" = new."account_id"
+      and a."managed_by" = 'invoices' and a."holder_type" = 'invoice_party'
+  ) then
+    return null;
+  end if;
+  delete from "better_supabase"."invoice_open_items" e
+  where e."document_id" = new."account_id" and e."document_type" = 'unallocated_payment';
+  insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select a."tenant_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."id" = new."account_id"
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_credit"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_credit"
+after insert or update of "balance" on "better_supabase"."ledger_balances"
+for each row execute function "better_supabase"."refresh_open_credit"();
+
+
+-- Writes every stored row of one organization again. No permission check:
+-- rebuild_open_items and the module's data migration call it.
+create or replace function "better_supabase"."rebuild_open_items_of"(tenant uuid)
 returns integer
 language plpgsql
 security definer
@@ -8314,30 +8548,120 @@ as $$
 declare
   v_count integer;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false) then
-    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
-  end if;
-  delete from "better_supabase"."invoice_open_items" x where x."tenant_id" = rebuild_open_items.tenant and x."document_type" = 'invoice';
+  delete from "better_supabase"."invoice_open_items" e where e."tenant_id" = rebuild_open_items_of.tenant;
   insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
   select x."tenant_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
     x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
   from "better_supabase"."invoices" x
-  where x."tenant_id" = rebuild_open_items.tenant
+  where x."tenant_id" = rebuild_open_items_of.tenant
     and x."kind" = 'invoice'
-    and x."status"::text in ('issued', 'partially_paid', 'paid')
-    and x."issued_on" <= current_date
-    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+  union all
+  select a."tenant_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."tenant_id" = rebuild_open_items_of.tenant
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."rebuild_open_items_of"(uuid) from public, anon, authenticated;
+
+-- Rebuilds the open items of one organization. An import calls it once after
+-- the documents are in, and doctor names it as the fix for drift.
+create or replace function "better_supabase"."rebuild_open_items"(tenant uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "better_supabase"."rebuild_open_items_of"(rebuild_open_items.tenant);
 end;
 $$;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to service_role;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to authenticated, service_role;
+
+-- The stored rows that differ from the fold, at most 100. No permission
+-- check: open_items_drift and import_integrity call it.
+create or replace function "better_supabase"."open_items_drift_rows"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := open_items_drift_rows.tenant;
+begin
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+        'documentType', coalesce(s.document_type, f.document_type), 'documentId', coalesce(s.document, f.document),
+        'stored', s.balance::text, 'fold', f.balance::text)
+      order by coalesce(s.document_type, f.document_type), coalesce(s.document, f.document))
+    from (
+      select e."document_type" as document_type, e."document_id" as document, e."party_id" as party,
+        e."gross" as gross, e."balance" as balance
+      from "better_supabase"."invoice_open_items" e where e."tenant_id" = v_tenant
+    ) s
+    full join (select 'invoice'::text as document_type, x."id" as document, coalesce(x."company_id"::text, x."contact_id"::text) as party,
+      (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint as gross, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint as balance
+    from "better_supabase"."invoices" x
+    where x."tenant_id" = v_tenant
+      and x."kind" = 'invoice'
+      and x."status" in ('issued', 'partially_paid', 'paid')
+      and x."issued_on" is not null
+      and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+    union all
+    select 'unallocated_payment'::text, a."id", a."holder_id", c.amount, c.amount
+    from "better_supabase"."ledger_accounts" a
+    cross join lateral (
+      select coalesce(sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
+      join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+      where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= current_date
+    ) c
+    where a."tenant_id" = v_tenant and a."managed_by" = 'invoices'
+      and a."holder_type" = 'invoice_party' and c.amount < 0) f
+      on f.document_type = s.document_type and f.document = s.document
+    where s.document is null or f.document is null
+      or s.balance <> f.balance or s.gross <> f.gross or s.party is distinct from f.party
+    limit 100
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_items_drift_rows"(uuid) from public, anon, authenticated;
+
+-- Where the stored open items of one organization differ from the fold over
+-- invoices and ledger entries. An empty array means none.
+create or replace function "better_supabase"."open_items_drift"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_drift.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "better_supabase"."open_items_drift_rows"(open_items_drift.tenant);
+end;
+$$;
+revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."open_items_drift"(uuid) to service_role;
+revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon;
+grant execute on function "better_supabase"."open_items_drift"(uuid) to authenticated, service_role;
 
 -- One page of today's open items, with a total that stops at count_cap.
 create or replace function "better_supabase"."open_items_page"(
@@ -8358,12 +8682,13 @@ declare
   v_total integer;
   v_rows jsonb;
 begin
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
   select count(*) into v_total from "better_supabase"."invoice_open_items" e
   where e."tenant_id" = open_items_page.tenant
     and e."balance" <> 0
+    and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
     and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
     and (open_items_page.side is null or e."side" = open_items_page.side);
   select coalesce(jsonb_agg(row_to_json(p)), '[]'::jsonb) into v_rows from (
@@ -8373,6 +8698,7 @@ begin
     from "better_supabase"."invoice_open_items" e
     where e."tenant_id" = open_items_page.tenant
       and e."balance" <> 0
+      and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
       and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
       and (open_items_page.side is null or e."side" = open_items_page.side)
     order by e."due_on" nulls last, e."document_id"
@@ -8419,36 +8745,19 @@ begin
             'currency', e."currency", 'issuedOn', e."issued_on", 'dueOn', e."due_on",
             'amount', e."gross"::text, 'balance', e."balance"::text,
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
-            'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
-              when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            'bucket', case when e."document_type" = 'unallocated_payment' then 'unallocated'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 0 then 'current'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 30 then 'days1To30' when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 60 then 'days31To60'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 90 then 'days61To90' else 'over90' end)
             || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "better_supabase"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "better_supabase"."invoice_open_items" e
         left join "better_supabase"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."tenant_id" = open_items_for_party.tenant
           and e."balance" <> 0
+          and (e."document_type" = 'unallocated_payment' or e."issued_on" <= v_as_of)
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)
           and (open_items_for_party.side is null or e."side" = open_items_for_party.side)
-        union all
-        
-        select jsonb_build_object(
-            'side', 'customer', 'partyId', a."holder_id", 'documentType', 'unallocated_payment', 'documentId', a."id",
-            'currency', a."unit"::text, 'issuedOn', null, 'dueOn', null,
-            'amount', (-c.amount)::text, 'balance', (-c.amount)::text,
-            'daysOverdue', 0, 'bucket', 'unallocated') as item,
-          'customer'::text as ord_side, a."holder_id" as ord_party, null::date as ord_due, a."id" as ord_document
-        from "better_supabase"."ledger_accounts" a
-        cross join lateral (
-          select coalesce(-sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
-          join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-          where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= v_as_of
-        ) c
-        where a."tenant_id" = open_items_for_party.tenant and a."managed_by" = 'invoices'
-          and a."holder_type" = 'invoice_party'
-          and (open_items_for_party.party_id is null or a."holder_id" = open_items_for_party.party_id)
-          and (open_items_for_party.side is null or open_items_for_party.side = 'customer')
-          and c.amount > 0
       ) s
     ), '[]'::jsonb);
   end if;
@@ -10309,21 +10618,28 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block-data invoices
--- @bsb-hash sha256:d19b11c884bd81b40f1d9c8429a45b7091ac097304bbdaeaa86bfcf562ccd146
+-- @bsb-hash sha256:4cee0a048ddd856428aef75144221ad55d0d384991b77983988f435dd6af2d1c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+-- Open items store v4: rows for unallocated payments and future issue dates.
+select "better_supabase"."rebuild_open_items_of"(x.tenant) from (
+  select "tenant_id" as tenant from "better_supabase"."invoices"
+  union
+  select "tenant_id" from "better_supabase"."ledger_accounts" where "managed_by" = 'invoices' and "holder_type" = 'invoice_party'
+) x;
+
 insert into better_supabase.blocks (name, version, mode)
-values ('invoices', 3, 'managed')
+values ('invoices', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
--- @bsb-block invoices@3 managed
--- @bsb-hash sha256:b5998c22599164ff840966f7b9336d8fe69161db8c2f6e4d90440363000f8d87
+-- @bsb-block invoices@4 managed
+-- @bsb-hash sha256:eb9db5ff440229ddf4e3d0c9e36b83efb7fca18a0f88d274e01be65475a38a95
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13544,8 +13860,8 @@ create table "app_private"."invoice_open_items" (
   "tenant_id" uuid not null,
   "party_id" text,
   "side" text not null constraint bsb_invoice_open_items_side_check check ("side" in ('customer', 'supplier')),
-  "document_type" text not null default 'invoice',
-  "document_id" uuid not null references "app_private"."invoices" ("id") on delete cascade,
+  "document_type" text not null default 'invoice' constraint bsb_invoice_open_items_document_type_check check ("document_type" in ('invoice', 'unallocated_payment')),
+  "document_id" uuid not null,
   "currency" text not null,
   "due_on" date,
   "issued_on" date,
@@ -13564,34 +13880,110 @@ create policy bsb_invoice_open_items_read on "app_private"."invoice_open_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
+-- Writes the stored row of one invoice again from the invoice as it stands.
+create or replace function "app_private"."refresh_open_item_of"(invoice uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "app_private"."invoice_open_items" e
+  where e."document_id" = refresh_open_item_of.invoice and e."document_type" = 'invoice';
+  insert into "app_private"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select x."tenant_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
+    x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
+  from "app_private"."invoices" x
+  where x."id" = refresh_open_item_of.invoice
+    and x."kind" = 'invoice'
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+end;
+$$;
+revoke execute on function "app_private"."refresh_open_item_of"(uuid) from public, anon, authenticated;
+
 create or replace function "app_private"."refresh_open_item"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_balance bigint;
 begin
-  v_balance := (new."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total" - new."paid_total");
-  delete from "app_private"."invoice_open_items" x
-  where x."document_id" = new."id" and x."document_type" = 'invoice';
-  if new."status"::text in ('issued', 'partially_paid', 'paid') and v_balance <> 0 and new."issued_on" <= current_date then
-    insert into "app_private"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
-    values (new."tenant_id", coalesce(new."company_id"::text, new."contact_id"::text), case when new."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', new."id", new."currency"::text,
-      new."due_on", new."issued_on", (new."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total")::bigint, v_balance);
+  if tg_op = 'DELETE' then
+    delete from "app_private"."invoice_open_items" e
+    where e."document_id" = old."id" and e."document_type" = 'invoice';
+    return null;
+  end if;
+  perform "app_private"."refresh_open_item_of"(new."id");
+  return null;
+end;
+$$;
+revoke execute on function "app_private"."refresh_open_item"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_refresh"
+after insert or delete or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on", "kind", "currency", "company_id", "contact_id", "direction"
+on "app_private"."invoices"
+for each row execute function "app_private"."refresh_open_item"();
+
+create or replace function "app_private"."refresh_open_item_charge"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op in ('UPDATE', 'DELETE') then
+    perform "app_private"."refresh_open_item_of"(old."invoice_id");
+  end if;
+  if tg_op in ('INSERT', 'UPDATE') then
+    perform "app_private"."refresh_open_item_of"(new."invoice_id");
   end if;
   return null;
 end;
 $$;
-create trigger "bsb_invoice_open_items_refresh"
-after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
-on "app_private"."invoices"
-for each row execute function "app_private"."refresh_open_item"();
+revoke execute on function "app_private"."refresh_open_item_charge"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_charge"
+after insert or update or delete on "app_private"."invoice_charges"
+for each row execute function "app_private"."refresh_open_item_charge"();
 
--- Rebuilds today's open items for one organization. An import calls it once
--- after the documents are in, instead of once per row.
-create or replace function "app_private"."rebuild_open_items"(tenant uuid)
+-- Keeps the unallocated row of a party credit account next to its balance.
+create or replace function "app_private"."refresh_open_credit"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (
+    select 1 from "better_supabase"."ledger_accounts" a
+    where a."id" = new."account_id"
+      and a."managed_by" = 'invoices' and a."holder_type" = 'invoice_party'
+  ) then
+    return null;
+  end if;
+  delete from "app_private"."invoice_open_items" e
+  where e."document_id" = new."account_id" and e."document_type" = 'unallocated_payment';
+  insert into "app_private"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select a."tenant_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."id" = new."account_id"
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
+  return null;
+end;
+$$;
+revoke execute on function "app_private"."refresh_open_credit"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_credit"
+after insert or update of "balance" on "better_supabase"."ledger_balances"
+for each row execute function "app_private"."refresh_open_credit"();
+
+
+-- Writes every stored row of one organization again. No permission check:
+-- rebuild_open_items and the module's data migration call it.
+create or replace function "app_private"."rebuild_open_items_of"(tenant uuid)
 returns integer
 language plpgsql
 security definer
@@ -13600,30 +13992,120 @@ as $$
 declare
   v_count integer;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false) then
-    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
-  end if;
-  delete from "app_private"."invoice_open_items" x where x."tenant_id" = rebuild_open_items.tenant and x."document_type" = 'invoice';
+  delete from "app_private"."invoice_open_items" e where e."tenant_id" = rebuild_open_items_of.tenant;
   insert into "app_private"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
   select x."tenant_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
     x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
   from "app_private"."invoices" x
-  where x."tenant_id" = rebuild_open_items.tenant
+  where x."tenant_id" = rebuild_open_items_of.tenant
     and x."kind" = 'invoice'
-    and x."status"::text in ('issued', 'partially_paid', 'paid')
-    and x."issued_on" <= current_date
-    and (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+  union all
+  select a."tenant_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."tenant_id" = rebuild_open_items_of.tenant
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+revoke execute on function "app_private"."rebuild_open_items_of"(uuid) from public, anon, authenticated;
+
+-- Rebuilds the open items of one organization. An import calls it once after
+-- the documents are in, and doctor names it as the fix for drift.
+create or replace function "app_private"."rebuild_open_items"(tenant uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "app_private"."rebuild_open_items_of"(rebuild_open_items.tenant);
 end;
 $$;
 revoke execute on function "app_private"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "app_private"."rebuild_open_items"(uuid) to service_role;
 revoke execute on function "app_private"."rebuild_open_items"(uuid) from public, anon;
 grant execute on function "app_private"."rebuild_open_items"(uuid) to authenticated, service_role;
+
+-- The stored rows that differ from the fold, at most 100. No permission
+-- check: open_items_drift and import_integrity call it.
+create or replace function "app_private"."open_items_drift_rows"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := open_items_drift_rows.tenant;
+begin
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+        'documentType', coalesce(s.document_type, f.document_type), 'documentId', coalesce(s.document, f.document),
+        'stored', s.balance::text, 'fold', f.balance::text)
+      order by coalesce(s.document_type, f.document_type), coalesce(s.document, f.document))
+    from (
+      select e."document_type" as document_type, e."document_id" as document, e."party_id" as party,
+        e."gross" as gross, e."balance" as balance
+      from "app_private"."invoice_open_items" e where e."tenant_id" = v_tenant
+    ) s
+    full join (select 'invoice'::text as document_type, x."id" as document, coalesce(x."company_id"::text, x."contact_id"::text) as party,
+      (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint as gross, (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint as balance
+    from "app_private"."invoices" x
+    where x."tenant_id" = v_tenant
+      and x."kind" = 'invoice'
+      and x."status" in ('issued', 'partially_paid', 'paid')
+      and x."issued_on" is not null
+      and (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+    union all
+    select 'unallocated_payment'::text, a."id", a."holder_id", c.amount, c.amount
+    from "better_supabase"."ledger_accounts" a
+    cross join lateral (
+      select coalesce(sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
+      join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+      where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= current_date
+    ) c
+    where a."tenant_id" = v_tenant and a."managed_by" = 'invoices'
+      and a."holder_type" = 'invoice_party' and c.amount < 0) f
+      on f.document_type = s.document_type and f.document = s.document
+    where s.document is null or f.document is null
+      or s.balance <> f.balance or s.gross <> f.gross or s.party is distinct from f.party
+    limit 100
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."open_items_drift_rows"(uuid) from public, anon, authenticated;
+
+-- Where the stored open items of one organization differ from the fold over
+-- invoices and ledger entries. An empty array means none.
+create or replace function "app_private"."open_items_drift"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_drift.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "app_private"."open_items_drift_rows"(open_items_drift.tenant);
+end;
+$$;
+revoke execute on function "app_private"."open_items_drift"(uuid) from public, anon, authenticated;
+grant execute on function "app_private"."open_items_drift"(uuid) to service_role;
+revoke execute on function "app_private"."open_items_drift"(uuid) from public, anon;
+grant execute on function "app_private"."open_items_drift"(uuid) to authenticated, service_role;
 
 -- One page of today's open items, with a total that stops at count_cap.
 create or replace function "app_private"."open_items_page"(
@@ -13644,12 +14126,13 @@ declare
   v_total integer;
   v_rows jsonb;
 begin
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
   select count(*) into v_total from "app_private"."invoice_open_items" e
   where e."tenant_id" = open_items_page.tenant
     and e."balance" <> 0
+    and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
     and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
     and (open_items_page.side is null or e."side" = open_items_page.side);
   select coalesce(jsonb_agg(row_to_json(p)), '[]'::jsonb) into v_rows from (
@@ -13659,6 +14142,7 @@ begin
     from "app_private"."invoice_open_items" e
     where e."tenant_id" = open_items_page.tenant
       and e."balance" <> 0
+      and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
       and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
       and (open_items_page.side is null or e."side" = open_items_page.side)
     order by e."due_on" nulls last, e."document_id"
@@ -13705,36 +14189,19 @@ begin
             'currency', e."currency", 'issuedOn', e."issued_on", 'dueOn', e."due_on",
             'amount', e."gross"::text, 'balance', e."balance"::text,
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
-            'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
-              when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            'bucket', case when e."document_type" = 'unallocated_payment' then 'unallocated'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 0 then 'current'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 30 then 'days1To30' when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 60 then 'days31To60'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 90 then 'days61To90' else 'over90' end)
             || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "app_private"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "app_private"."invoice_open_items" e
         left join "app_private"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."tenant_id" = open_items_for_party.tenant
           and e."balance" <> 0
+          and (e."document_type" = 'unallocated_payment' or e."issued_on" <= v_as_of)
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)
           and (open_items_for_party.side is null or e."side" = open_items_for_party.side)
-        union all
-        
-        select jsonb_build_object(
-            'side', 'customer', 'partyId', a."holder_id", 'documentType', 'unallocated_payment', 'documentId', a."id",
-            'currency', a."unit"::text, 'issuedOn', null, 'dueOn', null,
-            'amount', (-c.amount)::text, 'balance', (-c.amount)::text,
-            'daysOverdue', 0, 'bucket', 'unallocated') as item,
-          'customer'::text as ord_side, a."holder_id" as ord_party, null::date as ord_due, a."id" as ord_document
-        from "better_supabase"."ledger_accounts" a
-        cross join lateral (
-          select coalesce(-sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
-          join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-          where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= v_as_of
-        ) c
-        where a."tenant_id" = open_items_for_party.tenant and a."managed_by" = 'invoices'
-          and a."holder_type" = 'invoice_party'
-          and (open_items_for_party.party_id is null or a."holder_id" = open_items_for_party.party_id)
-          and (open_items_for_party.side is null or open_items_for_party.side = 'customer')
-          and c.amount > 0
       ) s
     ), '[]'::jsonb);
   end if;
@@ -14969,21 +15436,28 @@ create policy bsb_tenant_scope_delete on "app_private"."e_invoice_deliveries" as
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block-data invoices
--- @bsb-hash sha256:d19b11c884bd81b40f1d9c8429a45b7091ac097304bbdaeaa86bfcf562ccd146
+-- @bsb-hash sha256:9227f6fff9d192dcdb89da1a6f26ad82a684c3f4db0197fa0fea35b642430b99
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+-- Open items store v4: rows for unallocated payments and future issue dates.
+select "app_private"."rebuild_open_items_of"(x.tenant) from (
+  select "tenant_id" as tenant from "app_private"."invoices"
+  union
+  select "tenant_id" from "better_supabase"."ledger_accounts" where "managed_by" = 'invoices' and "holder_type" = 'invoice_party'
+) x;
+
 insert into better_supabase.blocks (name, version, mode)
-values ('invoices', 3, 'managed')
+values ('invoices', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
--- @bsb-block invoices@3 managed
--- @bsb-hash sha256:b0b184a9967e50ecc6994728f54fa0ddd301d697f886c180757b5e18ec67f970
+-- @bsb-block invoices@4 managed
+-- @bsb-hash sha256:b04dd2deced2186a318b6def9fb06cbd372a089ac6686d0052175aea918138cd
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18199,8 +18673,8 @@ create table "better_supabase"."invoice_open_items" (
   "tenant_id" uuid not null,
   "party_id" text,
   "side" text not null constraint bsb_invoice_open_items_side_check check ("side" in ('customer', 'supplier')),
-  "document_type" text not null default 'invoice',
-  "document_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "document_type" text not null default 'invoice' constraint bsb_invoice_open_items_document_type_check check ("document_type" in ('invoice', 'unallocated_payment')),
+  "document_id" uuid not null,
   "currency" text not null,
   "due_on" date,
   "issued_on" date,
@@ -18219,34 +18693,110 @@ create policy bsb_invoice_open_items_read on "better_supabase"."invoice_open_ite
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
+-- Writes the stored row of one invoice again from the invoice as it stands.
+create or replace function "better_supabase"."refresh_open_item_of"(invoice uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."invoice_open_items" e
+  where e."document_id" = refresh_open_item_of.invoice and e."document_type" = 'invoice';
+  insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select x."tenant_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
+    x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
+  from "better_supabase"."invoices" x
+  where x."id" = refresh_open_item_of.invoice
+    and x."kind" = 'invoice'
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_item_of"(uuid) from public, anon, authenticated;
+
 create or replace function "better_supabase"."refresh_open_item"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_balance bigint;
 begin
-  v_balance := (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total" - new."paid_total");
-  delete from "better_supabase"."invoice_open_items" x
-  where x."document_id" = new."id" and x."document_type" = 'invoice';
-  if new."status"::text in ('issued', 'partially_paid', 'paid') and v_balance <> 0 and new."issued_on" <= current_date then
-    insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
-    values (new."tenant_id", coalesce(new."company_id"::text, new."contact_id"::text), case when new."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', new."id", new."currency"::text,
-      new."due_on", new."issued_on", (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total")::bigint, v_balance);
+  if tg_op = 'DELETE' then
+    delete from "better_supabase"."invoice_open_items" e
+    where e."document_id" = old."id" and e."document_type" = 'invoice';
+    return null;
+  end if;
+  perform "better_supabase"."refresh_open_item_of"(new."id");
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_item"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_refresh"
+after insert or delete or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on", "kind", "currency", "company_id", "contact_id", "direction"
+on "better_supabase"."invoices"
+for each row execute function "better_supabase"."refresh_open_item"();
+
+create or replace function "better_supabase"."refresh_open_item_charge"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op in ('UPDATE', 'DELETE') then
+    perform "better_supabase"."refresh_open_item_of"(old."invoice_id");
+  end if;
+  if tg_op in ('INSERT', 'UPDATE') then
+    perform "better_supabase"."refresh_open_item_of"(new."invoice_id");
   end if;
   return null;
 end;
 $$;
-create trigger "bsb_invoice_open_items_refresh"
-after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
-on "better_supabase"."invoices"
-for each row execute function "better_supabase"."refresh_open_item"();
+revoke execute on function "better_supabase"."refresh_open_item_charge"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_charge"
+after insert or update or delete on "better_supabase"."invoice_charges"
+for each row execute function "better_supabase"."refresh_open_item_charge"();
 
--- Rebuilds today's open items for one organization. An import calls it once
--- after the documents are in, instead of once per row.
-create or replace function "better_supabase"."rebuild_open_items"(tenant uuid)
+-- Keeps the unallocated row of a party credit account next to its balance.
+create or replace function "better_supabase"."refresh_open_credit"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (
+    select 1 from "better_supabase"."ledger_accounts" a
+    where a."id" = new."account_id"
+      and a."managed_by" = 'invoices' and a."holder_type" = 'invoice_party'
+  ) then
+    return null;
+  end if;
+  delete from "better_supabase"."invoice_open_items" e
+  where e."document_id" = new."account_id" and e."document_type" = 'unallocated_payment';
+  insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select a."tenant_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."id" = new."account_id"
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_credit"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_credit"
+after insert or update of "balance" on "better_supabase"."ledger_balances"
+for each row execute function "better_supabase"."refresh_open_credit"();
+
+
+-- Writes every stored row of one organization again. No permission check:
+-- rebuild_open_items and the module's data migration call it.
+create or replace function "better_supabase"."rebuild_open_items_of"(tenant uuid)
 returns integer
 language plpgsql
 security definer
@@ -18255,30 +18805,120 @@ as $$
 declare
   v_count integer;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false) then
-    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
-  end if;
-  delete from "better_supabase"."invoice_open_items" x where x."tenant_id" = rebuild_open_items.tenant and x."document_type" = 'invoice';
+  delete from "better_supabase"."invoice_open_items" e where e."tenant_id" = rebuild_open_items_of.tenant;
   insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
   select x."tenant_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
     x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
   from "better_supabase"."invoices" x
-  where x."tenant_id" = rebuild_open_items.tenant
+  where x."tenant_id" = rebuild_open_items_of.tenant
     and x."kind" = 'invoice'
-    and x."status"::text in ('issued', 'partially_paid', 'paid')
-    and x."issued_on" <= current_date
-    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+  union all
+  select a."tenant_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."tenant_id" = rebuild_open_items_of.tenant
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."rebuild_open_items_of"(uuid) from public, anon, authenticated;
+
+-- Rebuilds the open items of one organization. An import calls it once after
+-- the documents are in, and doctor names it as the fix for drift.
+create or replace function "better_supabase"."rebuild_open_items"(tenant uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "better_supabase"."rebuild_open_items_of"(rebuild_open_items.tenant);
 end;
 $$;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to service_role;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to authenticated, service_role;
+
+-- The stored rows that differ from the fold, at most 100. No permission
+-- check: open_items_drift and import_integrity call it.
+create or replace function "better_supabase"."open_items_drift_rows"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := open_items_drift_rows.tenant;
+begin
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+        'documentType', coalesce(s.document_type, f.document_type), 'documentId', coalesce(s.document, f.document),
+        'stored', s.balance::text, 'fold', f.balance::text)
+      order by coalesce(s.document_type, f.document_type), coalesce(s.document, f.document))
+    from (
+      select e."document_type" as document_type, e."document_id" as document, e."party_id" as party,
+        e."gross" as gross, e."balance" as balance
+      from "better_supabase"."invoice_open_items" e where e."tenant_id" = v_tenant
+    ) s
+    full join (select 'invoice'::text as document_type, x."id" as document, coalesce(x."company_id"::text, x."contact_id"::text) as party,
+      (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint as gross, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint as balance
+    from "better_supabase"."invoices" x
+    where x."tenant_id" = v_tenant
+      and x."kind" = 'invoice'
+      and x."status" in ('issued', 'partially_paid', 'paid')
+      and x."issued_on" is not null
+      and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+    union all
+    select 'unallocated_payment'::text, a."id", a."holder_id", c.amount, c.amount
+    from "better_supabase"."ledger_accounts" a
+    cross join lateral (
+      select coalesce(sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
+      join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+      where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= current_date
+    ) c
+    where a."tenant_id" = v_tenant and a."managed_by" = 'invoices'
+      and a."holder_type" = 'invoice_party' and c.amount < 0) f
+      on f.document_type = s.document_type and f.document = s.document
+    where s.document is null or f.document is null
+      or s.balance <> f.balance or s.gross <> f.gross or s.party is distinct from f.party
+    limit 100
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_items_drift_rows"(uuid) from public, anon, authenticated;
+
+-- Where the stored open items of one organization differ from the fold over
+-- invoices and ledger entries. An empty array means none.
+create or replace function "better_supabase"."open_items_drift"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_drift.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "better_supabase"."open_items_drift_rows"(open_items_drift.tenant);
+end;
+$$;
+revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."open_items_drift"(uuid) to service_role;
+revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon;
+grant execute on function "better_supabase"."open_items_drift"(uuid) to authenticated, service_role;
 
 -- One page of today's open items, with a total that stops at count_cap.
 create or replace function "better_supabase"."open_items_page"(
@@ -18299,12 +18939,13 @@ declare
   v_total integer;
   v_rows jsonb;
 begin
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
   select count(*) into v_total from "better_supabase"."invoice_open_items" e
   where e."tenant_id" = open_items_page.tenant
     and e."balance" <> 0
+    and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
     and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
     and (open_items_page.side is null or e."side" = open_items_page.side);
   select coalesce(jsonb_agg(row_to_json(p)), '[]'::jsonb) into v_rows from (
@@ -18314,6 +18955,7 @@ begin
     from "better_supabase"."invoice_open_items" e
     where e."tenant_id" = open_items_page.tenant
       and e."balance" <> 0
+      and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
       and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
       and (open_items_page.side is null or e."side" = open_items_page.side)
     order by e."due_on" nulls last, e."document_id"
@@ -18360,36 +19002,19 @@ begin
             'currency', e."currency", 'issuedOn', e."issued_on", 'dueOn', e."due_on",
             'amount', e."gross"::text, 'balance', e."balance"::text,
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
-            'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
-              when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            'bucket', case when e."document_type" = 'unallocated_payment' then 'unallocated'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 0 then 'current'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 30 then 'days1To30' when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 60 then 'days31To60'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 90 then 'days61To90' else 'over90' end)
             || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "better_supabase"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "better_supabase"."invoice_open_items" e
         left join "better_supabase"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."tenant_id" = open_items_for_party.tenant
           and e."balance" <> 0
+          and (e."document_type" = 'unallocated_payment' or e."issued_on" <= v_as_of)
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)
           and (open_items_for_party.side is null or e."side" = open_items_for_party.side)
-        union all
-        
-        select jsonb_build_object(
-            'side', 'customer', 'partyId', a."holder_id", 'documentType', 'unallocated_payment', 'documentId', a."id",
-            'currency', a."unit"::text, 'issuedOn', null, 'dueOn', null,
-            'amount', (-c.amount)::text, 'balance', (-c.amount)::text,
-            'daysOverdue', 0, 'bucket', 'unallocated') as item,
-          'customer'::text as ord_side, a."holder_id" as ord_party, null::date as ord_due, a."id" as ord_document
-        from "better_supabase"."ledger_accounts" a
-        cross join lateral (
-          select coalesce(-sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
-          join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-          where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= v_as_of
-        ) c
-        where a."tenant_id" = open_items_for_party.tenant and a."managed_by" = 'invoices'
-          and a."holder_type" = 'invoice_party'
-          and (open_items_for_party.party_id is null or a."holder_id" = open_items_for_party.party_id)
-          and (open_items_for_party.side is null or open_items_for_party.side = 'customer')
-          and c.amount > 0
       ) s
     ), '[]'::jsonb);
   end if;
@@ -20056,6 +20681,26 @@ as $$ select "better_supabase"."rebuild_open_items"($1) $$;
 revoke execute on function "api"."rebuild_open_items"(uuid) from public, anon;
 grant execute on function "api"."rebuild_open_items"(uuid) to authenticated, service_role;
 
+create or replace function "api"."open_items_drift"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."open_items_drift"($1) $$;
+revoke execute on function "api"."open_items_drift"(uuid) from public, anon, authenticated;
+grant execute on function "api"."open_items_drift"(uuid) to service_role;
+
+create or replace function "api"."open_items_drift"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."open_items_drift"($1) $$;
+revoke execute on function "api"."open_items_drift"(uuid) from public, anon;
+grant execute on function "api"."open_items_drift"(uuid) to authenticated, service_role;
+
 create or replace function "api"."open_items_page"(tenant uuid, side text default null, party_id text default null, "limit" integer default 50, "offset" integer default 0, count_cap integer default 10000)
 returns jsonb
 language sql
@@ -20210,21 +20855,28 @@ grant execute on function "api"."document_totals_by_billing_party"(uuid) to auth
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block-data invoices
--- @bsb-hash sha256:d19b11c884bd81b40f1d9c8429a45b7091ac097304bbdaeaa86bfcf562ccd146
+-- @bsb-hash sha256:4cee0a048ddd856428aef75144221ad55d0d384991b77983988f435dd6af2d1c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+-- Open items store v4: rows for unallocated payments and future issue dates.
+select "better_supabase"."rebuild_open_items_of"(x.tenant) from (
+  select "tenant_id" as tenant from "better_supabase"."invoices"
+  union
+  select "tenant_id" from "better_supabase"."ledger_accounts" where "managed_by" = 'invoices' and "holder_type" = 'invoice_party'
+) x;
+
 insert into better_supabase.blocks (name, version, mode)
-values ('invoices', 3, 'managed')
+values ('invoices', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
--- @bsb-block invoices@3 managed
--- @bsb-hash sha256:b50d43cab066f3f4dd797e04230077473414232d7509a1d2cd418144665a572c
+-- @bsb-block invoices@4 managed
+-- @bsb-hash sha256:c04fc0deee00e9c454b3aedcdd2b9efacb9505bd1d0ccc6cafb5c28970206d90
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23407,8 +24059,8 @@ grant execute on function "better_supabase"."list_e_invoice_deliveries"(uuid, te
 alter table "better_supabase"."invoice_open_items" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."invoice_open_items" add column if not exists "party_id" text;
 alter table "better_supabase"."invoice_open_items" add column if not exists "side" text constraint bsb_invoice_open_items_side_check check ("side" in ('customer', 'supplier'));
-alter table "better_supabase"."invoice_open_items" add column if not exists "document_type" text not null default 'invoice';
-alter table "better_supabase"."invoice_open_items" add column if not exists "document_id" uuid references "better_supabase"."invoices" ("id") on delete cascade;
+alter table "better_supabase"."invoice_open_items" add column if not exists "document_type" text not null default 'invoice' constraint bsb_invoice_open_items_document_type_check check ("document_type" in ('invoice', 'unallocated_payment'));
+alter table "better_supabase"."invoice_open_items" add column if not exists "document_id" uuid;
 alter table "better_supabase"."invoice_open_items" add column if not exists "currency" text;
 alter table "better_supabase"."invoice_open_items" add column if not exists "due_on" date;
 alter table "better_supabase"."invoice_open_items" add column if not exists "issued_on" date;
@@ -23424,34 +24076,110 @@ create policy bsb_invoice_open_items_select on "better_supabase"."invoice_open_i
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
+-- Writes the stored row of one invoice again from the invoice as it stands.
+create or replace function "better_supabase"."refresh_open_item_of"(invoice uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."invoice_open_items" e
+  where e."document_id" = refresh_open_item_of.invoice and e."document_type" = 'invoice';
+  insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select x."tenant_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
+    x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
+  from "better_supabase"."invoices" x
+  where x."id" = refresh_open_item_of.invoice
+    and x."kind" = 'invoice'
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_item_of"(uuid) from public, anon, authenticated;
+
 create or replace function "better_supabase"."refresh_open_item"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_balance bigint;
 begin
-  v_balance := (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total" - new."paid_total");
-  delete from "better_supabase"."invoice_open_items" x
-  where x."document_id" = new."id" and x."document_type" = 'invoice';
-  if new."status"::text in ('issued', 'partially_paid', 'paid') and v_balance <> 0 and new."issued_on" <= current_date then
-    insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
-    values (new."tenant_id", coalesce(new."company_id"::text, new."contact_id"::text), case when new."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', new."id", new."currency"::text,
-      new."due_on", new."issued_on", (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total")::bigint, v_balance);
+  if tg_op = 'DELETE' then
+    delete from "better_supabase"."invoice_open_items" e
+    where e."document_id" = old."id" and e."document_type" = 'invoice';
+    return null;
+  end if;
+  perform "better_supabase"."refresh_open_item_of"(new."id");
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_item"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_refresh"
+after insert or delete or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on", "kind", "currency", "company_id", "contact_id", "direction"
+on "better_supabase"."invoices"
+for each row execute function "better_supabase"."refresh_open_item"();
+
+create or replace function "better_supabase"."refresh_open_item_charge"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op in ('UPDATE', 'DELETE') then
+    perform "better_supabase"."refresh_open_item_of"(old."invoice_id");
+  end if;
+  if tg_op in ('INSERT', 'UPDATE') then
+    perform "better_supabase"."refresh_open_item_of"(new."invoice_id");
   end if;
   return null;
 end;
 $$;
-create trigger "bsb_invoice_open_items_refresh"
-after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
-on "better_supabase"."invoices"
-for each row execute function "better_supabase"."refresh_open_item"();
+revoke execute on function "better_supabase"."refresh_open_item_charge"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_charge"
+after insert or update or delete on "better_supabase"."invoice_charges"
+for each row execute function "better_supabase"."refresh_open_item_charge"();
 
--- Rebuilds today's open items for one organization. An import calls it once
--- after the documents are in, instead of once per row.
-create or replace function "better_supabase"."rebuild_open_items"(tenant uuid)
+-- Keeps the unallocated row of a party credit account next to its balance.
+create or replace function "better_supabase"."refresh_open_credit"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (
+    select 1 from "better_supabase"."ledger_accounts" a
+    where a."id" = new."account_id"
+      and a."managed_by" = 'invoices' and a."holder_type" = 'invoice_party'
+  ) then
+    return null;
+  end if;
+  delete from "better_supabase"."invoice_open_items" e
+  where e."document_id" = new."account_id" and e."document_type" = 'unallocated_payment';
+  insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select a."tenant_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."id" = new."account_id"
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_credit"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_credit"
+after insert or update of "balance" on "better_supabase"."ledger_balances"
+for each row execute function "better_supabase"."refresh_open_credit"();
+
+
+-- Writes every stored row of one organization again. No permission check:
+-- rebuild_open_items and the module's data migration call it.
+create or replace function "better_supabase"."rebuild_open_items_of"(tenant uuid)
 returns integer
 language plpgsql
 security definer
@@ -23460,30 +24188,120 @@ as $$
 declare
   v_count integer;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false) then
-    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
-  end if;
-  delete from "better_supabase"."invoice_open_items" x where x."tenant_id" = rebuild_open_items.tenant and x."document_type" = 'invoice';
+  delete from "better_supabase"."invoice_open_items" e where e."tenant_id" = rebuild_open_items_of.tenant;
   insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
   select x."tenant_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
     x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
   from "better_supabase"."invoices" x
-  where x."tenant_id" = rebuild_open_items.tenant
+  where x."tenant_id" = rebuild_open_items_of.tenant
     and x."kind" = 'invoice'
-    and x."status"::text in ('issued', 'partially_paid', 'paid')
-    and x."issued_on" <= current_date
-    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+  union all
+  select a."tenant_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."tenant_id" = rebuild_open_items_of.tenant
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."rebuild_open_items_of"(uuid) from public, anon, authenticated;
+
+-- Rebuilds the open items of one organization. An import calls it once after
+-- the documents are in, and doctor names it as the fix for drift.
+create or replace function "better_supabase"."rebuild_open_items"(tenant uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "better_supabase"."rebuild_open_items_of"(rebuild_open_items.tenant);
 end;
 $$;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to service_role;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to authenticated, service_role;
+
+-- The stored rows that differ from the fold, at most 100. No permission
+-- check: open_items_drift and import_integrity call it.
+create or replace function "better_supabase"."open_items_drift_rows"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := open_items_drift_rows.tenant;
+begin
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+        'documentType', coalesce(s.document_type, f.document_type), 'documentId', coalesce(s.document, f.document),
+        'stored', s.balance::text, 'fold', f.balance::text)
+      order by coalesce(s.document_type, f.document_type), coalesce(s.document, f.document))
+    from (
+      select e."document_type" as document_type, e."document_id" as document, e."party_id" as party,
+        e."gross" as gross, e."balance" as balance
+      from "better_supabase"."invoice_open_items" e where e."tenant_id" = v_tenant
+    ) s
+    full join (select 'invoice'::text as document_type, x."id" as document, coalesce(x."company_id"::text, x."contact_id"::text) as party,
+      (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint as gross, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint as balance
+    from "better_supabase"."invoices" x
+    where x."tenant_id" = v_tenant
+      and x."kind" = 'invoice'
+      and x."status" in ('issued', 'partially_paid', 'paid')
+      and x."issued_on" is not null
+      and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+    union all
+    select 'unallocated_payment'::text, a."id", a."holder_id", c.amount, c.amount
+    from "better_supabase"."ledger_accounts" a
+    cross join lateral (
+      select coalesce(sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
+      join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+      where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= current_date
+    ) c
+    where a."tenant_id" = v_tenant and a."managed_by" = 'invoices'
+      and a."holder_type" = 'invoice_party' and c.amount < 0) f
+      on f.document_type = s.document_type and f.document = s.document
+    where s.document is null or f.document is null
+      or s.balance <> f.balance or s.gross <> f.gross or s.party is distinct from f.party
+    limit 100
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_items_drift_rows"(uuid) from public, anon, authenticated;
+
+-- Where the stored open items of one organization differ from the fold over
+-- invoices and ledger entries. An empty array means none.
+create or replace function "better_supabase"."open_items_drift"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_drift.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "better_supabase"."open_items_drift_rows"(open_items_drift.tenant);
+end;
+$$;
+revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."open_items_drift"(uuid) to service_role;
+revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon;
+grant execute on function "better_supabase"."open_items_drift"(uuid) to authenticated, service_role;
 
 -- One page of today's open items, with a total that stops at count_cap.
 create or replace function "better_supabase"."open_items_page"(
@@ -23504,12 +24322,13 @@ declare
   v_total integer;
   v_rows jsonb;
 begin
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
   select count(*) into v_total from "better_supabase"."invoice_open_items" e
   where e."tenant_id" = open_items_page.tenant
     and e."balance" <> 0
+    and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
     and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
     and (open_items_page.side is null or e."side" = open_items_page.side);
   select coalesce(jsonb_agg(row_to_json(p)), '[]'::jsonb) into v_rows from (
@@ -23519,6 +24338,7 @@ begin
     from "better_supabase"."invoice_open_items" e
     where e."tenant_id" = open_items_page.tenant
       and e."balance" <> 0
+      and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
       and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
       and (open_items_page.side is null or e."side" = open_items_page.side)
     order by e."due_on" nulls last, e."document_id"
@@ -23565,36 +24385,19 @@ begin
             'currency', e."currency", 'issuedOn', e."issued_on", 'dueOn', e."due_on",
             'amount', e."gross"::text, 'balance', e."balance"::text,
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
-            'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
-              when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            'bucket', case when e."document_type" = 'unallocated_payment' then 'unallocated'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 0 then 'current'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 30 then 'days1To30' when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 60 then 'days31To60'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 90 then 'days61To90' else 'over90' end)
             || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "better_supabase"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "better_supabase"."invoice_open_items" e
         left join "better_supabase"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."tenant_id" = open_items_for_party.tenant
           and e."balance" <> 0
+          and (e."document_type" = 'unallocated_payment' or e."issued_on" <= v_as_of)
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)
           and (open_items_for_party.side is null or e."side" = open_items_for_party.side)
-        union all
-        
-        select jsonb_build_object(
-            'side', 'customer', 'partyId', a."holder_id", 'documentType', 'unallocated_payment', 'documentId', a."id",
-            'currency', a."unit"::text, 'issuedOn', null, 'dueOn', null,
-            'amount', (-c.amount)::text, 'balance', (-c.amount)::text,
-            'daysOverdue', 0, 'bucket', 'unallocated') as item,
-          'customer'::text as ord_side, a."holder_id" as ord_party, null::date as ord_due, a."id" as ord_document
-        from "better_supabase"."ledger_accounts" a
-        cross join lateral (
-          select coalesce(-sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
-          join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-          where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= v_as_of
-        ) c
-        where a."tenant_id" = open_items_for_party.tenant and a."managed_by" = 'invoices'
-          and a."holder_type" = 'invoice_party'
-          and (open_items_for_party.party_id is null or a."holder_id" = open_items_for_party.party_id)
-          and (open_items_for_party.side is null or open_items_for_party.side = 'customer')
-          and c.amount > 0
       ) s
     ), '[]'::jsonb);
   end if;
@@ -24829,21 +25632,28 @@ create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block-data invoices
--- @bsb-hash sha256:d19b11c884bd81b40f1d9c8429a45b7091ac097304bbdaeaa86bfcf562ccd146
+-- @bsb-hash sha256:4cee0a048ddd856428aef75144221ad55d0d384991b77983988f435dd6af2d1c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+-- Open items store v4: rows for unallocated payments and future issue dates.
+select "better_supabase"."rebuild_open_items_of"(x.tenant) from (
+  select "tenant_id" as tenant from "better_supabase"."invoices"
+  union
+  select "tenant_id" from "better_supabase"."ledger_accounts" where "managed_by" = 'invoices' and "holder_type" = 'invoice_party'
+) x;
+
 insert into better_supabase.blocks (name, version, mode)
-values ('invoices', 3, 'managed')
+values ('invoices', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
--- @bsb-block invoices@3 managed
--- @bsb-hash sha256:bf3c3877ab28004094d858c1377d1a982721f532a476f1f4908ff806f6c14a18
+-- @bsb-block invoices@4 managed
+-- @bsb-hash sha256:79a871b2084f15dc52451462e1bfcda83a35342b43a55a0c227015ccacbdbb56
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28059,8 +28869,8 @@ create table "better_supabase"."invoice_open_items" (
   "org_id" uuid not null,
   "party_id" text,
   "side" text not null constraint bsb_invoice_open_items_side_check check ("side" in ('customer', 'supplier')),
-  "document_type" text not null default 'invoice',
-  "document_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
+  "document_type" text not null default 'invoice' constraint bsb_invoice_open_items_document_type_check check ("document_type" in ('invoice', 'unallocated_payment')),
+  "document_id" uuid not null,
   "currency" text not null,
   "due_on" date,
   "issued_on" date,
@@ -28079,34 +28889,110 @@ create policy bsb_invoice_open_items_read on "better_supabase"."invoice_open_ite
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
+-- Writes the stored row of one invoice again from the invoice as it stands.
+create or replace function "better_supabase"."refresh_open_item_of"(invoice uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."invoice_open_items" e
+  where e."document_id" = refresh_open_item_of.invoice and e."document_type" = 'invoice';
+  insert into "better_supabase"."invoice_open_items" ("org_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select x."org_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
+    x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
+  from "better_supabase"."invoices" x
+  where x."id" = refresh_open_item_of.invoice
+    and x."kind" = 'invoice'
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_item_of"(uuid) from public, anon, authenticated;
+
 create or replace function "better_supabase"."refresh_open_item"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_balance bigint;
 begin
-  v_balance := (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total" - new."paid_total");
-  delete from "better_supabase"."invoice_open_items" x
-  where x."document_id" = new."id" and x."document_type" = 'invoice';
-  if new."status"::text in ('issued', 'partially_paid', 'paid') and v_balance <> 0 and new."issued_on" <= current_date then
-    insert into "better_supabase"."invoice_open_items" ("org_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
-    values (new."org_id", coalesce(new."company_id"::text, new."contact_id"::text), case when new."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', new."id", new."currency"::text,
-      new."due_on", new."issued_on", (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total")::bigint, v_balance);
+  if tg_op = 'DELETE' then
+    delete from "better_supabase"."invoice_open_items" e
+    where e."document_id" = old."id" and e."document_type" = 'invoice';
+    return null;
+  end if;
+  perform "better_supabase"."refresh_open_item_of"(new."id");
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_item"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_refresh"
+after insert or delete or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on", "kind", "currency", "company_id", "contact_id", "direction"
+on "better_supabase"."invoices"
+for each row execute function "better_supabase"."refresh_open_item"();
+
+create or replace function "better_supabase"."refresh_open_item_charge"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op in ('UPDATE', 'DELETE') then
+    perform "better_supabase"."refresh_open_item_of"(old."invoice_id");
+  end if;
+  if tg_op in ('INSERT', 'UPDATE') then
+    perform "better_supabase"."refresh_open_item_of"(new."invoice_id");
   end if;
   return null;
 end;
 $$;
-create trigger "bsb_invoice_open_items_refresh"
-after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
-on "better_supabase"."invoices"
-for each row execute function "better_supabase"."refresh_open_item"();
+revoke execute on function "better_supabase"."refresh_open_item_charge"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_charge"
+after insert or update or delete on "better_supabase"."invoice_charges"
+for each row execute function "better_supabase"."refresh_open_item_charge"();
 
--- Rebuilds today's open items for one organization. An import calls it once
--- after the documents are in, instead of once per row.
-create or replace function "better_supabase"."rebuild_open_items"(tenant uuid)
+-- Keeps the unallocated row of a party credit account next to its balance.
+create or replace function "better_supabase"."refresh_open_credit"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (
+    select 1 from "better_supabase"."ledger_accounts" a
+    where a."id" = new."account_id"
+      and a."managed_by" = 'invoices' and a."holder_type" = 'invoice_party'
+  ) then
+    return null;
+  end if;
+  delete from "better_supabase"."invoice_open_items" e
+  where e."document_id" = new."account_id" and e."document_type" = 'unallocated_payment';
+  insert into "better_supabase"."invoice_open_items" ("org_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
+  select a."org_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."id" = new."account_id"
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."refresh_open_credit"() from public, anon, authenticated;
+create trigger "bsb_invoice_open_items_credit"
+after insert or update of "balance" on "better_supabase"."ledger_balances"
+for each row execute function "better_supabase"."refresh_open_credit"();
+
+
+-- Writes every stored row of one organization again. No permission check:
+-- rebuild_open_items and the module's data migration call it.
+create or replace function "better_supabase"."rebuild_open_items_of"(tenant uuid)
 returns integer
 language plpgsql
 security definer
@@ -28115,30 +29001,120 @@ as $$
 declare
   v_count integer;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false) then
-    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
-  end if;
-  delete from "better_supabase"."invoice_open_items" x where x."org_id" = rebuild_open_items.tenant and x."document_type" = 'invoice';
+  delete from "better_supabase"."invoice_open_items" e where e."org_id" = rebuild_open_items_of.tenant;
   insert into "better_supabase"."invoice_open_items" ("org_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
   select x."org_id", coalesce(x."company_id"::text, x."contact_id"::text), case when x."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', x."id", x."currency"::text,
     x."due_on", x."issued_on", (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint
   from "better_supabase"."invoices" x
-  where x."org_id" = rebuild_open_items.tenant
+  where x."org_id" = rebuild_open_items_of.tenant
     and x."kind" = 'invoice'
-    and x."status"::text in ('issued', 'partially_paid', 'paid')
-    and x."issued_on" <= current_date
-    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
+    and x."status" in ('issued', 'partially_paid', 'paid')
+    and x."issued_on" is not null
+    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+  union all
+  select a."org_id", a."holder_id", 'customer', 'unallocated_payment', a."id", a."unit"::text,
+    null::date, null::date, b."balance"::bigint, b."balance"::bigint
+  from "better_supabase"."ledger_accounts" a
+  join "better_supabase"."ledger_balances" b on b."account_id" = a."id"
+  where a."org_id" = rebuild_open_items_of.tenant
+    and a."managed_by" = 'invoices'
+    and a."holder_type" = 'invoice_party'
+    and b."balance" < 0;
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."rebuild_open_items_of"(uuid) from public, anon, authenticated;
+
+-- Rebuilds the open items of one organization. An import calls it once after
+-- the documents are in, and doctor names it as the fix for drift.
+create or replace function "better_supabase"."rebuild_open_items"(tenant uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rebuild_open_items.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "better_supabase"."rebuild_open_items_of"(rebuild_open_items.tenant);
 end;
 $$;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to service_role;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to authenticated, service_role;
+
+-- The stored rows that differ from the fold, at most 100. No permission
+-- check: open_items_drift and import_integrity call it.
+create or replace function "better_supabase"."open_items_drift_rows"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := open_items_drift_rows.tenant;
+begin
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+        'documentType', coalesce(s.document_type, f.document_type), 'documentId', coalesce(s.document, f.document),
+        'stored', s.balance::text, 'fold', f.balance::text)
+      order by coalesce(s.document_type, f.document_type), coalesce(s.document, f.document))
+    from (
+      select e."document_type" as document_type, e."document_id" as document, e."party_id" as party,
+        e."gross" as gross, e."balance" as balance
+      from "better_supabase"."invoice_open_items" e where e."org_id" = v_tenant
+    ) s
+    full join (select 'invoice'::text as document_type, x."id" as document, coalesce(x."company_id"::text, x."contact_id"::text) as party,
+      (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total")::bigint as gross, (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::bigint as balance
+    from "better_supabase"."invoices" x
+    where x."org_id" = v_tenant
+      and x."kind" = 'invoice'
+      and x."status" in ('issued', 'partially_paid', 'paid')
+      and x."issued_on" is not null
+      and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
+    union all
+    select 'unallocated_payment'::text, a."id", a."holder_id", c.amount, c.amount
+    from "better_supabase"."ledger_accounts" a
+    cross join lateral (
+      select coalesce(sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
+      join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+      where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= current_date
+    ) c
+    where a."org_id" = v_tenant and a."managed_by" = 'invoices'
+      and a."holder_type" = 'invoice_party' and c.amount < 0) f
+      on f.document_type = s.document_type and f.document = s.document
+    where s.document is null or f.document is null
+      or s.balance <> f.balance or s.gross <> f.gross or s.party is distinct from f.party
+    limit 100
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_items_drift_rows"(uuid) from public, anon, authenticated;
+
+-- Where the stored open items of one organization differ from the fold over
+-- invoices and ledger entries. An empty array means none.
+create or replace function "better_supabase"."open_items_drift"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_drift.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return "better_supabase"."open_items_drift_rows"(open_items_drift.tenant);
+end;
+$$;
+revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."open_items_drift"(uuid) to service_role;
+revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon;
+grant execute on function "better_supabase"."open_items_drift"(uuid) to authenticated, service_role;
 
 -- One page of today's open items, with a total that stops at count_cap.
 create or replace function "better_supabase"."open_items_page"(
@@ -28159,12 +29135,13 @@ declare
   v_total integer;
   v_rows jsonb;
 begin
-  if (select auth.role()) is distinct from 'service_role' and not coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_items_page.tenant, 'invoices.read'), false)) then
     raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
   end if;
   select count(*) into v_total from "better_supabase"."invoice_open_items" e
   where e."org_id" = open_items_page.tenant
     and e."balance" <> 0
+    and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
     and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
     and (open_items_page.side is null or e."side" = open_items_page.side);
   select coalesce(jsonb_agg(row_to_json(p)), '[]'::jsonb) into v_rows from (
@@ -28174,6 +29151,7 @@ begin
     from "better_supabase"."invoice_open_items" e
     where e."org_id" = open_items_page.tenant
       and e."balance" <> 0
+      and (e."document_type" = 'unallocated_payment' or e."issued_on" <= current_date)
       and (open_items_page.party_id is null or e."party_id" = open_items_page.party_id)
       and (open_items_page.side is null or e."side" = open_items_page.side)
     order by e."due_on" nulls last, e."document_id"
@@ -28220,36 +29198,19 @@ begin
             'currency', e."currency", 'issuedOn', e."issued_on", 'dueOn', e."due_on",
             'amount', e."gross"::text, 'balance', e."balance"::text,
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
-            'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
-              when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            'bucket', case when e."document_type" = 'unallocated_payment' then 'unallocated'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 0 then 'current'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 30 then 'days1To30' when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 60 then 'days31To60'
+              when case when e."due_on" is null then 0 else v_as_of - e."due_on" end <= 90 then 'days61To90' else 'over90' end)
             || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "better_supabase"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "better_supabase"."invoice_open_items" e
         left join "better_supabase"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."org_id" = open_items_for_party.tenant
           and e."balance" <> 0
+          and (e."document_type" = 'unallocated_payment' or e."issued_on" <= v_as_of)
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)
           and (open_items_for_party.side is null or e."side" = open_items_for_party.side)
-        union all
-        
-        select jsonb_build_object(
-            'side', 'customer', 'partyId', a."holder_id", 'documentType', 'unallocated_payment', 'documentId', a."id",
-            'currency', a."unit"::text, 'issuedOn', null, 'dueOn', null,
-            'amount', (-c.amount)::text, 'balance', (-c.amount)::text,
-            'daysOverdue', 0, 'bucket', 'unallocated') as item,
-          'customer'::text as ord_side, a."holder_id" as ord_party, null::date as ord_due, a."id" as ord_document
-        from "better_supabase"."ledger_accounts" a
-        cross join lateral (
-          select coalesce(-sum(e."amount"), 0)::bigint as amount from "better_supabase"."ledger_entries" e
-          join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
-          where e."account_id" = a."id" and (y."effective_at" at time zone 'UTC')::date <= v_as_of
-        ) c
-        where a."org_id" = open_items_for_party.tenant and a."managed_by" = 'invoices'
-          and a."holder_type" = 'invoice_party'
-          and (open_items_for_party.party_id is null or a."holder_id" = open_items_for_party.party_id)
-          and (open_items_for_party.side is null or open_items_for_party.side = 'customer')
-          and c.amount > 0
       ) s
     ), '[]'::jsonb);
   end if;
@@ -29484,13 +30445,20 @@ create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block-data invoices
--- @bsb-hash sha256:d19b11c884bd81b40f1d9c8429a45b7091ac097304bbdaeaa86bfcf562ccd146
+-- @bsb-hash sha256:bd8cb69677623c1078117e1da3c96a6fea606dd0db7ca5770414721fbc7ebf9d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+-- Open items store v4: rows for unallocated payments and future issue dates.
+select "better_supabase"."rebuild_open_items_of"(x.tenant) from (
+  select "org_id" as tenant from "better_supabase"."invoices"
+  union
+  select "org_id" from "better_supabase"."ledger_accounts" where "managed_by" = 'invoices' and "holder_type" = 'invoice_party'
+) x;
+
 insert into better_supabase.blocks (name, version, mode)
-values ('invoices', 3, 'managed')
+values ('invoices', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

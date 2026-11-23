@@ -313,25 +313,6 @@ function openItemsSql(
     ? "x.legal_entity_id"
     : "null::uuid";
 
-  const unallocatedToday = `
-        select jsonb_build_object(
-            'side', 'customer', 'partyId', a.${la("holderId")}, 'documentType', 'unallocated_payment', 'documentId', a.${la("id")},
-            'currency', a.${la("unit")}::text, 'issuedOn', null, 'dueOn', null,
-            'amount', (-c.amount)::text, 'balance', (-c.amount)::text,
-            'daysOverdue', 0, 'bucket', 'unallocated') as item,
-          'customer'::text as ord_side, a.${la("holderId")} as ord_party, null::date as ord_due, a.${la("id")} as ord_document
-        from ${accounts} a
-        cross join lateral (
-          select coalesce(-sum(e.${le("amount")}), 0)::bigint as amount from ${entries} e
-          join ${transactions} y on y.${tx("id")} = e.${le("transaction")}
-          where e.${le("account")} = a.${la("id")} and (y.${tx("effectiveAt")} at time zone 'UTC')::date <= v_as_of
-        ) c
-        where a.${la("tenant")} = open_items_for_party.tenant and a.${la("managedBy")} = 'invoices'
-          and a.${la("holderType")} = 'invoice_party'
-          and (open_items_for_party.party_id is null or a.${la("holderId")} = open_items_for_party.party_id)
-          and (open_items_for_party.side is null or open_items_for_party.side = 'customer')
-          and c.amount > 0`;
-
   const result = (reference: string): string => `jsonb_build_object(
       'reference', ${reference},
       'currency', (select min(x.${i("currency")}::text) from ${t("invoices")} x join ${allocations} b on b.${al("invoice")} = x.${i("id")} where b.${al("tenant")} = v_tenant and b.${al("reference")} = ${reference}),
@@ -359,6 +340,25 @@ ${openItemsStoreSql(ctx, {
       "paid",
       ...(ctx.flag("creditedStatus", false) ? ["credited"] : []),
     ]),
+  watched: [...partyColumns(ctx), ...(sales ? ["direction"] : [])],
+  ...(ctx.hasTable("charges")
+    ? {
+        charges: {
+          table: t("charges"),
+          invoice: ctx.col("charges", "invoice"),
+        },
+      }
+    : {}),
+  credit: {
+    accounts,
+    balances: ledger.table("balances"),
+    entries,
+    transactions,
+    la,
+    lb: (column) => ledger.col("balances", column),
+    le,
+    tx,
+  },
 })}
 -- Everything a party still owes or is owed on an invoice date: open invoices
 -- and bills with their balance as of the day (payments dated later don't
@@ -382,7 +382,7 @@ begin
   if open_items_for_party.side is not null and open_items_for_party.side not in ('customer', 'supplier') then
     ${fail("INVOICE_OPEN_ITEMS_INVALID", "side is customer or supplier", "22023")}
   end if;
-  ${storedOpenItemsSql(ctx, unallocatedToday, {
+  ${storedOpenItemsSql(ctx, {
     table: t("invoices"),
     id: i("id"),
     fields: (alias) =>
