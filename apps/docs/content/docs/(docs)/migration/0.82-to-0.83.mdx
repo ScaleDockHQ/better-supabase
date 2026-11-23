@@ -45,17 +45,17 @@ reported these config lines per top-level key of `better-supabase.config.ts`.
 
 | Section       | Before | After |
 | ------------- | -----: | ----: |
-| `blocks`      |   2931 |  2673 |
+| `blocks`      |   2931 |  2614 |
 | preamble      |    239 |   239 |
 | `recordTypes` |    225 |   225 |
 | `database`    |    174 |   104 |
 | `gen`         |     54 |    20 |
 | `auth`        |     27 |    27 |
 | `tooling`     |      7 |     7 |
-| **Total**     |   3657 |  3295 |
+| **Total**     |   3657 |  3236 |
 
-The target of 2500 lines is not met: 795 lines remain over it, 2673 of them in `blocks`, led by
-`memberships` (274), `calendar` (126), `invoices` (115), `audit` (112) and `data-lifecycle` (105). The 564
+The target of 2500 lines is not met: 737 lines remain over it, 2614 of them in `blocks`, led by
+`memberships` (215), `calendar` (126), `invoices` (115), `audit` (112) and `data-lifecycle` (105). The 564
 entries that stay each state a fact the SQL does not hold.
 
 | Kept entries | Reason                                                          |
