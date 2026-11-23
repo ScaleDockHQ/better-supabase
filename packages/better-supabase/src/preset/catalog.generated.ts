@@ -28,9 +28,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "permissions",
         "organizations",
-        "data-lifecycle"
+        "data-lifecycle",
+        "housekeeping"
       ],
-      "manifest": "audit"
+      "manifest": "audit",
+      "contributes": [
+        "housekeeping"
+      ]
     },
     {
       "name": "memberships",

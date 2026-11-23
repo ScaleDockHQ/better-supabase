@@ -1,3 +1,4 @@
+import type { BlockSqlContractFunction } from "../context.ts";
 import type { BatchArgument } from "../shared.ts";
 
 /** `audit_event`'s argument types. */
@@ -45,4 +46,34 @@ export const PREVIOUS_EVENT_ARGS = (id: string): readonly string[] => [
 export const PREVIOUS_TRUSTED_ARGS = (id: string): readonly string[] => [
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text`,
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text`,
+];
+
+/** The audit functions other modules and the TypeScript side call. */
+export const AUDIT_CONTRACT: readonly BlockSqlContractFunction[] = [
+  {
+    name: "audit",
+    args: [
+      "regclass",
+      "text[]",
+      "boolean",
+      "text[]",
+      "text",
+      "text",
+      "text",
+      "text",
+      "text",
+    ],
+    returns: "void",
+  },
+  {
+    name: "audit_event",
+    args: EVENT_ARGS("{id}").split(", "),
+    returns: "text",
+  },
+  { name: "audit_event_many", args: ["jsonb"], returns: "jsonb" },
+  {
+    name: "purge_audit_log",
+    args: ["interval", "integer", "{id}", "boolean"],
+    returns: "integer",
+  },
 ];

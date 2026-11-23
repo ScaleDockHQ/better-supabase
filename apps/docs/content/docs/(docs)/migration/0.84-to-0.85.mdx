@@ -19,6 +19,7 @@ writes the trigger, function and table changes below.
 | [Search source views](#search-source-views)       | Add `search.columns` to every record type with `search.from`           |
 | [Import chunks](#import-chunks)                   | Finish a run only when every chunk is done; read `result`, not `items` |
 | [Open items](#open-items)                         | Filter `invoice_open_items` on `document_type` if you query it         |
+| [Audit retention](#audit-retention)               | Optional: set `retention` so `maintenance()` purges the log            |
 
 ## Provider fields
 
@@ -105,3 +106,11 @@ your own on `invoice_open_items` that expects only invoices adds
 `where document_type = 'invoice'`. `open_items_drift(tenant)` lists rows that
 differ from the fold, `import_integrity` reports them as `open_items_drift`,
 and doctor rule BS638 names the organizations to run `rebuild_open_items` for.
+
+## Audit retention
+
+Nothing changes until you set `blocks.audit.options.retention`. With
+`{ keep: "1 year" }`, the audit block installs `housekeeping`, and
+`maintenance()` purges entries past a year every hour. If you scheduled
+`purge_audit_log` yourself, remove that job once `maintenance()` runs, or keep
+it and leave `retention` unset. See [Retention](/docs/blocks/audit#retention).

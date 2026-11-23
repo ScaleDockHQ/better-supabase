@@ -16,6 +16,21 @@ export type AuditExemption =
     }
   | { readonly class: "no-tenant-column"; readonly reason: string };
 
+/** `blocks.audit.options.retention`. */
+export interface AuditRetentionOptions {
+  /** An interval such as `"90 days"` or `"1 year"`. */
+  readonly keep: string;
+  /**
+   * What happens to expired entries: `delete` (default) deletes them in batches
+   * and drops whole months of a partitioned log; `detach` detaches a whole
+   * month of a partitioned log the block owns and leaves the table for the app
+   * to archive.
+   */
+  readonly onExpire?: "delete" | "detach";
+  /** Entries deleted per maintenance run. Defaults to 10,000. */
+  readonly batch?: number;
+}
+
 export interface AuditIpHeader {
   /** The request header that carries the client address. */
   readonly name: string;
@@ -71,6 +86,11 @@ export type AuditSqlOptions = {
   readonly readPolicy?: boolean;
   readonly requestIdHeader?: string;
   readonly restricted?: boolean;
+  /**
+   * How long entries stay. Unset keeps every entry. With it set, the
+   * `audit_retention` job of `maintenance()` purges them.
+   */
+  readonly retention?: AuditRetentionOptions;
   /** A dotted JWT claim path; a caller that carries it is recorded as `staff`. */
   readonly staffClaim?: string;
   /** Indexed columns generated from a key of the row or event metadata. */
@@ -100,6 +120,7 @@ export const auditSqlOptions: BlockOptionsSchema<AuditSqlOptions> =
     readPolicy: option.boolean({ default: false }),
     requestIdHeader: option.string({ default: "x-request-id" }),
     restricted: option.boolean({ default: false }),
+    retention: option.unknown(),
     staffClaim: option.string(),
     subjectColumns: option.unknown(),
     tenantColumn: option.string(),

@@ -61,7 +61,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "integrates": [
         "permissions",
         "organizations",
-        "data-lifecycle"
+        "data-lifecycle",
+        "housekeeping"
       ],
       "modes": [
         "managed"

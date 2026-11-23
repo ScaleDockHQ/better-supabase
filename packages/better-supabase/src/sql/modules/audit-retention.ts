@@ -1,7 +1,114 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import { partitionedOn } from "./audit-chain.ts";
+
+/** `blocks.audit.options.retention`, checked. */
+export interface AuditRetention {
+  readonly keep: string;
+  readonly onExpire: "delete" | "detach";
+  readonly batch: number;
+}
+
+const KEEP = /^[1-9]\d* (?:days?|weeks?|months?|years?)$/u;
+
+/**
+ * `blocks.audit.options.retention`: how long entries stay, and what happens to
+ * a month past it. Unset keeps every entry.
+ */
+export function auditRetention(
+  ctx: BlockSqlContext,
+): AuditRetention | undefined {
+  const raw = ctx.option("retention");
+  const where = "blocks.audit.options.retention";
+
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(raw) || typeof raw["keep"] !== "string") {
+    throw new TypeError(`${where} must be { keep: "1 year", onExpire }`);
+  }
+
+  const keep = raw["keep"].trim();
+
+  if (!KEEP.test(keep)) {
+    throw new TypeError(
+      `${where}.keep must be an interval such as "90 days" or "1 year" (got "${keep}")`,
+    );
+  }
+
+  const onExpire = raw["onExpire"] ?? "delete";
+
+  if (onExpire !== "delete" && onExpire !== "detach") {
+    throw new TypeError(`${where}.onExpire must be "delete" or "detach"`);
+  }
+
+  if (onExpire === "detach" && !partitionedOn(ctx)) {
+    throw new TypeError(
+      `${where}.onExpire "detach" needs a log the block owns with options.partitioned; an adopted or unpartitioned log uses "delete"`,
+    );
+  }
+
+  const batch = raw["batch"] ?? 10_000;
+
+  if (typeof batch !== "number" || !Number.isInteger(batch) || batch < 1) {
+    throw new TypeError(`${where}.batch must be a positive integer`);
+  }
+
+  return { keep, onExpire, batch };
+}
+
+/**
+ * `audit_retention_run()`, the `audit_retention` maintenance job: with
+ * `detach`, it detaches each month wholly past `keep` and leaves the table for
+ * the app to archive; then it deletes up to `batch` older entries through
+ * `purge_audit_log` and, on a partitioned log, creates the coming months.
+ */
+export function retentionJob(ctx: BlockSqlContext): string {
+  const options = auditRetention(ctx);
+
+  if (options === undefined) {
+    return "";
+  }
+
+  const log = ctx.table("log");
+  const keep = `interval ${sqlString(options.keep)}`;
+  const partitioned = partitionedOn(ctx);
+
+  const detach =
+    options.onExpire === "detach"
+      ? `
+  for v_part in
+    select p from better_supabase.expired_partitions(${sqlString(log)}::regclass, ${ctx.cutoff("audit", keep)}) p
+  loop
+    execute format('alter table %s detach partition %s', ${sqlString(log)}, v_part);
+    v_detached := v_detached + 1;
+  end loop;`
+      : "";
+
+  return `-- The audit_retention maintenance job (blocks.audit.options.retention):
+-- entries older than ${options.keep} go${options.onExpire === "detach" ? ", and a month wholly past it is detached as its own table" : ""}.
+create or replace function better_supabase.audit_retention_run()
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_detached integer := 0;
+  v_created integer := 0;
+  v_purged integer;${options.onExpire === "detach" ? "\n  v_part regclass;" : ""}
+begin${detach}
+  v_purged := better_supabase.purge_audit_log(${keep}, ${String(options.batch)});${partitioned ? "\n  v_created := better_supabase.maintain_partitions();" : ""}
+  return jsonb_build_object('purged', v_purged, 'detached', v_detached, 'partitionsCreated', v_created);
+end;
+$$;
+revoke execute on function better_supabase.audit_retention_run() from public, anon, authenticated;
+grant execute on function better_supabase.audit_retention_run() to service_role;`;
+}
 
 /**
  * `purge_audit_log`, which honours an `audit_retention(tenant)` hook, and
@@ -148,4 +255,29 @@ as $$
 $$;
 revoke execute on function better_supabase.audit_events_tenants(interval) from public, anon, authenticated;
 grant execute on function better_supabase.audit_events_tenants(interval) to service_role;`;
+}
+
+/**
+ * `housekeeping` runs the retention job, so the block needs it once retention
+ * is set.
+ */
+export function retentionDependencies(layout: BlockSqlLayout): string[] {
+  return layout.modules?.["audit"]?.options?.["retention"] === undefined
+    ? []
+    : ["housekeeping"];
+}
+
+/** The `audit_retention` job the block adds to `maintenance()`. */
+export function retentionHousekeeping(
+  own: BlockSqlContext,
+): { job: string; function: string; every: string }[] {
+  return own.manages && auditRetention(own) !== undefined
+    ? [
+        {
+          job: "audit_retention",
+          function: "better_supabase.audit_retention_run",
+          every: "1 hour",
+        },
+      ]
+    : [];
 }

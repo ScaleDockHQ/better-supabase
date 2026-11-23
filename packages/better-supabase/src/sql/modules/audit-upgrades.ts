@@ -122,4 +122,10 @@ export const AUDIT_UPGRADES: readonly BlockSqlUpgrade[] = [
       "Entries keep a translation key and its values next to the English summary: summary_key and summary_params on the log (managed tables; adopted ones map the columns they have), audit_event() takes them, and block actions write their event type as the key.",
     sql: () => "",
   },
+  {
+    from: 15,
+    description:
+      "options.retention ({ keep, onExpire }) adds the audit_retention job to maintenance(): it deletes entries past keep through purge_audit_log, detaches whole months of a partitioned log with onExpire 'detach', and creates the coming partitions.",
+    sql: () => "",
+  },
 ];

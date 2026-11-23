@@ -1863,7 +1863,9 @@ grows with every audited write until something calls
 `better_supabase.purge_audit_log()`. Schedule it nightly with pg_cron or call
 `purgeAuditLog` from the jobs drain route. Doctor accepts a call in the schema
 files, the seeds, the app sources or a pg_cron job (it reads `cron.job` when it
-has a database), and skips projects without an audit table.
+has a database), and skips projects without an audit table. With
+`blocks.audit.options.retention` set, the `audit_retention` job of
+`maintenance()` purges the log and the rule stops.
 
 ### BS390
 
@@ -3059,6 +3061,16 @@ entries add up to. Doctor calls `open_items_drift_rows` for each organization
 with stored rows or invoices and lists the ones that differ. Run
 `select better_supabase.rebuild_open_items('<organization id>')` for each.
 Needs a database; saved snapshots skip it.
+
+### BS639
+
+**Info: tables left out of the audit log.** One finding per table that BS315
+skips because `blocks.audit.options.exempt` or an `@bsb audit-exempt` tag names
+it, with the reason and the time of the table's last entry in
+`better_supabase.audit_events`, or `never`. A table that had entries before its
+exemption shows when they stopped. The JSON report carries the same rows, one
+finding each. Review the list when a table's purpose changes. Needs a database;
+saved snapshots skip it.
 
 ### BS633
 
