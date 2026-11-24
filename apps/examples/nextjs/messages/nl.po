@@ -26306,6 +26306,21 @@ msgctxt "records.UbuYqd"
 msgid "{minutes} min before"
 msgstr "{minutes} min ervoor"
 
+#: src/features/records/components/record-tasks.tsx
+msgctxt "records.yhU1et"
+msgid "Tasks"
+msgstr ""
+
+#: src/features/records/components/record-tasks.tsx
+msgctxt "records.kXx2XK"
+msgid "Work linked to this record."
+msgstr ""
+
+#: src/features/records/components/record-tasks.tsx
+msgctxt "records.rNMhN-"
+msgid "No task is linked to this record."
+msgstr ""
+
 #: src/features/records/components/record-timeline.tsx
 msgctxt "records.LgbKvU"
 msgid "Comment"
