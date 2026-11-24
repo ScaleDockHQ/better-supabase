@@ -47,6 +47,7 @@ const MOVED_PLUGIN_PAGES = {
 const config = createNextConfig({
   // Served under /docs on bettersupabase.com, next to the marketing app.
   assetPrefix: "/docs",
+  experimental: { turbopackFileSystemCacheForBuild: false },
   redirects() {
     return Promise.resolve([
       { source: "/", destination: "/docs", permanent: false },
