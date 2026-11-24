@@ -72,6 +72,8 @@ export const AREAS: readonly Area[] = [
     steps: [
       { label: "Plan", route: "/manufacturing" },
       { label: "Production", route: "/production" },
+      { label: "Production orders", route: "/manufacturing/orders" },
+      { label: "Inspection register", route: "/inspections/register" },
       { label: "Inspections", route: "/inspections" },
       { label: "Risks", route: "/risks" },
       { label: "Qualifications", route: "/qualifications" },

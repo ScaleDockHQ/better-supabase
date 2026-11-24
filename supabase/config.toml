@@ -32,6 +32,7 @@ sql_paths = [
   "./seeds/finance-demo.sql",
   "./seeds/areas-12-13.sql",
 ]
+sql_paths = ["./seed.sql", "./seeds/example.sql", "./seeds/finance-demo.sql", "./seeds/area-stories.sql"]
 
 [realtime]
 enabled = true
