@@ -2,6 +2,7 @@ import { formatMoney } from "better-supabase/commerce";
 import { BriefcaseBusinessIcon, ClockIcon, GaugeIcon } from "lucide-react";
 import { getExtracted, getFormatter, getLocale } from "next-intl/server";
 
+import { IntentLink } from "@/components/intent-link";
 import { KpiBand, KpiBandSkeleton } from "@/components/record-list/kpi-band";
 import {
   Card,
@@ -19,7 +20,6 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requirePermission } from "@/features/sales/components/overview-support";
-import { Link } from "@/i18n/navigation";
 
 import { loadPortfolio } from "../projects-finance";
 import { ProjectLoadError } from "./project-load-error";
@@ -116,12 +116,12 @@ export async function ProjectPortfolio() {
                   key={row.id}
                   className="flex items-center justify-between gap-3 py-2"
                 >
-                  <Link
+                  <IntentLink
                     href={`/projects/${row.id}`}
                     className="truncate text-sm font-medium hover:underline"
                   >
                     {row.name}
-                  </Link>
+                  </IntentLink>
                   <span className="text-sm text-muted-foreground tabular-nums">
                     {t("{hours} h tracked, {billable} h billable", {
                       hours: hours(row.hours),

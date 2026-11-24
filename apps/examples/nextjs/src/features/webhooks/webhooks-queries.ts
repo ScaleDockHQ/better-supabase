@@ -67,7 +67,7 @@ export async function loadWebhooks(): Promise<WebhooksOverview | null> {
     sql.queryRaw<EndpointRecord>(
       `select id, name, url, enabled, event_types, first_failed_at, disabled_reason, created_at
        from better_supabase.webhook_endpoints
-       where organization_id = $1
+       where tenant_id = $1
        order by created_at desc`,
       [tenant],
     ),
@@ -76,7 +76,7 @@ export async function loadWebhooks(): Promise<WebhooksOverview | null> {
               d.response_status, d.last_error, d.created_at
        from better_supabase.webhook_deliveries d
        join better_supabase.webhook_endpoints e on e.id = d.endpoint_id
-       where d.organization_id = $1
+       where d.tenant_id = $1
        order by d.created_at desc
        limit 20`,
       [tenant],
@@ -142,7 +142,7 @@ export async function loadWebhook(
     sql.queryRaw<EndpointRecord>(
       `select id, name, url, enabled, event_types, first_failed_at, disabled_reason, created_at
        from better_supabase.webhook_endpoints
-       where organization_id = $1 and id = $2`,
+       where tenant_id = $1 and id = $2`,
       [tenant, id],
     ),
     sql.queryRaw<DeliveryRecord>(
@@ -150,7 +150,7 @@ export async function loadWebhook(
               d.response_status, d.last_error, d.created_at
        from better_supabase.webhook_deliveries d
        join better_supabase.webhook_endpoints e on e.id = d.endpoint_id
-       where d.organization_id = $1 and d.endpoint_id = $2
+       where d.tenant_id = $1 and d.endpoint_id = $2
        order by d.created_at desc
        limit 50`,
       [tenant, id],

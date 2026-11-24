@@ -18,8 +18,12 @@ test("the sales hub shows its KPI band and opens the deals from it", async ({
 }) => {
   await page.goto("/crm");
 
-  await expect(page.getByRole("main").getByTestId("kpi-band")).toBeVisible();
-  await expect(page.getByText("Closing soonest")).toBeVisible();
+  await expect(
+    page.getByRole("main").getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Closing soonest").filter({ visible: true }),
+  ).toBeVisible();
 
   const link = page.getByRole("link", { name: /Open deals/ });
 
@@ -99,7 +103,9 @@ test("a contract opens with its status path and its record sections", async ({
   await expect(
     page.getByRole("list", { name: "Contract status" }),
   ).toBeVisible();
-  await expect(page.getByText("Obligations", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Obligations", { exact: true }).filter({ visible: true }),
+  ).toBeVisible();
 });
 
 test("an area hub opens instantly from the areas page and shows its figures", async ({
@@ -117,5 +123,7 @@ test("an area hub opens instantly from the areas page and shows its figures", as
     visible: [page.getByRole("link", { name: "All areas" })],
   });
 
-  await expect(page.getByRole("main").getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    page.getByRole("main").getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
 });

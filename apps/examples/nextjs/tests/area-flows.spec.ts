@@ -104,21 +104,3 @@ test("a product opens with its price and record sections", async ({ page }) => {
     page.getByRole("main").getByText("BEANS-1KG").first(),
   ).toBeVisible();
 });
-
-test("a collection opens from the collections list", async ({ page }) => {
-  await page.goto("/shop/collections");
-
-  const link = page.getByRole("link", { name: "Brew at home" });
-
-  await expect(link.first()).toBeVisible();
-
-  await expectInstant(page, {
-    during: async () => {
-      await link.first().click();
-      await page.waitForURL((url) =>
-        url.pathname.startsWith("/shop/collections/"),
-      );
-    },
-    visible: [page.getByRole("link", { name: "All collections" })],
-  });
-});

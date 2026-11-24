@@ -19,8 +19,12 @@ test("the members page shows the seat figures and the seat-checked invite", asyn
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
-  await expect(main.getByText("Seats left")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    main.getByText("Seats left").filter({ visible: true }),
+  ).toBeVisible();
   await expect(
     main.getByRole("button", { name: "Invite within seats" }),
   ).toBeVisible();
@@ -47,7 +51,9 @@ test("an API key opens instantly and rotates with a grace period", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByText("Scopes")).toBeVisible();
+  await expect(
+    main.getByText("Scopes").filter({ visible: true }),
+  ).toBeVisible();
 
   await main.getByRole("button", { name: /Rotate, keep the old key/ }).click();
   await expect(main.getByTestId("rotated-token")).toBeVisible();
@@ -77,7 +83,9 @@ test("a webhook endpoint opens instantly with its deliveries", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
   await expect(main.getByTestId("webhook-detail-deliveries")).toBeVisible();
 });
 
@@ -85,7 +93,9 @@ test("a webhook endpoint opens instantly with its deliveries", async ({
 for (const path of ["/settings/api-keys", "/settings/webhooks"]) {
   test(`${path} shows its KPI band`, async ({ page }) => {
     await page.goto(path);
-    await expect(page.getByRole("main").getByTestId("kpi-band")).toBeVisible();
+    await expect(
+      page.getByRole("main").getByTestId("kpi-band").filter({ visible: true }),
+    ).toBeVisible();
   });
 }
 
@@ -108,8 +118,12 @@ test("a role opens instantly with its permission matrix", async ({ page }) => {
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
-  await expect(main.getByText("Permission matrix")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    main.getByText("Permission matrix").filter({ visible: true }),
+  ).toBeVisible();
 });
 
 test("a member opens instantly with the seat view", async ({ page }) => {
@@ -134,8 +148,12 @@ test("a member opens instantly with the seat view", async ({ page }) => {
 
   const main = page.getByRole("main");
 
-  await expect(main.getByText("Seats used")).toBeVisible();
-  await expect(main.getByText("Seats left")).toBeVisible();
+  await expect(
+    main.getByTestId("member-detail").getByText("Seats used"),
+  ).toBeVisible();
+  await expect(
+    main.getByText("Seats left").filter({ visible: true }),
+  ).toBeVisible();
 });
 
 // oxlint-disable-next-line vitest/prefer-each -- Playwright has no test.each (1 finding)

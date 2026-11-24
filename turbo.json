@@ -302,6 +302,7 @@
         "supabase/seed.sql",
         "supabase/seeds/example.sql",
         "supabase/seeds/finance-demo.sql",
+        "supabase/seeds/areas-12-13.sql",
         "supabase/seeds/area-stories.sql",
         "supabase/tests/**",
         "tests/**"

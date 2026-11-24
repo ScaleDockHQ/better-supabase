@@ -52,15 +52,19 @@ test("an agent opens instantly, then its runs, approvals and guardrail hits stre
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
 
-  await main.getByRole("link", { name: "Runs" }).click();
+  await main.locator('a[href*="tab=runs"]').click();
   await expect(
     main.getByText("The renewal tool timed out").or(main.getByText("failed")),
   ).toBeVisible();
 
-  await main.getByRole("link", { name: "Approvals" }).click();
-  await expect(main.getByText("requestDiscountApproval")).toBeVisible();
+  await main.locator('a[href*="tab=approvals"]').click();
+  await expect(
+    main.getByText("requestDiscountApproval").filter({ visible: true }),
+  ).toBeVisible();
   await expect(
     main.getByRole("button", { name: "Approve" }).first(),
   ).toBeVisible();
@@ -82,7 +86,7 @@ test("an approval is decided from the agent page without the model", async ({
 
   const main = page.getByRole("main");
 
-  await main.getByRole("link", { name: "Approvals" }).click();
+  await main.locator('a[href*="tab=approvals"]').click();
 
   const row = main.getByRole("row", { name: /waiveSetupFee/ });
 
@@ -112,9 +116,14 @@ test("an eval run opens instantly with its scores and results", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
   await expect(
-    main.getByText("When does the Globex contract renew?"),
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    main
+      .getByText("When does the Globex contract renew?")
+      .filter({ visible: true })
+      .first(),
   ).toBeVisible();
 });
 
@@ -124,7 +133,7 @@ test("a workflow definition opens instantly with its progress and runs", async (
   const name = `Detail story ${Date.now()}`;
 
   await page.goto("/workflows");
-  await page.getByLabel("Workflow name").fill(name);
+  await page.getByLabel("Workflow name").filter({ visible: true }).fill(name);
   await page.getByRole("button", { name: "New workflow" }).click();
   await page.waitForURL((url) =>
     url.pathname.startsWith("/workflows/builder/"),
@@ -147,8 +156,12 @@ test("a workflow definition opens instantly with its progress and runs", async (
 
   const main = page.getByRole("main");
 
-  await expect(main.getByRole("heading", { name })).toBeVisible();
-  await expect(main.getByText("Progress")).toBeVisible();
+  await expect(
+    main.getByRole("heading", { name }).filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    main.getByText("Progress", { exact: true }).filter({ visible: true }),
+  ).toBeVisible();
   await expect(
     main.getByRole("link", { name: "Open in the builder" }),
   ).toBeVisible();
@@ -162,6 +175,8 @@ for (const path of [
 ]) {
   test(`${path} streams its KPI band behind the header`, async ({ page }) => {
     await page.goto(path);
-    await expect(page.getByRole("main").getByTestId("kpi-band")).toBeVisible();
+    await expect(
+      page.getByRole("main").getByTestId("kpi-band").filter({ visible: true }),
+    ).toBeVisible();
   });
 }

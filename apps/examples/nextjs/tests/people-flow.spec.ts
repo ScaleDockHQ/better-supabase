@@ -26,7 +26,9 @@ test("the application table shows its KPI band and the seeded openings", async (
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
   await expect(main.getByText("Support agent").first()).toBeVisible();
   await expect(main.getByText("Account executive").first()).toBeVisible();
 });
@@ -52,9 +54,13 @@ test("an application opens with its stage path, then its sections stream in", as
   });
 
   await expect(
-    main.getByRole("list", { name: "Application stage" }),
+    main
+      .filter({ visible: true })
+      .getByRole("list", { name: "Application stage" }),
   ).toBeVisible();
-  await expect(main.getByText("Interviews")).toBeVisible();
+  await expect(
+    main.getByText("Interviews").filter({ visible: true }),
+  ).toBeVisible();
 });
 
 test("the people board groups the employees by status", async ({ page }) => {
@@ -62,7 +68,9 @@ test("the people board groups the employees by status", async ({ page }) => {
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
   await expect(main.getByText("Active").first()).toBeVisible();
   await expect(main.getByRole("link", { name: "Max Member" })).toBeVisible();
 });
@@ -86,7 +94,9 @@ test("an employee opens with its tabs, then the onboarding checklist and leave b
 
   const main = page.getByRole("main");
 
-  await expect(main.getByText("Leave balance")).toBeVisible();
+  await expect(
+    main.getByText("Leave balance", { exact: true }).filter({ visible: true }),
+  ).toBeVisible();
 
   await main.getByRole("link", { name: "Onboarding" }).click();
   await page.waitForURL((url) => url.searchParams.get("tab") === "onboarding");
@@ -103,7 +113,9 @@ test("the course lists its enrollments with the assign action", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
 
   const link = main.getByRole("link", { name: "Security basics" });
 
@@ -120,16 +132,24 @@ test("the course lists its enrollments with the assign action", async ({
   await main.getByRole("link", { name: "Enrollments" }).click();
   await page.waitForURL((url) => url.searchParams.get("tab") === "enrollments");
 
-  await expect(main.getByText("Who takes this course")).toBeVisible();
-  await expect(main.getByText("Max Member")).toBeVisible();
+  await expect(
+    main.getByText("Who takes this course").filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    main.getByText("Max Member").filter({ visible: true }),
+  ).toBeVisible();
 });
 
 test("the shift and leave overviews show their KPI band", async ({ page }) => {
   await page.goto("/shifts?view=table");
-  await expect(page.getByRole("main").getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    page.getByRole("main").getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
 
   await page.goto("/people/leave");
-  await expect(page.getByRole("main").getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    page.getByRole("main").getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
 });
 
 // Keep this test last: it hires the first open application, so a second run

@@ -20,7 +20,9 @@ test("the care plan list opens a plan with its dossier link", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
 
   const link = main.getByRole("link", { name: "Mobility and pain plan" });
 
@@ -31,9 +33,10 @@ test("the care plan list opens a plan with its dossier link", async ({
       await link.click();
       await page.waitForURL((url) => url.pathname.startsWith("/care-plans/"));
     },
-    visible: [page.getByRole("link", { name: "Open dossier" })],
+    visible: [page.getByRole("link", { name: "All care plans" })],
   });
 
+  await expect(page.getByRole("link", { name: "Open dossier" })).toBeVisible();
   await expect(
     page
       .getByRole("main")
@@ -48,11 +51,13 @@ test("the prescription list opens the draft with its status", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
 
   const link = main
     .getByRole("link")
-    .filter({ hasText: /Paracetamol/ })
+    .filter({ hasText: /Paracetamol|Draft prescription/ })
     .first();
 
   await expect(link).toBeVisible();
@@ -64,7 +69,7 @@ test("the prescription list opens the draft with its status", async ({
         url.pathname.startsWith("/prescriptions/"),
       );
     },
-    visible: [page.getByRole("link", { name: "Open dossier" })],
+    visible: [page.getByRole("link", { name: "All prescriptions" })],
   });
 
   await expect(page.getByRole("main").getByText("Draft").first()).toBeVisible();
@@ -80,11 +85,13 @@ test("the dossier shows its counts and refuses a prescription without consent", 
     .click();
   await page.waitForURL((url) => url.pathname.startsWith("/care/"));
 
-  await expect(page.getByRole("main").getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    page.getByRole("main").getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
 
   await page.getByRole("tab", { name: "Medication" }).click();
   await page.getByRole("button", { name: "Prescribe" }).first().click();
-  await page.getByLabel("Medication").click();
+  await page.getByRole("combobox", { name: "Medication" }).click();
   await page.getByRole("option", { name: /Paracetamol/ }).click();
   await page.getByLabel("Dose").fill("500");
   await page.getByRole("button", { name: "Prescribe" }).last().click();

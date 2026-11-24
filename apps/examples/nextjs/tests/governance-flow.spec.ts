@@ -61,7 +61,9 @@ test("the vulnerability list shows its KPI band and opens a record", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
 
   const link = main.getByRole("link", { name: "CVE-2026-31001" });
 

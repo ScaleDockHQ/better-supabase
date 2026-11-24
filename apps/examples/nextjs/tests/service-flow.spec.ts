@@ -26,7 +26,9 @@ test("the work order table shows its KPI band and the seeded visits", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
   await expect(
     main.getByRole("link", { name: "Forklift hydraulic service" }),
   ).toBeVisible();
@@ -59,7 +61,9 @@ test("a work order opens with its visit path, then its sections stream in", asyn
   const main = page.getByRole("main");
 
   await expect(main.getByRole("list", { name: "Visit status" })).toBeVisible();
-  await expect(main.getByText("Parts used")).toBeVisible();
+  await expect(
+    main.getByText("Parts used").filter({ visible: true }),
+  ).toBeVisible();
 });
 
 test("the shipment table opens a parcel with its tracking timeline", async ({
@@ -69,7 +73,9 @@ test("the shipment table opens a parcel with its tracking timeline", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
 
   const link = main.getByRole("link", { name: "SH-SEED-02" });
 
@@ -85,7 +91,9 @@ test("the shipment table opens a parcel with its tracking timeline", async ({
     visible: [page.getByRole("link", { name: "All shipments" })],
   });
 
-  await expect(main.getByText("Picked up by the carrier")).toBeVisible();
+  await expect(
+    main.getByText("Picked up by the carrier").filter({ visible: true }),
+  ).toBeVisible();
 });
 
 // Keep this test last: it completes the seeded visit, so a second run finds the
@@ -114,5 +122,7 @@ test("completing the visit records the part and marks the work order done", asyn
   }
 
   await expect(main.getByText("Done").first()).toBeVisible();
-  await expect(main.getByText("Hydraulic filter")).toBeVisible();
+  await expect(
+    main.getByText("Hydraulic filter").filter({ visible: true }),
+  ).toBeVisible();
 });

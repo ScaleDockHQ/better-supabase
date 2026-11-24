@@ -20,9 +20,15 @@ test("the content hub shows its KPI band and the seeded entries", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
-  await expect(main.getByText("Spring launch notes")).toBeVisible();
-  await expect(main.getByText("Summer roadmap")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    main.getByText("Spring launch notes").filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    main.getByText("Summer roadmap").filter({ visible: true }),
+  ).toBeVisible();
 });
 
 test("an entry opens with its status and its record sections", async ({
@@ -73,6 +79,10 @@ test("a draft is published with a version from its page", async ({ page }) => {
   await page.getByRole("button", { name: "Publish", exact: true }).click();
 
   await expect(
-    page.getByRole("main").getByText("Published").first(),
+    page
+      .getByRole("main")
+      .getByText("Published")
+      .filter({ visible: true })
+      .first(),
   ).toBeVisible();
 });

@@ -188,7 +188,7 @@ export function getAccessLog(
 export async function prepareDossierRead(
   id: string,
 ): Promise<() => Promise<void>> {
-  const { db } = await bsb.cached();
+  const { db } = await bsb.context();
 
   return async () => {
     await db.subjects.reads.log({

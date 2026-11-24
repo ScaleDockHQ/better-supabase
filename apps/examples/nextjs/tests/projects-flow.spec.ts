@@ -35,11 +35,15 @@ test("the portfolio opens instantly, then shows the figures and the projects", a
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
   await expect(
     main.getByRole("link", { name: "Warehouse automation rollout" }),
   ).toBeVisible();
-  await expect(main.getByText("12 h tracked, 10 h billable")).toBeVisible();
+  await expect(
+    main.getByText("12 h tracked, 10 h billable").filter({ visible: true }),
+  ).toBeVisible();
 });
 
 test("a project shows its tracked time against the budget", async ({
@@ -52,6 +56,8 @@ test("a project shows its tracked time against the budget", async ({
     .getByRole("link", { name: "Warehouse automation rollout" });
 
   await expect(link).toBeVisible();
+  await link.hover();
+  await page.waitForLoadState("networkidle");
 
   await expectInstant(page, {
     during: async () => {
@@ -63,6 +69,10 @@ test("a project shows its tracked time against the budget", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByText("Time and budget")).toBeVisible();
-  await expect(main.getByText("Budget left")).toBeVisible();
+  await expect(
+    main.getByText("Time and budget").filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    main.getByText("Budget left").filter({ visible: true }),
+  ).toBeVisible();
 });

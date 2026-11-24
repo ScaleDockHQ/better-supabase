@@ -26,7 +26,9 @@ test("the case table shows its KPI band and the seeded cases", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
   await expect(
     main.getByRole("link", { name: "SMP-4: Moisture out of specification" }),
   ).toBeVisible();
@@ -72,7 +74,9 @@ test("discussing a case posts the comment", async ({ page }) => {
   await dialog.getByLabel("Comment").fill("Re-test scheduled for Monday.");
   await dialog.getByRole("button", { name: "Post comment" }).click();
 
-  await expect(main.getByText("Re-test scheduled for Monday.")).toBeVisible();
+  await expect(
+    main.getByText("Re-test scheduled for Monday.").filter({ visible: true }),
+  ).toBeVisible();
 });
 
 test("opening a ticket reports it with its response clocks", async ({
@@ -89,5 +93,7 @@ test("opening a ticket reports it with its response clocks", async ({
   await dialog.getByLabel("Title").fill("Loading dock light is out");
   await dialog.getByRole("button", { name: "Open ticket" }).click();
 
-  await expect(page.getByText("Ticket opened")).toBeVisible();
+  await expect(
+    page.getByText("Ticket opened").filter({ visible: true }),
+  ).toBeVisible();
 });

@@ -75,3 +75,15 @@ insert into better_supabase.eval_results (run_id, item_id, output, scores, passe
   ('00000000-0000-4000-8000-00000a9e0022', '00000000-0000-4000-8000-00000a9e0012', 'Dana', '{"exact": {"score": 1, "passed": true}}'::jsonb, true, 350),
   ('00000000-0000-4000-8000-00000a9e0022', '00000000-0000-4000-8000-00000a9e0013', '42', '{"exact": {"score": 1, "passed": true}}'::jsonb, true, 460)
 on conflict do nothing;
+
+-- Platform story: one live API key and one webhook endpoint to open from the
+-- settings lists. The key's secret is a placeholder hash, so nothing can use it.
+insert into better_supabase.api_keys (id, tenant_id, name, prefix, public_id, secret_hash, scopes) values
+  ('00000000-0000-4000-8000-00000a9e0031', '00000000-0000-4000-8000-000000000001', 'Reporting script', 'bs',
+   '00000000000a9e31', repeat('ab', 32), array['records.read'])
+on conflict do nothing;
+
+insert into better_supabase.webhook_endpoints (id, tenant_id, name, url, event_types) values
+  ('00000000-0000-4000-8000-00000a9e0041', '00000000-0000-4000-8000-000000000001', 'Order events',
+   'https://example.com/hooks/orders', array['order.paid'])
+on conflict do nothing;
