@@ -71,3 +71,37 @@ export async function loadApiKey(
     successorId: key.successorId,
   };
 }
+
+export interface ApiKeyCounts {
+  readonly active: number;
+  readonly grace: number;
+  readonly unused: number;
+  readonly retired: number;
+}
+
+/** The counts of the keys overview; `null` without an organization. */
+export async function loadApiKeyCounts(): Promise<ApiKeyCounts | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(API_KEYS_TAG);
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
+  const { items } = await db.apiKeys
+    .keyPage({ organizationId: tenant, limit: 100 })
+    .orThrow();
+
+  const live = items.filter((key) => key.state === "active");
+
+  return {
+    active: live.length,
+    grace: items.filter((key) => key.state === "grace").length,
+    unused: live.filter((key) => key.lastUsedAt === undefined).length,
+    retired: items.filter(
+      (key) => key.state !== "active" && key.state !== "grace",
+    ).length,
+  };
+}

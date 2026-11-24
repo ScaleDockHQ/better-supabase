@@ -153,3 +153,15 @@ test("a workflow definition opens instantly with its progress and runs", async (
     main.getByRole("link", { name: "Open in the builder" }),
   ).toBeVisible();
 });
+
+// oxlint-disable-next-line vitest/prefer-each -- Playwright has no `test.each` (1 finding).
+for (const path of [
+  "/assistant/agents",
+  "/assistant/agents/runs",
+  "/assistant/agents/approvals",
+]) {
+  test(`${path} streams its KPI band behind the header`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page.getByRole("main").getByTestId("kpi-band")).toBeVisible();
+  });
+}

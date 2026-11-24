@@ -3536,6 +3536,7 @@ msgid "Delete"
 msgstr "Verwijderen"
 
 #: src/features/agents/components/agent-table.tsx
+#: src/features/agents/components/agents-kpi-band.tsx
 msgctxt "agents.V22724"
 msgid "Installed"
 msgstr "Geïnstalleerd"
@@ -3589,6 +3590,67 @@ msgstr "Begin met een draaiboek of pas de filters aan."
 msgctxt "agents.gzp6xc"
 msgid "Change the filters to see more."
 msgstr "Pas de filters aan om meer te zien."
+
+#: src/features/agents/components/agents-kpi-band.tsx
+msgctxt "agents.Q4KmmC"
+msgid "Your agents"
+msgstr "Je agents"
+
+#: src/features/agents/components/agents-kpi-band.tsx
+msgctxt "agents.kWI6zX"
+msgid "Shared"
+msgstr "Gedeeld"
+
+#: src/features/agents/components/agents-kpi-band.tsx
+msgctxt "agents.LQ7_9_"
+msgid "Tools in use"
+msgstr "Tools in gebruik"
+
+#: src/features/agents/components/agents-kpi-band.tsx
+#: src/features/agents/components/run-queue.tsx
+#: src/features/agents/components/run-state-badge.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.nDyaq_"
+msgid "Running"
+msgstr "Actief"
+
+#: src/features/agents/components/agents-kpi-band.tsx
+#: src/features/agents/components/run-queue.tsx
+#: src/features/agents/components/run-state-badge.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.vXCeIi"
+msgid "Failed"
+msgstr "Mislukt"
+
+#: src/features/agents/components/agents-kpi-band.tsx
+#: src/features/agents/components/run-queue.tsx
+#: src/features/agents/components/run-state-badge.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.95stPq"
+msgid "Completed"
+msgstr "Voltooid"
+
+#: src/features/agents/components/agents-kpi-band.tsx
+#: src/features/agents/components/run-state-badge.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.3wsVWF"
+msgid "Cancelled"
+msgstr "Geannuleerd"
+
+#: src/features/agents/components/agents-kpi-band.tsx
+msgctxt "agents.dZd8H_"
+msgid "Waiting"
+msgstr "Wachtend"
+
+#: src/features/agents/components/agents-kpi-band.tsx
+msgctxt "agents.BvfnKM"
+msgid "Tools asking"
+msgstr "Tools die vragen"
+
+#: src/features/agents/components/agents-kpi-band.tsx
+msgctxt "agents.QRVSKq"
+msgid "Chats waiting"
+msgstr "Wachtende chats"
 
 #: src/features/agents/components/approval-table.tsx
 msgctxt "agents.JwpFVh"
@@ -3820,27 +3882,6 @@ msgid "Queued"
 msgstr "In de wachtrij"
 
 #: src/features/agents/components/run-queue.tsx
-#: src/features/agents/components/run-state-badge.tsx
-#: src/features/agents/components/run-table.tsx
-msgctxt "agents.nDyaq_"
-msgid "Running"
-msgstr "Actief"
-
-#: src/features/agents/components/run-queue.tsx
-#: src/features/agents/components/run-state-badge.tsx
-#: src/features/agents/components/run-table.tsx
-msgctxt "agents.vXCeIi"
-msgid "Failed"
-msgstr "Mislukt"
-
-#: src/features/agents/components/run-queue.tsx
-#: src/features/agents/components/run-state-badge.tsx
-#: src/features/agents/components/run-table.tsx
-msgctxt "agents.95stPq"
-msgid "Completed"
-msgstr "Voltooid"
-
-#: src/features/agents/components/run-queue.tsx
 msgctxt "agents.ORbxcC"
 msgid "Counts cover the newest {count, number} runs."
 msgstr "De aantallen gelden voor de nieuwste {count, number} runs."
@@ -3849,12 +3890,6 @@ msgstr "De aantallen gelden voor de nieuwste {count, number} runs."
 msgctxt "agents.N728MF"
 msgid "Stopping"
 msgstr "Wordt gestopt"
-
-#: src/features/agents/components/run-state-badge.tsx
-#: src/features/agents/components/run-table.tsx
-msgctxt "agents.3wsVWF"
-msgid "Cancelled"
-msgstr "Geannuleerd"
 
 #: src/features/agents/components/run-state-badge.tsx
 msgctxt "agents.djZCU5"
@@ -4582,6 +4617,26 @@ msgstr "Ingetrokken"
 msgctxt "apiKeys.tnRDuU"
 msgid "Revoke"
 msgstr "Intrekken"
+
+#: src/features/api-keys/components/api-keys-kpi-band.tsx
+msgctxt "apiKeys.M-dvxw"
+msgid "Active keys"
+msgstr "Actieve sleutels"
+
+#: src/features/api-keys/components/api-keys-kpi-band.tsx
+msgctxt "apiKeys.cMIgmk"
+msgid "Rotating"
+msgstr "In rotatie"
+
+#: src/features/api-keys/components/api-keys-kpi-band.tsx
+msgctxt "apiKeys.7KMbBa"
+msgid "Never used"
+msgstr "Nooit gebruikt"
+
+#: src/features/api-keys/components/api-keys-kpi-band.tsx
+msgctxt "apiKeys.2yjlZf"
+msgid "Retired"
+msgstr "Ingetrokken"
 
 #: src/features/api-keys/components/api-keys-section.tsx
 msgctxt "apiKeys.yOFPA6"
@@ -34151,6 +34206,7 @@ msgstr "Bezig met afleveren"
 
 #: src/features/webhooks/components/webhook-detail.tsx
 #: src/features/webhooks/components/webhook-endpoints.tsx
+#: src/features/webhooks/components/webhooks-kpi-band.tsx
 msgctxt "webhooks.DMqnF4"
 msgid "Delivered"
 msgstr "Afgeleverd"
@@ -34463,6 +34519,26 @@ msgstr "Stuur een testevent naar {name} om te controleren of het events ontvangt
 msgctxt "webhooks.XCki53"
 msgid "Deliveries show up here once an endpoint is on."
 msgstr "Leveringen verschijnen hier zodra een endpoint is ingeschakeld."
+
+#: src/features/webhooks/components/webhooks-kpi-band.tsx
+msgctxt "webhooks.cQyKR1"
+msgid "Endpoints"
+msgstr "Endpoints"
+
+#: src/features/webhooks/components/webhooks-kpi-band.tsx
+msgctxt "webhooks.z-y0h2"
+msgid "Failing or off"
+msgstr "Mislukt of uit"
+
+#: src/features/webhooks/components/webhooks-kpi-band.tsx
+msgctxt "webhooks.ZMEjUl"
+msgid "Of the latest {count, number} deliveries"
+msgstr "Van de laatste {count, number} leveringen"
+
+#: src/features/webhooks/components/webhooks-kpi-band.tsx
+msgctxt "webhooks.I6G1UD"
+msgid "Retrying or dead"
+msgstr "Opnieuw of mislukt"
 
 #: src/features/work/components/bulk-action-bar.tsx
 msgctxt "work.UE_FNm"

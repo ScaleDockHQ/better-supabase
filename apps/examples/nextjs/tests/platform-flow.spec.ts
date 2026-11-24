@@ -80,3 +80,11 @@ test("a webhook endpoint opens instantly with its deliveries", async ({
   await expect(main.getByTestId("kpi-band")).toBeVisible();
   await expect(main.getByTestId("webhook-detail-deliveries")).toBeVisible();
 });
+
+// oxlint-disable-next-line vitest/prefer-each -- Playwright has no `test.each` (1 finding).
+for (const path of ["/settings/api-keys", "/settings/webhooks"]) {
+  test(`${path} shows its KPI band`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page.getByRole("main").getByTestId("kpi-band")).toBeVisible();
+  });
+}

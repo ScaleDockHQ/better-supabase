@@ -100,6 +100,48 @@ export async function getAgentPage(query: OpsListQuery): Promise<AgentPage> {
   };
 }
 
+export interface AgentCounts {
+  readonly mine: number;
+  readonly shared: number;
+  readonly installed: number;
+  readonly tools: number;
+}
+
+/**
+ * The counts of the agents overview: the caller's agents, those shared and the
+ * installed ones.
+ */
+export async function getAgentCounts(): Promise<AgentCounts> {
+  const [session, { supabase }] = await Promise.all([
+    getSession(),
+    bsbCore.context(),
+  ]);
+
+  const organizationId = tenantOf(session);
+
+  if (!organizationId) {
+    return { mine: 0, shared: 0, installed: 0, tools: 0 };
+  }
+
+  const agents = agentsBlock(supabase);
+
+  const [mine, installed] = await Promise.all([
+    agents
+      .page({ organizationId, filters: { mode: ["mine"] }, limit: 100 })
+      .orThrow(),
+    agents
+      .page({ organizationId, filters: { mode: ["installed"] }, limit: 100 })
+      .orThrow(),
+  ]);
+
+  return {
+    mine: mine.items.length,
+    shared: mine.items.filter((agent) => agent.visibility !== "private").length,
+    installed: installed.items.length,
+    tools: mine.items.reduce((sum, agent) => sum + agent.tools.length, 0),
+  };
+}
+
 export interface AgentDetail {
   readonly id: string;
   readonly slug: string;
