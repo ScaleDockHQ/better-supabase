@@ -410,8 +410,16 @@ export interface ApplicationsData {
  */
 export async function loadApplications(): Promise<ApplicationsData | null> {
   "use cache: private";
-  const { session, db } = await bsb.cached();
   cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+
+  return readApplications(await bsb.cached());
+}
+
+/** The same read for a function that already runs in a private scope. */
+async function readApplications({
+  session,
+  db,
+}: Awaited<ReturnType<typeof bsb.cached>>): Promise<ApplicationsData | null> {
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -490,10 +498,11 @@ export async function loadApplication(
   id: string,
 ): Promise<ApplicationView | "not-found" | null> {
   "use cache: private";
-  const { db } = await bsb.cached();
+  const scope = await bsb.cached();
+  const { db } = scope;
   cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
 
-  const all = await loadApplications();
+  const all = await readApplications(scope);
 
   if (all === null) {
     return null;

@@ -2,7 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { getMembers } from "@/features/organization/organization-queries";
+import { readMembers } from "@/features/organization/organization-queries";
 import { bsb } from "@/lib/supabase/server";
 
 import { COURSES_TAG } from "../courses-cache";
@@ -30,7 +30,8 @@ export async function loadCourseLearners(
   courseId: string,
 ): Promise<CourseLearnersData | null> {
   "use cache: private";
-  const { session, db } = await bsb.cached();
+  const scope = await bsb.cached();
+  const { session, db } = scope;
   cacheTag(COURSES_TAG);
   const tenant = tenantOf(session);
 
@@ -40,7 +41,7 @@ export async function loadCourseLearners(
 
   const [learners, members] = await Promise.all([
     db.courses.learners({ courseId }).orThrow(),
-    getMembers(tenant),
+    readMembers(scope, tenant),
   ]);
 
   const names = new Map(
