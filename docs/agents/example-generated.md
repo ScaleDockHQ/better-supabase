@@ -179,9 +179,9 @@ Written by `node scripts/check-example-generated.ts --write`; do not edit by han
 | records/vulnerability               | 0         |
 | records/warranty-claim              | 0         |
 | records/work-center                 | 0         |
-| server                              | 245       |
+| server                              | 251       |
 | server-api                          | 3         |
-| server-core                         | 80        |
+| server-core                         | 82        |
 | server-shell                        | 45        |
 | session-counters                    | 0         |
 | shell                               | 0         |
@@ -201,6 +201,6 @@ Written by `node scripts/check-example-generated.ts --write`; do not edit by han
 | tables/projects-view                | 0         |
 | tables/saved-views                  | 0         |
 | tables/subscriptions                | 0         |
-| tables/tags                         | 1         |
+| tables/tags                         | 2         |
 | tables/tasks                        | 4         |
 | tables/tasks-view                   | 0         |

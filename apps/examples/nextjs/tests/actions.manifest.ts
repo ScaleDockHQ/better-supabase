@@ -37,6 +37,10 @@ const SALES = "features/sales/sales-actions.ts";
 
 const COMPOSITES = "features/composites/composites-actions.ts";
 
+const AGENTS = "features/agents/agents-actions.ts";
+
+const WEBHOOKS = "features/webhooks/webhooks-actions.ts";
+
 export const ACTIONS: readonly ActionCase[] = [
   read(
     "features/organization/organization-actions.ts",
@@ -86,5 +90,25 @@ export const ACTIONS: readonly ActionCase[] = [
   ]),
   write(COMPOSITES, "reconcileAccount", "/banking/accounts", async () => [
     { accountId: await firstRowId("bank_accounts") },
+  ]),
+  write(COMPOSITES, "rotateKey", "/settings/api-keys", async () => [
+    { id: await firstRowId("api_keys"), graceHours: 24 },
+  ]),
+  write(COMPOSITES, "inviteWithinSeats", "/settings/members", async () => [
+    { email: "seat-check@acme.test", role: "member" },
+  ]),
+  write(AGENTS, "decideApprovals", "/assistant/agents", async () => [
+    {
+      decisions: [
+        {
+          chatId: "00000000-0000-4000-8000-00000a9c0001",
+          approvalId: "areas-12-13-approval-1",
+        },
+      ],
+      approved: true,
+    },
+  ]),
+  write(WEBHOOKS, "redeliverWebhook", "/settings/webhooks", async () => [
+    { id: await firstRowId("webhook_deliveries") },
   ]),
 ];

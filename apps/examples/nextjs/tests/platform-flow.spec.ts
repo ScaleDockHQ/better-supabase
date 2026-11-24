@@ -1,0 +1,82 @@
+/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
+   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
+import { expect, test } from "@playwright/test";
+import { expectInstant } from "better-supabase/testing";
+
+import { signIn } from "./support/example-session";
+
+// The platform area: members with their seat figures, the API key detail with
+// its rotation and the webhook endpoint detail with its deliveries.
+
+test.beforeEach(async ({ page }) => {
+  await signIn(page);
+});
+
+test("the members page shows the seat figures and the seat-checked invite", async ({
+  page,
+}) => {
+  await page.goto("/settings/members");
+
+  const main = page.getByRole("main");
+
+  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(main.getByText("Seats left")).toBeVisible();
+  await expect(
+    main.getByRole("button", { name: "Invite within seats" }),
+  ).toBeVisible();
+});
+
+test("an API key opens instantly and rotates with a grace period", async ({
+  page,
+}) => {
+  await page.goto("/settings/api-keys");
+
+  const key = page.getByTestId("api-keys").getByRole("link").first();
+
+  await expect(key).toBeVisible();
+
+  await expectInstant(page, {
+    during: async () => {
+      await key.click();
+      await page.waitForURL((url) =>
+        /^\/settings\/api-keys\/[\da-f-]{36}$/.test(url.pathname),
+      );
+    },
+    visible: [page.getByRole("link", { name: "All API keys" })],
+  });
+
+  const main = page.getByRole("main");
+
+  await expect(main.getByText("Scopes")).toBeVisible();
+
+  await main.getByRole("button", { name: /Rotate, keep the old key/ }).click();
+  await expect(main.getByTestId("rotated-token")).toBeVisible();
+});
+
+test("a webhook endpoint opens instantly with its deliveries", async ({
+  page,
+}) => {
+  await page.goto("/settings/webhooks");
+
+  const endpoint = page
+    .getByTestId("webhook-endpoints")
+    .getByRole("link")
+    .first();
+
+  await expect(endpoint).toBeVisible();
+
+  await expectInstant(page, {
+    during: async () => {
+      await endpoint.click();
+      await page.waitForURL((url) =>
+        /^\/settings\/webhooks\/[\da-f-]{36}$/.test(url.pathname),
+      );
+    },
+    visible: [page.getByRole("link", { name: "All webhooks" })],
+  });
+
+  const main = page.getByRole("main");
+
+  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(main.getByTestId("webhook-detail-deliveries")).toBeVisible();
+});

@@ -106,3 +106,83 @@ export async function loadWebhooks(): Promise<WebhooksOverview | null> {
     })),
   };
 }
+
+export interface WebhookDetail {
+  readonly endpoint: WebhookEndpointRow;
+  /** The endpoint's 50 latest deliveries. */
+  readonly deliveries: readonly WebhookDeliveryRow[];
+}
+
+/**
+ * One endpoint with its latest deliveries; `undefined` when it does not exist
+ * or RLS hides it, `null` without an organization.
+ */
+export async function loadWebhook(
+  id: string,
+): Promise<WebhookDetail | undefined | null> {
+  "use cache: private";
+  const { session } = await bsbCore.cached();
+  cacheTag(WEBHOOKS_TAG);
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
+  const connection = postgres();
+  const claims = userClaims(session);
+
+  if (!connection || !claims) {
+    throw new Error("The webhook page needs a database URL and a user");
+  }
+
+  const sql = connection.asUser(claims);
+
+  const [endpoints, deliveries] = await Promise.all([
+    sql.queryRaw<EndpointRecord>(
+      `select id, name, url, enabled, event_types, first_failed_at, disabled_reason, created_at
+       from better_supabase.webhook_endpoints
+       where organization_id = $1 and id = $2`,
+      [tenant, id],
+    ),
+    sql.queryRaw<DeliveryRecord>(
+      `select d.id, e.name as endpoint_name, d.event_type, d.status, d.attempt,
+              d.response_status, d.last_error, d.created_at
+       from better_supabase.webhook_deliveries d
+       join better_supabase.webhook_endpoints e on e.id = d.endpoint_id
+       where d.organization_id = $1 and d.endpoint_id = $2
+       order by d.created_at desc
+       limit 50`,
+      [tenant, id],
+    ),
+  ]);
+
+  const row = endpoints[0];
+
+  if (row === undefined) {
+    return undefined;
+  }
+
+  return {
+    endpoint: {
+      id: row.id,
+      name: row.name,
+      url: row.url,
+      enabled: row.enabled,
+      eventTypes: row.event_types,
+      failingSince: row.first_failed_at?.toISOString() ?? null,
+      disabledReason: row.disabled_reason,
+      createdAt: row.created_at.toISOString(),
+    },
+    deliveries: deliveries.map((delivery) => ({
+      id: delivery.id,
+      endpointName: delivery.endpoint_name,
+      eventType: delivery.event_type,
+      status: v.parse(WebhookStatus, delivery.status),
+      attempt: delivery.attempt,
+      responseStatus: delivery.response_status,
+      lastError: delivery.last_error,
+      createdAt: delivery.created_at.toISOString(),
+    })),
+  };
+}

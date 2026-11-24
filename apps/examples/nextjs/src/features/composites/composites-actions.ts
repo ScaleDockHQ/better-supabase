@@ -1,10 +1,12 @@
 "use server";
 
-import { ok } from "better-supabase";
+import { dbError, err, ok } from "better-supabase";
 import { money } from "better-supabase/commerce";
+import { refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { API_KEYS_TAG } from "@/features/api-keys/api-keys-cache";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { driveOf } from "@/features/drive/drive-client";
@@ -136,14 +138,68 @@ export const rotateKey = bsb.action(
     requireTenant: true,
     permission: "api_keys.manage",
   },
-  async ({ id, graceHours }, { db }) => {
+  async ({ id, graceHours }, { db, auth }) => {
     const rotated = await keyRotationOf(db).rotateApiKey({ id, graceHours });
 
     if (!rotated.ok) {
       return rotated;
     }
 
+    await refreshCaller(auth, [API_KEYS_TAG]);
+
     return ok({ id: rotated.data.key.id, token: rotated.data.token });
+  },
+);
+
+/**
+ * Invites a teammate when the plan has a seat left, the steps of
+ * `saas.inviteWithinSeats`: count the members, read the `seats` entitlement and
+ * only then invite. `createSaas` needs every part of `saas` typed against this
+ * app's notification catalog, which it does not accept yet, so the steps run on
+ * the three clients they use.
+ */
+export const inviteWithinSeats = bsb.action(
+  {
+    input: v.object({
+      email: v.pipe(v.string(), v.trim(), v.toLowerCase(), v.email()),
+      role: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
+    }),
+    requireTenant: true,
+    permission: "members.invite",
+  },
+  async ({ email, role }, { db, tenant }) => {
+    const members = await db.$blocks.organizations.members(tenant);
+
+    if (!members.ok) {
+      return members;
+    }
+
+    const left = await db.entitlements.seatsLeft({
+      organizationId: tenant,
+      used: members.data.length,
+    });
+
+    if (!left.ok) {
+      return left;
+    }
+
+    if (left.data !== undefined && left.data <= 0) {
+      return err(dbError("invalid_request", "The plan has no seat left"));
+    }
+
+    const sent = await db.$blocks.organizations.invite({
+      organizationId: tenant,
+      email,
+      role,
+    });
+
+    if (!sent.ok) {
+      return sent;
+    }
+
+    refresh();
+
+    return ok({ id: sent.data.invitation.id });
   },
 );
 
