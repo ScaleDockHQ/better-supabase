@@ -130,3 +130,12 @@ export const unlinkDealRelations = recordPages.deal.actions.relations.unlink;
 
 export const removeDealAttachments =
   recordPages.deal.actions.attachments.remove;
+
+export const linkContractRelations =
+  recordPages.contract.actions.relations.link;
+
+export const unlinkContractRelations =
+  recordPages.contract.actions.relations.unlink;
+
+export const removeContractAttachments =
+  recordPages.contract.actions.attachments.remove;

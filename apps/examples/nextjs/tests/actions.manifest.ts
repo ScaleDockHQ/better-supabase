@@ -33,6 +33,8 @@ const write = (
   resolve: () => Promise<readonly unknown[]>,
 ): ActionCase => ({ file, name, page, args: [], resolve, mutates: true });
 
+const SALES = "features/sales/sales-actions.ts";
+
 const COMPOSITES = "features/composites/composites-actions.ts";
 
 export const ACTIONS: readonly ActionCase[] = [
@@ -64,6 +66,15 @@ export const ACTIONS: readonly ActionCase[] = [
     "/knowledge",
     [{ query: "refund" }],
   ),
+  write(SALES, "addObligation", "/crm/contracts", async () => [
+    {
+      contractId: await firstRowId("contracts"),
+      title: "Send the renewal quote",
+    },
+  ]),
+  write(SALES, "refreshSegment", "/crm/segments", async () => [
+    { segmentId: await firstRowId("segments") },
+  ]),
   write(COMPOSITES, "closeDealLost", "/crm/deals", async () => [
     { dealId: await firstRowId("deals"), withdraw: [] },
   ]),

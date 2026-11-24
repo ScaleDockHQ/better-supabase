@@ -48,4 +48,5 @@ export const recordPages = {
   company: bsbCore.record(sectionRecord("company")),
   person: bsbCore.record(sectionRecord("person")),
   deal: bsbCore.record(sectionRecord("deal")),
+  contract: bsbCore.record(sectionRecord("contract")),
 } as const;

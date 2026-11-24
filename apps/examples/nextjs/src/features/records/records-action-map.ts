@@ -1,13 +1,16 @@
 import {
+  linkContractRelations,
   linkCompanyRelations,
   linkCustomerRelations,
   linkDealRelations,
   linkPersonRelations,
   removeCompanyAttachments,
+  removeContractAttachments,
   removeCustomerAttachments,
   removeDealAttachments,
   removePersonAttachments,
   unlinkCompanyRelations,
+  unlinkContractRelations,
   unlinkCustomerRelations,
   unlinkDealRelations,
   unlinkPersonRelations,
@@ -34,5 +37,10 @@ export const recordActions = {
     link: linkDealRelations,
     unlink: unlinkDealRelations,
     removeAttachment: removeDealAttachments,
+  },
+  contract: {
+    link: linkContractRelations,
+    unlink: unlinkContractRelations,
+    removeAttachment: removeContractAttachments,
   },
 } as const;

@@ -151,6 +151,21 @@ async function relationOptions(
       return named(deals?.deals ?? []);
     }
 
+    case "contract": {
+      return tenant
+        ? named(
+            (
+              await db.contracts
+                .page({ organizationId: tenant, limit: OPTION_LIMIT })
+                .orThrow()
+            ).items.map((contract) => ({
+              id: contract.id,
+              name: contract.title,
+            })),
+          )
+        : [];
+    }
+
     default: {
       const unreachable: never = subject.type;
 

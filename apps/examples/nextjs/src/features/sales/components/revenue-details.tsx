@@ -1,7 +1,9 @@
 import { getExtracted } from "next-intl/server";
 import { notFound } from "next/navigation";
 
+import { RecordBoundSections } from "@/components/record-detail/record-bound-sections";
 import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
+import { StageStepper } from "@/components/record-detail/stage-stepper";
 import { Badge } from "@/components/reui/badge";
 import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { settle } from "@/features/crm/crm-queries";
@@ -109,6 +111,23 @@ export async function ContractDetail({ id }: { id: string }) {
           : undefined
       }
     >
+      <StageStepper
+        label={t("Contract status")}
+        currentId={contract.status}
+        stages={[
+          ...["draft", "in_review", "out_for_signature", "active"].map(
+            (id) => ({ id, name: statusLabels[id] ?? id }),
+          ),
+          ...(contract.status === "expired" || contract.status === "terminated"
+            ? [
+                {
+                  id: contract.status,
+                  name: statusLabels[contract.status] ?? contract.status,
+                },
+              ]
+            : []),
+        ]}
+      />
       <FactGrid
         facts={[
           {
@@ -189,6 +208,10 @@ export async function ContractDetail({ id }: { id: string }) {
             />
           ) : undefined
         }
+      />
+      <RecordBoundSections
+        subject={{ type: "contract", id: contract.id }}
+        sections={["discussion", "files", "history", "relations"]}
       />
     </RecordDetailFrame>
   );

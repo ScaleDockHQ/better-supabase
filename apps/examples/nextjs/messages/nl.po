@@ -26586,6 +26586,11 @@ msgid "Contract updated"
 msgstr "Contract bijgewerkt"
 
 #: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.v83Wpa"
+msgid "Contract status"
+msgstr "Contractstatus"
+
+#: src/features/sales/components/revenue-details.tsx
 msgctxt "sales.eowhxR"
 msgid "Every {months} months"
 msgstr "Elke {months} maanden"
