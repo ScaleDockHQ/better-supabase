@@ -242,7 +242,10 @@ sorts after the consumer's cursor and is delayed, never skipped. A
 long-running transaction delays all consumers until it ends. A new consumer
 starts after the latest event, but never past the current snapshot, so rows
 restored from another database with higher transaction ids don't hide the
-next event from it.
+next event from it. A consumer registered in a transaction that emitted
+events starts after those events, so it also misses events that
+transactions which started earlier commit later; register it outside that
+transaction, or with `fromStart: true`, when it needs them.
 
 When none of the claimed events match a consumer's `types`, its cursor
 still moves past the settled events, so a consumer of rare types doesn't
