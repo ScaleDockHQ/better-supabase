@@ -3069,143 +3069,6 @@ msgctxt "advisories.J0vUhO"
 msgid "Track"
 msgstr "Track"
 
-#: src/features/agents/components/agent-activity.tsx
-#: src/features/agents/components/agent-detail.tsx
-msgctxt "agents.W1Qs5O"
-msgid "Runs"
-msgstr "Runs"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.ZIgjbO"
-msgid "Failed runs"
-msgstr "Failed runs"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.HbTFJf"
-msgid "Pending approvals"
-msgstr "Pending approvals"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.qsDAY5"
-msgid "Guardrail blocks"
-msgstr "Guardrail blocks"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.x3qvaC"
-msgid "No runs yet"
-msgstr "No runs yet"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.mgLlRQ"
-msgid "Runs of chats that use this agent show up here."
-msgstr "Runs of chats that use this agent show up here."
-
-#: src/features/agents/components/agent-activity.tsx
-#: src/features/agents/components/tool-access-matrix.tsx
-msgctxt "agents.KiXNvz"
-msgid "Run"
-msgstr "Run"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/agents/components/agent-activity.tsx
-#: src/features/agents/components/agent-editor.tsx
-#: src/features/agents/components/agent-table.tsx
-#: src/features/agents/components/run-detail.tsx
-#: src/features/agents/components/run-table.tsx
-msgctxt "agents.rhSI1_"
-msgid "Model"
-msgstr "Model"
-
-#: src/features/agents/components/agent-activity.tsx
-#: src/features/agents/components/run-table.tsx
-msgctxt "agents.TDUfVk"
-msgid "Started"
-msgstr "Started"
-
-#: src/features/agents/components/agent-activity.tsx
-#: src/features/agents/components/approval-table.tsx
-msgctxt "agents.E32-Bb"
-msgid "Nothing to approve"
-msgstr "Nothing to approve"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.BArzaZ"
-msgid "Tool calls of this agent that need a decision show up here."
-msgstr "Tool calls of this agent that need a decision show up here."
-
-#: src/features/agents/components/agent-activity.tsx
-#: src/features/agents/components/approval-table.tsx
-msgctxt "agents.h6183G"
-msgid "Tool"
-msgstr "Tool"
-
-#: src/features/agents/components/agent-activity.tsx
-#: src/features/agents/components/approval-table.tsx
-msgctxt "agents.it6Lig"
-msgid "Input"
-msgstr "Input"
-
-#: src/features/agents/components/agent-activity.tsx
-#: src/features/agents/components/approval-table.tsx
-msgctxt "agents.WTrOy3"
-msgid "Chat"
-msgstr "Chat"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.HozB20"
-msgid "No guardrail hits"
-msgstr "No guardrail hits"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.w59mDD"
-msgid "Decisions of the guardrails for this agent show up here."
-msgstr "Decisions of the guardrails for this agent show up here."
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.uYAYib"
-msgid "Stage"
-msgstr "Stage"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.vYLLLG"
-msgid "Decision"
-msgstr "Decision"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.rpj2cV"
-msgid "Reasons"
-msgstr "Reasons"
-
-#: src/features/agents/components/agent-activity.tsx
-msgctxt "agents.McnLsx"
-msgid "When"
-msgstr "When"
-
-#: src/features/agents/components/agent-approval-buttons.tsx
-msgctxt "agents.WCaf5C"
-msgid "Approve"
-msgstr "Approve"
-
-#: src/features/agents/components/agent-approval-buttons.tsx
-msgctxt "agents.6XFO_C"
-msgid "Approved"
-msgstr "Approved"
-
-#: src/features/agents/components/agent-approval-buttons.tsx
-#: src/features/agents/components/tool-access-matrix.tsx
-msgctxt "agents.htvX-Z"
-msgid "Deny"
-msgstr "Deny"
-
-#: src/features/agents/components/agent-approval-buttons.tsx
-msgctxt "agents.5kp1Ie"
-msgid "Denied"
-msgstr "Denied"
-
 #: src/features/advisories/components/vulnerability-detail.tsx
 msgctxt "advisories._uybTa"
 msgid "The vulnerability didn't load"
@@ -3354,6 +3217,143 @@ msgstr "No vulnerabilities tracked"
 msgctxt "advisories.8fhjhw"
 msgid "Track a CVE, GHSA or OSV id to see its severity and whether it is exploited."
 msgstr "Track a CVE, GHSA or OSV id to see its severity and whether it is exploited."
+
+#: src/features/agents/components/agent-activity.tsx
+#: src/features/agents/components/agent-detail.tsx
+msgctxt "agents.W1Qs5O"
+msgid "Runs"
+msgstr "Runs"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.ZIgjbO"
+msgid "Failed runs"
+msgstr "Failed runs"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.HbTFJf"
+msgid "Pending approvals"
+msgstr "Pending approvals"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.qsDAY5"
+msgid "Guardrail blocks"
+msgstr "Guardrail blocks"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.x3qvaC"
+msgid "No runs yet"
+msgstr "No runs yet"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.mgLlRQ"
+msgid "Runs of chats that use this agent show up here."
+msgstr "Runs of chats that use this agent show up here."
+
+#: src/features/agents/components/agent-activity.tsx
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.KiXNvz"
+msgid "Run"
+msgstr "Run"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/agents/components/agent-activity.tsx
+#: src/features/agents/components/agent-editor.tsx
+#: src/features/agents/components/agent-table.tsx
+#: src/features/agents/components/run-detail.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.rhSI1_"
+msgid "Model"
+msgstr "Model"
+
+#: src/features/agents/components/agent-activity.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.TDUfVk"
+msgid "Started"
+msgstr "Started"
+
+#: src/features/agents/components/agent-activity.tsx
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.E32-Bb"
+msgid "Nothing to approve"
+msgstr "Nothing to approve"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.BArzaZ"
+msgid "Tool calls of this agent that need a decision show up here."
+msgstr "Tool calls of this agent that need a decision show up here."
+
+#: src/features/agents/components/agent-activity.tsx
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.h6183G"
+msgid "Tool"
+msgstr "Tool"
+
+#: src/features/agents/components/agent-activity.tsx
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.it6Lig"
+msgid "Input"
+msgstr "Input"
+
+#: src/features/agents/components/agent-activity.tsx
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.WTrOy3"
+msgid "Chat"
+msgstr "Chat"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.HozB20"
+msgid "No guardrail hits"
+msgstr "No guardrail hits"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.w59mDD"
+msgid "Decisions of the guardrails for this agent show up here."
+msgstr "Decisions of the guardrails for this agent show up here."
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.uYAYib"
+msgid "Stage"
+msgstr "Stage"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.vYLLLG"
+msgid "Decision"
+msgstr "Decision"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.rpj2cV"
+msgid "Reasons"
+msgstr "Reasons"
+
+#: src/features/agents/components/agent-activity.tsx
+msgctxt "agents.McnLsx"
+msgid "When"
+msgstr "When"
+
+#: src/features/agents/components/agent-approval-buttons.tsx
+msgctxt "agents.WCaf5C"
+msgid "Approve"
+msgstr "Approve"
+
+#: src/features/agents/components/agent-approval-buttons.tsx
+msgctxt "agents.6XFO_C"
+msgid "Approved"
+msgstr "Approved"
+
+#: src/features/agents/components/agent-approval-buttons.tsx
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.htvX-Z"
+msgid "Deny"
+msgstr "Deny"
+
+#: src/features/agents/components/agent-approval-buttons.tsx
+msgctxt "agents.5kp1Ie"
+msgid "Denied"
+msgstr "Denied"
 
 #: src/features/agents/components/agent-detail.tsx
 msgctxt "agents.9uOFF3"
