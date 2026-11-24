@@ -174,11 +174,15 @@ describe("blocks.<module>.api", () => {
       const file = schemaFile(module.name, "api");
       const internal = new Set(module.internal);
 
-      const granted = [
-        ...file.matchAll(
-          /^grant execute on function "?better_supabase"?\.([^\n(]+)\([^\n]*\bto [^;]*\b(?:anon|authenticated|service_role)\b/gm,
-        ),
-      ].filter((match) => !internal.has(match[1]!.replaceAll('"', ""))).length;
+      const granted = new Set(
+        [
+          ...file.matchAll(
+            /^grant execute on function "?better_supabase"?\.([^\n(]+)(\([^)]*\))[^\n]*\bto [^;]*\b(?:anon|authenticated|service_role)\b/gm,
+          ),
+        ]
+          .filter((match) => !internal.has(match[1]!.replaceAll('"', "")))
+          .map((match) => `${match[1]!}${match[2]!}`),
+      ).size;
 
       const wrapped = [...file.matchAll(/create or replace function "api"\./g)]
         .length;
@@ -529,6 +533,26 @@ grant execute on function better_supabase.claims(uuid) to service_role, supabase
     expect(() =>
       schemaFile("settings", { schema: "api", functions: ["missing"] }),
     ).toThrow(/missing is not a settings function/);
+  });
+});
+
+describe("a function granted twice", () => {
+  it("gets one wrapper with the roles of the last grant", () => {
+    const sql = `create or replace function better_supabase.rebuild(tenant uuid)
+returns integer
+language sql
+as $$ select 1 $$;
+grant execute on function better_supabase.rebuild(uuid) to service_role;
+grant execute on function better_supabase.rebuild(uuid) to authenticated, service_role;`;
+
+    const wrapped = apiWrappers(sql, "better_supabase", { schema: "api" }, "x");
+
+    expect(wrapped.match(/create or replace function "api"\./g)).toHaveLength(
+      1,
+    );
+    expect(wrapped).toContain(
+      `grant execute on function "api"."rebuild"(uuid) to authenticated, service_role;`,
+    );
   });
 });
 

@@ -197,8 +197,9 @@ export interface SubjectSearch {
   /**
    * Required with `from`: the columns of the record's own table that the view
    * reads. The indexing trigger fires only when one of these (or the id, tenant
-   * or archive column) changes value, so a change to another column costs no
-   * re-index. Doctor BS637 reports a column the view reads that is missing.
+   * or `deletedAt` column, or the `exclude` column when the table has one of
+   * that name) changes value, so a change to another column costs no re-index.
+   * Doctor BS637 reports a column the view reads that is missing.
    */
   readonly columns?: readonly string[];
   /**

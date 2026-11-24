@@ -164,6 +164,13 @@ describe("blocks", () => {
     );
   });
 
+  it("shows the ports, links and automations of a block", () => {
+    expect(viewBlock("comments").output).toMatch(/^Ports in: {3}\S/m);
+    expect(viewBlock("quotes").output).toMatch(/^Links: {6}\S/m);
+    expect(viewBlock("quotes").output).toMatch(/^Fires: {6}\S.* -> /m);
+    expect(viewBlock("deals").output).toMatch(/^Listens: {4}\S/m);
+  });
+
   it("searches names, titles and descriptions", async () => {
     expect(searchBlocks("invoice").output).toContain("  invoices");
     expect(searchBlocks("zzzz").output).toContain('No block matches "zzzz"');

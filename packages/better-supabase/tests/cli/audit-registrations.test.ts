@@ -66,6 +66,76 @@ select better_supabase.audit('public.c', ignore => '{x}');
     ).toEqual([{ target: "public.c", ignore: ["x"], redact: [] }]);
   });
 
+  it("treats a drop table inside a do block as a drop", async () => {
+    expect(
+      await auditRegistrationsOf([
+        file(`
+select better_supabase.audit('better_supabase.comments', target_type => 'comment', deferred => true);
+select better_supabase.audit('better_supabase.messages');
+select better_supabase.audit('public.notes');
+select better_supabase.audit('public."Kept"');
+`),
+        file(`
+set search_path = crm;
+do $$
+begin
+  if to_regclass('better_supabase.comments') is not null then
+    insert into better_supabase.messages (id) select id from better_supabase.comments;
+    drop table better_supabase.comments cascade;
+    DROP TABLE IF EXISTS public . notes, notes;
+  end if;
+  execute format('drop table %I', 'Kept');
+end;
+$$;
+`),
+      ]),
+    ).toEqual([
+      { target: "better_supabase.messages", ignore: [], redact: [] },
+      { target: "public.Kept", ignore: [], redact: [] },
+    ]);
+  });
+
+  it("treats a dropped bsb_audit trigger as unaudit", async () => {
+    expect(
+      await auditRegistrationsOf([
+        file(
+          "select better_supabase.audit('better_supabase.flags');\nselect better_supabase.audit('public.notes');",
+        ),
+        file(
+          "drop trigger if exists bsb_audit on better_supabase.flags;\ndrop trigger other on public.notes;",
+        ),
+      ]),
+    ).toEqual([{ target: "public.notes", ignore: [], redact: [] }]);
+  });
+
+  it("reads a cast target and skips a trigger whose settings are not an object", async () => {
+    expect(
+      await auditRegistrationsOf([
+        file(`
+select better_supabase.audit('public.casted'::regclass, ignore => 'updated_at');
+create trigger bsb_audit after insert on public.broken for each row execute function better_supabase.audit_row_change('{not json');
+create trigger bsb_audit after insert on public.scalar for each row execute function better_supabase.audit_row_change('1');
+create trigger bsb_audit after insert on public.plain for each row execute function better_supabase.audit_row_change();
+`),
+      ]),
+    ).toEqual([{ target: "public.plain", ignore: [], redact: [] }]);
+  });
+
+  it("skips an array with a non-literal element and reads only list settings", async () => {
+    expect(
+      await auditRegistrationsOf([
+        file(`
+select better_supabase.audit('public.dynamic', ignore => array['a', some_column]);
+select better_supabase.audit('public.extra', '{a}', true, '{b}', 'ignored');
+create trigger bsb_audit after insert on public.flat for each row execute function better_supabase.audit_row_change('{"ignore":"x","redact":["r",1]}');
+`),
+      ]),
+    ).toEqual([
+      { target: "public.extra", ignore: ["a"], redact: ["b"] },
+      { target: "public.flat", ignore: [], redact: ["r"] },
+    ]);
+  });
+
   it("moves a registration to the new name of a renamed table", async () => {
     expect(
       await auditRegistrationsOf([

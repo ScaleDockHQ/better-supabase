@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:2ec0e15b65a5570a04a8215d93d02e32080546f7341f1e947f8af0d2a008f3b0
+-- @bsb-hash sha256:7fcd966769d66790bbc8ad538042fadcf669f7a60749f2b2c70ff15c0c8e4e68
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4075,8 +4075,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to service_role;
-revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon;
-grant execute on function "better_supabase"."rebuild_open_items"(uuid) to authenticated, service_role;
 
 -- The stored rows that differ from the fold, at most 100. No permission
 -- check: open_items_drift and import_integrity call it.
@@ -4143,8 +4141,6 @@ begin
   return "better_supabase"."open_items_drift_rows"(open_items_drift.tenant);
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_drift"(uuid) to service_role;
 revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon;
 grant execute on function "better_supabase"."open_items_drift"(uuid) to authenticated, service_role;
 
@@ -4193,8 +4189,6 @@ begin
   return jsonb_build_object('rows', v_rows, 'total', least(v_total, coalesce(open_items_page.count_cap, 10000)));
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to service_role;
 revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon;
 grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to authenticated, service_role;
 
@@ -6543,25 +6537,6 @@ as $$ select "better_supabase"."rebuild_open_items"($1) $$;
 revoke execute on function "api"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "api"."rebuild_open_items"(uuid) to service_role;
 
-create or replace function "api"."rebuild_open_items"(tenant uuid)
-returns integer
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."rebuild_open_items"($1) $$;
-revoke execute on function "api"."rebuild_open_items"(uuid) from public, anon;
-grant execute on function "api"."rebuild_open_items"(uuid) to authenticated, service_role;
-
-create or replace function "api"."open_items_drift"(tenant uuid)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."open_items_drift"($1) $$;
-revoke execute on function "api"."open_items_drift"(uuid) from public, anon, authenticated;
-grant execute on function "api"."open_items_drift"(uuid) to service_role;
-
 create or replace function "api"."open_items_drift"(tenant uuid)
 returns jsonb
 language sql
@@ -6571,16 +6546,6 @@ set search_path = ''
 as $$ select "better_supabase"."open_items_drift"($1) $$;
 revoke execute on function "api"."open_items_drift"(uuid) from public, anon;
 grant execute on function "api"."open_items_drift"(uuid) to authenticated, service_role;
-
-create or replace function "api"."open_items_page"(tenant uuid, side text default null, party_id text default null, "limit" integer default 50, "offset" integer default 0, count_cap integer default 10000)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."open_items_page"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon, authenticated;
-grant execute on function "api"."open_items_page"(uuid, text, text, integer, integer, integer) to service_role;
 
 create or replace function "api"."open_items_page"(tenant uuid, side text default null, party_id text default null, "limit" integer default 50, "offset" integer default 0, count_cap integer default 10000)
 returns jsonb

@@ -308,3 +308,12 @@ describe("defineBetterResultErrors", () => {
     expect(await toResult(AsyncResult.ok("x"))).toEqual(new StandInOk("x"));
   });
 });
+
+describe("AsyncResult.unwrapOr", () => {
+  it("resolves with the data, or the fallback on an error", async () => {
+    expect(await AsyncResult.ok(1).unwrapOr(0)).toBe(1);
+    expect(
+      await AsyncResult.err<number>(dbError("conflict", "dup")).unwrapOr(0),
+    ).toBe(0);
+  });
+});

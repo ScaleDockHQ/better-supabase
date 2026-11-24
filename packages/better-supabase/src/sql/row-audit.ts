@@ -40,7 +40,12 @@ export function rowAuditData(
 ): string {
   const scope = rowAuditScope(layout, installed);
 
-  if (!ctx.manages || NOT_AUDITED.has(ctx.module) || scope === "none") {
+  if (
+    !ctx.manages ||
+    !ctx.config.audit ||
+    NOT_AUDITED.has(ctx.module) ||
+    scope === "none"
+  ) {
     return "";
   }
 

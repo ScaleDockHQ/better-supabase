@@ -56,17 +56,6 @@ function shims(context: DoctorContext): FindingInput[] {
     }
   }
 
-  if (
-    optionOf(context, "expenses", "approvals") === false &&
-    optionOf(context, "expenses", "standaloneApprovals") === true
-  ) {
-    found.push({
-      message:
-        "blocks.expenses.options sets approvals: false and standaloneApprovals: true, which rebuilds by hand what the approvals block gives expenses. Remove approvals: false so reports go through the approvals block.",
-      target: "blocks.expenses.options.approvals",
-    });
-  }
-
   const files = context.sqlFiles ?? [];
 
   const owned = new Set(
@@ -104,7 +93,7 @@ export const SHIPPED_SHIM_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Shim of a feature the library ships",
     description:
-      "The project rebuilds something better-supabase already does: a custom seal trigger listed in `tooling.doctor.sealTriggers` while `field-encryption` is installed (`@bsb encrypted` fits), a `decider` option on leave, expenses or time entries while the authorization provider has `functions.approverFor`, `approvals: false` together with `standaloneApprovals` on expenses, and an app schema file that redefines a `better_supabase` function a block creates. Each one drifts from the block on the next upgrade.",
+      "The project rebuilds something better-supabase already does: a custom seal trigger listed in `tooling.doctor.sealTriggers` while `field-encryption` is installed (`@bsb encrypted` fits), a `decider` option on leave, expenses or time entries while the authorization provider has `functions.approverFor`, and an app schema file that redefines a `better_supabase` function a block creates. Each one drifts from the block on the next upgrade.",
     check: shims,
   },
 ];

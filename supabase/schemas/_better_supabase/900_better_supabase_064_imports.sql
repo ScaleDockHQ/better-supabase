@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:5ea8892cf9848d472006037d2db6801721fd1cbe45a8ada262e3ff2db86b3b5e
+-- @bsb-hash sha256:7c0f6bde1cf2bf7a8977e8731e2360522bdbcf149103d9a7ed68eef57ca3b4f9
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2719,27 +2719,8 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."resolve_import_conflict"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."resolve_import_conflict"(uuid, text, text, text, text) from public, anon, authenticated;
-grant execute on function "api"."resolve_import_conflict"(uuid, text, text, text, text) to service_role;
-
-create or replace function "api"."resolve_import_conflict"(tenant uuid, source text, entity text, key text, action text)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."resolve_import_conflict"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."resolve_import_conflict"(uuid, text, text, text, text) from public, anon;
 grant execute on function "api"."resolve_import_conflict"(uuid, text, text, text, text) to authenticated, service_role;
-
-create or replace function "api"."import_integrity"(tenant uuid, source text default null)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."import_integrity"($1, $2) $$;
-revoke execute on function "api"."import_integrity"(uuid, text) from public, anon, authenticated;
-grant execute on function "api"."import_integrity"(uuid, text) to service_role;
 
 create or replace function "api"."import_integrity"(tenant uuid, source text default null)
 returns jsonb

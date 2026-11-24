@@ -12,6 +12,14 @@ Run `better-supabase upgrade`, then generate a migration with
 `pnpm supabase:diff <name>` and `better-supabase add --adopt`. The upgrade
 writes the trigger, function and table changes below.
 
+Keep that order. `add --adopt` stamps the data migration after the newest
+migration in the folder, so a script that runs `upgrade` and `add --adopt`
+together before the diff gives the data migration an older stamp than the
+schema migration. The data then runs before the tables and columns it writes
+exist, and the diff fails. If that happened, delete the unpushed data
+migration (`*_better_supabase_module_data_*.sql`), run the diff, then run
+`add --adopt` again.
+
 | Section                                           | Needs code                                                                             |
 | ------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | [Provider fields](#provider-fields)               | Optional: declare `tables` and `shareKey` to share cache entries                       |
@@ -64,7 +72,9 @@ public.customer_search reads.
 Before 0.84 such a type re-indexed on every update of its row. The index
 trigger is now two triggers: `bsb_search_<type>_index` for inserts and deletes,
 and `bsb_search_<type>_index_u`, which fires on `update of` the listed columns
-(plus the id, tenant and archive columns) only when one of them changes value.
+(plus the id, tenant and `deletedAt` columns, and the `exclude` column such as
+`archived_at` when the table has one of that name) only when one of them
+changes value, so archiving a record still takes it out of the index.
 Doctor BS637 reports a column the view reads that the list leaves out. On 1,000
 rows of a view-backed type, an update of an unlisted column took 71 ms and
 called the index trigger 1,000 times before, and takes 21 ms with no call now.
