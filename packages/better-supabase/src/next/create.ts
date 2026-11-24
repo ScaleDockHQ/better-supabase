@@ -1017,16 +1017,13 @@ export function createNext<
           return mapped({ ok: false, data: null, error: denied });
         }
 
-        const checkedBound = await validateBound(
-          actionOptions.bound,
-          boundArgs,
-        );
+        const boundCheck = await validateBound(actionOptions.bound, boundArgs);
 
-        if (!checkedBound.ok) {
-          return mapped({ ok: false, data: null, error: checkedBound.error });
+        if (!boundCheck.ok) {
+          return mapped({ ok: false, data: null, error: boundCheck.error });
         }
 
-        const bound = checkedBound.data;
+        const bound = boundCheck.data;
 
         let parsed: unknown =
           input instanceof FormData ? formDataObject(input) : input;
