@@ -1,6 +1,8 @@
 import { getExtracted } from "next-intl/server";
 import { notFound } from "next/navigation";
 
+import { PropertiesRail } from "@/components/record-detail/properties-rail";
+import { RecordBoundSections } from "@/components/record-detail/record-bound-sections";
 import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
 import { RecordDetailTabs } from "@/components/record-detail/record-detail-tabs";
 import { Badge } from "@/components/reui/badge";
@@ -77,6 +79,27 @@ export async function SessionDetail({ id, tab }: { id: string; tab: string }) {
 
   return (
     <RecordDetailFrame
+      aside={
+        <>
+          <PropertiesRail
+            title={t("Till")}
+            properties={[
+              { label: t("Till"), value: shift.till },
+              {
+                label: t("Opening float"),
+                value: fmtMoney(shift.openingFloat),
+              },
+              { label: t("Expected cash"), value: fmtMoney(shift.expected) },
+              { label: t("Opened"), value: fmtDate(shift.openedAt) },
+              { label: t("Closed"), value: fmtDate(shift.closedAt) },
+            ]}
+          />
+          <RecordBoundSections
+            subject={{ type: "till", id: shift.tillId }}
+            sections={["tags", "fields", "reminders"]}
+          />
+        </>
+      }
       title={shift.till}
       description={t("Opened {date}", { date: fmtDate(shift.openedAt) })}
       status={
@@ -166,9 +189,21 @@ export async function SessionDetail({ id, tab }: { id: string; tab: string }) {
           { value: "movements", label: t("Movements") },
           { value: "count", label: t("Cash count") },
           { value: "deposits", label: t("Deposits") },
+          { value: "activity", label: t("Activity") },
+          { value: "related", label: t("Related") },
         ]}
       />
-      {tab === "count" ? (
+      {tab === "related" ? (
+        <RecordBoundSections
+          subject={{ type: "till", id: shift.tillId }}
+          sections={["files", "relations"]}
+        />
+      ) : tab === "activity" ? (
+        <RecordBoundSections
+          subject={{ type: "till", id: shift.tillId }}
+          sections={["discussion", "history"]}
+        />
+      ) : tab === "count" ? (
         shift.count ? (
           <FactGrid
             facts={[

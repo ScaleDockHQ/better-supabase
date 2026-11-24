@@ -2438,4 +2438,13 @@ export const ROUTES: readonly RouteEntry[] = [
     instant: true,
     scale: false,
   },
+  {
+    route: "/shop/products/[id]",
+    archetype: "detail",
+    url: null,
+    maxCalls: 12,
+    maxWaves: 3,
+    instant: true,
+    scale: false,
+  },
 ];

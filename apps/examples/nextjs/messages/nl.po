@@ -987,6 +987,11 @@ msgctxt "incidents.Pj6x6Z"
 msgid "What broke, how bad it is and what the team did about it, from the first report to the postmortem."
 msgstr "Wat er stuk ging, hoe erg het is en wat het team eraan deed, van de eerste melding tot de postmortem."
 
+#: src/app/[locale]/(app)/inspections/[id]/page.tsx
+msgctxt "inspections.skgBRM"
+msgid "All inspections"
+msgstr "Alle inspecties"
+
 #: src/app/[locale]/(app)/inspections/page.tsx
 msgctxt "inspections.PcgHMz"
 msgid "Audits and inspections"
@@ -996,6 +1001,16 @@ msgstr "Audits en inspecties"
 msgctxt "inspections.vDNGRZ"
 msgid "The audit programme with each inspection's status, and the findings of the one you open, each nonconformity with its case."
 msgstr "Het auditprogramma met de status van elke inspectie, en de bevindingen van de inspectie die je opent, elke afwijking met haar case."
+
+#: src/app/[locale]/(app)/inspections/register/page.tsx
+msgctxt "inspections.nU68jh"
+msgid "Inspection register"
+msgstr "Inspectieregister"
+
+#: src/app/[locale]/(app)/inspections/register/page.tsx
+msgctxt "inspections.L5nlnK"
+msgid "Every inspection with its status, searchable and paged."
+msgstr "Elke inspectie met haar status, doorzoekbaar en gepagineerd."
 
 #: src/app/[locale]/(app)/knowledge/page.tsx
 msgctxt "knowledge.5OteMI"
@@ -1110,6 +1125,22 @@ msgstr "Tellers"
 msgctxt "maintenance.9lrzgf"
 msgid "Calibrations"
 msgstr "Kalibraties"
+
+#: src/app/[locale]/(app)/manufacturing/orders/[id]/page.tsx
+msgctxt "manufacturing.xuiVrV"
+msgid "All production orders"
+msgstr "Alle productieorders"
+
+#: src/app/[locale]/(app)/manufacturing/orders/page.tsx
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.BEwAxd"
+msgid "Production orders"
+msgstr "Productieorders"
+
+#: src/app/[locale]/(app)/manufacturing/orders/page.tsx
+msgctxt "manufacturing.rbzW0d"
+msgid "Every order from draft to done, with its status counts."
+msgstr "Elke order van concept tot klaar, met de aantallen per status."
 
 #: src/app/[locale]/(app)/manufacturing/page.tsx
 msgctxt "manufacturing.z3FEm2"
@@ -1742,6 +1773,11 @@ msgstr "Passen"
 msgctxt "passes.VJ8-g7"
 msgid "Entry passes and class credits, with their holders, uses and scans."
 msgstr "Toegangspassen en lestegoeden, met hun houders, gebruik en scans."
+
+#: src/app/[locale]/(app)/shop/products/[id]/page.tsx
+msgctxt "shop.7397xA"
+msgid "All products"
+msgstr "Alle producten"
 
 #: src/app/[locale]/(app)/shop/reviews/[id]/page.tsx
 msgctxt "reviews.kPKIxP"
@@ -15644,6 +15680,51 @@ msgctxt "finance.fILb54"
 msgid "Import a statement to see transactions here."
 msgstr "Importeer een afschrift om hier transacties te zien."
 
+#: src/features/finance-records/components/pay-due-bills.tsx
+msgctxt "finance.MquhVP"
+msgid "Pay the bills that are due"
+msgstr "Betaal de facturen die vervallen"
+
+#: src/features/finance-records/components/pay-due-bills.tsx
+msgctxt "finance.rGF2vz"
+msgid "One batch pays every purchase bill due by the day, posts it to the books and exports the bank file."
+msgstr "Eén batch betaalt elke inkoopfactuur die op die dag vervalt, boekt die en exporteert het bankbestand."
+
+#: src/features/finance-records/components/pay-due-bills.tsx
+msgctxt "finance.g8iZhz"
+msgid "Pay due bills"
+msgstr "Vervallen facturen betalen"
+
+#: src/features/finance-records/components/pay-due-bills.tsx
+msgctxt "finance.AfyPYE"
+msgid "Pay bills"
+msgstr "Facturen betalen"
+
+#: src/features/finance-records/components/pay-due-bills.tsx
+msgctxt "finance.zJ7iaU"
+msgid "Bills paid"
+msgstr "Facturen betaald"
+
+#: src/features/finance-records/components/pay-due-bills.tsx
+msgctxt "finance._btjLs"
+msgid "Pay from"
+msgstr "Betalen vanaf"
+
+#: src/features/finance-records/components/pay-due-bills.tsx
+msgctxt "finance.IdN9E1"
+msgid "Due by"
+msgstr "Vervalt uiterlijk"
+
+#: src/features/finance-records/components/pay-due-bills.tsx
+msgctxt "finance.EDaVAn"
+msgid "Supplier name on the bank file"
+msgstr "Leveranciersnaam op het bankbestand"
+
+#: src/features/finance-records/components/pay-due-bills.tsx
+msgctxt "finance.BiJ_jI"
+msgid "Supplier IBAN"
+msgstr "IBAN van de leverancier"
+
 #: src/features/flags/components/beta-content.tsx
 msgctxt "beta.hKwqKr"
 msgid "You're in the beta"
@@ -17722,28 +17803,165 @@ msgctxt "incomingWebhooks.gzp6xc"
 msgid "Change the filters to see more."
 msgstr "Pas de filters aan om meer te zien."
 
+#: src/features/inspections/components/inspection-detail.tsx
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.CdpWpS"
+msgid "The inspection didn't load"
+msgstr "De inspectie is niet geladen"
+
+#: src/features/inspections/components/inspection-detail.tsx
+#: src/features/inspections/components/inspection-program-calendar.tsx
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/inspections/components/inspection-detail.tsx
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.e5x8FT"
+msgid "Kind"
+msgstr "Soort"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.-s3nI3"
+msgid "Findings"
+msgstr "Bevindingen"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.HFJRMP"
+msgid "Waiting for a case"
+msgstr "Wacht op een dossier"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.wsUmh9"
+msgid "Team"
+msgstr "Team"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.soCLV-"
+msgid "Checklist"
+msgstr "Checklist"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.raexxM"
+msgid "Submitted"
+msgstr "Ingediend"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/inspections/components/inspection-detail.tsx
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.PjaypS"
+msgid "Close inspection"
+msgstr "Inspectie sluiten"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.WkJ0NL"
+msgid "Inspection closed"
+msgstr "Inspectie gesloten"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.9uOFF3"
+msgid "Overview"
+msgstr "Overzicht"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.ZmlNQ3"
+msgid "Activity"
+msgstr "Activiteit"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.KQsZBW"
+msgid "Related"
+msgstr "Gerelateerd"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.18T5gi"
+msgid "Findings need a case"
+msgstr "Bevindingen hebben een dossier nodig"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.FQ8ssX"
+msgid "{count, plural, one {# finding needs} other {# findings need}} a corrective action case before the inspection can close."
+msgstr "{count, plural, one {# bevinding heeft} other {# bevindingen hebben}} een corrigerend dossier nodig voordat de inspectie kan sluiten."
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.y_luWs"
+msgid "What the inspection found, and the case each one raised."
+msgstr "Wat de inspectie vond en het dossier dat elke bevinding opende."
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.KsWRmg"
+msgid "No."
+msgstr "Nr."
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.RbTkag"
+msgid "Finding"
+msgstr "Bevinding"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.KpN3WY"
+msgid "Case"
+msgstr "Dossier"
+
+#: src/features/inspections/components/inspection-detail.tsx
+msgctxt "inspections.CdQOsE"
+msgid "No findings recorded yet."
+msgstr "Nog geen bevindingen vastgelegd."
+
+#: src/features/inspections/components/inspection-detail.tsx
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.Pl0v8W"
+msgid "Raise case"
+msgstr "Case openen"
+
+#: src/features/inspections/components/inspection-detail.tsx
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.ab2qRi"
+msgid "Case raised"
+msgstr "Case geopend"
+
 #: src/features/inspections/components/inspection-labels.tsx
+#: src/features/inspections/components/inspection-overview.tsx
 #: src/features/inspections/components/inspection-program-calendar.tsx
 msgctxt "inspections.kp0NPF"
 msgid "Planned"
 msgstr "Gepland"
 
 #: src/features/inspections/components/inspection-labels.tsx
+#: src/features/inspections/components/inspection-overview.tsx
 msgctxt "inspections.q1WWIr"
 msgid "In progress"
 msgstr "Bezig"
 
 #: src/features/inspections/components/inspection-labels.tsx
+#: src/features/inspections/components/inspection-overview.tsx
 msgctxt "inspections.reFEEC"
 msgid "Reporting"
 msgstr "Rapportage"
 
 #: src/features/inspections/components/inspection-labels.tsx
+#: src/features/inspections/components/inspection-overview.tsx
 msgctxt "inspections.Fv1ZSz"
 msgid "Closed"
 msgstr "Gesloten"
 
 #: src/features/inspections/components/inspection-labels.tsx
+#: src/features/inspections/components/inspection-overview.tsx
 msgctxt "inspections.PFtMy9"
 msgid "Canceled"
 msgstr "Geannuleerd"
@@ -17769,6 +17987,7 @@ msgid "Certification audit"
 msgstr "Certificeringsaudit"
 
 #: src/features/inspections/components/inspection-labels.tsx
+#: src/features/inspections/components/inspection-overview.tsx
 #: src/features/inspections/components/inspection-program-calendar.tsx
 msgctxt "inspections.uXm916"
 msgid "Inspection"
@@ -17819,30 +18038,62 @@ msgctxt "inspections.3eSoRF"
 msgid "Auditee"
 msgstr "Geauditeerde"
 
+#: src/features/inspections/components/inspection-overview.tsx
+msgctxt "inspections.9a9-ww"
+msgid "Title"
+msgstr "Titel"
+
+#: src/features/inspections/components/inspection-overview.tsx
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/inspections/components/inspection-overview.tsx
+msgctxt "inspections.qgFfRG"
+msgid "Planned start"
+msgstr "Geplande start"
+
+#: src/features/inspections/components/inspection-overview.tsx
+msgctxt "inspections.XatNWa"
+msgid "Planned soonest"
+msgstr "Eerst gepland"
+
+#: src/features/inspections/components/inspection-overview.tsx
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.kFkPWB"
+msgid "Number"
+msgstr "Nummer"
+
+#: src/features/inspections/components/inspection-overview.tsx
+msgctxt "inspections.BFw5fs"
+msgid "Search inspections"
+msgstr "Inspecties zoeken"
+
+#: src/features/inspections/components/inspection-overview.tsx
+msgctxt "inspections.mBXfRk"
+msgid "The inspections didn't load"
+msgstr "De inspecties zijn niet geladen"
+
+#: src/features/inspections/components/inspection-overview.tsx
+msgctxt "inspections.F6s8yI"
+msgid "No inspections yet"
+msgstr "Nog geen inspecties"
+
+#: src/features/inspections/components/inspection-overview.tsx
+msgctxt "inspections.Xm2tEO"
+msgid "Plan an inspection in the programme calendar, then run it here."
+msgstr "Plan een inspectie in de programmakalender en voer hem hier uit."
+
 #: src/features/inspections/components/inspection-program-calendar.tsx
 msgctxt "inspections.ygO7pY"
 msgid "Not planned"
 msgstr "Niet gepland"
 
 #: src/features/inspections/components/inspection-program-calendar.tsx
-msgctxt "inspections.kFkPWB"
-msgid "Number"
-msgstr "Nummer"
-
-#: src/features/inspections/components/inspection-program-calendar.tsx
-msgctxt "inspections.e5x8FT"
-msgid "Kind"
-msgstr "Soort"
-
-#: src/features/inspections/components/inspection-program-calendar.tsx
 msgctxt "inspections.QFFOs-"
 msgid "Programme"
 msgstr "Programma"
-
-#: src/features/inspections/components/inspection-program-calendar.tsx
-msgctxt "inspections.tzMNF3"
-msgid "Status"
-msgstr "Status"
 
 #: src/features/inspections/components/inspection-program-calendar.tsx
 msgctxt "inspections.ioTsJl"
@@ -17858,12 +18109,6 @@ msgstr "Elke audit en inspectie in de maand waarin die gepland is. Open er een o
 msgctxt "inspections.5c97oi"
 msgid "The audit programme didn't load"
 msgstr "Het auditprogramma is niet geladen"
-
-#: src/features/inspections/components/inspection-program-calendar.tsx
-#: src/features/inspections/components/inspection-run.tsx
-msgctxt "inspections.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
 
 #: src/features/inspections/components/inspection-program-calendar.tsx
 #: src/features/inspections/components/inspection-run.tsx
@@ -17897,19 +18142,9 @@ msgid "Open an inspection in the programme to see its team, checklist and findin
 msgstr "Open een inspectie in het programma om het team, de checklist en de bevindingen te zien."
 
 #: src/features/inspections/components/inspection-run.tsx
-msgctxt "inspections.ab2qRi"
-msgid "Case raised"
-msgstr "Case geopend"
-
-#: src/features/inspections/components/inspection-run.tsx
 msgctxt "inspections.1_3-n8"
 msgid "Closed {number}"
 msgstr "{number} gesloten"
-
-#: src/features/inspections/components/inspection-run.tsx
-msgctxt "inspections.CdpWpS"
-msgid "The inspection didn't load"
-msgstr "De inspectie is niet geladen"
 
 #: src/features/inspections/components/inspection-run.tsx
 msgctxt "inspections.qXe_G4"
@@ -17952,19 +18187,9 @@ msgid "The lead and auditors record findings while the inspection is in progress
 msgstr "De leider en auditors leggen bevindingen vast terwijl de inspectie bezig is."
 
 #: src/features/inspections/components/inspection-run.tsx
-msgctxt "inspections.Pl0v8W"
-msgid "Raise case"
-msgstr "Case openen"
-
-#: src/features/inspections/components/inspection-run.tsx
 msgctxt "inspections.ItE4vE"
 msgid "Open case"
 msgstr "Case bekijken"
-
-#: src/features/inspections/components/inspection-run.tsx
-msgctxt "inspections.PjaypS"
-msgid "Close inspection"
-msgstr "Inspectie sluiten"
 
 #: src/features/integrations/components/connector-detail.tsx
 #: src/features/integrations/components/connector-list.tsx
@@ -20409,21 +20634,29 @@ msgid "Read the manufacturing guide"
 msgstr "Lees de handleiding voor productie"
 
 #: src/features/manufacturing/components/production-order-board.tsx
+#: src/features/manufacturing/components/production-order-detail.tsx
+#: src/features/manufacturing/components/production-order-overview.tsx
 msgctxt "manufacturing.W6nwjo"
 msgid "Draft"
 msgstr "Concept"
 
 #: src/features/manufacturing/components/production-order-board.tsx
+#: src/features/manufacturing/components/production-order-detail.tsx
+#: src/features/manufacturing/components/production-order-overview.tsx
 msgctxt "manufacturing.GnNfTd"
 msgid "Released"
 msgstr "Vrijgegeven"
 
 #: src/features/manufacturing/components/production-order-board.tsx
+#: src/features/manufacturing/components/production-order-detail.tsx
+#: src/features/manufacturing/components/production-order-overview.tsx
 msgctxt "manufacturing.q1WWIr"
 msgid "In progress"
 msgstr "In uitvoering"
 
 #: src/features/manufacturing/components/production-order-board.tsx
+#: src/features/manufacturing/components/production-order-detail.tsx
+#: src/features/manufacturing/components/production-order-overview.tsx
 msgctxt "manufacturing.JXdbo8"
 msgid "Done"
 msgstr "Gereed"
@@ -20448,25 +20681,235 @@ msgctxt "manufacturing.K6blXA"
 msgid "{quantity}, due {date}"
 msgstr "{quantity}, uiterlijk {date}"
 
-#: src/features/manufacturing/components/production-order-sections.tsx
-msgctxt "manufacturing.BEwAxd"
-msgid "Production orders"
-msgstr "Productieorders"
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.Y2EWuH"
+msgid "The production order didn't load"
+msgstr "De productieorder is niet geladen"
 
+#: src/features/manufacturing/components/production-order-detail.tsx
 #: src/features/manufacturing/components/production-order-sections.tsx
-msgctxt "manufacturing.JezMAF"
-msgid "Each order in its status. Drag a draft to Released to allocate its components, and a running order to Done to receive its output."
-msgstr "Elke order in zijn status. Sleep een concept naar Vrijgegeven om de componenten te reserveren, en een lopende order naar Gereed om de output te ontvangen."
+msgctxt "manufacturing.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
 
+#: src/features/manufacturing/components/production-order-detail.tsx
+#: src/features/manufacturing/components/production-order-overview.tsx
+msgctxt "manufacturing.PFtMy9"
+msgid "Canceled"
+msgstr "Geannuleerd"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.x_ZVlU"
+msgid "Product"
+msgstr "Product"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.kp0NPF"
+msgid "Planned"
+msgstr "Gepland"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.cCRjfh"
+msgid "Produced"
+msgstr "Geproduceerd"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.RR8OAO"
+msgid "Scrap"
+msgstr "Uitval"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+#: src/features/manufacturing/components/production-order-overview.tsx
+msgctxt "manufacturing.g9pEhE"
+msgid "Due"
+msgstr "Vervaldatum"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.95stPq"
+msgid "Completed"
+msgstr "Voltooid"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.E8zzIG"
+msgid "Release"
+msgstr "Vrijgeven"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.CbWngY"
+msgid "Order released"
+msgstr "Order vrijgegeven"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.fFJC3n"
+msgid "Complete the order"
+msgstr "Order afronden"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.U78NhE"
+msgid "Complete"
+msgstr "Afronden"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.Aieoq2"
+msgid "Order completed"
+msgstr "Order afgerond"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.4vq405"
+msgid "Quantity produced"
+msgstr "Geproduceerd aantal"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.9uOFF3"
+msgid "Overview"
+msgstr "Overzicht"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.ZmlNQ3"
+msgid "Activity"
+msgstr "Activiteit"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.KQsZBW"
+msgid "Related"
+msgstr "Gerelateerd"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.KG1GSh"
+msgid "Components are short"
+msgstr "Componenten schieten tekort"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.0kIwnt"
+msgid "{count, plural, one {# component is} other {# components are}} backordered. Create the purchases from the plan board."
+msgstr "{count, plural, one {# component is} other {# componenten zijn}} nabesteld. Maak de inkopen aan vanaf het planbord."
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.MQbmj7"
+msgid "Operations"
+msgstr "Bewerkingen"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.58oxo-"
+msgid "The routing steps, in order."
+msgstr "De routingstappen, op volgorde."
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.jXd_F7"
+msgid "Step"
+msgstr "Stap"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.8uIBg0"
+msgid "Operation"
+msgstr "Bewerking"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.-lGwOg"
+msgid "Planned minutes"
+msgstr "Geplande minuten"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+#: src/features/manufacturing/components/production-order-overview.tsx
+msgctxt "manufacturing.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.ZBBhgR"
+msgid "This bill of materials has no routing."
+msgstr "Deze stuklijst heeft geen routing."
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.AcAA5x"
+msgid "Components"
+msgstr "Componenten"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.z45CRM"
+msgid "What the order needs, reserves and has taken from stock."
+msgstr "Wat de order nodig heeft, reserveert en uit voorraad heeft genomen."
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.S6QlZn"
+msgid "Component"
+msgstr "Component"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.pipqmw"
+msgid "Needed"
+msgstr "Nodig"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.-dDyb1"
+msgid "Allocated"
+msgstr "Toegewezen"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.NOf-Gb"
+msgid "Backordered"
+msgstr "Nabesteld"
+
+#: src/features/manufacturing/components/production-order-detail.tsx
+msgctxt "manufacturing.hXTHFl"
+msgid "Consumed"
+msgstr "Verbruikt"
+
+#: src/features/manufacturing/components/production-order-overview.tsx
+msgctxt "manufacturing.XPruqs"
+msgid "Order"
+msgstr "Order"
+
+#: src/features/manufacturing/components/production-order-overview.tsx
+msgctxt "manufacturing.GPiceQ"
+msgid "Produced / planned"
+msgstr "Geproduceerd / gepland"
+
+#: src/features/manufacturing/components/production-order-overview.tsx
+msgctxt "manufacturing.X7vkZk"
+msgid "Due soonest"
+msgstr "Eerst vervallend"
+
+#: src/features/manufacturing/components/production-order-overview.tsx
+msgctxt "manufacturing.MeKajs"
+msgid "Newest first"
+msgstr "Nieuwste eerst"
+
+#: src/features/manufacturing/components/production-order-overview.tsx
+msgctxt "manufacturing.kFkPWB"
+msgid "Number"
+msgstr "Nummer"
+
+#: src/features/manufacturing/components/production-order-overview.tsx
+msgctxt "manufacturing._GZFCc"
+msgid "Search production orders"
+msgstr "Productieorders zoeken"
+
+#: src/features/manufacturing/components/production-order-overview.tsx
 #: src/features/manufacturing/components/production-order-sections.tsx
 msgctxt "manufacturing.olpiHT"
 msgid "The production orders didn't load"
 msgstr "De productieorders zijn niet geladen"
 
+#: src/features/manufacturing/components/production-order-overview.tsx
+msgctxt "manufacturing.itN-qy"
+msgid "No production orders yet"
+msgstr "Nog geen productieorders"
+
+#: src/features/manufacturing/components/production-order-overview.tsx
+msgctxt "manufacturing.4qO5wZ"
+msgid "Create orders from the plan board, then release and complete them here."
+msgstr "Maak orders aan vanaf het planbord, geef ze hier vrij en rond ze af."
+
 #: src/features/manufacturing/components/production-order-sections.tsx
-msgctxt "manufacturing.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
+msgctxt "manufacturing.JezMAF"
+msgid "Each order in its status. Drag a draft to Released to allocate its components, and a running order to Done to receive its output."
+msgstr "Elke order in zijn status. Sleep een concept naar Vrijgegeven om de componenten te reserveren, en een lopende order naar Gereed om de output te ontvangen."
 
 #: src/features/manufacturing/components/production-order-sections.tsx
 msgctxt "manufacturing.62nsdy"
@@ -31062,6 +31505,7 @@ msgid "Linen shirt"
 msgstr "Linnen overhemd"
 
 #: src/features/shop/components/create-product-dialog.tsx
+#: src/features/shop/components/product-detail.tsx
 msgctxt "shop.k4brJy"
 msgid "SKU"
 msgstr "SKU"
@@ -31102,6 +31546,7 @@ msgstr "De voorraadniveaus zijn niet geladen"
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
 #: src/features/shop/components/product-catalog-grid.tsx
+#: src/features/shop/components/product-detail.tsx
 msgctxt "shop.162kF7"
 msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
@@ -31157,6 +31602,7 @@ msgid "Reserved"
 msgstr "Gereserveerd"
 
 #: src/features/shop/components/inventory-table.tsx
+#: src/features/shop/components/product-detail.tsx
 msgctxt "shop.PgJGHT"
 msgid "Available"
 msgstr "Beschikbaar"
@@ -31349,6 +31795,34 @@ msgstr "Btw"
 
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
+msgctxt "shop.MJ2jZQ"
+msgid "Total"
+msgstr "Totaal"
+
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.u_vOPu"
+msgid "Paid"
+msgstr "Betaald"
+
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.T2ZVQY"
+msgid "Lines"
+msgstr "Regels"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop._VTdwj"
+msgid "Shipments"
+msgstr "Zendingen"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.WuGkfJ"
+msgid "Returns"
+msgstr "Retouren"
+
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
 msgctxt "shop.M4fGzP"
 msgid "Draft order"
 msgstr "Conceptbestelling"
@@ -31364,42 +31838,35 @@ msgid "Not placed yet. Prices follow the catalog until you place it."
 msgstr "Nog niet geplaatst. Prijzen volgen de catalogus tot je hem plaatst."
 
 #: src/features/shop/components/order-detail.tsx
-msgctxt "shop.-WxPPe"
-msgid "Order flow"
-msgstr "Bestelverloop"
+msgctxt "shop.5ZO1iN"
+msgid "Request a return"
+msgstr "Een retour aanvragen"
 
 #: src/features/shop/components/order-detail.tsx
-#: src/features/shop/components/order-list.tsx
-msgctxt "shop.T2ZVQY"
-msgid "Lines"
-msgstr "Regels"
+msgctxt "shop.mZQ1XP"
+msgid "Every unit of the order comes back."
+msgstr "Elke eenheid van de order komt terug."
 
 #: src/features/shop/components/order-detail.tsx
-msgctxt "shop.L0YNvJ"
-msgid "This draft is empty"
-msgstr "Dit concept is leeg"
+msgctxt "shop.M1vdcZ"
+msgid "Request return"
+msgstr "Retour aanvragen"
 
 #: src/features/shop/components/order-detail.tsx
-msgctxt "shop.9XonZ8"
-msgid "Add a product from the orders page."
-msgstr "Voeg een product toe vanaf de bestellingenpagina."
+msgctxt "shop.ul8wu8"
+msgid "Return requested"
+msgstr "Retour aangevraagd"
 
 #: src/features/shop/components/order-detail.tsx
-msgctxt "shop.ITSq4J"
-msgid "Unit price"
-msgstr "Stukprijs"
+msgctxt "shop.eppo9G"
+msgid "Reason (optional)"
+msgstr "Reden (optioneel)"
 
 #: src/features/shop/components/order-detail.tsx
-#: src/features/shop/components/order-list.tsx
-msgctxt "shop.MJ2jZQ"
-msgid "Total"
-msgstr "Totaal"
-
-#: src/features/shop/components/order-detail.tsx
-#: src/features/shop/components/order-status-badge.tsx
-msgctxt "shop.u_vOPu"
-msgid "Paid"
-msgstr "Betaald"
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.Lv0zJu"
+msgid "Details"
+msgstr "Details"
 
 #: src/features/shop/components/order-detail.tsx
 msgctxt "shop.d-qgix"
@@ -31462,10 +31929,144 @@ msgctxt "shop.F3CMuN"
 msgid "No promotion was applied."
 msgstr "Er is geen actie toegepast."
 
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.9uOFF3"
+msgid "Overview"
+msgstr "Overzicht"
+
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.ZmlNQ3"
+msgid "Activity"
+msgstr "Activiteit"
+
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.KQsZBW"
+msgid "Related"
+msgstr "Gerelateerd"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.-WxPPe"
+msgid "Order flow"
+msgstr "Bestelverloop"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.L0YNvJ"
+msgid "This draft is empty"
+msgstr "Dit concept is leeg"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.9XonZ8"
+msgid "Add a product from the orders page."
+msgstr "Voeg een product toe vanaf de bestellingenpagina."
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.ITSq4J"
+msgid "Unit price"
+msgstr "Stukprijs"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.uVkzRm"
+msgid "Settle a return as restock, quarantine or reject."
+msgstr "Handel een retour af als terug op voorraad, quarantaine of afkeuren."
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.f5xL-G"
+msgid "{n, number} units"
+msgstr "{n, number} eenheden"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.JbjB-h"
+msgid "Settle the return"
+msgstr "De retour afhandelen"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.mPKS81"
+msgid "Settle"
+msgstr "Afhandelen"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.81J_ZG"
+msgid "Settle return"
+msgstr "Retour afhandelen"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.N1TFpi"
+msgid "Return settled"
+msgstr "Retour afgehandeld"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.1G3OBu"
+msgid "What happens to the units"
+msgstr "Wat er met de eenheden gebeurt"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.zFX555"
+msgid "Restock"
+msgstr "Terug op voorraad"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.gXfoXg"
+msgid "Quarantine"
+msgstr "Quarantaine"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.xAMBjQ"
+msgid "Reject the return"
+msgstr "De retour afkeuren"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.nF1_mK"
+msgid "Refund the order"
+msgstr "De order terugbetalen"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.Jpp80G"
+msgid "No refund"
+msgstr "Geen terugbetaling"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.3NKpNG"
+msgid "Refund what is paid"
+msgstr "Terugbetalen wat betaald is"
+
 #: src/features/shop/components/order-list.tsx
 msgctxt "shop.Ii4JS5"
 msgid "Add a product first"
 msgstr "Voeg eerst een product toe"
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.d6Riss"
+msgid "Placed orders"
+msgstr "Geplaatste orders"
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.nSoXyG"
+msgid "{n, number} drafts open"
+msgstr "{n, number} concepten open"
+
+#: src/features/shop/components/order-list.tsx
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.M1w9up"
+msgid "Awaiting payment"
+msgstr "Wacht op betaling"
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.dZGBWB"
+msgid "To ship"
+msgstr "Te verzenden"
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.8WKgF6"
+msgid "Revenue"
+msgstr "Omzet"
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.rAogJV"
+msgid "Paid, fulfilled and completed orders"
+msgstr "Betaalde, verwerkte en afgeronde orders"
 
 #: src/features/shop/components/order-list.tsx
 msgctxt "shop.YpFjNr"
@@ -31514,6 +32115,7 @@ msgstr "Geen bestellingen hier."
 
 #: src/features/shop/components/order-status-badge.tsx
 #: src/features/shop/components/product-catalog-grid.tsx
+#: src/features/shop/components/product-detail.tsx
 msgctxt "shop.W6nwjo"
 msgid "Draft"
 msgstr "Concept"
@@ -31522,11 +32124,6 @@ msgstr "Concept"
 msgctxt "shop.0Hhe6f"
 msgid "On hold"
 msgstr "In de wacht"
-
-#: src/features/shop/components/order-status-badge.tsx
-msgctxt "shop.M1w9up"
-msgid "Awaiting payment"
-msgstr "Wacht op betaling"
 
 #: src/features/shop/components/order-status-badge.tsx
 msgctxt "shop.dX7-Rv"
@@ -31669,11 +32266,13 @@ msgid "Nothing left to do for this order."
 msgstr "Er is niets meer te doen voor deze bestelling."
 
 #: src/features/shop/components/product-catalog-grid.tsx
+#: src/features/shop/components/product-detail.tsx
 msgctxt "shop.3a5wL8"
 msgid "Active"
 msgstr "Actief"
 
 #: src/features/shop/components/product-catalog-grid.tsx
+#: src/features/shop/components/product-detail.tsx
 msgctxt "shop.0HT-Ib"
 msgid "Archived"
 msgstr "Gearchiveerd"
@@ -31712,6 +32311,56 @@ msgstr "Niet op voorraad"
 msgctxt "shop.KwMECP"
 msgid "{count, number} available"
 msgstr "{count, number} beschikbaar"
+
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.OpaZtx"
+msgid "The product didn't load"
+msgstr "Het product is niet geladen"
+
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.b1zuN9"
+msgid "Price"
+msgstr "Prijs"
+
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.hrgo-E"
+msgid "Archive"
+msgstr "Archiveren"
+
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.i4fZ92"
+msgid "Product archived"
+msgstr "Product gearchiveerd"
+
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.syEQFE"
+msgid "Publish"
+msgstr "Publiceren"
+
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.zz6ObK"
+msgid "Restore"
+msgstr "Herstellen"
+
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.6c3c54"
+msgid "Product active"
+msgstr "Product actief"
+
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.Q8Qw5B"
+msgid "Description"
+msgstr "Omschrijving"
+
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.896mzd"
+msgid "What the storefront shows for this product."
+msgstr "Wat de winkel voor dit product toont."
+
+#: src/features/shop/components/product-detail.tsx
+msgctxt "shop.nCAM1K"
+msgid "No description yet."
+msgstr "Nog geen omschrijving."
 
 #: src/features/shop/components/promotion-code-field.tsx
 msgctxt "shop.Rt3Led"
@@ -33027,6 +33676,35 @@ msgid "Cash out"
 msgstr "Geld eruit"
 
 #: src/features/tills/components/session-detail.tsx
+#: src/features/tills/components/tills-overview.tsx
+msgctxt "tills.KGYKYA"
+msgid "Till"
+msgstr "Kassa"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.gHOKVU"
+msgid "Opening float"
+msgstr "Startbedrag"
+
+#: src/features/tills/components/session-detail.tsx
+#: src/features/tills/components/tills-overview.tsx
+msgctxt "tills.nhfX6m"
+msgid "Expected cash"
+msgstr "Verwacht contant geld"
+
+#: src/features/tills/components/session-detail.tsx
+#: src/features/tills/components/tills-overview.tsx
+msgctxt "tills.ADKsID"
+msgid "Opened"
+msgstr "Geopend"
+
+#: src/features/tills/components/session-detail.tsx
+#: src/features/tills/components/tills-overview.tsx
+msgctxt "tills.Fv1ZSz"
+msgid "Closed"
+msgstr "Gesloten"
+
+#: src/features/tills/components/session-detail.tsx
 msgctxt "tills.NucS8N"
 msgid "Opened {date}"
 msgstr "Geopend {date}"
@@ -33036,12 +33714,6 @@ msgstr "Geopend {date}"
 msgctxt "tills.JfG49w"
 msgid "Open"
 msgstr "Open"
-
-#: src/features/tills/components/session-detail.tsx
-#: src/features/tills/components/tills-overview.tsx
-msgctxt "tills.Fv1ZSz"
-msgid "Closed"
-msgstr "Gesloten"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.TQa_mw"
@@ -33143,6 +33815,16 @@ msgstr "Kastelling"
 msgctxt "tills.5M13hW"
 msgid "Deposits"
 msgstr "Stortingen"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.ZmlNQ3"
+msgid "Activity"
+msgstr "Activiteit"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.KQsZBW"
+msgid "Related"
+msgstr "Gerelateerd"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.6srLb2"
@@ -33281,17 +33963,6 @@ msgid "Deposit the cash of a closed session."
 msgstr "Stort het contante geld van een gesloten sessie."
 
 #: src/features/tills/components/session-detail.tsx
-msgctxt "tills.gHOKVU"
-msgid "Opening float"
-msgstr "Startbedrag"
-
-#: src/features/tills/components/session-detail.tsx
-#: src/features/tills/components/tills-overview.tsx
-msgctxt "tills.nhfX6m"
-msgid "Expected cash"
-msgstr "Verwacht contant geld"
-
-#: src/features/tills/components/session-detail.tsx
 msgctxt "tills.McnLsx"
 msgid "When"
 msgstr "Wanneer"
@@ -33307,19 +33978,9 @@ msgid "Cash sales and drawer movements show here."
 msgstr "Contante verkopen en ladebewegingen verschijnen hier."
 
 #: src/features/tills/components/tills-overview.tsx
-msgctxt "tills.KGYKYA"
-msgid "Till"
-msgstr "Kassa"
-
-#: src/features/tills/components/tills-overview.tsx
 msgctxt "tills.-E6SZ8"
 msgid "Float"
 msgstr "Kasvoorraad"
-
-#: src/features/tills/components/tills-overview.tsx
-msgctxt "tills.ADKsID"
-msgid "Opened"
-msgstr "Geopend"
 
 #: src/features/tills/components/tills-overview.tsx
 msgctxt "tills.MeKajs"

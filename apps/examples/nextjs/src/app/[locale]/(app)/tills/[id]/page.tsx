@@ -36,7 +36,13 @@ export default function TillSessionPage({
         {Promise.all([params, searchParams]).then(([{ id }, raw]) => (
           <SessionDetail
             id={id}
-            tab={activeTab(raw, ["movements", "count", "deposits"])}
+            tab={activeTab(raw, [
+              "movements",
+              "count",
+              "deposits",
+              "activity",
+              "related",
+            ])}
           />
         ))}
       </Suspense>

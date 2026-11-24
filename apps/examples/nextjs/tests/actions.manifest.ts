@@ -33,6 +33,14 @@ const write = (
   resolve: () => Promise<readonly unknown[]>,
 ): ActionCase => ({ file, name, page, args: [], resolve, mutates: true });
 
+/**
+ * An id no row holds, for the writes that would change a seeded story (closing
+ * the period, releasing or completing an order, closing an inspection): the
+ * call still reaches the action and measures it, and the story stays as
+ * seeded.
+ */
+const MISSING_ID = "00000000-0000-4000-8000-00000000dead";
+
 const SALES = "features/sales/sales-actions.ts";
 
 const CARE_PLANS = "features/care-plans/care-plans-actions.ts";
@@ -44,6 +52,10 @@ const COMPOSITES = "features/composites/composites-actions.ts";
 const AGENTS = "features/agents/agents-actions.ts";
 
 const WEBHOOKS = "features/webhooks/webhooks-actions.ts";
+
+const MANUFACTURING = "features/manufacturing/manufacturing-actions.ts";
+
+const INSPECTIONS = "features/inspections/inspections-actions.ts";
 
 export const ACTIONS: readonly ActionCase[] = [
   read(
@@ -185,5 +197,50 @@ export const ACTIONS: readonly ActionCase[] = [
     async () => [
       { enrollmentId: await firstRowId("enrollments"), step: "accounts" },
     ],
+  ),
+  write(COMPOSITES, "closeAccountingPeriod", "/finance/periods", async () => [
+    { periodId: MISSING_ID },
+  ]),
+  write(COMPOSITES, "payDueBills", "/finance/payables", async () => [
+    {
+      accountId: await firstRowId("bank_accounts"),
+      dueBy: "2000-01-01",
+      creditorName: "Supplier",
+      creditorIban: "NL91ABNA0417164300",
+    },
+  ]),
+  write(COMPOSITES, "requestOrderReturn", "/shop/orders", async () => [
+    { orderId: await firstRowId("orders") },
+  ]),
+  write(COMPOSITES, "settleReturn", "/shop/orders", async () => [
+    {
+      returnId: await firstRowId("order_returns"),
+      disposition: "restock",
+      refund: false,
+    },
+  ]),
+  write(
+    MANUFACTURING,
+    "releaseProductionOrder",
+    "/manufacturing/orders",
+    async () => [{ orderId: MISSING_ID }],
+  ),
+  write(
+    MANUFACTURING,
+    "completeProductionOrder",
+    "/manufacturing/orders",
+    async () => [{ orderId: MISSING_ID, produced: 1 }],
+  ),
+  write(INSPECTIONS, "raiseFindingCase", "/inspections/register", async () => [
+    { findingId: MISSING_ID },
+  ]),
+  write(INSPECTIONS, "closeInspection", "/inspections/register", async () => [
+    { inspectionId: MISSING_ID },
+  ]),
+  write(
+    "features/shop/shop-actions.ts",
+    "setProductStatus",
+    "/shop",
+    async () => [{ productId: await firstRowId("products"), status: "active" }],
   ),
 ];
