@@ -192,6 +192,7 @@ export type {
   AuthorizationMembership,
   AuthorizationOperation,
   AuthorizationPermission,
+  AuthorizationPermissionFilter,
   AuthorizationPersona,
   AuthorizationPlatformRoles,
   AuthorizationProvider,

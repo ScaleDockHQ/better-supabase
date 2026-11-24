@@ -1,7 +1,7 @@
 import type {
   AuthorizationPermissionFilter,
   AuthorizationProvider,
-} from "../../config/authorization.ts";
+} from "../../config/index.ts";
 import type { CatalogFunction, CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
