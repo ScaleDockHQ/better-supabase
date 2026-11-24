@@ -179,11 +179,9 @@ Written by `node scripts/check-example-generated.ts --write`; do not edit by han
 | records/vulnerability               | 0         |
 | records/warranty-claim              | 0         |
 | records/work-center                 | 0         |
-| server                              | 255       |
-| server                              | 249       |
+| server                              | 256       |
 | server-api                          | 3         |
 | server-core                         | 83        |
-| server-core                         | 81        |
 | server-shell                        | 45        |
 | session-counters                    | 0         |
 | shell                               | 0         |
