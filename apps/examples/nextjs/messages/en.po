@@ -195,6 +195,8 @@ msgid "Decision log"
 msgstr "Decision log"
 
 #: src/app/[locale]/(app)/assistant/page.tsx
+#: src/features/assistant/components/assistant-slot-lazy.tsx
+#: src/features/assistant/components/assistant-slot.tsx
 msgctxt "assistant.wSAvhu"
 msgid "Assistant"
 msgstr "Assistant"
@@ -5090,6 +5092,11 @@ msgstr "Answer mode"
 msgctxt "assistant.LGXxOm"
 msgid "Durable answers need AI_GATEWAY_API_KEY."
 msgstr "Durable answers need AI_GATEWAY_API_KEY."
+
+#: src/features/assistant/components/assistant-slot.tsx
+msgctxt "assistant.q-NfrE"
+msgid "Opened from"
+msgstr "Opened from"
 
 #: src/features/assistant/components/assistant-tour-chat.tsx
 msgctxt "assistant.Acs6FI"
@@ -23743,6 +23750,76 @@ msgctxt "records.p38jo8"
 msgid "Visible to everyone in the organization."
 msgstr "Visible to everyone in the organization."
 
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.L2R91O"
+msgid "The tags didn't load"
+msgstr "The tags didn't load"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.1EYCdR"
+msgid "Tags"
+msgstr "Tags"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.qGPxh2"
+msgid "No tags yet."
+msgstr "No tags yet."
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.dUz8oX"
+msgid "The custom fields didn't load"
+msgstr "The custom fields didn't load"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.i9kpGj"
+msgid "Custom fields"
+msgstr "Custom fields"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.KBa9Ah"
+msgid "Defined in the organization's settings."
+msgstr "Defined in the organization's settings."
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.tKl6Rx"
+msgid "No values set."
+msgstr "No values set."
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.G2uGL4"
+msgid "The approvals didn't load"
+msgstr "The approvals didn't load"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.nFa1Ms"
+msgid "Approvals"
+msgstr "Approvals"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.0gL8oj"
+msgid "Nothing waits for approval."
+msgstr "Nothing waits for approval."
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.qWiYnJ"
+msgid "The reminders didn't load"
+msgstr "The reminders didn't load"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.-vBFap"
+msgid "Reminders"
+msgstr "Reminders"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.Ow5Eg4"
+msgid "You set no reminder on this record."
+msgstr "You set no reminder on this record."
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.UbuYqd"
+msgid "{minutes} min before"
+msgstr "{minutes} min before"
+
 #: src/features/records/components/record-timeline.tsx
 msgctxt "records.LgbKvU"
 msgid "Comment"
@@ -26177,6 +26254,11 @@ msgid "Overdue"
 msgstr "Overdue"
 
 #: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/sales/components/deal-detail.tsx
 msgctxt "sales.cs7tQX"
 msgid "Mark won"
 msgstr "Mark won"
@@ -26267,9 +26349,9 @@ msgid "Deal moved"
 msgstr "Deal moved"
 
 #: src/features/sales/components/deal-detail.tsx
-msgctxt "sales.Lv0zJu"
-msgid "Details"
-msgstr "Details"
+msgctxt "sales.J8cAGG"
+msgid "Needs attention"
+msgstr "Needs attention"
 
 #: src/features/sales/components/deal-schedule.tsx
 msgctxt "sales.n-2wj3"

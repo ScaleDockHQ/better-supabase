@@ -195,6 +195,8 @@ msgid "Decision log"
 msgstr "Beslissingslogboek"
 
 #: src/app/[locale]/(app)/assistant/page.tsx
+#: src/features/assistant/components/assistant-slot-lazy.tsx
+#: src/features/assistant/components/assistant-slot.tsx
 msgctxt "assistant.wSAvhu"
 msgid "Assistant"
 msgstr "Assistent"
@@ -5090,6 +5092,11 @@ msgstr "Antwoordmodus"
 msgctxt "assistant.LGXxOm"
 msgid "Durable answers need AI_GATEWAY_API_KEY."
 msgstr "Duurzame antwoorden hebben AI_GATEWAY_API_KEY nodig."
+
+#: src/features/assistant/components/assistant-slot.tsx
+msgctxt "assistant.q-NfrE"
+msgid "Opened from"
+msgstr "Geopend vanaf"
 
 #: src/features/assistant/components/assistant-tour-chat.tsx
 msgctxt "assistant.Acs6FI"
@@ -23743,6 +23750,76 @@ msgctxt "records.p38jo8"
 msgid "Visible to everyone in the organization."
 msgstr "Zichtbaar voor iedereen in de organisatie."
 
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.L2R91O"
+msgid "The tags didn't load"
+msgstr "De labels zijn niet geladen"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.1EYCdR"
+msgid "Tags"
+msgstr "Labels"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.qGPxh2"
+msgid "No tags yet."
+msgstr "Nog geen labels."
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.dUz8oX"
+msgid "The custom fields didn't load"
+msgstr "De aangepaste velden zijn niet geladen"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.i9kpGj"
+msgid "Custom fields"
+msgstr "Aangepaste velden"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.KBa9Ah"
+msgid "Defined in the organization's settings."
+msgstr "Ingesteld in de instellingen van de organisatie."
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.tKl6Rx"
+msgid "No values set."
+msgstr "Geen waarden ingesteld."
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.G2uGL4"
+msgid "The approvals didn't load"
+msgstr "De goedkeuringen zijn niet geladen"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.nFa1Ms"
+msgid "Approvals"
+msgstr "Goedkeuringen"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.0gL8oj"
+msgid "Nothing waits for approval."
+msgstr "Niets wacht op goedkeuring."
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.qWiYnJ"
+msgid "The reminders didn't load"
+msgstr "De herinneringen zijn niet geladen"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.-vBFap"
+msgid "Reminders"
+msgstr "Herinneringen"
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.Ow5Eg4"
+msgid "You set no reminder on this record."
+msgstr "Je hebt geen herinnering voor dit record ingesteld."
+
+#: src/features/records/components/record-side-sections.tsx
+msgctxt "records.UbuYqd"
+msgid "{minutes} min before"
+msgstr "{minutes} min ervoor"
+
 #: src/features/records/components/record-timeline.tsx
 msgctxt "records.LgbKvU"
 msgid "Comment"
@@ -26177,6 +26254,11 @@ msgid "Overdue"
 msgstr "Achterstallig"
 
 #: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/sales/components/deal-detail.tsx
 msgctxt "sales.cs7tQX"
 msgid "Mark won"
 msgstr "Als gewonnen markeren"
@@ -26267,9 +26349,9 @@ msgid "Deal moved"
 msgstr "Deal verplaatst"
 
 #: src/features/sales/components/deal-detail.tsx
-msgctxt "sales.Lv0zJu"
-msgid "Details"
-msgstr "Details"
+msgctxt "sales.J8cAGG"
+msgid "Needs attention"
+msgstr "Aandacht nodig"
 
 #: src/features/sales/components/deal-schedule.tsx
 msgctxt "sales.n-2wj3"

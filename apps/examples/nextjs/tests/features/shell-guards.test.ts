@@ -98,9 +98,10 @@ describe("layout-reachable client code budget", () => {
 });
 
 // Set from the first run; see the failure message for the measured value.
-const MAX_CLIENT_MODULES = 35;
+// 36: the lazy Assistant button of the header (its panel loads on intent).
+const MAX_CLIENT_MODULES = 36;
 const MIN_ENSURE_STATIC = 59;
-const MAX_CLIENT_BYTES = 109_065;
+const MAX_CLIENT_BYTES = 109_994;
 
 describe("shell prerender table", () => {
   const exports = (name: string): string[] =>

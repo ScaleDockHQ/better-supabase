@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { AfterNavigation } from "@/components/record-detail/after-navigation";
+import { PropertiesRail } from "@/components/record-detail/properties-rail";
 import { RecordBoundSections } from "@/components/record-detail/record-bound-sections";
 import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
 import { RecordDetailTabs } from "@/components/record-detail/record-detail-tabs";
@@ -109,6 +110,15 @@ export async function DealDetail({
 
   return (
     <RecordDetailFrame
+      aside={
+        <>
+          <PropertiesRail title={t("Details")} properties={facts} />
+          <RecordBoundSections
+            subject={subject}
+            sections={["tags", "fields", "approvals", "reminders"]}
+          />
+        </>
+      }
       title={deal.name}
       description={deal.identifier}
       status={
@@ -246,10 +256,10 @@ export async function DealDetail({
               ) : null}
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("Details")}</CardTitle>
-              {flags.length > 0 ? (
+          {flags.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("Needs attention")}</CardTitle>
                 <CardDescription className="flex flex-wrap gap-2">
                   {flags.map((flag) => (
                     <Badge key={flag} variant="warning-light">
@@ -257,21 +267,9 @@ export async function DealDetail({
                     </Badge>
                   ))}
                 </CardDescription>
-              ) : null}
-            </CardHeader>
-            <CardContent>
-              <dl className="grid gap-4 sm:grid-cols-2">
-                {facts.map((fact) => (
-                  <div key={fact.label} className="flex flex-col gap-1">
-                    <dt className="text-xs text-muted-foreground">
-                      {fact.label}
-                    </dt>
-                    <dd className="text-sm font-medium">{fact.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </CardContent>
-          </Card>
+              </CardHeader>
+            </Card>
+          ) : null}
         </>
       )}
     </RecordDetailFrame>

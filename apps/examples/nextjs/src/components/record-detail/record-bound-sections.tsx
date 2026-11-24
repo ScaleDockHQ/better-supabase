@@ -12,10 +12,25 @@ import {
   RecordRelations,
   RecordRelationsSkeleton,
 } from "@/features/records/components/record-sections";
+import {
+  RecordApprovals,
+  RecordFields,
+  RecordReminders,
+  RecordTags,
+} from "@/features/records/components/record-side-sections";
 
 import { AfterNavigation } from "./after-navigation";
+import { RecordSectionSkeleton } from "./record-section-states";
 
-export type BoundSection = "discussion" | "files" | "history" | "relations";
+export type BoundSection =
+  | "approvals"
+  | "discussion"
+  | "fields"
+  | "files"
+  | "history"
+  | "relations"
+  | "reminders"
+  | "tags";
 
 /**
  * The sections every record binds through `bsbCore.record`: each one reads its
@@ -68,6 +83,46 @@ export function RecordBoundSections({
               <Suspense key={section} fallback={<RecordRelationsSkeleton />}>
                 <AfterNavigation>
                   <RecordRelations subject={subject} />
+                </AfterNavigation>
+              </Suspense>
+            );
+          }
+
+          case "approvals": {
+            return (
+              <Suspense key={section} fallback={<RecordSectionSkeleton />}>
+                <AfterNavigation>
+                  <RecordApprovals subject={subject} />
+                </AfterNavigation>
+              </Suspense>
+            );
+          }
+
+          case "fields": {
+            return (
+              <Suspense key={section} fallback={<RecordSectionSkeleton />}>
+                <AfterNavigation>
+                  <RecordFields subject={subject} />
+                </AfterNavigation>
+              </Suspense>
+            );
+          }
+
+          case "reminders": {
+            return (
+              <Suspense key={section} fallback={<RecordSectionSkeleton />}>
+                <AfterNavigation>
+                  <RecordReminders subject={subject} />
+                </AfterNavigation>
+              </Suspense>
+            );
+          }
+
+          case "tags": {
+            return (
+              <Suspense key={section} fallback={<RecordSectionSkeleton />}>
+                <AfterNavigation>
+                  <RecordTags subject={subject} />
                 </AfterNavigation>
               </Suspense>
             );

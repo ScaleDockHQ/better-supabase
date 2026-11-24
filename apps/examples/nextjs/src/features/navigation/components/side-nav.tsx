@@ -99,6 +99,7 @@ import {
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { getExtracted } from "next-intl/server";
+import { Suspense } from "react";
 
 import {
   SidebarGroup,
@@ -111,6 +112,7 @@ import type { NavArea as NavAreaId, NavId } from "../nav-items";
 
 import { navAreas, navItems } from "../nav-items";
 import { NavArea } from "./nav-area";
+import { ApprovalsNavBadge } from "./nav-badge";
 import { getNavLabel } from "./nav-label-server";
 import { NavLink } from "./nav-link";
 
@@ -332,6 +334,11 @@ export async function SideNav({ visible }: { visible: readonly NavId[] }) {
                     >
                       <Icon />
                     </NavLink>
+                    {item.id === "approvals" ? (
+                      <Suspense>
+                        <ApprovalsNavBadge />
+                      </Suspense>
+                    ) : null}
                   </SidebarMenuItem>
                 );
               })}

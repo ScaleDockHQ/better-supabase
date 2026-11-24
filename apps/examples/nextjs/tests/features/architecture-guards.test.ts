@@ -34,7 +34,8 @@ const count = (pattern: RegExp, only = FILES) =>
 describe("architecture guards", () => {
   it("never forces prefetch on a link (prefetch budget)", () => {
     expect(count(/prefetch=\{true\}/gu)).toBe(0);
-    expect(count(/prefetch=\{false\}/gu)).toBeLessThanOrEqual(9);
+    // 10: IntentLink prefetches on intent only.
+    expect(count(/prefetch=\{false\}/gu)).toBeLessThanOrEqual(10);
   });
 
   it("keeps fallback={null} to the files that have it today", () => {

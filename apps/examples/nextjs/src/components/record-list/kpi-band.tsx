@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { IntentLink } from "@/components/intent-link";
 import {
   Card,
   CardDescription,
@@ -7,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link, toAppHref } from "@/i18n/navigation";
+import { toAppHref } from "@/i18n/navigation";
 
 export interface Kpi {
   readonly label: string;
@@ -40,12 +41,12 @@ function KpiTile({ kpi }: { kpi: Kpi }) {
   return kpi.href === undefined ? (
     body
   ) : (
-    <Link
+    <IntentLink
       href={toAppHref(kpi.href)}
       className="rounded-xl transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       {body}
-    </Link>
+    </IntentLink>
   );
 }
 
