@@ -66,6 +66,7 @@ for (const action of [...ACTIONS].toSorted(
     expect(id).toBeDefined();
 
     await page.goto(action.page);
+
     const reply = await page.request.post(action.page, {
       headers: {
         "Next-Action": id ?? "",
@@ -74,6 +75,7 @@ for (const action of [...ACTIONS].toSorted(
       },
       data: JSON.stringify(action.args),
     });
+
     const requestId = reply.headers()["x-bsb-request-id"];
     const statsPath = reply.headers()["x-bsb-stats"];
 

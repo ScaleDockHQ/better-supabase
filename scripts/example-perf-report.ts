@@ -51,7 +51,10 @@ export interface PerfInputs {
   readonly actions?: Readonly<Record<string, Measures>>;
   readonly auth?: Measures;
   readonly actionCoverage?: Measures;
-  /** Uncompressed first-load JS per route, from `.next/diagnostics/route-bundle-stats.json`. */
+  /**
+   * Uncompressed first-load JS per route, from
+   * `.next/diagnostics/route-bundle-stats.json`.
+   */
   readonly firstLoadJs?: Readonly<Record<string, number>>;
 }
 
@@ -163,9 +166,9 @@ export const markdown = (inputs: PerfInputs, label: string): string => {
 
   if (timings.length > 0) {
     const median = (field: string): number =>
-      timings
-        .map((t) => t[field] ?? 0)
-        .toSorted((a, b) => a - b)[Math.floor(timings.length / 2)] ?? 0;
+      timings.map((t) => t[field] ?? 0).toSorted((a, b) => a - b)[
+        Math.floor(timings.length / 2)
+      ] ?? 0;
 
     lines.push(
       "## Cold, warm and client navigation (admin)",
@@ -216,7 +219,14 @@ export const markdown = (inputs: PerfInputs, label: string): string => {
       "## Authentication and permissions",
       "",
       table([
-        ["Scenario", "Wall ms", "Calls", "Verifications", "Proxy ms", "Auth ms"],
+        [
+          "Scenario",
+          "Wall ms",
+          "Calls",
+          "Verifications",
+          "Proxy ms",
+          "Auth ms",
+        ],
         ["---", "---", "---", "---", "---", "---"],
         ...Object.entries(inputs.auth).map(([name, v]) => [
           name,
@@ -339,7 +349,10 @@ if (argv[1] === import.meta.filename) {
       target,
       JSON.stringify({ label, routes: report, scale, ...inputs }, null, 2),
     );
-    writeFileSync("docs/agents/example-perf.md", `${markdown(inputs, label)}\n`);
+    writeFileSync(
+      "docs/agents/example-perf.md",
+      `${markdown(inputs, label)}\n`,
+    );
   } else if (argv.includes("--json")) {
     console.log(JSON.stringify({ routes: report, scale }, null, 2));
   } else {

@@ -25,20 +25,17 @@ import {
 const user = perfUser();
 
 /** The `dur` of every Server-Timing metric of a response, by name. */
-function serverTiming(response: Response | null): Record<string, number> {
+function serverTiming(response: Response | null) {
   const header = response?.headers()["server-timing"] ?? "";
-  const metrics: Record<string, number> = {};
 
-  for (const part of header.split(",")) {
-    const [name, ...params] = part.trim().split(";");
-    const dur = params.find((param) => param.trim().startsWith("dur="));
+  return Object.fromEntries(
+    header.split(",").flatMap((part) => {
+      const [name, ...params] = part.trim().split(";");
+      const dur = params.find((param) => param.trim().startsWith("dur="));
 
-    if (name && dur) {
-      metrics[name.trim()] = Number(dur.trim().slice(4));
-    }
-  }
-
-  return metrics;
+      return name && dur ? [[name.trim(), Number(dur.trim().slice(4))]] : [];
+    }),
+  );
 }
 
 test.beforeEach(async ({ page }) => {

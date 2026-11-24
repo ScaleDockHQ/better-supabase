@@ -28,8 +28,16 @@ export const ACTIONS: readonly ActionCase[] = [
     "loadMyOrganizations",
     "/",
   ),
-  read("features/organization/organization-actions.ts", "loadMembers", "/settings/members"),
-  read("features/billing/billing-actions.ts", "loadPlanCatalog", "/settings/billing"),
+  read(
+    "features/organization/organization-actions.ts",
+    "loadMembers",
+    "/settings/members",
+  ),
+  read(
+    "features/billing/billing-actions.ts",
+    "loadPlanCatalog",
+    "/settings/billing",
+  ),
   read("features/inbox/inbox-actions.ts", "loadInboxes", "/inbox"),
   read("features/inbox/inbox-actions.ts", "loadTeams", "/inbox"),
   read("features/inbox/inbox-actions.ts", "loadMacros", "/inbox"),
@@ -37,7 +45,10 @@ export const ACTIONS: readonly ActionCase[] = [
   read("features/inbox/inbox-actions.ts", "loadScheduled", "/inbox"),
   read("features/inbox/inbox-actions.ts", "loadInboundEvents", "/inbox"),
   read("features/inbox/inbox-actions.ts", "loadConversations", "/inbox"),
-  read("features/knowledge/knowledge-actions.ts", "searchKnowledge", "/knowledge", [
-    { query: "refund" },
-  ]),
+  read(
+    "features/knowledge/knowledge-actions.ts",
+    "searchKnowledge",
+    "/knowledge",
+    [{ query: "refund" }],
+  ),
 ];

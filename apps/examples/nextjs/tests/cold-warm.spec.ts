@@ -55,11 +55,11 @@ for (const entry of openableRoutes(ROUTES)) {
       await expect(heading).toBeVisible();
     });
 
-    recordPerf(`cold-warm${perfUser() === "admin" ? "" : `-${perfUser()}`}.json`, entry.route, {
-      cold,
-      warm,
-      client,
-    });
+    recordPerf(
+      `cold-warm${perfUser() === "admin" ? "" : `-${perfUser()}`}.json`,
+      entry.route,
+      { cold, warm, client },
+    );
 
     expect(cold).toBeLessThan(CEILING_MS.cold);
     expect(warm).toBeLessThan(CEILING_MS.warm);

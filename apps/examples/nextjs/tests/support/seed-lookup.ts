@@ -2,10 +2,10 @@ import { Client } from "pg";
 
 /**
  * The table a dynamic route reads, for the pages no list links to with a plain
- * anchor (rows that open through a click handler, boards, cards). The first
- * row of the Acme organization gives the URL.
+ * anchor (rows that open through a click handler, boards, cards). The first row
+ * of the Acme organization gives the URL.
  */
-const TABLE_OF_ROUTE: Readonly<Record<string, string>> = {
+const TABLE_OF_ROUTE = {
   "/crm/deals/[id]": "deals",
   "/crm/quotes/[id]": "quotes",
   "/crm/pipelines/[id]": "pipelines",
@@ -35,16 +35,20 @@ const TABLE_OF_ROUTE: Readonly<Record<string, string>> = {
   "/finance/periods/[id]": "accounting_periods",
   "/courses/[courseId]": "courses",
   "/workflows/builder/[definition]": "workflow_definitions",
-};
+} as const satisfies Readonly<Record<string, string>>;
+
+const isKnownRoute = (route: string): route is keyof typeof TABLE_OF_ROUTE =>
+  route in TABLE_OF_ROUTE;
 
 /** The URL of the first Acme row behind `route`, or undefined when none exists. */
 export async function seededUrl(route: string): Promise<string | undefined> {
-  const table = TABLE_OF_ROUTE[route];
-  const connectionString = process.env["SUPABASE_DB_URL"];
+  const { SUPABASE_DB_URL: connectionString } = process.env;
 
-  if (table === undefined || connectionString === undefined) {
+  if (!isKnownRoute(route) || connectionString === undefined) {
     return undefined;
   }
+
+  const table = TABLE_OF_ROUTE[route];
 
   const client = new Client({ connectionString });
   await client.connect();
@@ -53,6 +57,7 @@ export async function seededUrl(route: string): Promise<string | undefined> {
     const result = await client.query<{ id: string }>(
       `select id::text from better_supabase.${table} order by 1 limit 1`,
     );
+
     const id = result.rows[0]?.id;
 
     return id === undefined ? undefined : route.replace(/\[[^\]]+\]/, id);

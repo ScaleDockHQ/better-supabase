@@ -5,8 +5,9 @@ import type { BrowserContext, Page, Response } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 import { expectDbBudget } from "better-supabase/testing";
 
-import { recordPerf, signIn, USERS } from "./support/example-session";
 import type { Who } from "./support/example-session";
+
+import { recordPerf, signIn, USERS } from "./support/example-session";
 
 // What authentication and permissions cost, per scenario: the proxy's
 // Server-Timing phases (`bsb-proxy`, `bsb-auth`, `bsb-verify`, `bsb-refresh`),
@@ -25,23 +26,24 @@ const PAGES = ["/", "/customers", "/finance/invoices"] as const;
 
 async function sessionStats(page: Page): Promise<SessionStats> {
   // SAFETY: the debug route answers with the memo's counters.
-  return (await (await page.request.get("/api/bs-sessions")).json()) as SessionStats;
+  return (await (
+    await page.request.get("/api/bs-sessions")
+  ).json()) as SessionStats;
 }
 
-function timings(response: Response | null): Record<string, number> {
+function timings(response: Response | null) {
   const header = response?.headers()["server-timing"] ?? "";
-  const metrics: Record<string, number> = {};
 
-  for (const part of header.split(",")) {
-    const [name, ...params] = part.trim().split(";");
-    const dur = params.find((param) => param.trim().startsWith("dur="));
+  return Object.fromEntries(
+    header.split(",").flatMap((part) => {
+      const [name, ...params] = part.trim().split(";");
+      const dur = params.find((param) => param.trim().startsWith("dur="));
 
-    if (name && dur) {
-      metrics[`timing_${name.trim()}`] = Number(dur.trim().slice(4));
-    }
-  }
-
-  return metrics;
+      return name && dur
+        ? [[`timing_${name.trim()}`, Number(dur.trim().slice(4))]]
+        : [];
+    }),
+  );
 }
 
 /** Loads `url` once and returns what the request cost. */
@@ -56,7 +58,9 @@ async function measureLoad(
   const renders = await expectDbBudget(page, {
     during: async () => {
       document = await page.goto(url);
-      await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+      await expect(
+        page.getByRole("heading", { level: 1 }).first(),
+      ).toBeVisible();
     },
     requireRequest: false,
   });
@@ -81,6 +85,7 @@ async function measureLoad(
 /** Rewrites the stored access token's expiry so the next request must refresh. */
 async function expireAccessToken(context: BrowserContext): Promise<boolean> {
   const cookies = await context.cookies();
+
   const parts = cookies
     .filter((cookie) => /auth-token(\.\d+)?$/.test(cookie.name))
     .toSorted((a, b) => a.name.localeCompare(b.name));
@@ -89,19 +94,24 @@ async function expireAccessToken(context: BrowserContext): Promise<boolean> {
     return false;
   }
 
-  const joined = parts.map((cookie) => decodeURIComponent(cookie.value)).join("");
+  const joined = parts
+    .map((cookie) => decodeURIComponent(cookie.value))
+    .join("");
 
   if (!joined.startsWith("base64-")) {
     return false;
   }
 
-  const session = JSON.parse(
-    Buffer.from(joined.slice("base64-".length), "base64url").toString("utf-8"),
-    // SAFETY: @supabase/ssr stores the session as JSON in this cookie.
-  ) as Record<string, unknown>;
-
-  session["expires_at"] = 1;
-  session["expires_in"] = 0;
+  const session = {
+    ...(JSON.parse(
+      Buffer.from(joined.slice("base64-".length), "base64url").toString(
+        "utf-8",
+      ),
+      // SAFETY: @supabase/ssr stores the session as a JSON object in this cookie.
+    ) as object),
+    expires_at: 1,
+    expires_in: 0,
+  };
 
   const value = `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`;
   const first = parts[0];
@@ -147,7 +157,9 @@ for (const who of Object.keys(USERS) as Who[]) {
       page.on("response", (response) => responses.push(response));
       await submit.click();
       await page.waitForURL((url) => !url.pathname.endsWith("/login"));
-      await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+      await expect(
+        page.getByRole("heading", { level: 1 }).first(),
+      ).toBeVisible();
 
       const roundTrips = responses.filter(
         (response) =>
@@ -166,7 +178,11 @@ for (const who of Object.keys(USERS) as Who[]) {
       test(`warm ${url} as ${who}`, async ({ page }) => {
         await signIn(page, who);
         await page.goto(url);
-        recordPerf("auth-cost.json", `warm ${url} ${who}`, await measureLoad(page, url));
+        recordPerf(
+          "auth-cost.json",
+          `warm ${url} ${who}`,
+          await measureLoad(page, url),
+        );
       });
     }
 

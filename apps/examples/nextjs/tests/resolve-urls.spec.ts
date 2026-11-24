@@ -18,16 +18,20 @@ const DEPTH = 3;
 
 const pattern = (route: string, parts: number): RegExp => {
   const segments = route.split("/").slice(1, parts + 1);
+
   const source = segments
     .map((segment) =>
-      segment.startsWith("[") ? "[^/?#]+" : segment.replace(/[.*+?^${}()|\\]/g, "\\$&"),
+      segment.startsWith("[")
+        ? "[^/?#]+"
+        : segment.replaceAll(/[.*+?^${}()|\\]/g, "\\$&"),
     )
     .join("/");
 
   return new RegExp(`^/${source}$`);
 };
 
-const stripLocale = (path: string): string => path.replace(/^\/(en|nl)(?=\/|$)/, "");
+const stripLocale = (path: string): string =>
+  path.replace(/^\/(en|nl)(?=\/|$)/, "");
 
 test.describe.configure({ mode: "serial" });
 
@@ -51,7 +55,9 @@ for (const entry of ROUTES.filter((route) => route.url === null)) {
         }
 
         seen.add(url);
-        await page.goto(url === "/" ? "/" : url, { waitUntil: "domcontentloaded" });
+        await page.goto(url === "/" ? "/" : url, {
+          waitUntil: "domcontentloaded",
+        });
         await page.waitForTimeout(1500);
 
         const hrefs = await page
@@ -59,11 +65,14 @@ for (const entry of ROUTES.filter((route) => route.url === null)) {
           .evaluateAll((links) =>
             links.map((link) => link.getAttribute("href") ?? ""),
           );
+
         const paths = hrefs
           .filter((href) => href.startsWith("/"))
           .map((href) => stripLocale(href.split(/[?#]/)[0] ?? ""));
 
-        const full = paths.find((path) => pattern(entry.route, segments.length).test(path));
+        const full = paths.find((path) =>
+          pattern(entry.route, segments.length).test(path),
+        );
 
         if (full !== undefined) {
           recordUrl(entry.route, full);
@@ -73,8 +82,7 @@ for (const entry of ROUTES.filter((route) => route.url === null)) {
 
         for (let parts = firstParam + 1; parts < segments.length; parts += 1) {
           const nested = paths.find(
-            (path) =>
-              pattern(entry.route, parts).test(path) && !seen.has(path),
+            (path) => pattern(entry.route, parts).test(path) && !seen.has(path),
           );
 
           if (nested !== undefined) {
@@ -94,7 +102,9 @@ for (const entry of ROUTES.filter((route) => route.url === null)) {
       return;
     }
 
-    test.info().annotations.push({ type: "unresolved", description: entry.route });
+    test
+      .info()
+      .annotations.push({ type: "unresolved", description: entry.route });
     expect(true).toBe(true);
   });
 }
