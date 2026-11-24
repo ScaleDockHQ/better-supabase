@@ -58,6 +58,16 @@ msgctxt "approvals.csSfAQ"
 msgid "Requests that need a decision before the action runs."
 msgstr "Verzoeken waarover een besluit nodig is voordat de actie wordt uitgevoerd."
 
+#: src/app/[locale]/(app)/areas/page.tsx
+msgctxt "areas.AGx9HC"
+msgid "Product areas"
+msgstr "Productgebieden"
+
+#: src/app/[locale]/(app)/areas/page.tsx
+msgctxt "areas.qtdP42"
+msgid "Thirteen products in one app. Each row is the flow its presets prove together."
+msgstr "Dertien producten in één app. Elke rij is de flow die de bijbehorende presets samen bewijzen."
+
 #: src/app/[locale]/(app)/assets/[id]/page.tsx
 msgctxt "assets.P3IVGl"
 msgid "All assets"
@@ -4438,6 +4448,16 @@ msgstr "Annuleren"
 msgctxt "approvals.PoX2HN"
 msgid "Send request"
 msgstr "Verzoek versturen"
+
+#: src/features/areas/components/area-cards.tsx
+msgctxt "areas.mEfo2O"
+msgid "Screens of {area}"
+msgstr "Schermen van {area}"
+
+#: src/features/areas/components/area-cards.tsx
+msgctxt "areas.oBoa2n"
+msgid "Presets"
+msgstr "Presets"
 
 #: src/features/assets/components/asset-actions-bar.tsx
 msgctxt "assets.S7kM2a"
@@ -19656,6 +19676,12 @@ msgstr "Dashboard"
 msgctxt "navigation.h-qaH6"
 msgid "My work"
 msgstr "Mijn werk"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.AGx9HC"
+msgid "Product areas"
+msgstr "Productgebieden"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts

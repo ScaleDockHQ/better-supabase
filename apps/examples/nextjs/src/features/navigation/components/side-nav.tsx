@@ -76,6 +76,7 @@ import {
   KeyRoundIcon,
   LibraryIcon,
   LayoutDashboardIcon,
+  LayoutGridIcon,
   ListTodoIcon,
   ScrollTextIcon,
   SettingsIcon,
@@ -116,6 +117,7 @@ import { NavLink } from "./nav-link";
 const ICONS = {
   dashboard: LayoutDashboardIcon,
   myWork: ListTodoIcon,
+  areas: LayoutGridIcon,
   customers: UsersIcon,
   people: IdCardIcon,
   hiring: BriefcaseIcon,

@@ -13,6 +13,10 @@ import {
   BLOCK_COVERAGE,
   PRESET_TOURS,
 } from "../apps/examples/nextjs/coverage/block-coverage.ts";
+import {
+  AREAS,
+  PRESET_AREA,
+} from "../apps/examples/nextjs/src/features/areas/areas.ts";
 import { PRESET_CATALOG } from "../packages/better-supabase/src/preset/catalog.generated.ts";
 import { PRESET_NAMES } from "../packages/better-supabase/src/preset/presets.ts";
 import { readEntityRoutes } from "./entity-routes.ts";
@@ -105,6 +109,32 @@ export const checkCoverage = (
   for (const name of Object.keys(PRESET_TOURS)) {
     if (!presets.includes(name)) {
       problems.push(`block-coverage.ts tours "${name}", which is not a preset`);
+    }
+  }
+
+  for (const name of presets) {
+    if (!(name in PRESET_AREA)) {
+      problems.push(`Preset "${name}" has no product area in areas.ts`);
+    }
+  }
+
+  for (const name of Object.keys(PRESET_AREA)) {
+    if (!presets.includes(name)) {
+      problems.push(`areas.ts maps "${name}", which is not a preset`);
+    }
+  }
+
+  for (const area of AREAS) {
+    if (!Object.values(PRESET_AREA).includes(area.id)) {
+      problems.push(`Area "${area.id}" has no preset`);
+    }
+
+    for (const step of area.steps) {
+      if (!routeExists(step.route, root)) {
+        problems.push(
+          `Area "${area.id}" lists ${step.route}, which has no page.tsx`,
+        );
+      }
     }
   }
 
