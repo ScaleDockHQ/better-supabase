@@ -42,37 +42,37 @@ Routes with service-role calls: none.
 
 ## Pages as member
 
-84 routes measured, 521 database calls in total for one warm render of each.
+226 routes measured, 1406 database calls in total for one warm render of each.
 
 Most database calls:
 
-| Route                            | Calls |
-| -------------------------------- | ----- |
-| /finance/invoices/[id]           | 14    |
-| /finance/payables/[id]           | 14    |
-| /care/[clientId]                 | 12    |
-| /content                         | 11    |
-| /crm/contracts/[id]              | 11    |
-| /crm/deals/[id]                  | 11    |
-| /care-plans/[id]                 | 10    |
-| /advisories/vulnerabilities/[id] | 9     |
-| /content/[id]                    | 9     |
-| /advisories                      | 8     |
+| Route                  | Calls |
+| ---------------------- | ----- |
+| /inbox/[conversation]  | 20    |
+| /crm/deals             | 17    |
+| /finance/invoices/[id] | 14    |
+| /finance/payables/[id] | 14    |
+| /customers/[id]        | 14    |
+| /people/leave          | 14    |
+| /people/hiring/[id]    | 13    |
+| /care/[clientId]       | 12    |
+| /field/dispatch/[id]   | 12    |
+| /content               | 11    |
 
 Slowest warm renders (ms, wall time):
 
-| Route                  | Ms  |
-| ---------------------- | --- |
-| /funding/[id]          | 424 |
-| /care/[clientId]       | 155 |
-| /care-plans            | 150 |
-| /crm                   | 141 |
-| /finance/invoices/[id] | 119 |
-| /crm/pipelines/[id]    | 119 |
-| /assistant             | 116 |
-| /finance/payables/[id] | 114 |
-| /announcements/[id]    | 113 |
-| /finance/tax           | 113 |
+| Route                    | Ms  |
+| ------------------------ | --- |
+| /funding                 | 913 |
+| /medications             | 457 |
+| /funding/[id]            | 424 |
+| /shop/kitchen/board      | 179 |
+| /settings/roles/[roleId] | 174 |
+| /care/[clientId]         | 155 |
+| /documents               | 153 |
+| /care-plans              | 150 |
+| /work/grid               | 150 |
+| /customers/[id]          | 149 |
 
 Routes with more than one token verification: none.
 
