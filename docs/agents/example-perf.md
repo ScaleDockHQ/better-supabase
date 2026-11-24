@@ -1,10 +1,10 @@
 # Example performance
 
-Numbers of the Next.js example, taken on the production build with the testing API (seed tier, before). Written by `pnpm example:perf-report --write`; do not edit by hand.
+Numbers of the Next.js example, taken on the production build with the testing API (seed tier, after). Written by `pnpm example:perf-report --write`; do not edit by hand.
 
 ## Pages as admin
 
-216 routes measured, 907 database calls in total for one warm render of each.
+217 routes measured, 910 database calls in total for one warm render of each.
 
 Most database calls:
 
@@ -25,16 +25,16 @@ Slowest warm renders (ms, wall time):
 
 | Route | Ms |
 | --- | --- |
-| /funding | 2313 |
-| /approvals | 1128 |
-| /medications | 782 |
-| /settings/roles | 782 |
-| /crm/segments/[id] | 613 |
-| /finance/payables | 509 |
-| /crm/contracts/[id] | 491 |
-| /finance/accounting | 488 |
-| /settings/roles/[roleId] | 480 |
-| /crm | 466 |
+| /funding | 2829 |
+| /work | 1353 |
+| /crm/segments | 1309 |
+| /assistant/guardrails | 1118 |
+| /medications | 1093 |
+| /settings/security | 958 |
+| /assistant/agents/memory | 879 |
+| /crm/pipelines | 860 |
+| /funding/[id] | 826 |
+| /assistant/prompts | 812 |
 
 Routes with more than one token verification: none.
 
@@ -42,7 +42,7 @@ Routes with service-role calls: none.
 
 ## Pages as member
 
-209 routes measured, 1002 database calls in total for one warm render of each.
+208 routes measured, 997 database calls in total for one warm render of each.
 
 Most database calls:
 
@@ -63,16 +63,16 @@ Slowest warm renders (ms, wall time):
 
 | Route | Ms |
 | --- | --- |
-| /funding | 2246 |
-| /medications | 1158 |
-| /funding/[id] | 795 |
-| /settings/billing/account | 461 |
-| /announcements | 422 |
-| /settings/roles/[roleId] | 383 |
-| /deadlines | 377 |
-| /people/encryption | 337 |
-| /announcements/[id] | 334 |
-| /banking/accounts | 325 |
+| /funding | 2059 |
+| /rules | 1164 |
+| /legal-entities | 948 |
+| /funding/[id] | 882 |
+| /maintenance/meters/[id] | 857 |
+| /banking/accounts/[id] | 854 |
+| /maintenance | 851 |
+| /people/time | 841 |
+| /metrics | 836 |
+| /lims/[id] | 798 |
 
 Routes with more than one token verification: none.
 
@@ -82,45 +82,45 @@ Routes with service-role calls: none.
 
 | Action | Calls | Waves | Ms | Tables |
 | --- | --- | --- | --- | --- |
-| loadMyOrganizations | 5 | 3 | 51.01 | 4 |
-| loadMembers | 7 | 2 | 73.04 | 6 |
-| loadPlanCatalog | 7 | 3 | 156.27 | 5 |
-| loadInboxes | 4 | 2 | 109.71 | 4 |
+| loadMyOrganizations | 5 | 3 | 104.44 | 4 |
+| loadMembers | 7 | 2 | 65.12 | 6 |
+| loadPlanCatalog | 7 | 3 | 116.88 | 5 |
+| loadInboxes | 4 | 2 | 137.81 | 4 |
 | loadTeams | 0 | 0 | 0 | 0 |
 | loadMacros | 0 | 0 | 0 | 0 |
 | loadDrafts | 0 | 0 | 0 | 0 |
 | loadScheduled | 0 | 0 | 0 | 0 |
-| loadInboundEvents | 3 | 1 | 112.48 | 3 |
-| loadConversations | 3 | 1 | 75.29 | 3 |
-| searchKnowledge | 4 | 2 | 162.42 | 4 |
+| loadInboundEvents | 3 | 1 | 119.93 | 3 |
+| loadConversations | 3 | 1 | 106.33 | 3 |
+| searchKnowledge | 4 | 2 | 139.97 | 4 |
 
 ## Actions as member
 
 | Action | Calls | Waves | Ms | Tables |
 | --- | --- | --- | --- | --- |
-| loadMyOrganizations | 6 | 3 | 149.92 | 5 |
-| loadMembers | 7 | 3 | 105.07 | 6 |
-| loadPlanCatalog | 9 | 4 | 204.19 | 6 |
-| loadInboxes | 6 | 4 | 239.75 | 5 |
+| loadMyOrganizations | 6 | 3 | 74.85 | 5 |
+| loadMembers | 7 | 3 | 85.07 | 6 |
+| loadPlanCatalog | 9 | 4 | 142.25 | 6 |
+| loadInboxes | 6 | 4 | 165.58 | 5 |
 | loadTeams | 0 | 0 | 0 | 0 |
 | loadMacros | 0 | 0 | 0 | 0 |
 | loadDrafts | 0 | 0 | 0 | 0 |
 | loadScheduled | 0 | 0 | 0 | 0 |
-| loadInboundEvents | 5 | 3 | 266.86 | 4 |
-| loadConversations | 4 | 2 | 87.15 | 4 |
-| searchKnowledge | 6 | 3 | 119.08 | 5 |
+| loadInboundEvents | 5 | 3 | 151.03 | 4 |
+| loadConversations | 4 | 2 | 114.71 | 4 |
+| searchKnowledge | 6 | 3 | 120.32 | 5 |
 
 ## Cold, warm and client navigation (admin)
 
-217 routes. Median first hit after a server start 320 ms, second hit 234 ms, client navigation after prefetch 58 ms. Slowest first hits:
+217 routes. Median first hit after a server start 324 ms, second hit 232 ms, client navigation after prefetch 58 ms. Slowest first hits:
 
 | Route | Cold ms |
 | --- | --- |
-| /funding | 3039 |
-| /medications | 972 |
-| /funding/[id] | 895 |
-| /imports | 699 |
-| /payroll/[id] | 692 |
+| /funding | 2520 |
+| /medications | 1368 |
+| /payroll/[id] | 698 |
+| /funding/[id] | 600 |
+| /inbox | 588 |
 
 ## First-load JavaScript
 
@@ -145,14 +145,14 @@ Actions in the build: 471; measured: 11; not measured: 460.
 
 | Scenario | Wall ms | Calls | Verifications | Proxy ms | Auth ms |
 | --- | --- | --- | --- | --- | --- |
-| sign-in admin | 547 | - | - | 3 | 2.9 |
-| warm / admin | 1327 | 4 | 0 | 0.4 | 0.3 |
-| warm /customers admin | 1526 | 6 | 0 | 0.4 | 0.3 |
-| warm /finance/invoices admin | 946 | 3 | 0 | 0.4 | 0.3 |
-| refresh /customers admin | 1043 | 6 | 2 | 0.6 | 0.5 |
-| sign-in member | 552 | - | - | 0.3 | 0.2 |
-| warm / member | 803 | 5 | 0 | 0.4 | 0.3 |
-| warm /customers member | 1118 | 7 | 0 | 0.6 | 0.5 |
-| warm /finance/invoices member | 962 | 4 | 0 | 0.6 | 0.4 |
-| refresh /customers member | 986 | 7 | 2 | 0.4 | 0.3 |
+| sign-in admin | 408 | - | - | 0.3 | 0.2 |
+| warm / admin | 948 | 4 | 0 | 0.7 | 0.6 |
+| warm /customers admin | 909 | 6 | 0 | 0.5 | 0.3 |
+| warm /finance/invoices admin | 1017 | 3 | 0 | 2.3 | 2.1 |
+| refresh /customers admin | 897 | 6 | 2 | 0.5 | 0.4 |
+| sign-in member | 437 | - | - | 0.4 | 0.3 |
+| warm / member | 938 | 5 | 0 | 0.4 | 0.3 |
+| warm /customers member | 1130 | 7 | 0 | 3.3 | 3.1 |
+| warm /finance/invoices member | 1058 | 4 | 0 | 0.4 | 0.3 |
+| refresh /customers member | 851 | 7 | 2 | 0.5 | 0.3 |
 
