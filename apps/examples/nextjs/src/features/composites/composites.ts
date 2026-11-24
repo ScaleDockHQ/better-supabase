@@ -5,8 +5,10 @@ import { rpcTransport } from "better-supabase/blocks";
 import { createCommerce } from "better-supabase/blocks/commerce";
 import { createCrm } from "better-supabase/blocks/crm";
 import { createFilespace } from "better-supabase/blocks/filespace";
+import { createFinance } from "better-supabase/blocks/finance";
 import { createProjects } from "better-supabase/blocks/projects";
 import { createKeyRotator } from "better-supabase/blocks/saas";
+import { createSales } from "better-supabase/blocks/sales";
 import { createSupport } from "better-supabase/blocks/support";
 
 import type { driveOf } from "@/features/drive/drive-client";
@@ -138,4 +140,42 @@ export function projectsOf(db: AppDb) {
  */
 export function keyRotationOf(db: AppDb) {
   return createKeyRotator({ apiKeys: db.$blocks.apiKeys });
+}
+
+/**
+ * The `sales` composite's helpers: `acceptQuote` and `billQuote` over the
+ * deals, quotes, orders and invoices clients.
+ */
+export function salesOf(db: AppDb) {
+  const { $blocks: blocks } = db;
+
+  return createSales({
+    transport: rpcTransport(db.$client),
+    parts: {
+      contacts: blocks.contacts,
+      pipelines: blocks.pipelines,
+      deals: blocks.deals,
+      quotes: blocks.quotes,
+      orders: blocks.orders,
+      invoices: blocks.invoices,
+    },
+  });
+}
+
+/**
+ * The `finance` composite's helpers: `closePeriod` and `reconcile` over the
+ * accounting and banking clients.
+ */
+export function financeOf(db: AppDb) {
+  const { $blocks: blocks } = db;
+
+  return createFinance({
+    transport: rpcTransport(db.$client),
+    parts: {
+      accounting: blocks.accounting,
+      tax: blocks.tax,
+      banking: blocks.banking,
+      invoices: blocks.invoices,
+    },
+  });
 }

@@ -16,6 +16,10 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  closeDealLost,
+  closeDealWon,
+} from "@/features/composites/composites-actions";
+import {
   ActivityTimeline,
   ActivityTimelineSkeleton,
 } from "@/features/crm/components/activity-timeline";
@@ -34,7 +38,7 @@ import {
 } from "@/features/records/components/record-sections";
 
 import { loadDeal } from "../pipeline/pipeline-queries";
-import { loseDeal, reopenDeal, winDeal } from "../sales-actions";
+import { reopenDeal, winDeal } from "../sales-actions";
 import { ActionButton } from "./action-button";
 import { ActionDialog } from "./action-dialog";
 import {
@@ -141,8 +145,14 @@ export async function DealDetail({
                 successMessage={t("Deal won")}
                 variant="default"
               />
+              <ActionButton
+                action={closeDealWon}
+                input={{ dealId: deal.id }}
+                label={t("Win and draft quote")}
+                successMessage={t("Deal won, quote drafted")}
+              />
               <ActionDialog
-                action={loseDeal}
+                action={closeDealLost}
                 title={t("Mark lost")}
                 trigger={t("Mark lost")}
                 submitLabel={t("Mark lost")}

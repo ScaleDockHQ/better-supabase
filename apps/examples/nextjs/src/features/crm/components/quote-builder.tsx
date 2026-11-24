@@ -2,6 +2,7 @@ import { formatMoney } from "better-supabase/commerce";
 import { getExtracted, getLocale } from "next-intl/server";
 import { forbidden, notFound } from "next/navigation";
 
+import { DocumentFlow } from "@/components/record-detail/document-flow";
 import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
 import {
   Card,
@@ -176,6 +177,26 @@ export async function QuoteBuilder({ id }: { id: string }) {
           </Card>
         }
       >
+        <DocumentFlow
+          label={t("Quote flow")}
+          steps={[
+            { label: t("Draft"), state: "done" },
+            {
+              label: t("Sent"),
+              state: quote.status === "draft" ? "current" : "done",
+            },
+            {
+              label: t("Accepted"),
+              state:
+                quote.status === "accepted"
+                  ? "done"
+                  : quote.status === "sent" || quote.status === "viewed"
+                    ? "current"
+                    : "todo",
+            },
+            { label: t("Order"), state: "todo", href: "/shop/orders" },
+          ]}
+        />
         <Card>
           <CardHeader>
             <CardTitle>{t("Line items")}</CardTitle>

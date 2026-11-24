@@ -16,7 +16,9 @@ import {
   crmOf,
   filespaceOf,
   keyRotationOf,
+  financeOf,
   projectsOf,
+  salesOf,
   supportOf,
 } from "./composites";
 
@@ -274,6 +276,120 @@ export const projectBudget = bsb.action(
       billableHours: financials.data.billableSeconds / 3600,
       remaining: drawdown?.data.remaining.amount.toString() ?? null,
       exhausted: drawdown?.data.exhausted ?? false,
+    });
+  },
+);
+
+/** Loses a deal and withdraws the quotes named in `withdraw`: `crm.closeLost`. */
+export const closeDealLost = bsb.action(
+  {
+    input: v.object({
+      dealId: Id,
+      reason: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500))),
+      withdraw: v.optional(v.array(Id), []),
+    }),
+    requireTenant: true,
+    permission: "deals.write",
+  },
+  async ({ dealId, reason, withdraw }, { db, auth }) => {
+    const closed = await crmOf(db).closeLost({
+      dealId,
+      reason: reason === "" ? undefined : reason,
+      withdraw,
+    });
+
+    if (!closed.ok) {
+      return closed;
+    }
+
+    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+
+    return ok({
+      dealId: closed.data.deal.id,
+      withdrawn: closed.data.withdrawn,
+    });
+  },
+);
+
+/**
+ * Records the customer's acceptance of a quote, wins its deal and creates the
+ * order: `sales.acceptQuote`.
+ */
+export const acceptQuote = bsb.action(
+  {
+    input: v.object({
+      quoteId: Id,
+      dealId: v.optional(Id),
+      followUp: v.optional(v.picklist(["order", "invoice"]), "order"),
+    }),
+    requireTenant: true,
+    permission: "quotes.write",
+  },
+  async ({ quoteId, dealId, followUp }, { db, auth }) => {
+    const accepted = await salesOf(db).acceptQuote({
+      quoteId,
+      dealId,
+      // oxlint-disable-next-line unicorn/no-thenable -- `then` is the composite's own input key (1 finding)
+      then: followUp,
+    });
+
+    if (!accepted.ok) {
+      return accepted;
+    }
+
+    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+
+    return ok({
+      quoteId: accepted.data.quote.id,
+      orderId: accepted.data.order?.id ?? null,
+      invoiceId: accepted.data.invoice?.id ?? null,
+    });
+  },
+);
+
+/** Marks an order paid and ships all of it: `commerce.payAndFulfil`. */
+export const payAndFulfilOrder = bsb.action(
+  {
+    input: v.object({ orderId: Id }),
+    requireTenant: true,
+    permission: "orders.manage",
+  },
+  async ({ orderId }, { db, auth }) => {
+    const done = await commerceOf(db).payAndFulfil({ orderId });
+
+    if (!done.ok) {
+      return done;
+    }
+
+    await refreshCaller(auth, [CUSTOMERS_TAG]);
+
+    return ok({ shipped: done.data.fulfillment.shipped });
+  },
+);
+
+/**
+ * Matches an account's open bank transactions to their best invoice:
+ * `finance.reconcile`.
+ */
+export const reconcileAccount = bsb.action(
+  {
+    input: v.object({ accountId: Id }),
+    requireTenant: true,
+    permission: "banking.reconcile",
+  },
+  async ({ accountId }, { db, auth }) => {
+    const run = await financeOf(db).reconcile({ accountId });
+
+    if (!run.ok) {
+      return run;
+    }
+
+    await refreshCaller(auth, [CUSTOMERS_TAG]);
+
+    return ok({
+      matched: run.data.matched.length,
+      unmatched: run.data.unmatched.length,
+      failed: run.data.failed.length,
     });
   },
 );

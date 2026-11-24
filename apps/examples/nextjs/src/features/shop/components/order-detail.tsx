@@ -6,6 +6,7 @@ import { getExtracted, getFormatter, getLocale } from "next-intl/server";
 import { refresh } from "next/cache";
 import { forbidden, notFound } from "next/navigation";
 
+import { DocumentFlow } from "@/components/record-detail/document-flow";
 import {
   Alert,
   AlertAction,
@@ -115,6 +116,37 @@ export async function OrderDetail({ id }: { id: string }) {
     }
   };
 
+  const paid =
+    view.kind === "order" &&
+    (view.status === "paid" || view.status === "fulfilled");
+
+  const shipped =
+    view.kind === "order" &&
+    view.fulfillments.some(
+      (each) => each.status === "shipped" || each.status === "delivered",
+    );
+
+  const delivered =
+    view.kind === "order" &&
+    view.fulfillments.length > 0 &&
+    view.fulfillments.every((each) => each.status === "delivered");
+
+  const flow = [
+    { label: t("Order"), state: view.kind === "order" ? "done" : "current" },
+    {
+      label: t("Payment"),
+      state: paid ? "done" : view.kind === "order" ? "current" : "todo",
+    },
+    {
+      label: t("Shipment"),
+      state: shipped ? "done" : paid ? "current" : "todo",
+    },
+    {
+      label: t("Delivery"),
+      state: delivered ? "done" : shipped ? "current" : "todo",
+    },
+  ] as const;
+
   const totals: readonly (readonly [string, Money])[] = [
     [t("Subtotal"), view.subtotal],
     ...(view.discountTotal.amount > 0n
@@ -155,6 +187,7 @@ export async function OrderDetail({ id }: { id: string }) {
                 )}
           </p>
         </div>
+        <DocumentFlow label={t("Order flow")} steps={flow} />
         <Card>
           <CardHeader>
             <CardTitle>{t("Lines")}</CardTitle>

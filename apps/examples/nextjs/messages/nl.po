@@ -5489,6 +5489,16 @@ msgid "The latest transactions on this account."
 msgstr "De laatste transacties op deze rekening."
 
 #: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.xXzxaK"
+msgid "Match all suggestions"
+msgstr "Alle suggesties koppelen"
+
+#: src/features/banking/components/bank-reconciliation.tsx
+msgctxt "banking.oCOWfE"
+msgid "Suggested matches recorded"
+msgstr "Voorgestelde koppelingen vastgelegd"
+
+#: src/features/banking/components/bank-reconciliation.tsx
 msgctxt "banking.N2G8Lr"
 msgid "No transactions yet"
 msgstr "Nog geen transacties"
@@ -9171,6 +9181,34 @@ msgid "Total"
 msgstr "Totaal"
 
 #: src/features/crm/components/quote-builder.tsx
+msgctxt "crm.q9Z-DH"
+msgid "Quote flow"
+msgstr "Offerteverloop"
+
+#: src/features/crm/components/quote-builder.tsx
+#: src/features/crm/components/quote-status-badge.tsx
+msgctxt "crm.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/crm/components/quote-builder.tsx
+#: src/features/crm/components/quote-status-badge.tsx
+msgctxt "crm.gcuDcH"
+msgid "Sent"
+msgstr "Verstuurd"
+
+#: src/features/crm/components/quote-builder.tsx
+#: src/features/crm/components/quote-status-badge.tsx
+msgctxt "crm.aFyFm0"
+msgid "Accepted"
+msgstr "Geaccepteerd"
+
+#: src/features/crm/components/quote-builder.tsx
+msgctxt "crm.XPruqs"
+msgid "Order"
+msgstr "Bestelling"
+
+#: src/features/crm/components/quote-builder.tsx
 msgctxt "crm.FLpm0X"
 msgid "Line items"
 msgstr "Regels"
@@ -9236,6 +9274,11 @@ msgid "New revision started"
 msgstr "Nieuwe versie gestart"
 
 #: src/features/crm/components/quote-status-actions.tsx
+msgctxt "crm.9AqRmy"
+msgid "Quote accepted and order created"
+msgstr "Offerte geaccepteerd en bestelling aangemaakt"
+
+#: src/features/crm/components/quote-status-actions.tsx
 msgctxt "crm.s6IvWW"
 msgid "Send for acceptance"
 msgstr "Ter acceptatie versturen"
@@ -9244,6 +9287,11 @@ msgstr "Ter acceptatie versturen"
 msgctxt "crm.ISIg7N"
 msgid "Mark accepted"
 msgstr "Als geaccepteerd markeren"
+
+#: src/features/crm/components/quote-status-actions.tsx
+msgctxt "crm.EcfOOd"
+msgid "Accept and order"
+msgstr "Accepteren en bestellen"
 
 #: src/features/crm/components/quote-status-actions.tsx
 #: src/features/crm/components/quote-status-badge.tsx
@@ -9262,24 +9310,9 @@ msgid "Revise"
 msgstr "Herzien"
 
 #: src/features/crm/components/quote-status-badge.tsx
-msgctxt "crm.W6nwjo"
-msgid "Draft"
-msgstr "Concept"
-
-#: src/features/crm/components/quote-status-badge.tsx
-msgctxt "crm.gcuDcH"
-msgid "Sent"
-msgstr "Verstuurd"
-
-#: src/features/crm/components/quote-status-badge.tsx
 msgctxt "crm.D_0ALU"
 msgid "Viewed"
 msgstr "Bekeken"
-
-#: src/features/crm/components/quote-status-badge.tsx
-msgctxt "crm.aFyFm0"
-msgid "Accepted"
-msgstr "Geaccepteerd"
 
 #: src/features/crm/components/quote-status-badge.tsx
 msgctxt "crm.5qaD7s"
@@ -25851,6 +25884,16 @@ msgid "Deal won"
 msgstr "Deal gewonnen"
 
 #: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.vkXfs8"
+msgid "Win and draft quote"
+msgstr "Winnen en offerte opstellen"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.CatnQw"
+msgid "Deal won, quote drafted"
+msgstr "Deal gewonnen, offerte opgesteld"
+
+#: src/features/sales/components/deal-detail.tsx
 msgctxt "sales.8v0bgP"
 msgid "Mark lost"
 msgstr "Als verloren markeren"
@@ -28674,6 +28717,27 @@ msgid "A promotion code no longer applies."
 msgstr "Een kortingscode geldt niet meer."
 
 #: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.XPruqs"
+msgid "Order"
+msgstr "Bestelling"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.NmK6zy"
+msgid "Payment"
+msgstr "Betaling"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.iWJLn5"
+msgid "Shipment"
+msgstr "Verzending"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.drqP2L"
+msgid "Delivery"
+msgstr "Levering"
+
+#: src/features/shop/components/order-detail.tsx
 msgctxt "shop.L8seEc"
 msgid "Subtotal"
 msgstr "Subtotaal"
@@ -28708,6 +28772,11 @@ msgstr "Geplaatst {date}"
 msgctxt "shop.-8YqRC"
 msgid "Not placed yet. Prices follow the catalog until you place it."
 msgstr "Nog niet geplaatst. Prijzen volgen de catalogus tot je hem plaatst."
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.-WxPPe"
+msgid "Order flow"
+msgstr "Bestelverloop"
 
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
@@ -28829,11 +28898,6 @@ msgid "Start a draft order from a catalog product, then place it."
 msgstr "Begin een conceptbestelling vanuit een catalogusproduct en plaats die daarna."
 
 #: src/features/shop/components/order-list.tsx
-msgctxt "shop.XPruqs"
-msgid "Order"
-msgstr "Bestelling"
-
-#: src/features/shop/components/order-list.tsx
 msgctxt "shop.P7PLVj"
 msgid "Date"
 msgstr "Datum"
@@ -28910,6 +28974,11 @@ msgid "Payment recorded"
 msgstr "Betaling geregistreerd"
 
 #: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.tMtjmr"
+msgid "Paid and fulfilled"
+msgstr "Betaald en afgehandeld"
+
+#: src/features/shop/components/order-transitions.tsx
 msgctxt "shop.0ix6PR"
 msgid "Order cancelled"
 msgstr "Bestelling geannuleerd"
@@ -28973,6 +29042,11 @@ msgstr "Wacht opheffen"
 msgctxt "shop.01-5kQ"
 msgid "Mark as paid"
 msgstr "Markeren als betaald"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.imX9e9"
+msgid "Pay and fulfil"
+msgstr "Betalen en afhandelen"
 
 #: src/features/shop/components/order-transitions.tsx
 msgctxt "shop.K1HLMq"
@@ -31801,7 +31875,7 @@ msgstr ""
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.XPruqs"
 msgid "Order"
-msgstr ""
+msgstr "Bestelling"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.z_wUXE"
