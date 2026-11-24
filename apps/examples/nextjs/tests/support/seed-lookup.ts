@@ -67,3 +67,27 @@ export async function seededUrl(route: string): Promise<string | undefined> {
     await client.end();
   }
 }
+
+/** The id of the first row of `table` (a seeded table name), or undefined. */
+export async function firstRowId(table: string): Promise<string | undefined> {
+  const { SUPABASE_DB_URL: connectionString } = process.env;
+
+  if (connectionString === undefined || !/^[a-z_]+$/u.test(table)) {
+    return undefined;
+  }
+
+  const client = new Client({ connectionString });
+  await client.connect();
+
+  try {
+    const result = await client.query<{ id: string }>(
+      `select id::text from better_supabase.${table} order by 1 limit 1`,
+    );
+
+    return result.rows[0]?.id;
+  } catch {
+    return undefined;
+  } finally {
+    await client.end();
+  }
+}

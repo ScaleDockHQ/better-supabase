@@ -73,7 +73,9 @@ for (const action of [...ACTIONS].toSorted(
         "Content-Type": "text/plain;charset=UTF-8",
         Accept: "text/x-component",
       },
-      data: JSON.stringify(action.args),
+      data: JSON.stringify(
+        action.resolve ? await action.resolve() : action.args,
+      ),
     });
 
     const requestId = reply.headers()["x-bsb-request-id"];

@@ -5,6 +5,8 @@
  * spec runs after the reads so a write cannot change what a read measures.
  */
 
+import { firstRowId } from "./support/seed-lookup";
+
 export interface ActionCase {
   /** The action file under src/, for instance `features/inbox/inbox-actions.ts`. */
   readonly file: string;
@@ -12,6 +14,8 @@ export interface ActionCase {
   /** The page whose UI calls the action. */
   readonly page: string;
   readonly args: readonly unknown[];
+  /** Builds the arguments from the seeded rows when the action takes ids. */
+  readonly resolve?: () => Promise<readonly unknown[]>;
   readonly mutates: boolean;
 }
 
@@ -21,6 +25,15 @@ const read = (
   page: string,
   args: readonly unknown[] = [],
 ): ActionCase => ({ file, name, page, args, mutates: false });
+
+const write = (
+  file: string,
+  name: string,
+  page: string,
+  resolve: () => Promise<readonly unknown[]>,
+): ActionCase => ({ file, name, page, args: [], resolve, mutates: true });
+
+const COMPOSITES = "features/composites/composites-actions.ts";
 
 export const ACTIONS: readonly ActionCase[] = [
   read(
@@ -51,4 +64,16 @@ export const ACTIONS: readonly ActionCase[] = [
     "/knowledge",
     [{ query: "refund" }],
   ),
+  write(COMPOSITES, "closeDealLost", "/crm/deals", async () => [
+    { dealId: await firstRowId("deals"), withdraw: [] },
+  ]),
+  write(COMPOSITES, "acceptQuote", "/crm/quotes", async () => [
+    { quoteId: await firstRowId("quotes") },
+  ]),
+  write(COMPOSITES, "payAndFulfilOrder", "/shop/orders", async () => [
+    { orderId: await firstRowId("orders") },
+  ]),
+  write(COMPOSITES, "reconcileAccount", "/banking/accounts", async () => [
+    { accountId: await firstRowId("bank_accounts") },
+  ]),
 ];
