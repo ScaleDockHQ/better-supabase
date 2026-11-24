@@ -27,7 +27,7 @@ const READ_PERMISSION: Readonly<Record<PageRecordType, Permission>> = {
 };
 
 /** The record types the caller may read, whatever the page shows. */
-export function readableRecordTypes(
+function readableRecordTypes(
   permissions: PermissionSet | null,
 ): readonly PageRecordType[] {
   // SAFETY: READ_PERMISSION is keyed by every PageRecordType, so its keys are exactly that union.
