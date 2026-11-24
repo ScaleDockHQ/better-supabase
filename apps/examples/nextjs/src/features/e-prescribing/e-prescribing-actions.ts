@@ -3,7 +3,10 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
+import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
+
+import { PRESCRIPTIONS_TAG } from "./e-prescribing-cache";
 
 /** Signs a draft. Only its prescriber signs; the database refuses anyone else. */
 export const signPrescription = bsb.action(
@@ -12,10 +15,16 @@ export const signPrescription = bsb.action(
     requireTenant: true,
     permission: "e_prescribing.sign",
   },
-  async ({ prescriptionId }, { db }) => {
+  async ({ prescriptionId }, { db, auth }) => {
     const prescription = await db.ePrescribing.sign(prescriptionId);
 
-    return prescription.ok ? ok({ id: prescription.data.id }) : prescription;
+    if (!prescription.ok) {
+      return prescription;
+    }
+
+    await refreshCaller(auth, [PRESCRIPTIONS_TAG]);
+
+    return ok({ id: prescription.data.id });
   },
 );
 
@@ -26,9 +35,15 @@ export const cancelPrescription = bsb.action(
     requireTenant: true,
     permission: "e_prescribing.write",
   },
-  async ({ prescriptionId }, { db }) => {
+  async ({ prescriptionId }, { db, auth }) => {
     const prescription = await db.ePrescribing.cancel({ prescriptionId });
 
-    return prescription.ok ? ok({ id: prescription.data.id }) : prescription;
+    if (!prescription.ok) {
+      return prescription;
+    }
+
+    await refreshCaller(auth, [PRESCRIPTIONS_TAG]);
+
+    return ok({ id: prescription.data.id });
   },
 );

@@ -13,7 +13,16 @@ export default function AdvisoriesLayout({
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "advisories"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "advisories",
+        "customers",
+        "recordDetail",
+        "recordList",
+        "records",
+        "sales",
+        "subjects",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

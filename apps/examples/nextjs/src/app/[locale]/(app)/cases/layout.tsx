@@ -9,7 +9,15 @@ export default function CasesLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "cases"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "cases",
+        "customers",
+        "recordDetail",
+        "records",
+        "sales",
+        "subjects",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

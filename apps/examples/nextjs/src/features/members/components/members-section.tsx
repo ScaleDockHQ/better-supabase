@@ -1,6 +1,8 @@
 import { tenantOf } from "better-supabase/next";
 import { getExtracted } from "next-intl/server";
+import { Suspense } from "react";
 
+import { KpiBandSkeleton } from "@/components/record-list/kpi-band";
 import {
   Frame,
   FrameDescription,
@@ -21,7 +23,9 @@ import { getSession } from "@/features/user/user-queries";
 
 import { InvitationList } from "./invitation-list";
 import { InviteMemberDialog } from "./invite-member-dialog";
+import { InviteWithinSeats } from "./invite-within-seats";
 import { MemberTable } from "./member-table";
+import { SeatUsage } from "./seat-usage";
 
 /** Render inside `<Suspense>`; the fallback is `MembersSectionSkeleton`. */
 export async function MembersSection() {
@@ -51,6 +55,9 @@ export async function MembersSection() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Suspense fallback={<KpiBandSkeleton count={2} />}>
+        <SeatUsage used={members.length} />
+      </Suspense>
       <Frame spacing="sm" data-recipe="members-table">
         <FrameHeader className="flex-row items-center justify-between gap-3">
           <div className="flex flex-col gap-0.5">
@@ -62,10 +69,13 @@ export async function MembersSection() {
             </FrameDescription>
           </div>
           {canInvite ? (
-            <InviteMemberDialog
-              organizationId={organizationId}
-              assignable={assignable}
-            />
+            <div className="flex gap-2">
+              <InviteWithinSeats assignable={assignable} />
+              <InviteMemberDialog
+                organizationId={organizationId}
+                assignable={assignable}
+              />
+            </div>
           ) : null}
         </FrameHeader>
         <FramePanel>

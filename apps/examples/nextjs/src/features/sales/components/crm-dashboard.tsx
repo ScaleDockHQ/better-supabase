@@ -1,5 +1,6 @@
 import { getExtracted } from "next-intl/server";
 
+import { KpiBand, KpiBandSkeleton } from "@/components/record-list/kpi-band";
 import { Badge } from "@/components/reui/badge";
 import {
   Card,
@@ -24,11 +25,7 @@ import {
 export function CrmDashboardSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-busy="true">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton key={index} className="h-24 rounded-xl" />
-        ))}
-      </div>
+      <KpiBandSkeleton />
       <Skeleton className="h-64 rounded-xl" />
     </div>
   );
@@ -90,8 +87,13 @@ export async function CrmDashboard() {
     {
       label: t("Open deals"),
       value: String(open.reduce((total, stage) => total + stage.count, 0)),
+      href: "/crm/deals" as const,
     },
-    { label: t("Open pipeline"), value: sum(open) },
+    {
+      label: t("Open pipeline"),
+      value: sum(open),
+      href: "/crm/deals" as const,
+    },
     {
       label: t("Weighted forecast"),
       value:
@@ -100,7 +102,7 @@ export async function CrmDashboard() {
           .map((total) => fmtMoney(total))
           .join(", ") || "–",
     },
-    { label: t("Won"), value: sum(won) },
+    { label: t("Won"), value: sum(won), href: "/crm/deals" as const },
   ];
 
   const widest = Math.max(1, ...data.stages.map((stage) => stage.count));
@@ -112,18 +114,7 @@ export async function CrmDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi) => (
-          <Card key={kpi.label}>
-            <CardHeader>
-              <CardDescription>{kpi.label}</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">
-                {kpi.value}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        ))}
-      </div>
+      <KpiBand kpis={kpis} />
       <Card>
         <CardHeader>
           <CardTitle>{data.pipeline.name}</CardTitle>

@@ -3677,6 +3677,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useApiKeys } from "@/hooks/use-api-keys";
+import { Link } from "@/i18n/navigation";
 import { apiKeysConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
 
@@ -3786,7 +3787,12 @@ export function ApiKeyTable({
                 className={revoking.includes(key.id) ? "opacity-50" : undefined}
               >
                 <TableCell className="font-medium">
-                  {key.name}{" "}
+                  <Link
+                    href={`/settings/api-keys/${key.id}`}
+                    className="hover:underline"
+                  >
+                    {key.name}
+                  </Link>{" "}
                   {key.userId ? (
                     <Badge variant="outline">{t("Personal")}</Badge>
                   ) : null}
@@ -6739,12 +6745,13 @@ import { useAssistant } from "better-supabase/ai-sdk/react";
 import { useDurableAssistant } from "better-supabase/ai-sdk/workflow-react";
 import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { present } from "@/lib/present";
 
 import type { MessageBranch, ModelOption } from "../assistant-queries";
+import type { PageContext } from "../page-context";
 
 import { switchChatBranch } from "../assistant-actions";
 import { ChatView } from "./chat-view";
@@ -6762,6 +6769,7 @@ interface PanelProps {
   readonly model: string | undefined;
   readonly onModelChange: (model: string) => void;
   readonly branches: readonly MessageBranch[];
+  readonly pageContext: PageContext | undefined;
 }
 
 /**
@@ -6775,13 +6783,19 @@ function StandardPanel({
   model,
   onModelChange,
   branches,
+  pageContext,
 }: PanelProps) {
   const router = useRouter();
+
+  const body = useMemo(
+    () => (pageContext === undefined ? undefined : { pageContext }),
+    [pageContext],
+  );
 
   const chat = useAssistant({
     id,
     messages,
-    ...present({ model }),
+    ...present({ model, body }),
     onFinish: () => {
       router.refresh();
     },
@@ -6849,6 +6863,7 @@ export function AssistantChat({
   models = NO_MODELS,
   initialModel,
   branches = NO_BRANCHES,
+  pageContext,
 }: {
   id: string;
   messages: UIMessage[];
@@ -6858,6 +6873,8 @@ export function AssistantChat({
   models?: readonly ModelOption[];
   initialModel?: string | undefined;
   branches?: readonly MessageBranch[];
+  /** The page the assistant was opened from; sent with every message. */
+  pageContext?: PageContext | undefined;
 }) {
   const t = useExtracted("assistant");
 
@@ -6883,6 +6900,7 @@ export function AssistantChat({
     model,
     onModelChange: setModel,
     branches,
+    pageContext,
   };
 
   return (
@@ -13822,6 +13840,26 @@ export async function QuoteBuilder({ id }: { id: string }) {
           </Card>
         }
       >
+        <DocumentFlow
+          label={t("Quote flow")}
+          steps={[
+            { label: t("Draft"), state: "done" },
+            {
+              label: t("Sent"),
+              state: quote.status === "draft" ? "current" : "done",
+            },
+            {
+              label: t("Accepted"),
+              state:
+                quote.status === "accepted"
+                  ? "done"
+                  : quote.status === "sent" || quote.status === "viewed"
+                    ? "current"
+                    : "todo",
+            },
+            { label: t("Order"), state: "todo", href: "/shop/orders" },
+          ]}
+        />
         <Card>
           <CardHeader>
             <CardTitle>{t("Line items")}</CardTitle>
@@ -18641,7 +18679,14 @@ export async function ProductCatalogGrid() {
               <li key={product.id}>
                 <Card>
                   <CardHeader>
-                    <CardTitle>{product.title}</CardTitle>
+                    <CardTitle>
+                      <IntentLink
+                        href={toAppHref(`/shop/products/${product.id}`)}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {product.title}
+                      </IntentLink>
+                    </CardTitle>
                     <CardDescription className="font-mono">
                       {product.sku}
                     </CardDescription>
@@ -18891,7 +18936,7 @@ async function retry() {
  * Render inside `<Suspense>`: a placed order, or the caller's draft (an open
  * cart) with the same id, with its lines, totals and next steps.
  */
-export async function OrderDetail({ id }: { id: string }) {
+export async function OrderDetail({ id, tab }: { id: string; tab: string }) {
   const [permissions, detail, t, format, locale] = await Promise.all([
     getPermissions(),
     getOrderDetail(id),
@@ -18949,6 +18994,37 @@ export async function OrderDetail({ id }: { id: string }) {
     }
   };
 
+  const paid =
+    view.kind === "order" &&
+    (view.status === "paid" || view.status === "fulfilled");
+
+  const shipped =
+    view.kind === "order" &&
+    view.fulfillments.some(
+      (each) => each.status === "shipped" || each.status === "delivered",
+    );
+
+  const delivered =
+    view.kind === "order" &&
+    view.fulfillments.length > 0 &&
+    view.fulfillments.every((each) => each.status === "delivered");
+
+  const flow = [
+    { label: t("Order"), state: view.kind === "order" ? "done" : "current" },
+    {
+      label: t("Payment"),
+      state: paid ? "done" : view.kind === "order" ? "current" : "todo",
+    },
+    {
+      label: t("Shipment"),
+      state: shipped ? "done" : paid ? "current" : "todo",
+    },
+    {
+      label: t("Delivery"),
+      state: delivered ? "done" : shipped ? "current" : "todo",
+    },
+  ] as const;
+
   const totals: readonly (readonly [string, Money])[] = [
     [t("Subtotal"), view.subtotal],
     ...(view.discountTotal.amount > 0n
@@ -18962,241 +19038,405 @@ export async function OrderDetail({ id }: { id: string }) {
       : []),
   ];
 
+  const subject = { type: "order", id: view.id } as const;
+  const placed = view.kind === "order";
+
+  const facts = [
+    { label: t("Total"), value: amount(view.total) },
+    {
+      label: t("Paid"),
+      value: view.kind === "order" ? amount(view.paidTotal) : "–",
+    },
+    { label: t("Lines"), value: String(view.lines.length) },
+    {
+      label: t("Shipments"),
+      value: String(view.kind === "order" ? view.fulfillments.length : 0),
+    },
+    {
+      label: t("Returns"),
+      value: String(view.kind === "order" ? view.returns.length : 0),
+    },
+  ];
+
   return (
-    <div data-recipe="order-detail" className="grid gap-6 lg:grid-cols-3">
-      <div className="flex flex-col gap-6 lg:col-span-2">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {view.kind === "order"
-                ? t("Order {number}", { number: view.number })
-                : t("Draft order")}
-            </h1>
-            <OrderStatusBadge
-              status={view.kind === "order" ? view.status : "draft"}
+    <div data-recipe="order-detail" className="contents">
+      <RecordDetailFrame
+        title={
+          view.kind === "order"
+            ? t("Order {number}", { number: view.number })
+            : t("Draft order")
+        }
+        description={
+          view.kind === "order"
+            ? t("Placed {date}", {
+                date: format.dateTime(new Date(view.placedAt), {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }),
+              })
+            : t("Not placed yet. Prices follow the catalog until you place it.")
+        }
+        status={
+          <OrderStatusBadge
+            status={view.kind === "order" ? view.status : "draft"}
+          />
+        }
+        actions={
+          placed && canManage && paid ? (
+            <ActionDialog
+              action={requestOrderReturn}
+              title={t("Request a return")}
+              description={t("Every unit of the order comes back.")}
+              trigger={t("Request return")}
+              submitLabel={t("Request return")}
+              successMessage={t("Return requested")}
+              variant="outline"
+              hidden={{ orderId: view.id }}
+              fields={[
+                {
+                  name: "reason",
+                  label: t("Reason (optional)"),
+                  kind: "textarea",
+                },
+              ]}
             />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {view.kind === "order"
-              ? t("Placed {date}", {
-                  date: format.dateTime(new Date(view.placedAt), {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }),
-                })
-              : t(
-                  "Not placed yet. Prices follow the catalog until you place it.",
-                )}
-          </p>
-        </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("Lines")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {view.lines.length === 0 ? (
-              <Empty className="border">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <ShoppingCartIcon />
-                  </EmptyMedia>
-                  <EmptyTitle>{t("This draft is empty")}</EmptyTitle>
-                  <EmptyDescription>
-                    {t("Add a product from the orders page.")}
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("Product")}</TableHead>
-                    <TableHead className="text-right">
-                      {t("Quantity")}
-                    </TableHead>
-                    <TableHead className="text-right">
-                      {t("Unit price")}
-                    </TableHead>
-                    <TableHead className="text-right">{t("Total")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {view.lines.map((line) => (
-                    <TableRow key={line.id}>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm">{line.title}</span>
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {line.sku}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {line.quantity}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {amount(line.unitAmount)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {amount(line.total)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-                <TableFooter>
-                  {totals.map(([label, value]) => (
-                    <TableRow key={label}>
-                      <TableCell colSpan={3} className="text-muted-foreground">
-                        {label}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {amount(value)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow>
-                    <TableCell colSpan={3} className="font-medium">
-                      {t("Total")}
-                    </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
-                      {amount(view.total)}
-                    </TableCell>
-                  </TableRow>
-                  {view.kind === "order" ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-muted-foreground">
-                        {t("Paid")}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {amount(view.paidTotal)}
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </TableFooter>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-      <div className="flex flex-col gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("Next step")}</CardTitle>
-            <CardDescription>
-              {view.kind === "draft"
-                ? t(
-                    "Placing the order reserves its stock and fixes its prices.",
-                  )
-                : t("Without a payments provider, record the payment by hand.")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {view.kind === "draft" && view.problems.length > 0 ? (
-              <Alert variant="warning">
-                <TriangleAlertIcon />
-                <AlertTitle>
-                  {t("Check this draft before placing it")}
-                </AlertTitle>
-                <AlertDescription>
-                  {view.problems.map(problemLabel).join(" ")}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            {canManage ? (
-              view.kind === "draft" ? (
-                <PlaceOrderButton
-                  cartId={view.id}
-                  disabled={view.lines.length === 0}
-                />
-              ) : (
-                <OrderTransitions
-                  orderId={view.id}
-                  status={view.status}
-                  fulfillments={view.fulfillments}
-                />
-              )
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {t("Ask an admin to move this order along.")}
-              </p>
-            )}
-            {view.kind === "order" && view.fulfillments.length > 0 ? (
-              <ul className="flex flex-col gap-2">
-                {view.fulfillments.map((fulfillment, index) => (
-                  <li
-                    key={fulfillment.id}
-                    className="flex items-center justify-between gap-2 text-sm"
-                  >
-                    <span>{t("Shipment {n, number}", { n: index + 1 })}</span>
-                    {fulfillment.status === "delivered" ? (
-                      <Badge variant="success-light">{t("Delivered")}</Badge>
-                    ) : fulfillment.status === "shipped" ? (
-                      <Badge variant="info-light">{t("Shipped")}</Badge>
-                    ) : fulfillment.status === "cancelled" ? (
-                      <Badge variant="destructive-light">
-                        {t("Cancelled")}
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">{t("Packing")}</Badge>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("Promotions")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {view.kind === "draft" && canManage ? (
-              <PromotionCodeField
-                cartId={view.id}
-                applied={view.promotions.flatMap((promotion) =>
-                  promotion.code
-                    ? [
-                        {
-                          code: promotion.code,
-                          name: promotion.name,
-                          discount: promotion.discount,
-                        },
-                      ]
-                    : [],
-                )}
-                canCreate={can(permissions, "promotions.manage")}
+          ) : undefined
+        }
+        aside={
+          <>
+            <PropertiesRail title={t("Details")} properties={facts} />
+            {placed ? (
+              <RecordBoundSections
+                subject={subject}
+                sections={["tags", "fields", "approvals", "reminders"]}
               />
-            ) : view.promotions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t("No promotion was applied.")}
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {view.promotions.map((promotion) => (
-                  <li
-                    key={promotion.code ?? promotion.name}
-                    className="flex items-center justify-between gap-2 text-sm"
-                  >
-                    <span className="flex items-center gap-2">
-                      {promotion.code ? (
-                        <Badge variant="success-light" className="font-mono">
-                          {promotion.code}
-                        </Badge>
+            ) : null}
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("Next step")}</CardTitle>
+                <CardDescription>
+                  {view.kind === "draft"
+                    ? t(
+                        "Placing the order reserves its stock and fixes its prices.",
+                      )
+                    : t(
+                        "Without a payments provider, record the payment by hand.",
+                      )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {view.kind === "draft" && view.problems.length > 0 ? (
+                  <Alert variant="warning">
+                    <TriangleAlertIcon />
+                    <AlertTitle>
+                      {t("Check this draft before placing it")}
+                    </AlertTitle>
+                    <AlertDescription>
+                      {view.problems.map(problemLabel).join(" ")}
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+                {canManage ? (
+                  view.kind === "draft" ? (
+                    <PlaceOrderButton
+                      cartId={view.id}
+                      disabled={view.lines.length === 0}
+                    />
+                  ) : (
+                    <OrderTransitions
+                      orderId={view.id}
+                      status={view.status}
+                      fulfillments={view.fulfillments}
+                    />
+                  )
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {t("Ask an admin to move this order along.")}
+                  </p>
+                )}
+                {view.kind === "order" && view.fulfillments.length > 0 ? (
+                  <ul className="flex flex-col gap-2">
+                    {view.fulfillments.map((fulfillment, index) => (
+                      <li
+                        key={fulfillment.id}
+                        className="flex items-center justify-between gap-2 text-sm"
+                      >
+                        <span>
+                          {t("Shipment {n, number}", { n: index + 1 })}
+                        </span>
+                        {fulfillment.status === "delivered" ? (
+                          <Badge variant="success-light">
+                            {t("Delivered")}
+                          </Badge>
+                        ) : fulfillment.status === "shipped" ? (
+                          <Badge variant="info-light">{t("Shipped")}</Badge>
+                        ) : fulfillment.status === "cancelled" ? (
+                          <Badge variant="destructive-light">
+                            {t("Cancelled")}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">{t("Packing")}</Badge>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("Promotions")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {view.kind === "draft" && canManage ? (
+                  <PromotionCodeField
+                    cartId={view.id}
+                    applied={view.promotions.flatMap((promotion) =>
+                      promotion.code
+                        ? [
+                            {
+                              code: promotion.code,
+                              name: promotion.name,
+                              discount: promotion.discount,
+                            },
+                          ]
+                        : [],
+                    )}
+                    canCreate={can(permissions, "promotions.manage")}
+                  />
+                ) : view.promotions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {t("No promotion was applied.")}
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-2">
+                    {view.promotions.map((promotion) => (
+                      <li
+                        key={promotion.code ?? promotion.name}
+                        className="flex items-center justify-between gap-2 text-sm"
+                      >
+                        <span className="flex items-center gap-2">
+                          {promotion.code ? (
+                            <Badge
+                              variant="success-light"
+                              className="font-mono"
+                            >
+                              {promotion.code}
+                            </Badge>
+                          ) : null}
+                          <span className="text-muted-foreground">
+                            {promotion.name}
+                          </span>
+                        </span>
+                        <span className="tabular-nums">
+                          {amount(negateMoney(promotion.discount))}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        }
+      >
+        {placed ? (
+          <RecordDetailTabs
+            base={`/shop/orders/${view.id}`}
+            active={tab}
+            tabs={[
+              { value: "overview", label: t("Overview") },
+              { value: "activity", label: t("Activity") },
+              { value: "related", label: t("Related") },
+            ]}
+          />
+        ) : null}
+        {placed && tab === "related" ? (
+          <RecordBoundSections
+            subject={subject}
+            sections={["files", "relations"]}
+          />
+        ) : placed && tab === "activity" ? (
+          <RecordBoundSections
+            subject={subject}
+            sections={["discussion", "history"]}
+          />
+        ) : (
+          <>
+            <DocumentFlow label={t("Order flow")} steps={flow} />
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("Lines")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {view.lines.length === 0 ? (
+                  <Empty className="border">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <ShoppingCartIcon />
+                      </EmptyMedia>
+                      <EmptyTitle>{t("This draft is empty")}</EmptyTitle>
+                      <EmptyDescription>
+                        {t("Add a product from the orders page.")}
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t("Product")}</TableHead>
+                        <TableHead className="text-right">
+                          {t("Quantity")}
+                        </TableHead>
+                        <TableHead className="text-right">
+                          {t("Unit price")}
+                        </TableHead>
+                        <TableHead className="text-right">
+                          {t("Total")}
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {view.lines.map((line) => (
+                        <TableRow key={line.id}>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm">{line.title}</span>
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {line.sku}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {line.quantity}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {amount(line.unitAmount)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {amount(line.total)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                    <TableFooter>
+                      {totals.map(([label, value]) => (
+                        <TableRow key={label}>
+                          <TableCell
+                            colSpan={3}
+                            className="text-muted-foreground"
+                          >
+                            {label}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {amount(value)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow>
+                        <TableCell colSpan={3} className="font-medium">
+                          {t("Total")}
+                        </TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">
+                          {amount(view.total)}
+                        </TableCell>
+                      </TableRow>
+                      {view.kind === "order" ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={3}
+                            className="text-muted-foreground"
+                          >
+                            {t("Paid")}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {amount(view.paidTotal)}
+                          </TableCell>
+                        </TableRow>
                       ) : null}
-                      <span className="text-muted-foreground">
-                        {promotion.name}
+                    </TableFooter>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {view.kind === "order" && view.returns.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("Returns")}</CardTitle>
+                  <CardDescription>
+                    {t("Settle a return as restock, quarantine or reject.")}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  {view.returns.map((each) => (
+                    <div
+                      key={each.id}
+                      className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Badge
+                          variant={
+                            each.status === "requested"
+                              ? "warning-light"
+                              : each.status === "rejected"
+                                ? "destructive-light"
+                                : "success-light"
+                          }
+                        >
+                          {each.status}
+                        </Badge>
+                        <span className="text-muted-foreground">
+                          {t("{n, number} units", { n: each.quantity })}
+                        </span>
                       </span>
-                    </span>
-                    <span className="tabular-nums">
-                      {amount(negateMoney(promotion.discount))}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                      {canManage && each.status === "requested" ? (
+                        <ActionDialog
+                          action={settleReturn}
+                          title={t("Settle the return")}
+                          trigger={t("Settle")}
+                          submitLabel={t("Settle return")}
+                          successMessage={t("Return settled")}
+                          variant="outline"
+                          hidden={{ orderId: view.id, returnId: each.id }}
+                          fields={[
+                            {
+                              name: "disposition",
+                              label: t("What happens to the units"),
+                              kind: "select",
+                              options: [
+                                { value: "restock", label: t("Restock") },
+                                { value: "quarantine", label: t("Quarantine") },
+                                {
+                                  value: "reject",
+                                  label: t("Reject the return"),
+                                },
+                              ],
+                            },
+                            {
+                              name: "refund",
+                              label: t("Refund the order"),
+                              kind: "select",
+                              options: [
+                                { value: "false", label: t("No refund") },
+                                {
+                                  value: "true",
+                                  label: t("Refund what is paid"),
+                                },
+                              ],
+                            },
+                          ]}
+                        />
+                      ) : null}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : null}
+          </>
+        )}
+      </RecordDetailFrame>
     </div>
   );
 }
@@ -23306,15 +23546,15 @@ async function retry() {
   refresh();
 }
 
-type DeliveryLabels = Readonly<Record<WebhookStatus, string>>;
+export type DeliveryLabels = Readonly<Record<WebhookStatus, string>>;
 
-interface EndpointLabels {
+export interface EndpointLabels {
   readonly off: string;
   readonly failing: string;
   readonly active: string;
 }
 
-function DeliveryStatusBadge({
+export function DeliveryStatusBadge({
   status,
   labels,
 }: {
@@ -23354,7 +23594,7 @@ function DeliveryStatusBadge({
   }
 }
 
-function EndpointStatusBadge({
+export function EndpointStatusBadge({
   endpoint,
   labels,
 }: {
@@ -23484,9 +23724,12 @@ export async function WebhookEndpoints() {
                   <TableRow key={endpoint.id}>
                     <TableCell>
                       <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium">
+                        <Link
+                          href={`/settings/webhooks/${endpoint.id}`}
+                          className="text-sm font-medium hover:underline"
+                        >
                           {endpoint.name}
-                        </span>
+                        </Link>
                         <span className="max-w-xs truncate font-mono text-xs text-muted-foreground">
                           {endpoint.url}
                         </span>
@@ -23886,77 +24129,98 @@ export async function SigningKeysRotation() {
       : [];
 
   return (
-    <Card data-recipe="signing-keys-rotation">
-      <CardHeader>
-        <CardTitle>{t("Signing keys")}</CardTitle>
-        <CardDescription>
-          {t(
-            "The keys that sign this organization's tokens. Private keys stay in Vault; receivers check signatures against the published JWKS.",
-          )}
-        </CardDescription>
-        {rows.length > 0 ? (
-          <CardAction>
-            <RotateSigningKeyButton first={false} />
-          </CardAction>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        {state.kind === "error" ? (
-          <Alert variant="destructive">
-            <TriangleAlertIcon />
-            <AlertTitle>{t("The signing keys didn't load")}</AlertTitle>
-            <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
-            <AlertAction>
-              <form action={retry}>
-                <Button size="sm" variant="outline" type="submit">
-                  {t("Retry")}
-                </Button>
-              </form>
-            </AlertAction>
-          </Alert>
-        ) : rows.length === 0 ? (
-          <Empty className="border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <KeyRoundIcon />
-              </EmptyMedia>
-              <EmptyTitle>{t("No signing key yet")}</EmptyTitle>
-              <EmptyDescription>
-                {t("Create one before the organization signs any tokens.")}
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <RotateSigningKeyButton first />
-            </EmptyContent>
-          </Empty>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("Key ID")}</TableHead>
-                <TableHead>{t("Algorithm")}</TableHead>
-                <TableHead>{t("Status")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((key) => (
-                <TableRow key={key.kid}>
-                  <TableCell className="font-mono text-xs">{key.kid}</TableCell>
-                  <TableCell className="text-sm">{key.algorithm}</TableCell>
-                  <TableCell>
-                    {key.active ? (
-                      <Badge variant="success-light">{t("Active")}</Badge>
-                    ) : (
-                      <Badge variant="secondary">{t("Previous")}</Badge>
-                    )}
-                  </TableCell>
+    <div className="flex flex-col gap-6">
+      {state.kind === "ok" ? (
+        <KpiBand
+          kpis={[
+            {
+              label: t("Active key"),
+              value: state.overview.active ? t("Yes") : t("None"),
+              hint: state.overview.active?.algorithm ?? t("No signing key yet"),
+            },
+            {
+              label: t("Previous keys"),
+              value: String(state.overview.previous.length),
+              hint: t("Published until the tokens they signed expire."),
+            },
+            { label: t("Published keys"), value: String(rows.length) },
+          ]}
+        />
+      ) : null}
+      <Card data-recipe="signing-keys-rotation">
+        <CardHeader>
+          <CardTitle>{t("Signing keys")}</CardTitle>
+          <CardDescription>
+            {t(
+              "The keys that sign this organization's tokens. Private keys stay in Vault; receivers check signatures against the published JWKS.",
+            )}
+          </CardDescription>
+          {rows.length > 0 ? (
+            <CardAction>
+              <RotateSigningKeyButton first={false} />
+            </CardAction>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          {state.kind === "error" ? (
+            <Alert variant="destructive">
+              <TriangleAlertIcon />
+              <AlertTitle>{t("The signing keys didn't load")}</AlertTitle>
+              <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+              <AlertAction>
+                <form action={retry}>
+                  <Button size="sm" variant="outline" type="submit">
+                    {t("Retry")}
+                  </Button>
+                </form>
+              </AlertAction>
+            </Alert>
+          ) : rows.length === 0 ? (
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <KeyRoundIcon />
+                </EmptyMedia>
+                <EmptyTitle>{t("No signing key yet")}</EmptyTitle>
+                <EmptyDescription>
+                  {t("Create one before the organization signs any tokens.")}
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <RotateSigningKeyButton first />
+              </EmptyContent>
+            </Empty>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("Key ID")}</TableHead>
+                  <TableHead>{t("Algorithm")}</TableHead>
+                  <TableHead>{t("Status")}</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {rows.map((key) => (
+                  <TableRow key={key.kid}>
+                    <TableCell className="font-mono text-xs">
+                      {key.kid}
+                    </TableCell>
+                    <TableCell className="text-sm">{key.algorithm}</TableCell>
+                    <TableCell>
+                      {key.active ? (
+                        <Badge variant="success-light">{t("Active")}</Badge>
+                      ) : (
+                        <Badge variant="secondary">{t("Previous")}</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -25939,6 +26203,16 @@ export async function BankReconciliation() {
               <FrameDescription>
                 {account.iban ?? t("The latest transactions on this account.")}
               </FrameDescription>
+              {canReconcile && account.unmatchedCount > 0 ? (
+                <div className="pt-2">
+                  <ActionButton
+                    action={reconcileAccount}
+                    input={{ accountId: account.id }}
+                    label={t("Match all suggestions")}
+                    successMessage={t("Suggested matches recorded")}
+                  />
+                </div>
+              ) : null}
             </FrameHeader>
             <FramePanel>
               {account.transactions.length === 0 ? (
@@ -27109,6 +27383,9 @@ export async function ProjectPage({ id }: { id: string }) {
             </dl>
           </CardContent>
         </Card>
+        <Suspense fallback={<ProjectTimeCardSkeleton />}>
+          <ProjectTimeCard id={record.id} />
+        </Suspense>
         {history.kind === "ok" ? (
           <ProjectHistory
             projectId={record.id}

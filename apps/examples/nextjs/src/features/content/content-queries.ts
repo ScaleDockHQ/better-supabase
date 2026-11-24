@@ -1,8 +1,10 @@
 import "server-only";
 import type { ContentStatus } from "better-supabase/blocks/content";
 
+import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { orMissing } from "@/lib/or-missing";
 import { bsb } from "@/lib/supabase/server";
 
 import { CONTENT_TAG } from "./content-cache";
@@ -19,15 +21,35 @@ export interface ContentRow {
   readonly publishedAt: string | null;
 }
 
-/** The newest pages and posts of the organization, drafts included. */
-export async function getContentEntries(): Promise<readonly ContentRow[]> {
+/** One entry for its page, with the dates as ISO text. */
+export interface ContentDetailRow extends ContentRow {
+  readonly publishAt: string | null;
+  readonly approvalStatus: string | null;
+  readonly translations: number;
+}
+
+/**
+ * The entry; `undefined` when it does not exist, `null` without an
+ * organization.
+ */
+export async function getContentEntry(
+  id: string,
+): Promise<ContentDetailRow | undefined | null> {
   "use cache: private";
-  const { db } = await bsb.cached();
+  const { db, session } = await bsb.cached();
   cacheTag(CONTENT_TAG);
 
-  const entries = await db.content.list({ limit: 100 }).orThrow();
+  if (!tenantOf(session)) {
+    return null;
+  }
 
-  return entries.map((entry) => ({
+  const entry = orMissing(await db.content.get(id));
+
+  if (entry === undefined || entry === null) {
+    return undefined;
+  }
+
+  return {
     id: entry.id,
     type: entry.type,
     locale: entry.locale,
@@ -37,5 +59,8 @@ export async function getContentEntries(): Promise<readonly ContentRow[]> {
     status: entry.status,
     updatedAt: entry.updatedAt.toString(),
     publishedAt: entry.publishedAt?.toString() ?? null,
-  }));
+    publishAt: entry.publishAt?.toString() ?? null,
+    approvalStatus: entry.approvalStatus ?? null,
+    translations: entry.translations?.length ?? 0,
+  };
 }

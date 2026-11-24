@@ -44,7 +44,7 @@ bump is one commit series:
 
 ## Scripts and hooks
 
-- `pnpm verify` is the full gate, and CI runs all of it on pull requests and on `main` (ADR 1229). `pnpm check` is the local
+- `pnpm verify` is the full gate, and CI runs all of it on pull requests and on `main` (ADR 1230). `pnpm check` is the local
   gate: lint, typecheck and mirrored tests of the changed workspaces. `pnpm check:format` is
   the old `ultracite check`.
 - `pnpm fix` runs `ultracite fix`: Oxfmt and the Oxlint autofixes. The
@@ -60,7 +60,7 @@ bump is one commit series:
 - CI runs the unit suite in 18 shards with coverage on pull requests and on
   `main`, packed by `packages/better-supabase/tests/unit-durations.json`;
   the `coverage` job merges the blob reports and checks the thresholds below
-  (ADR 1229). A red `main` opens the `main-red` issue.
+  (ADR 1230). A red `main` opens the `main-red` issue.
 - The `coverage` job also fails when a test file runs 50% and 5 seconds over
   its baseline in `unit-durations.json`, or a test runs past half its timeout
   and is not in `scripts/unit-slow-tests.json` (or grew 50% and 5 seconds past

@@ -9,7 +9,17 @@ export default function CarePlansLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "care-plans"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "care-plans",
+        "care",
+        "customers",
+        "recordDetail",
+        "recordList",
+        "records",
+        "sales",
+        "subjects",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

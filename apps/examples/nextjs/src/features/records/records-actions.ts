@@ -130,3 +130,157 @@ export const unlinkDealRelations = recordPages.deal.actions.relations.unlink;
 
 export const removeDealAttachments =
   recordPages.deal.actions.attachments.remove;
+
+export const linkContractRelations =
+  recordPages.contract.actions.relations.link;
+
+export const unlinkContractRelations =
+  recordPages.contract.actions.relations.unlink;
+
+export const removeContractAttachments =
+  recordPages.contract.actions.attachments.remove;
+
+// Service and logistics
+export const linkWorkOrderRelations =
+  recordPages.work_order.actions.relations.link;
+
+export const unlinkWorkOrderRelations =
+  recordPages.work_order.actions.relations.unlink;
+
+export const removeWorkOrderAttachments =
+  recordPages.work_order.actions.attachments.remove;
+
+export const linkShipmentRelations =
+  recordPages.shipment.actions.relations.link;
+
+export const unlinkShipmentRelations =
+  recordPages.shipment.actions.relations.unlink;
+
+export const removeShipmentAttachments =
+  recordPages.shipment.actions.attachments.remove;
+
+// Support
+export const linkCaseRelations = recordPages.case.actions.relations.link;
+
+export const unlinkCaseRelations = recordPages.case.actions.relations.unlink;
+
+export const removeCaseAttachments =
+  recordPages.case.actions.attachments.remove;
+
+export const linkContentEntryRelations =
+  recordPages.content_entry.actions.relations.link;
+
+export const unlinkContentEntryRelations =
+  recordPages.content_entry.actions.relations.unlink;
+
+export const removeContentEntryAttachments =
+  recordPages.content_entry.actions.attachments.remove;
+
+export const linkMeetingRelations = recordPages.meeting.actions.relations.link;
+
+export const unlinkMeetingRelations =
+  recordPages.meeting.actions.relations.unlink;
+
+export const removeMeetingAttachments =
+  recordPages.meeting.actions.attachments.remove;
+
+export const linkCarePlanRelations =
+  recordPages.care_plan.actions.relations.link;
+
+export const unlinkCarePlanRelations =
+  recordPages.care_plan.actions.relations.unlink;
+
+export const removeCarePlanAttachments =
+  recordPages.care_plan.actions.attachments.remove;
+
+export const linkRiskRelations = recordPages.risk.actions.relations.link;
+
+export const unlinkRiskRelations = recordPages.risk.actions.relations.unlink;
+
+export const removeRiskAttachments =
+  recordPages.risk.actions.attachments.remove;
+
+export const linkVulnerabilityRelations =
+  recordPages.vulnerability.actions.relations.link;
+
+export const unlinkVulnerabilityRelations =
+  recordPages.vulnerability.actions.relations.unlink;
+
+export const removeVulnerabilityAttachments =
+  recordPages.vulnerability.actions.attachments.remove;
+
+// People
+
+export const linkEmployeeRelations =
+  recordPages.employee.actions.relations.link;
+
+export const unlinkEmployeeRelations =
+  recordPages.employee.actions.relations.unlink;
+
+export const removeEmployeeAttachments =
+  recordPages.employee.actions.attachments.remove;
+
+export const linkApplicationRelations =
+  recordPages.application.actions.relations.link;
+
+export const unlinkApplicationRelations =
+  recordPages.application.actions.relations.unlink;
+
+export const removeApplicationAttachments =
+  recordPages.application.actions.attachments.remove;
+
+export const linkCourseRelations = recordPages.course.actions.relations.link;
+
+export const unlinkCourseRelations =
+  recordPages.course.actions.relations.unlink;
+
+export const removeCourseAttachments =
+  recordPages.course.actions.attachments.remove;
+
+export const linkOrderRelations = recordPages.order.actions.relations.link;
+
+export const unlinkOrderRelations = recordPages.order.actions.relations.unlink;
+
+export const removeOrderAttachments =
+  recordPages.order.actions.attachments.remove;
+
+export const linkInvoiceRelations = recordPages.invoice.actions.relations.link;
+
+export const unlinkInvoiceRelations =
+  recordPages.invoice.actions.relations.unlink;
+
+export const removeInvoiceAttachments =
+  recordPages.invoice.actions.attachments.remove;
+
+export const linkProductionOrderRelations =
+  recordPages.production_order.actions.relations.link;
+
+export const unlinkProductionOrderRelations =
+  recordPages.production_order.actions.relations.unlink;
+
+export const removeProductionOrderAttachments =
+  recordPages.production_order.actions.attachments.remove;
+
+export const linkInspectionRelations =
+  recordPages.inspection.actions.relations.link;
+
+export const unlinkInspectionRelations =
+  recordPages.inspection.actions.relations.unlink;
+
+export const removeInspectionAttachments =
+  recordPages.inspection.actions.attachments.remove;
+
+export const linkProductRelations = recordPages.product.actions.relations.link;
+
+export const unlinkProductRelations =
+  recordPages.product.actions.relations.unlink;
+
+export const removeProductAttachments =
+  recordPages.product.actions.attachments.remove;
+
+export const linkTillRelations = recordPages.till.actions.relations.link;
+
+export const unlinkTillRelations = recordPages.till.actions.relations.unlink;
+
+export const removeTillAttachments =
+  recordPages.till.actions.attachments.remove;

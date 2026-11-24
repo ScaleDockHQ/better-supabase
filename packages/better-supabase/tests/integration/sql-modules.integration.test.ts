@@ -5452,12 +5452,6 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const alice = "00000000-0000-4000-8000-0000000000a1";
     const bob = "00000000-0000-4000-8000-0000000000a2";
     await pool.query(file!.contents);
-    await pool.query(
-      `insert into public.customers (organization_id, name, created_by)
-       values ($1, $2, $3), ($1, $4, $3), ($1, $5, $6)`,
-      [ACME, `Alice A ${RUN}`, alice, `Alice B ${RUN}`, `Bob ${RUN}`, bob],
-    );
-    await pool.query(`notify pgrst, 'reload schema'`);
 
     try {
       const counts = async (sub: string) => {
@@ -5482,8 +5476,23 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         return { rest: rest.data!.mine, sql: sql.mine };
       };
 
-      expect(await counts(alice)).toEqual({ rest: 2, sql: 2 });
-      expect(await counts(bob)).toEqual({ rest: 1, sql: 1 });
+      // The sample seeds customers for these users too: count what the test adds.
+      const before = { alice: await counts(alice), bob: await counts(bob) };
+
+      await pool.query(
+        `insert into public.customers (organization_id, name, created_by)
+             values ($1, $2, $3), ($1, $4, $3), ($1, $5, $6)`,
+        [ACME, `Alice A ${RUN}`, alice, `Alice B ${RUN}`, `Bob ${RUN}`, bob],
+      );
+      await pool.query(`notify pgrst, 'reload schema'`);
+
+      const plus = (base: { rest: number; sql: number }, n: number) => ({
+        rest: base.rest + n,
+        sql: base.sql + n,
+      });
+
+      expect(await counts(alice)).toEqual(plus(before.alice, 2));
+      expect(await counts(bob)).toEqual(plus(before.bob, 1));
     } finally {
       await pool.query(
         `delete from public.customers where created_by = any ($1)`,

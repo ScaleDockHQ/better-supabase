@@ -11,12 +11,14 @@ import { getExtracted } from "next-intl/server";
 
 import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 
+import { generatedBlockColumns } from "@/components/record-list/generated-columns";
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { CreateContactDialog } from "@/features/crm/components/create-contact-dialog";
 import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { contactsMap, contactsPager } from "@/features/crm/contacts-list";
 import { settle } from "@/features/crm/crm-queries";
 import { loadedPager } from "@/lib/loaded-pager";
+import { contractsColumns } from "@/lib/supabase/pages/contracts.columns";
 
 import { loadHealth } from "../automation/automation-queries";
 import {
@@ -487,40 +489,50 @@ export async function ContractOverview({
           renews: contract.autoRenew ? "auto" : "manual",
         };
       }}
-      columns={[
-        {
-          key: "title",
-          header: t("Contract"),
-          kind: "link",
-          href: "/crm/contracts/{id}",
-          size: 280,
-        },
-        {
-          key: "status",
-          header: t("Status"),
-          kind: "badge",
-          size: 150,
-          labels: statusLabels,
-          tones: {
-            active: "success-light",
-            out_for_signature: "info-light",
-            in_review: "warning-light",
-            expired: "destructive-light",
-            terminated: "destructive-light",
+      columns={generatedBlockColumns({
+        columns: contractsColumns,
+        header: (column) =>
+          ({ title: t("Contract"), status: t("Status"), endsOn: t("Ends") })[
+            column.key
+          ] ?? column.label,
+        link: { key: "title", href: "/crm/contracts/{id}" },
+        order: [
+          "title",
+          "status",
+          "value",
+          "startsOn",
+          "endsOn",
+          "notice",
+          "renews",
+        ],
+        overrides: {
+          title: { size: 280 },
+          status: {
+            size: 150,
+            labels: statusLabels,
+            tones: {
+              active: "success-light",
+              out_for_signature: "info-light",
+              in_review: "warning-light",
+              expired: "destructive-light",
+              terminated: "destructive-light",
+            },
           },
+          endsOn: { size: 120 },
         },
-        { key: "value", header: t("Value"), kind: "number", size: 130 },
-        { key: "startsOn", header: t("Starts"), kind: "muted", size: 120 },
-        { key: "endsOn", header: t("Ends"), kind: "muted", size: 120 },
-        { key: "notice", header: t("Notice by"), kind: "muted", size: 120 },
-        {
-          key: "renews",
-          header: t("Renewal"),
-          kind: "badge",
-          size: 110,
-          labels: { auto: t("Automatic"), manual: t("Manual") },
-        },
-      ]}
+        extra: [
+          { key: "value", header: t("Value"), kind: "number", size: 130 },
+          { key: "startsOn", header: t("Starts"), kind: "muted", size: 120 },
+          { key: "notice", header: t("Notice by"), kind: "muted", size: 120 },
+          {
+            key: "renews",
+            header: t("Renewal"),
+            kind: "badge",
+            size: 110,
+            labels: { auto: t("Automatic"), manual: t("Manual") },
+          },
+        ],
+      })}
       facet={{ key: "status", label: t("Status"), values: statusLabels }}
       sorts={[
         { value: "ending", label: t("Ending soonest") },

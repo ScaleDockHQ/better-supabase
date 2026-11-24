@@ -114,7 +114,14 @@ export async function ProductCatalogGrid() {
               <li key={product.id}>
                 <Card>
                   <CardHeader>
-                    <CardTitle>{product.title}</CardTitle>
+                    <CardTitle>
+                      <IntentLink
+                        href={toAppHref(`/shop/products/${product.id}`)}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {product.title}
+                      </IntentLink>
+                    </CardTitle>
                     <CardDescription className="font-mono">
                       {product.sku}
                     </CardDescription>

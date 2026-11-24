@@ -1,3 +1,6 @@
+import { getExtracted, getLocale } from "next-intl/server";
+
+import { KpiBand } from "@/components/record-list/kpi-band";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
@@ -9,10 +12,28 @@ import { SettingsLayout } from "./settings-layout";
  * every write; the session decides which controls are enabled.
  */
 export async function Preferences() {
-  const permissions = await getPermissions();
+  const [permissions, locale, t] = await Promise.all([
+    getPermissions(),
+    getLocale(),
+    getExtracted("settings"),
+  ]);
+
+  const canEdit = can(permissions, "settings.update");
 
   return (
-    <SettingsLayout canEditOrganization={can(permissions, "settings.update")} />
+    <div className="flex flex-col gap-6">
+      <KpiBand
+        kpis={[
+          { label: t("Language"), value: locale.toUpperCase() },
+          {
+            label: t("Organization settings"),
+            value: canEdit ? t("Editable") : t("Read only"),
+            hint: t("Needs the settings.update permission."),
+          },
+        ]}
+      />
+      <SettingsLayout canEditOrganization={canEdit} />
+    </div>
   );
 }
 

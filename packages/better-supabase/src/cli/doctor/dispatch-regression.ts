@@ -1,7 +1,12 @@
-import type { CodeToken } from "../schema-reader/index.ts";
+import type { CodeStatement, CodeToken } from "../schema-reader/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { codeStatementsOf, nameAt, wordsAt } from "../schema-reader/index.ts";
+import {
+  codeStatementsOf,
+  nameAt,
+  readCodeStatements,
+  wordsAt,
+} from "../schema-reader/index.ts";
 
 const ARM_NAME = /^[a-z0-9_]+$/iu;
 
@@ -30,6 +35,21 @@ function createdFunction(tokens: readonly CodeToken[]): string | undefined {
     : nameAt(tokens, at)?.parts.at(-1)?.toLowerCase();
 }
 
+/** Records the dispatch arms of each function the statements create. */
+function collectArms(
+  statements: readonly CodeStatement[],
+  found: Map<string, readonly string[]>,
+): void {
+  for (const statement of statements) {
+    const name = createdFunction(statement.tokens);
+    const arms = name === undefined ? [] : dispatchArms(statement.tokens);
+
+    if (name !== undefined && arms.length > 0) {
+      found.set(name, arms);
+    }
+  }
+}
+
 /** Dispatch arms per function, last statement of a name winning. */
 function armsByFunction(
   files: readonly TextFile[],
@@ -37,14 +57,23 @@ function armsByFunction(
   const found = new Map<string, readonly string[]>();
 
   for (const file of files) {
-    for (const statement of codeStatementsOf(file.text)) {
-      const name = createdFunction(statement.tokens);
-      const arms = name === undefined ? [] : dispatchArms(statement.tokens);
+    collectArms(codeStatementsOf(file.text), found);
+  }
 
-      if (name !== undefined && arms.length > 0) {
-        found.set(name, arms);
-      }
-    }
+  return found;
+}
+
+/**
+ * Like `armsByFunction`, but reads each file's tokens only while it looks at
+ * that file, so a long migration history is never in memory at once.
+ */
+async function armsByFunctionOnce(
+  files: readonly TextFile[],
+): Promise<Map<string, readonly string[]>> {
+  const found = new Map<string, readonly string[]>();
+
+  for (const file of files) {
+    collectArms(await readCodeStatements(file.text), found);
   }
 
   return found;
@@ -81,12 +110,12 @@ function configuredImportEntities(context: DoctorContext): readonly string[] {
  * A schema function whose `when` arms a later migration dropped, and an
  * `import_apply_batch` override that omits an entity the config declares.
  */
-export function dispatchRegressions(
+export async function dispatchRegressions(
   files: readonly TextFile[],
   entities: readonly string[],
-): FindingInput[] {
+): Promise<FindingInput[]> {
   const schema = armsByFunction(schemaFiles(files));
-  const migrations = armsByFunction(migrationFiles(files));
+  const migrations = await armsByFunctionOnce(migrationFiles(files));
   const findings: FindingInput[] = [];
 
   for (const [name, arms] of schema) {

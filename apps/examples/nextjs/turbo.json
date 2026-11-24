@@ -54,7 +54,8 @@
       "dependsOn": ["$TURBO_EXTENDS$", "^build"]
     },
     "test": {
-      "dependsOn": ["$TURBO_EXTENDS$", "^build"]
+      "dependsOn": ["$TURBO_EXTENDS$", "^build"],
+      "env": ["$TURBO_EXTENDS$", "BSB_PERF_DIR", "BSB_PERF_USER"]
     },
     "dev:portless": {
       "passThroughEnv": [

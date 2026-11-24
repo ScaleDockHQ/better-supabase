@@ -187,26 +187,6 @@ export const lockPeriod = bsb.action(
   },
 );
 
-/** Closes a period when no block names a blocker. */
-export const closePeriod = bsb.action(
-  {
-    input: v.object({ periodId: Id }),
-    requireTenant: true,
-    permission: "periods.write",
-  },
-  async ({ periodId }, { db, auth }) => {
-    const closed = await db.periods.close(periodId);
-
-    if (!closed.ok) {
-      return closed;
-    }
-
-    await refreshCaller(auth, TAGS);
-
-    return ok(closed.data.status);
-  },
-);
-
 /** Reopens a locked or closed period; the on-close steps are not undone. */
 export const reopenPeriod = bsb.action(
   {

@@ -11,6 +11,7 @@ import { workOrdersNav } from "@/lib/supabase/pages/work-orders.navigation";
 export type NavId =
   | "dashboard"
   | "myWork"
+  | "areas"
   | "customers"
   | "people"
   | "hiring"
@@ -167,6 +168,7 @@ export interface NavItem {
 export const navItems: readonly NavItem[] = [
   { id: "dashboard", href: "/", area: "home" },
   { id: "myWork", href: "/my-work", area: "home" },
+  { id: "areas", href: "/areas", area: "home" },
   {
     id: "customers",
     href: "/customers",

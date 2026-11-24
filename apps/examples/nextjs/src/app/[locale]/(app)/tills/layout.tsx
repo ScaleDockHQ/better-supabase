@@ -11,6 +11,9 @@ export default function TillsLayout({ children }: { children: ReactNode }) {
     <NextIntlClientProvider
       messages={pick(messages, [
         ...APP_NAMESPACES,
+        "customers",
+        "records",
+        "subjects",
         "tills",
         "recordDetail",
         "recordList",

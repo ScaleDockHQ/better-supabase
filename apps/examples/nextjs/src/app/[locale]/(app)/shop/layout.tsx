@@ -9,7 +9,15 @@ export default function ShopLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "shop"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "customers",
+        "recordDetail",
+        "records",
+        "sales",
+        "subjects",
+        "shop",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

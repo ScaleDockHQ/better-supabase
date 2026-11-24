@@ -36,6 +36,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { reconcileAccount } from "@/features/composites/composites-actions";
+import { ActionButton } from "@/features/sales/components/action-button";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
@@ -167,6 +169,16 @@ export async function BankReconciliation() {
               <FrameDescription>
                 {account.iban ?? t("The latest transactions on this account.")}
               </FrameDescription>
+              {canReconcile && account.unmatchedCount > 0 ? (
+                <div className="pt-2">
+                  <ActionButton
+                    action={reconcileAccount}
+                    input={{ accountId: account.id }}
+                    label={t("Match all suggestions")}
+                    successMessage={t("Suggested matches recorded")}
+                  />
+                </div>
+              ) : null}
             </FrameHeader>
             <FramePanel>
               {account.transactions.length === 0 ? (

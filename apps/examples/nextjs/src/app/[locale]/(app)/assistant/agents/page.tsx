@@ -7,6 +7,10 @@ import {
   AgentList,
   AgentListSkeleton,
 } from "@/features/agents/components/agent-list";
+import {
+  AgentsKpiBand,
+  AgentsKpiBandSkeleton,
+} from "@/features/agents/components/agents-kpi-band";
 import { PlaybookWizard } from "@/features/agents/components/playbook-wizard";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
@@ -34,6 +38,9 @@ export default function AgentsPage({
           </Suspense>
         }
       />
+      <Suspense fallback={<AgentsKpiBandSkeleton />}>
+        <AgentsKpiBand kind="agents" />
+      </Suspense>
       <Suspense fallback={<AgentListSkeleton />}>
         <PermissionGate permission="agents.read">
           <AgentList query={loadOpsList(searchParams)} />

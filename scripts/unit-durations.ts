@@ -1,4 +1,4 @@
-// The unit time budget (ADR 1229). As a Vitest reporter on the coverage job's merge, it writes
+// The unit time budget (ADR 1230). As a Vitest reporter on the coverage job's merge, it writes
 // each file's test time and every test past half its timeout to `unit-times.json` in the
 // working directory. As a script, it checks that file against the baselines or writes them.
 //

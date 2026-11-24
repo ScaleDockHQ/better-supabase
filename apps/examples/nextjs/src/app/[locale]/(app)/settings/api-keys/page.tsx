@@ -1,6 +1,10 @@
 import { Suspense } from "react";
 
 import {
+  ApiKeysKpiBand,
+  ApiKeysKpiBandSkeleton,
+} from "@/features/api-keys/components/api-keys-kpi-band";
+import {
   ApiKeysSectionSkeleton,
   ApiKeysSection,
 } from "@/features/api-keys/components/api-keys-section";
@@ -16,6 +20,9 @@ export const instant = true;
 export default function ApiKeysSettingsPage() {
   return (
     <>
+      <Suspense fallback={<ApiKeysKpiBandSkeleton />}>
+        <ApiKeysKpiBand />
+      </Suspense>
       <Suspense fallback={<ApiKeysSectionSkeleton />}>
         <ApiKeysSection />
       </Suspense>

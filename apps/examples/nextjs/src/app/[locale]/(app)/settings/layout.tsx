@@ -27,6 +27,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         "integrations",
         "jobs",
         "numbering",
+        "sales",
         "oauthApps",
         "optionSets",
         "members",

@@ -383,3 +383,195 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
     })),
   };
 }
+
+export type ApplicationState = "active" | "hired" | "rejected" | "withdrawn";
+
+export interface ApplicationRow {
+  readonly id: string;
+  readonly jobId: string;
+  readonly jobTitle: string;
+  readonly candidateId: string;
+  readonly candidateName: string;
+  readonly stageId: string | null;
+  readonly stageName: string | null;
+  readonly state: ApplicationState;
+  readonly source: string | null;
+  readonly createdAt: string;
+}
+
+export interface ApplicationsData {
+  readonly rows: readonly ApplicationRow[];
+  readonly stages: readonly HiringStage[];
+}
+
+/**
+ * Every application of every opening, with the opening, stage and candidate
+ * named.
+ */
+export async function loadApplications(): Promise<ApplicationsData | null> {
+  "use cache: private";
+  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+
+  return readApplications(await bsb.cached());
+}
+
+/** The same read for a function that already runs in a private scope. */
+async function readApplications({
+  session,
+  db,
+}: Awaited<ReturnType<typeof bsb.cached>>): Promise<ApplicationsData | null> {
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
+  const [jobs, pipeline, customers] = await Promise.all([
+    db.hiring.jobs({ organizationId: tenant }).orThrow(),
+    db.pipelines
+      .default({ organizationId: tenant, subjectType: "application" })
+      .orThrow(),
+    db.customers
+      .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 200 })
+      .orThrow(),
+  ]);
+
+  const applications = await db.hiring
+    .applicationsForJobs({ jobIds: jobs.map((job) => job.id) })
+    .orThrow();
+
+  const names = new Map(
+    customers.map((customer) => [customer.id, customer.name]),
+  );
+
+  const jobTitles = new Map(jobs.map((job) => [job.id, job.title]));
+  const stages = pipeline?.stages ?? [];
+  const stageNames = new Map(stages.map((stage) => [stage.id, stage.name]));
+
+  return {
+    stages: stages.map((stage) => ({
+      id: stage.id,
+      name: stage.name,
+      category: stage.category,
+    })),
+    rows: applications.map((application) => ({
+      id: application.id,
+      jobId: application.jobId,
+      jobTitle: jobTitles.get(application.jobId) ?? "",
+      candidateId: application.candidate.id,
+      candidateName:
+        names.get(application.candidate.id) ?? application.candidate.id,
+      stageId: application.stageId ?? null,
+      stageName:
+        application.stageId === undefined
+          ? null
+          : (stageNames.get(application.stageId) ?? null),
+      state: application.state,
+      source: application.source ?? null,
+      createdAt: application.createdAt.toString(),
+    })),
+  };
+}
+
+export interface ApplicationView {
+  readonly row: ApplicationRow;
+  readonly stages: readonly HiringStage[];
+  readonly rejectionReason: string | null;
+  readonly hiredAt: string | null;
+  readonly scorecards: readonly {
+    readonly id: string;
+    readonly rating: number;
+    readonly recommendation: string | null;
+    readonly notes: string | null;
+    readonly submittedAt: string;
+  }[];
+  readonly interviews: readonly {
+    readonly id: string;
+    readonly kind: string | null;
+    readonly startsAt: string;
+    readonly location: string | null;
+  }[];
+}
+
+/** One application with its stage path, scorecards and interviews. */
+export async function loadApplication(
+  id: string,
+): Promise<ApplicationView | "not-found" | null> {
+  "use cache: private";
+  const scope = await bsb.cached();
+  const { db } = scope;
+  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+
+  const all = await readApplications(scope);
+
+  if (all === null) {
+    return null;
+  }
+
+  const row = all.rows.find((entry) => entry.id === id);
+
+  if (!row) {
+    return "not-found";
+  }
+
+  const detail = await db.hiring.detail(id);
+
+  if (!detail.ok) {
+    return {
+      row,
+      stages: all.stages,
+      rejectionReason: null,
+      hiredAt: null,
+      scorecards: [],
+      interviews: [],
+    };
+  }
+
+  const jobPipeline =
+    all.stages.length === 0 && detail.data.pipelineId !== undefined
+      ? await db.pipelines.get(detail.data.pipelineId)
+      : null;
+
+  const stages = jobPipeline?.ok
+    ? jobPipeline.data.stages.map((stage) => ({
+        id: stage.id,
+        name: stage.name,
+        category: stage.category,
+      }))
+    : all.stages;
+
+  return {
+    row,
+    stages,
+    rejectionReason: detail.data.rejectionReason ?? null,
+    hiredAt: detail.data.hiredAt?.toString() ?? null,
+    scorecards: detail.data.scorecards.map((card) => ({
+      id: card.id,
+      rating: card.rating,
+      recommendation: card.recommendation ?? null,
+      notes: card.notes ?? null,
+      submittedAt: card.submittedAt.toString(),
+    })),
+    interviews: detail.data.interviews.map((interview) => ({
+      id: interview.id,
+      kind: interview.kind ?? null,
+      startsAt: interview.startsAt.toString(),
+      location: interview.location ?? null,
+    })),
+  };
+}
+
+/**
+ * Everyone in the directory, with status and manager, for the board and
+ * figures.
+ */
+export async function loadRoster(): Promise<
+  readonly DirectoryEmployee[] | null
+> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+  const tenant = tenantOf(session);
+
+  return tenant ? readDirectory(db, tenant) : null;
+}

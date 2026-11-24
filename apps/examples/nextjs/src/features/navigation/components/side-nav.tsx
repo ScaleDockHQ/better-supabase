@@ -76,6 +76,7 @@ import {
   KeyRoundIcon,
   LibraryIcon,
   LayoutDashboardIcon,
+  LayoutGridIcon,
   ListTodoIcon,
   ScrollTextIcon,
   SettingsIcon,
@@ -98,6 +99,7 @@ import {
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { getExtracted } from "next-intl/server";
+import { Suspense } from "react";
 
 import {
   SidebarGroup,
@@ -110,12 +112,14 @@ import type { NavArea as NavAreaId, NavId } from "../nav-items";
 
 import { navAreas, navItems } from "../nav-items";
 import { NavArea } from "./nav-area";
+import { ApprovalsNavBadge } from "./nav-badge";
 import { getNavLabel } from "./nav-label-server";
 import { NavLink } from "./nav-link";
 
 const ICONS = {
   dashboard: LayoutDashboardIcon,
   myWork: ListTodoIcon,
+  areas: LayoutGridIcon,
   customers: UsersIcon,
   people: IdCardIcon,
   hiring: BriefcaseIcon,
@@ -330,6 +334,11 @@ export async function SideNav({ visible }: { visible: readonly NavId[] }) {
                     >
                       <Icon />
                     </NavLink>
+                    {item.id === "approvals" ? (
+                      <Suspense>
+                        <ApprovalsNavBadge />
+                      </Suspense>
+                    ) : null}
                   </SidebarMenuItem>
                 );
               })}

@@ -62,7 +62,7 @@ export const createWebhookEndpoint = bsb.action(
       connection.transaction(
         async (sql) => {
           const [endpoint] = await sql.queryRaw<{ id: string }>(
-            `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
+            `insert into better_supabase.webhook_endpoints (tenant_id, name, url, event_types)
              values ($1, $2, $3, $4) returning id`,
             [tenant, name, url, eventTypes],
           );

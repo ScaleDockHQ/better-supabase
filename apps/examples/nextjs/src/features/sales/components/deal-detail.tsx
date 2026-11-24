@@ -1,11 +1,13 @@
-import { ChevronRightIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { AfterNavigation } from "@/components/record-detail/after-navigation";
+import { PropertiesRail } from "@/components/record-detail/properties-rail";
+import { RecordBoundSections } from "@/components/record-detail/record-bound-sections";
 import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
 import { RecordDetailTabs } from "@/components/record-detail/record-detail-tabs";
+import { StageStepper } from "@/components/record-detail/stage-stepper";
 import { Badge } from "@/components/reui/badge";
 import {
   Card,
@@ -16,25 +18,19 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  closeDealLost,
+  closeDealWon,
+} from "@/features/composites/composites-actions";
+import {
   ActivityTimeline,
   ActivityTimelineSkeleton,
 } from "@/features/crm/components/activity-timeline";
 import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { moveDeal } from "@/features/crm/crm-actions";
 import { settle } from "@/features/crm/crm-queries";
-import {
-  RecordDiscussion,
-  RecordDiscussionSkeleton,
-  RecordFiles,
-  RecordFilesSkeleton,
-  RecordHistory,
-  RecordHistorySkeleton,
-  RecordRelations,
-  RecordRelationsSkeleton,
-} from "@/features/records/components/record-sections";
 
 import { loadDeal } from "../pipeline/pipeline-queries";
-import { loseDeal, reopenDeal, winDeal } from "../sales-actions";
+import { reopenDeal, winDeal } from "../sales-actions";
 import { ActionButton } from "./action-button";
 import { ActionDialog } from "./action-dialog";
 import {
@@ -92,7 +88,6 @@ export async function DealDetail({
   const { deal, stages, health } = detail;
   const subject = { type: "deal", id: deal.id } as const;
   const open = deal.category === "open";
-  const current = stages.findIndex((stage) => stage.id === deal.stageId);
 
   const facts = [
     { label: t("Amount"), value: fmtMoney(deal.amount) },
@@ -115,6 +110,23 @@ export async function DealDetail({
 
   return (
     <RecordDetailFrame
+      aside={
+        <>
+          <PropertiesRail title={t("Details")} properties={facts} />
+          <RecordBoundSections
+            subject={subject}
+            sections={[
+              "tags",
+              "fields",
+              "approvals",
+              "reminders",
+              "conversations",
+              "tasks",
+              "workflows",
+            ]}
+          />
+        </>
+      }
       title={deal.name}
       description={deal.identifier}
       status={
@@ -141,8 +153,14 @@ export async function DealDetail({
                 successMessage={t("Deal won")}
                 variant="default"
               />
+              <ActionButton
+                action={closeDealWon}
+                input={{ dealId: deal.id }}
+                label={t("Win and draft quote")}
+                successMessage={t("Deal won, quote drafted")}
+              />
               <ActionDialog
-                action={loseDeal}
+                action={closeDealLost}
                 title={t("Mark lost")}
                 trigger={t("Mark lost")}
                 submitLabel={t("Mark lost")}
@@ -188,18 +206,10 @@ export async function DealDetail({
           </AfterNavigation>
         </Suspense>
       ) : tab === "related" ? (
-        <>
-          <Suspense fallback={<RecordFilesSkeleton />}>
-            <AfterNavigation>
-              <RecordFiles subject={subject} />
-            </AfterNavigation>
-          </Suspense>
-          <Suspense fallback={<RecordRelationsSkeleton />}>
-            <AfterNavigation>
-              <RecordRelations subject={subject} />
-            </AfterNavigation>
-          </Suspense>
-        </>
+        <RecordBoundSections
+          subject={subject}
+          sections={["files", "relations"]}
+        />
       ) : tab === "activity" ? (
         <>
           <Suspense fallback={<ActivityTimelineSkeleton />}>
@@ -212,16 +222,10 @@ export async function DealDetail({
               <FieldHistoryTable type="deal" id={deal.id} />
             </AfterNavigation>
           </Suspense>
-          <Suspense fallback={<RecordDiscussionSkeleton />}>
-            <AfterNavigation>
-              <RecordDiscussion subject={subject} />
-            </AfterNavigation>
-          </Suspense>
-          <Suspense fallback={<RecordHistorySkeleton />}>
-            <AfterNavigation>
-              <RecordHistory subject={subject} />
-            </AfterNavigation>
-          </Suspense>
+          <RecordBoundSections
+            subject={subject}
+            sections={["discussion", "history"]}
+          />
         </>
       ) : (
         <>
@@ -235,27 +239,11 @@ export async function DealDetail({
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <ol className="flex flex-wrap items-center gap-2">
-                {stages.map((stage, index) => (
-                  <li key={stage.id} className="flex items-center gap-2">
-                    {index > 0 ? (
-                      <ChevronRightIcon className="size-4 text-muted-foreground" />
-                    ) : null}
-                    <Badge
-                      variant={
-                        index === current
-                          ? "primary-light"
-                          : index < current
-                            ? "secondary"
-                            : "outline"
-                      }
-                      aria-current={index === current ? "step" : undefined}
-                    >
-                      {stage.name}
-                    </Badge>
-                  </li>
-                ))}
-              </ol>
+              <StageStepper
+                stages={stages}
+                currentId={deal.stageId}
+                label={t("Deal stage")}
+              />
               {open && canWrite ? (
                 <div className="flex flex-wrap gap-2">
                   {stages
@@ -276,10 +264,10 @@ export async function DealDetail({
               ) : null}
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("Details")}</CardTitle>
-              {flags.length > 0 ? (
+          {flags.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("Needs attention")}</CardTitle>
                 <CardDescription className="flex flex-wrap gap-2">
                   {flags.map((flag) => (
                     <Badge key={flag} variant="warning-light">
@@ -287,21 +275,9 @@ export async function DealDetail({
                     </Badge>
                   ))}
                 </CardDescription>
-              ) : null}
-            </CardHeader>
-            <CardContent>
-              <dl className="grid gap-4 sm:grid-cols-2">
-                {facts.map((fact) => (
-                  <div key={fact.label} className="flex flex-col gap-1">
-                    <dt className="text-xs text-muted-foreground">
-                      {fact.label}
-                    </dt>
-                    <dd className="text-sm font-medium">{fact.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </CardContent>
-          </Card>
+              </CardHeader>
+            </Card>
+          ) : null}
         </>
       )}
     </RecordDetailFrame>

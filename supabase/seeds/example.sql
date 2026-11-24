@@ -612,3 +612,225 @@ select better_supabase.open_appraisal_cycle((better_supabase.create_appraisal_cy
     jsonb_build_object('subjectUserId', '00000000-0000-4000-8000-0000000000a1')));
 
 select set_config('request.jwt.claims', '', false);
+
+-- Service and logistics story: a technician is on site with a forklift service
+-- (complete it with "Complete visit"), a second visit waits in the day plan, and
+-- three parcels sit at the three stages of tracking.
+insert into better_supabase.work_orders (tenant_id, title, description, priority, status, technician_id, starts_at, ends_at,
+  address, en_route_at, arrived_at, created_by)
+select '00000000-0000-4000-8000-000000000001', v.title, v.description, v.priority, v.status,
+  '00000000-0000-4000-8000-0000000000a1', now() + v.at, now() + v.at + interval '2 hours', v.address,
+  case when v.status in ('en_route', 'on_site') then now() + v.at - interval '30 minutes' end,
+  case when v.status = 'on_site' then now() + v.at - interval '10 minutes' end,
+  '00000000-0000-4000-8000-0000000000a1'
+from (values
+  ('Forklift hydraulic service', 'Replace the hydraulic filter and log the hour meter.', 'high', 'on_site', interval '-1 hour', 'Keizersgracht 1, Amsterdam'),
+  ('Dock door sensor check', 'Test the safety sensors on doors 3 and 4.', 'normal', 'scheduled', interval '3 hours', 'Loading dock, Rotterdam')
+) as v(title, description, priority, status, at, address)
+where not exists (
+  select 1 from better_supabase.work_orders w
+  where w.tenant_id = '00000000-0000-4000-8000-000000000001' and w.title = v.title);
+
+with new_shipments as (
+  insert into better_supabase.shipments (tenant_id, reference, status, from_address, to_address, direction, carrier, service,
+    tracking_number, labeled_at, delivered_at, created_by)
+  select '00000000-0000-4000-8000-000000000001', v.reference, v.status,
+    '{"company": "Acme Rockets", "line1": "Keizersgracht 1", "city": "Amsterdam", "postalCode": "1015 CJ", "country": "NL"}'::jsonb,
+    jsonb_build_object('name', v.recipient, 'line1', v.line1, 'city', v.city, 'postalCode', v.postal, 'country', 'NL'),
+    'outbound', case when v.status <> 'draft' then 'PostNL' end, case when v.status <> 'draft' then 'Parcel' end,
+    case when v.status <> 'draft' then 'SEED' || v.reference end,
+    case when v.status <> 'draft' then now() - interval '2 days' end,
+    case when v.status = 'delivered' then now() - interval '4 hours' end,
+    '00000000-0000-4000-8000-0000000000a1'
+  from (values
+    ('SH-SEED-01', 'draft', 'Initech facilities', 'Spuistraat 10', 'Utrecht', '3511 AB'),
+    ('SH-SEED-02', 'in_transit', 'Globex warehouse', 'Havenweg 4', 'Rotterdam', '3011 XY'),
+    ('SH-SEED-03', 'delivered', 'Hooli reception', 'Stationsplein 2', 'Eindhoven', '5611 AB')
+  ) as v(reference, status, recipient, line1, city, postal)
+  where not exists (
+    select 1 from better_supabase.shipments s
+    where s.tenant_id = '00000000-0000-4000-8000-000000000001' and s.reference = v.reference)
+  returning id, reference, status
+), parcels as (
+  insert into better_supabase.shipment_packages (tenant_id, shipment_id, position, weight_grams)
+  select '00000000-0000-4000-8000-000000000001', id, 1, 2400 from new_shipments
+)
+insert into better_supabase.shipment_tracking_events (tenant_id, shipment_id, external_id, status, occurred_at, description, location, source)
+select '00000000-0000-4000-8000-000000000001', n.id, 'seed-' || n.reference || '-' || e.step, e.status, now() - e.age, e.description, e.location, 'manual'
+from new_shipments n
+join (values
+  ('in_transit', 1, 'label_created', interval '2 days', 'Label created', 'Amsterdam'),
+  ('in_transit', 2, 'in_transit', interval '1 day', 'Picked up by the carrier', 'Amsterdam'),
+  ('delivered', 1, 'label_created', interval '2 days', 'Label created', 'Amsterdam'),
+  ('delivered', 2, 'in_transit', interval '30 hours', 'In sorting', 'Utrecht'),
+  ('delivered', 3, 'delivered', interval '4 hours', 'Delivered to reception', 'Eindhoven')
+) as e(for_status, step, status, age, description, location) on e.for_status = n.status;
+
+-- Projects story: two projects with a budget, and tracked time on them (two billable
+-- entries at an hourly rate and one internal), so the portfolio and the project
+-- page show hours, billable value and what is left of the budget.
+insert into public.projects (id, organization_id, name, budget_minor, currency, lead_id)
+select v.id, '00000000-0000-4000-8000-000000000001', v.name, v.budget, 'EUR', '00000000-0000-4000-8000-0000000000a1'
+from (values
+  ('00000000-0000-4000-8000-00000000b001'::uuid, 'Warehouse automation rollout', 1500000::bigint),
+  ('00000000-0000-4000-8000-00000000b002'::uuid, 'Customer portal refresh', 400000::bigint)
+) as v(id, name, budget)
+where not exists (select 1 from public.projects p where p.id = v.id);
+
+insert into better_supabase.time_entries (tenant_id, user_id, subject_type, subject_id, started_at, ended_at, billable, rate, rate_currency, note)
+select '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', 'project', e.project, current_date - e.days + time '09:00', current_date - e.days + time '09:00' + (e.hours || ' hours')::interval, e.billable, e.rate, 'EUR', e.note
+from (values
+  ('00000000-0000-4000-8000-00000000b001', 45, 6, true, 9500::bigint, 'Dock layout workshop'),
+  ('00000000-0000-4000-8000-00000000b001', 46, 4, true, 9500::bigint, 'Scanner integration'),
+  ('00000000-0000-4000-8000-00000000b001', 47, 2, false, null::bigint, 'Internal planning')
+) as e(project, days, hours, billable, rate, note)
+where not exists (
+  select 1 from better_supabase.time_entries t where t.subject_id = e.project and t.note = e.note
+);
+
+-- The content story: one live post, one scheduled page and a draft that
+-- the entry page publishes with a version.
+insert into better_supabase.content_entries (id, tenant_id, type, locale, slug, title, summary, body, status, publish_at, published_at, author_id, created_by) values
+  ('00000000-0000-4000-8000-0000000d0001', '00000000-0000-4000-8000-000000000001', 'post', 'en', 'spring-launch', 'Spring launch notes', 'What shipped this quarter.', '{"blocks": [{"type": "paragraph", "text": "Spring launch notes."}]}', 'published', null, now() - interval '3 days', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000d0002', '00000000-0000-4000-8000-000000000001', 'page', 'en', 'pricing', 'Pricing', 'Plans and what each one includes.', '{"blocks": [{"type": "paragraph", "text": "Pricing."}]}', 'scheduled', now() + interval '5 days', null, '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000d0003', '00000000-0000-4000-8000-000000000001', 'post', 'en', 'summer-roadmap', 'Summer roadmap', 'What comes next.', '{"blocks": [{"type": "paragraph", "text": "Summer roadmap."}]}', 'draft', null, null, '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1')
+on conflict do nothing;
+
+-- The care story: two clients, a medication consent for the first only, a published
+-- care plan with a problem and a goal, and a prescribed medication with a draft prescription.
+select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a1"}', false);
+
+insert into public.customers (id, organization_id, name, status) values
+  ('00000000-0000-4000-8000-0000000ca001', '00000000-0000-4000-8000-000000000001', 'Noor Haddad', 'active'),
+  ('00000000-0000-4000-8000-0000000ca002', '00000000-0000-4000-8000-000000000001', 'Jan de Vries', 'active')
+on conflict do nothing;
+
+select better_supabase.save_consent_purpose('00000000-0000-4000-8000-000000000001', 'medication', 'Medication records', '1', 'Records and shares the medication chart of the client.', 'consent');
+select better_supabase.record_consent('customer', '00000000-0000-4000-8000-0000000ca001', 'medication', 'granted');
+
+select better_supabase.save_medication('00000000-0000-4000-8000-000000000001', 'Paracetamol', 'mg', 'custom', null, 'tablet', '500 mg');
+select better_supabase.save_medication('00000000-0000-4000-8000-000000000001', 'Ibuprofen', 'mg', 'custom', null, 'tablet', '400 mg');
+
+with plan as (
+  select better_supabase.create_care_plan('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+    'subjectType', 'customer', 'subjectId', '00000000-0000-4000-8000-0000000ca001',
+    'title', 'Mobility and pain plan', 'startsOn', current_date::text, 'reviewOn', (current_date + 42)::text)) as row
+), problem as (
+  select better_supabase.add_care_plan_problem((plan.row ->> 'id')::uuid, jsonb_build_object('title', 'Pain when walking', 'codeSystem', 'custom')) as row, plan.row as plan_row from plan
+), goal as (
+  select better_supabase.add_care_plan_goal((problem.row ->> 'id')::uuid, jsonb_build_object('title', 'Walk to the garden without pain')) as row, problem.plan_row from problem
+)
+select better_supabase.publish_care_plan((goal.plan_row ->> 'id')::uuid) from goal;
+
+with med as (
+  select id from better_supabase.medications where tenant_id = '00000000-0000-4000-8000-000000000001' and name = 'Paracetamol' limit 1
+), ordered as (
+  select better_supabase.prescribe_medication('00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-0000000ca001', med.id,
+    jsonb_build_object('dose', 500, 'route', 'oral', 'schedule', jsonb_build_object('times', jsonb_build_array('08:00', '20:00')))) as row from med
+)
+select better_supabase.create_prescription('00000000-0000-4000-8000-000000000001', (ordered.row ->> 'id')::uuid, jsonb_build_object('prescriberId', '00000000-0000-4000-8000-0000000000a1', 'prescriberName', 'Dr Kim'))
+from ordered;
+
+select set_config('request.jwt.claims', '', false);
+
+-- Governance story: a supplier risk that is rated and mitigated, and two tracked
+-- vulnerabilities, one of them critical. A matrix is created only when the
+-- organization has none, so a seed that adds its own default keeps it.
+select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a1"}', false);
+
+select better_supabase.save_risk_matrix(
+  '00000000-0000-4000-8000-000000000001', 'story-matrix', '5 by 5 matrix',
+  '[{"label":"Rare","value":1},{"label":"Unlikely","value":2},{"label":"Possible","value":3},{"label":"Likely","value":4},{"label":"Almost certain","value":5}]'::jsonb,
+  '[{"label":"Insignificant","value":1},{"label":"Minor","value":2},{"label":"Moderate","value":3},{"label":"Major","value":4},{"label":"Severe","value":5}]'::jsonb,
+  '[{"key":"low","min":1,"max":4,"label":"Low"},{"key":"medium","min":5,"max":9,"label":"Medium"},{"key":"high","min":10,"max":16,"label":"High"},{"key":"critical","min":17,"max":25,"label":"Critical"}]'::jsonb,
+  'product', true, null)
+where not exists (select 1 from better_supabase.risk_matrices where tenant_id = '00000000-0000-4000-8000-000000000001');
+
+with created as (
+  select better_supabase.create_risk('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+    'title', 'Payment provider outage', 'category', 'operational',
+    'description', 'Checkout stops while the payment provider is down.',
+    'cause', 'A single provider handles every card payment.',
+    'consequence', 'Orders are lost for as long as the outage lasts.',
+    'reviewIntervalMonths', 6)) as row
+)
+select better_supabase.assess_risk((created.row ->> 'id')::uuid, 4, 4, 2, 3, 'A second provider is on the roadmap.') from created;
+
+select better_supabase.save_vulnerability('00000000-0000-4000-8000-000000000001', 'CVE-2026-31001', 'Remote code execution in the image resizer', null, null, null, '3.1', 9.8, null);
+select better_supabase.save_vulnerability('00000000-0000-4000-8000-000000000001', 'CVE-2026-31002', 'Open redirect in the login callback', null, null, null, '3.1', 5.4, null);
+
+select set_config('request.jwt.claims', '', false);
+
+-- People story (/people/hiring, /courses): two open jobs and a draft, four
+-- applications on different stages of the hiring pipeline, and a published course with one required lesson that
+-- two employees are enrolled in. The onboarding program, leave and shifts above
+-- complete the story. Run as the Acme owner, with the service role where a
+-- function asks for it.
+select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a1"}', false);
+
+do $$
+declare
+  v_tenant uuid := '00000000-0000-4000-8000-000000000001';
+  v_support uuid;
+  v_sales uuid;
+  v_customers uuid[];
+  v_course uuid;
+  v_module uuid;
+  v_pipeline uuid;
+begin
+  if exists (select 1 from better_supabase.job_openings j where j.tenant_id = v_tenant and j.title = 'Support agent') then
+    return;
+  end if;
+
+  v_support := (better_supabase.save_job(v_tenant, null, jsonb_build_object(
+    'title', 'Support agent', 'location', 'Amsterdam', 'employmentType', 'full_time',
+    'description', 'Answer customers in the shared inbox and the helpdesk.', 'status', 'open')) ->> 'id')::uuid;
+  v_sales := (better_supabase.save_job(v_tenant, null, jsonb_build_object(
+    'title', 'Account executive', 'location', 'Remote', 'employmentType', 'full_time',
+    'description', 'Own deals from first call to signed contract.', 'status', 'open')) ->> 'id')::uuid;
+  perform better_supabase.save_job(v_tenant, null, jsonb_build_object(
+    'title', 'Warehouse planner', 'location', 'Rotterdam', 'status', 'draft'));
+
+  select array_agg(c.id order by c.name) into v_customers
+  from (select id, name from public.customers where organization_id = v_tenant order by name limit 4) c;
+
+  if coalesce(array_length(v_customers, 1), 0) >= 4 then
+    perform better_supabase.apply_to_job(v_support, jsonb_build_object('type', 'customer', 'id', v_customers[1]), 'referral', null);
+    perform better_supabase.apply_to_job(v_support, jsonb_build_object('type', 'customer', 'id', v_customers[2]), 'careers page', null);
+    perform better_supabase.apply_to_job(v_sales, jsonb_build_object('type', 'customer', 'id', v_customers[3]), 'linkedin', null);
+    perform better_supabase.apply_to_job(v_sales, jsonb_build_object('type', 'customer', 'id', v_customers[4]), 'careers page', null);
+
+    v_pipeline := (better_supabase.save_pipeline(v_tenant, null, 'application', 'hiring', 'Hiring', null, true) ->> 'id')::uuid;
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'applied', 'Applied', 'active', null, null, null, null);
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'screen', 'Screen', 'active', null, null, null, null);
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'interview', 'Interview', 'active', null, null, null, null);
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'offer', 'Offer', 'active', null, null, null, null);
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'hired', 'Hired', 'hired', null, null, null, null);
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'rejected', 'Rejected', 'rejected', null, null, null, null);
+    update better_supabase.applications a set pipeline_id = v_pipeline where a.tenant_id = v_tenant and a.pipeline_id is null;
+
+    update better_supabase.applications a set stage_id = ranked.id
+    from (
+      select s.id, s.pipeline_id, row_number() over (partition by s.pipeline_id order by s.rank collate "C") - 1 as n
+      from better_supabase.pipeline_stages s
+      where s.outcome = 'open' and s.archived_at is null
+    ) ranked,
+    (values (v_customers[1]::text, 2), (v_customers[2]::text, 1), (v_customers[3]::text, 3)) as v_pos(candidate, n)
+    where a.tenant_id = v_tenant and a.candidate_id = v_pos.candidate
+      and ranked.pipeline_id = a.pipeline_id and ranked.n = v_pos.n;
+  end if;
+
+  v_course := (better_supabase.save_course(v_tenant, jsonb_build_object(
+    'key', 'security-basics', 'title', 'Security basics', 'summary', 'Passwords, phishing and how to report an incident.',
+    'status', 'published', 'certificate', true)) ->> 'id')::uuid;
+  v_module := (better_supabase.save_course_module(v_course, jsonb_build_object('title', 'Start here')) ->> 'id')::uuid;
+  perform better_supabase.save_course_lesson(v_course, jsonb_build_object(
+    'moduleId', v_module, 'title', 'Spot a phishing mail', 'kind', 'content', 'required', true, 'minutes', 10));
+  perform better_supabase.save_course_lesson(v_course, jsonb_build_object(
+    'moduleId', v_module, 'title', 'Report an incident', 'kind', 'content', 'required', true, 'minutes', 5));
+  perform better_supabase.enroll_in_course(v_course, '00000000-0000-4000-8000-0000000000a2');
+  perform better_supabase.enroll_in_course(v_course, '00000000-0000-4000-8000-0000000000a1');
+end
+$$;
+
+select set_config('request.jwt.claims', '', false);

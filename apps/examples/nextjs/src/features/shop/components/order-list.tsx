@@ -1,9 +1,10 @@
-import { formatMoney } from "better-supabase/commerce";
+import { formatMoney, money } from "better-supabase/commerce";
 import { ReceiptIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter, getLocale } from "next-intl/server";
 import { refresh } from "next/cache";
 import { forbidden } from "next/navigation";
 
+import { KpiBand } from "@/components/record-list/kpi-band";
 import {
   Alert,
   AlertAction,
@@ -42,6 +43,7 @@ import { Link } from "@/i18n/navigation";
 
 import type { OrderableProduct } from "./create-draft-order-dialog";
 
+import { SHOP_CURRENCY } from "../shop-currency";
 import { getOrders, getProducts } from "../shop-queries";
 import { CreateDraftOrderDialog } from "./create-draft-order-dialog";
 import { OrderStatusBadge } from "./order-status-badge";
@@ -106,113 +108,158 @@ export async function OrderList() {
   const rows =
     list.kind === "ok" ? list.data.drafts.length + list.data.orders.length : 0;
 
+  const placed = list.kind === "ok" ? list.data.orders : [];
+  const paidStatuses = new Set(["paid", "fulfilled", "completed"]);
+
+  const revenue = placed
+    .filter(
+      (order) =>
+        paidStatuses.has(order.status) &&
+        order.total.currency === SHOP_CURRENCY,
+    )
+    .reduce((sum, order) => sum + order.total.amount, 0n);
+
+  const kpis = [
+    {
+      label: t("Placed orders"),
+      value: String(placed.length),
+      hint: t("{n, number} drafts open", {
+        n: list.kind === "ok" ? list.data.drafts.length : 0,
+      }),
+    },
+    {
+      label: t("Awaiting payment"),
+      value: String(
+        placed.filter((order) => order.status === "pending_payment").length,
+      ),
+    },
+    {
+      label: t("To ship"),
+      value: String(
+        placed.filter(
+          (order) => order.status === "paid" || order.status === "confirmed",
+        ).length,
+      ),
+    },
+    {
+      label: t("Revenue"),
+      value: formatMoney(money(revenue, SHOP_CURRENCY), locale),
+      hint: t("Paid, fulfilled and completed orders"),
+    },
+  ];
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("Orders")}</CardTitle>
-        <CardDescription>
-          {t("Your draft orders first, then every placed order, newest first.")}
-        </CardDescription>
-        {rows > 0 ? <CardAction>{create}</CardAction> : null}
-      </CardHeader>
-      <CardContent>
-        {list.kind === "error" ? (
-          <Alert variant="destructive">
-            <TriangleAlertIcon />
-            <AlertTitle>{t("The orders didn't load")}</AlertTitle>
-            <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
-            <AlertAction>
-              <form action={retry}>
-                <Button size="sm" variant="outline" type="submit">
-                  {t("Retry")}
-                </Button>
-              </form>
-            </AlertAction>
-          </Alert>
-        ) : rows === 0 ? (
-          <Empty className="border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <ReceiptIcon />
-              </EmptyMedia>
-              <EmptyTitle>{t("No orders yet")}</EmptyTitle>
-              <EmptyDescription>
-                {t(
-                  "Start a draft order from a catalog product, then place it.",
-                )}
-              </EmptyDescription>
-            </EmptyHeader>
-            {create ? <EmptyContent>{create}</EmptyContent> : null}
-          </Empty>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("Order")}</TableHead>
-                <TableHead>{t("Status")}</TableHead>
-                <TableHead>{t("Date")}</TableHead>
-                <TableHead className="text-right">{t("Lines")}</TableHead>
-                <TableHead className="text-right">{t("Total")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {list.data.drafts.map((draft) => (
-                <TableRow key={draft.id}>
-                  <TableCell>
-                    <Link
-                      href={`/shop/orders/${draft.id}`}
-                      className="font-medium underline-offset-4 hover:underline"
-                    >
-                      {t("Draft order")}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <OrderStatusBadge status="draft" />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {format.dateTime(new Date(draft.createdAt), {
-                      dateStyle: "medium",
-                    })}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {draft.lines}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {t("Not placed")}
-                  </TableCell>
+    <div className="flex flex-col gap-6">
+      {list.kind === "ok" ? <KpiBand kpis={kpis} /> : null}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Orders")}</CardTitle>
+          <CardDescription>
+            {t(
+              "Your draft orders first, then every placed order, newest first.",
+            )}
+          </CardDescription>
+          {rows > 0 ? <CardAction>{create}</CardAction> : null}
+        </CardHeader>
+        <CardContent>
+          {list.kind === "error" ? (
+            <Alert variant="destructive">
+              <TriangleAlertIcon />
+              <AlertTitle>{t("The orders didn't load")}</AlertTitle>
+              <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+              <AlertAction>
+                <form action={retry}>
+                  <Button size="sm" variant="outline" type="submit">
+                    {t("Retry")}
+                  </Button>
+                </form>
+              </AlertAction>
+            </Alert>
+          ) : rows === 0 ? (
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ReceiptIcon />
+                </EmptyMedia>
+                <EmptyTitle>{t("No orders yet")}</EmptyTitle>
+                <EmptyDescription>
+                  {t(
+                    "Start a draft order from a catalog product, then place it.",
+                  )}
+                </EmptyDescription>
+              </EmptyHeader>
+              {create ? <EmptyContent>{create}</EmptyContent> : null}
+            </Empty>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("Order")}</TableHead>
+                  <TableHead>{t("Status")}</TableHead>
+                  <TableHead>{t("Date")}</TableHead>
+                  <TableHead className="text-right">{t("Lines")}</TableHead>
+                  <TableHead className="text-right">{t("Total")}</TableHead>
                 </TableRow>
-              ))}
-              {list.data.orders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell>
-                    <Link
-                      href={`/shop/orders/${order.id}`}
-                      className="font-medium underline-offset-4 hover:underline"
-                    >
-                      {t("Order {number}", { number: order.number })}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <OrderStatusBadge status={order.status} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {format.dateTime(new Date(order.placedAt), {
-                      dateStyle: "medium",
-                    })}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {order.lines}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatMoney(order.total, locale)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {list.data.drafts.map((draft) => (
+                  <TableRow key={draft.id}>
+                    <TableCell>
+                      <Link
+                        href={`/shop/orders/${draft.id}`}
+                        className="font-medium underline-offset-4 hover:underline"
+                      >
+                        {t("Draft order")}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <OrderStatusBadge status="draft" />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {format.dateTime(new Date(draft.createdAt), {
+                        dateStyle: "medium",
+                      })}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {draft.lines}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {t("Not placed")}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {list.data.orders.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell>
+                      <Link
+                        href={`/shop/orders/${order.id}`}
+                        className="font-medium underline-offset-4 hover:underline"
+                      >
+                        {t("Order {number}", { number: order.number })}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <OrderStatusBadge status={order.status} />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {format.dateTime(new Date(order.placedAt), {
+                        dateStyle: "medium",
+                      })}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {order.lines}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(order.total, locale)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

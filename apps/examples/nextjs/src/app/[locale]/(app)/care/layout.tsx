@@ -15,6 +15,7 @@ export default function CareLayout({ children }: { children: ReactNode }) {
         "care-plans",
         "crm",
         "customers",
+        "sales",
       ])}
     >
       {children}

@@ -2,21 +2,22 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import {
-  CarePlanEditorSectionSkeleton,
-  CarePlanEditorSection,
-} from "@/features/care-plans/components/care-plan-editor-section";
-import {
-  CarePlanEvaluationsSectionSkeleton,
-  CarePlanEvaluationsSection,
-} from "@/features/care-plans/components/care-plan-evaluations-section";
+  CarePlanKpis,
+  CarePlanKpisSkeleton,
+  CarePlanOverview,
+} from "@/features/care-plans/components/care-plan-overview";
 import { PermissionGate } from "@/features/user/components/permission-gate";
+import { parseBlockList } from "@/lib/block-overview-query";
 
-// Next.js validates in development that a navigation here paints without
-// waiting on uncached work; tests/instant-routes.spec.ts checks it in a build.
+// A navigation here shows the header, the figure band and the list frame at
+// once; the figures and the rows render on navigation.
 export const instant = true;
 
-export default function CarePlansPage() {
+export default function CarePlansPage({
+  searchParams,
+}: PageProps<"/[locale]/care-plans">) {
   const t = useExtracted("care-plans");
 
   return (
@@ -24,17 +25,19 @@ export default function CarePlansPage() {
       <PageHeader
         title={t("Care plans")}
         description={t(
-          "A client's problems, goals and actions in the active plan, and what each goal evaluation found.",
+          "A client's problems, goals and actions, from draft to the plan in use.",
         )}
       />
-      <Suspense fallback={<CarePlanEditorSectionSkeleton />}>
+      <Suspense fallback={<CarePlanKpisSkeleton />}>
         <PermissionGate permission="care_plans.read">
-          <CarePlanEditorSection />
+          <CarePlanKpis />
         </PermissionGate>
       </Suspense>
-      <Suspense fallback={<CarePlanEvaluationsSectionSkeleton />}>
+      <Suspense fallback={<RecordListSkeleton rows={4} />}>
         <PermissionGate permission="care_plans.read">
-          <CarePlanEvaluationsSection />
+          {searchParams.then((raw) => (
+            <CarePlanOverview query={parseBlockList(raw)} />
+          ))}
         </PermissionGate>
       </Suspense>
     </>

@@ -66,7 +66,7 @@ function NameCell({ row }: Cell) {
 
   return (
     <Link
-      href={`/workflows/builder/${id}`}
+      href={`/workflows/${id}`}
       prefetch
       className="flex flex-col font-medium hover:underline"
     >

@@ -1,0 +1,85 @@
+/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
+   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
+import { expect, test } from "@playwright/test";
+import { expectInstant } from "better-supabase/testing";
+
+import { signIn } from "./support/example-session";
+
+// The governance story of the seed: a rated supplier risk and two tracked
+// vulnerabilities, one critical. Every entry point is locked instant; the
+// figures and sections stream in behind the frame.
+
+test.beforeEach(async ({ page }) => {
+  await signIn(page);
+});
+
+test("a risk opens with its rating, tabs and record sections", async ({
+  page,
+}) => {
+  await page.goto("/risks");
+
+  const link = page
+    .getByRole("main")
+    .getByRole("link", { name: "Payment provider outage" });
+
+  await expect(link).toBeVisible();
+
+  await expectInstant(page, {
+    during: async () => {
+      await link.click();
+      await page.waitForURL((url) => url.pathname.startsWith("/risks/"));
+    },
+    visible: [page.getByRole("link", { name: "All risks" })],
+  });
+
+  const main = page.getByRole("main");
+
+  await expect(
+    main.getByRole("heading", { name: "Payment provider outage" }),
+  ).toBeVisible();
+  await expect(main.getByRole("link", { name: "Activity" })).toBeVisible();
+  await expect(
+    main.getByRole("button", { name: "Export record" }),
+  ).toBeVisible();
+});
+
+test("a risk can be exported with its audit entry", async ({ page }) => {
+  await page.goto("/risks");
+  await page
+    .getByRole("main")
+    .getByRole("link", { name: "Payment provider outage" })
+    .click();
+  await page.getByRole("button", { name: "Export record" }).click();
+
+  await expect(page.getByText("Export requested").first()).toBeVisible();
+});
+
+test("the vulnerability list shows its KPI band and opens a record", async ({
+  page,
+}) => {
+  await page.goto("/advisories/vulnerabilities");
+
+  const main = page.getByRole("main");
+
+  await expect(
+    main.getByTestId("kpi-band").filter({ visible: true }),
+  ).toBeVisible();
+
+  const link = main.getByRole("link", { name: "CVE-2026-31001" });
+
+  await expect(link).toBeVisible();
+
+  await expectInstant(page, {
+    during: async () => {
+      await link.click();
+      await page.waitForURL((url) =>
+        url.pathname.startsWith("/advisories/vulnerabilities/"),
+      );
+    },
+    visible: [page.getByRole("link", { name: "All vulnerabilities" })],
+  });
+
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "CVE-2026-31001" }),
+  ).toBeVisible();
+});

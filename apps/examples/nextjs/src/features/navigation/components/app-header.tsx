@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { AssistantSlotLazy } from "@/features/assistant/components/assistant-slot-lazy";
 import { HelpSheetLazy } from "@/features/inbox/components/help-sheet-lazy";
 import { UnreadBadge } from "@/features/notifications/components/unread-badge";
 import { CommandSearchLazy } from "@/features/search/components/command-search-lazy";
@@ -31,6 +32,7 @@ export function AppHeader({ breadcrumbs }: { breadcrumbs: ReactNode }) {
         <Suspense fallback={<CommandSearchLazy />}>
           <CommandSearchNav />
         </Suspense>
+        <AssistantSlotLazy />
         <HelpSheetLazy />
         <UnreadBadge />
       </div>

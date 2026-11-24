@@ -18,7 +18,7 @@ a rule.
   on one library file). It is also what the hooks run.
 - `pnpm verify` is the full gate (format, lint, prose, typecheck, Knip,
   boundaries, tests, doctor, audit). CI runs it on every pull request and on
-  `main`, with the library's unit suite in 18 coverage shards (ADR 1229). Run
+  `main`, with the library's unit suite in 18 coverage shards (ADR 1230). Run
   `verify` locally only to reproduce a CI failure. `pnpm ci:wait` watches the PR's checks.
 - `pnpm fix` (`ultracite fix`), `pnpm lint`, `pnpm typecheck`, `pnpm test`
   (no coverage; `pnpm --filter better-supabase test:coverage` is for thresholds).

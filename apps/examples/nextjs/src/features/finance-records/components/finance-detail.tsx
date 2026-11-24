@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 
 import type { FinanceEntityKey } from "@/lib/finance-list";
 
+import { RecordBoundSections } from "@/components/record-detail/record-bound-sections";
 import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
 import {
   Alert,
@@ -770,6 +771,11 @@ export async function FinanceDetail({
     }
   })();
 
+  const subject =
+    entity === "invoices" || entity === "payables"
+      ? ({ type: "invoice", id } as const)
+      : null;
+
   return (
     <RecordDetailFrame
       title={view.title}
@@ -782,6 +788,14 @@ export async function FinanceDetail({
         ) : null
       }
       actions={view.actions}
+      aside={
+        subject ? (
+          <RecordBoundSections
+            subject={subject}
+            sections={["tags", "fields", "approvals", "reminders"]}
+          />
+        ) : undefined
+      }
     >
       <Card>
         <CardHeader>
@@ -832,6 +846,12 @@ export async function FinanceDetail({
           ) : null}
         </Card>
       ))}
+      {subject ? (
+        <RecordBoundSections
+          subject={subject}
+          sections={["files", "relations", "discussion", "history"]}
+        />
+      ) : null}
     </RecordDetailFrame>
   );
 }

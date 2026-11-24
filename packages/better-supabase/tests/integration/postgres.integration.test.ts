@@ -407,6 +407,8 @@ describe.skipIf(!live)("Postgres executor", async () => {
         const expected = await db.customers
           .list({
             select: ["id"],
+            // The example app's seed adds clients without a registration number.
+            where: { kvk: { not: null } },
             orderBy: [{ primaryContactId: direction }, { id: direction }],
           })
           .orThrow();
@@ -421,6 +423,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
             await db.customers
               .page({
                 select: ["id"],
+                where: { kvk: { not: null } },
                 orderBy: { primaryContactId: direction },
                 size: 1,
                 after,

@@ -2,6 +2,7 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { AreasCard } from "@/features/dashboard/components/areas-card";
 import {
   CustomersCard,
   CustomersCardSkeleton,
@@ -46,6 +47,7 @@ export default function DashboardPage() {
         <Suspense fallback={<CustomersCardSkeleton />}>
           <CustomersCard />
         </Suspense>
+        <AreasCard />
       </div>
     </>
   );

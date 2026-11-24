@@ -170,6 +170,9 @@ export async function ProjectPage({ id }: { id: string }) {
             </dl>
           </CardContent>
         </Card>
+        <Suspense fallback={<ProjectTimeCardSkeleton />}>
+          <ProjectTimeCard id={record.id} />
+        </Suspense>
         {history.kind === "ok" ? (
           <ProjectHistory
             projectId={record.id}

@@ -4,6 +4,7 @@ import { getExtracted, getLocale } from "next-intl/server";
 import { refresh } from "next/cache";
 import { forbidden } from "next/navigation";
 
+import { IntentLink } from "@/components/intent-link";
 import {
   Alert,
   AlertAction,
@@ -31,6 +32,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
+import { toAppHref } from "@/i18n/navigation";
 
 import type { Product } from "../shop-queries";
 
@@ -139,7 +141,14 @@ export async function ProductCatalogGrid() {
               <li key={product.id}>
                 <Card>
                   <CardHeader>
-                    <CardTitle>{product.title}</CardTitle>
+                    <CardTitle>
+                      <IntentLink
+                        href={toAppHref(`/shop/products/${product.id}`)}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {product.title}
+                      </IntentLink>
+                    </CardTitle>
                     <CardDescription className="font-mono">
                       {product.sku}
                     </CardDescription>

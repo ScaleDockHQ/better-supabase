@@ -13,7 +13,17 @@ export default function PrescriptionsLayout({
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "prescriptions"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "prescriptions",
+        "care",
+        "customers",
+        "recordDetail",
+        "recordList",
+        "records",
+        "sales",
+        "subjects",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

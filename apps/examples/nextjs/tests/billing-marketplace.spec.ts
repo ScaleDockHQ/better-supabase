@@ -13,7 +13,9 @@ test("the marketplace page lists the linked installation and opens a resource", 
   await signIn(page);
   await page.goto("/settings/marketplace");
 
-  await expect(page.getByText("icfg_acme_demo")).toBeVisible();
+  await expect(
+    page.getByText("icfg_acme_demo").filter({ visible: true }),
+  ).toBeVisible();
 
   await page.getByRole("link", { name: "Primary database" }).click();
 
