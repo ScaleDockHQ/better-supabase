@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { toCamel, toSnake } from "../../src/casing/index.ts";
+import { applyCasing, toCamel, toSnake } from "../../src/casing/index.ts";
 
 describe("toCamel", () => {
   it("camel-cases snake names and keeps leading underscores", () => {
@@ -15,5 +15,12 @@ describe("toCamel", () => {
     for (const name of ["first_name", "_internal_id", "customer_tags"]) {
       expect(toSnake(toCamel(name))).toBe(name);
     }
+  });
+});
+
+describe("applyCasing", () => {
+  it("camel-cases under camel and keeps the name otherwise", () => {
+    expect(applyCasing("first_name", "camel")).toBe("firstName");
+    expect(applyCasing("first_name", "snake")).toBe("first_name");
   });
 });

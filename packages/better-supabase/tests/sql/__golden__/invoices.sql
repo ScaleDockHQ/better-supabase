@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:701592af4d28eddd3f7afb2d9b089c41a01acf51e8f107da9475a0a5b9e9e42f
+-- @bsb-hash sha256:d42d21f3f06b54d0c9ceeed704b9a5efd540b042387fd7f4d708eb78ecdd0507
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3391,8 +3391,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to service_role;
-revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon;
-grant execute on function "better_supabase"."rebuild_open_items"(uuid) to authenticated, service_role;
 
 -- The stored rows that differ from the fold, at most 100. No permission
 -- check: open_items_drift and import_integrity call it.
@@ -3459,8 +3457,6 @@ begin
   return "better_supabase"."open_items_drift_rows"(open_items_drift.tenant);
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_drift"(uuid) to service_role;
 revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon;
 grant execute on function "better_supabase"."open_items_drift"(uuid) to authenticated, service_role;
 
@@ -3509,8 +3505,6 @@ begin
   return jsonb_build_object('rows', v_rows, 'total', least(v_total, coalesce(open_items_page.count_cap, 10000)));
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to service_role;
 revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon;
 grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to authenticated, service_role;
 
@@ -4814,7 +4808,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:69e1d01b136666c567fa9106929a7932e363b29f270127cd9bfc27ab3ddd908f
+-- @bsb-hash sha256:244f22c655ab66ab4089c483b3cf7f0dd30c245900b5daeb43ed2ca3f8dd18d2
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8590,8 +8584,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to service_role;
-revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon;
-grant execute on function "better_supabase"."rebuild_open_items"(uuid) to authenticated, service_role;
 
 -- The stored rows that differ from the fold, at most 100. No permission
 -- check: open_items_drift and import_integrity call it.
@@ -8658,8 +8650,6 @@ begin
   return "better_supabase"."open_items_drift_rows"(open_items_drift.tenant);
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_drift"(uuid) to service_role;
 revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon;
 grant execute on function "better_supabase"."open_items_drift"(uuid) to authenticated, service_role;
 
@@ -8708,8 +8698,6 @@ begin
   return jsonb_build_object('rows', v_rows, 'total', least(v_total, coalesce(open_items_page.count_cap, 10000)));
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to service_role;
 revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon;
 grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to authenticated, service_role;
 
@@ -10639,7 +10627,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:eb9db5ff440229ddf4e3d0c9e36b83efb7fca18a0f88d274e01be65475a38a95
+-- @bsb-hash sha256:41b584446c8df0931c32dbbb37b825f9a4dd9b4ac13b1b0690f89bb66a4b3c9a
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14034,8 +14022,6 @@ end;
 $$;
 revoke execute on function "app_private"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "app_private"."rebuild_open_items"(uuid) to service_role;
-revoke execute on function "app_private"."rebuild_open_items"(uuid) from public, anon;
-grant execute on function "app_private"."rebuild_open_items"(uuid) to authenticated, service_role;
 
 -- The stored rows that differ from the fold, at most 100. No permission
 -- check: open_items_drift and import_integrity call it.
@@ -14102,8 +14088,6 @@ begin
   return "app_private"."open_items_drift_rows"(open_items_drift.tenant);
 end;
 $$;
-revoke execute on function "app_private"."open_items_drift"(uuid) from public, anon, authenticated;
-grant execute on function "app_private"."open_items_drift"(uuid) to service_role;
 revoke execute on function "app_private"."open_items_drift"(uuid) from public, anon;
 grant execute on function "app_private"."open_items_drift"(uuid) to authenticated, service_role;
 
@@ -14152,8 +14136,6 @@ begin
   return jsonb_build_object('rows', v_rows, 'total', least(v_total, coalesce(open_items_page.count_cap, 10000)));
 end;
 $$;
-revoke execute on function "app_private"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon, authenticated;
-grant execute on function "app_private"."open_items_page"(uuid, text, text, integer, integer, integer) to service_role;
 revoke execute on function "app_private"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon;
 grant execute on function "app_private"."open_items_page"(uuid, text, text, integer, integer, integer) to authenticated, service_role;
 
@@ -15457,7 +15439,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:b04dd2deced2186a318b6def9fb06cbd372a089ac6686d0052175aea918138cd
+-- @bsb-hash sha256:a0114598f5c1fb6e6fadcadabd28041357feb5dfdec027b604125072bf5e5b58
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18847,8 +18829,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to service_role;
-revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon;
-grant execute on function "better_supabase"."rebuild_open_items"(uuid) to authenticated, service_role;
 
 -- The stored rows that differ from the fold, at most 100. No permission
 -- check: open_items_drift and import_integrity call it.
@@ -18915,8 +18895,6 @@ begin
   return "better_supabase"."open_items_drift_rows"(open_items_drift.tenant);
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_drift"(uuid) to service_role;
 revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon;
 grant execute on function "better_supabase"."open_items_drift"(uuid) to authenticated, service_role;
 
@@ -18965,8 +18943,6 @@ begin
   return jsonb_build_object('rows', v_rows, 'total', least(v_total, coalesce(open_items_page.count_cap, 10000)));
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to service_role;
 revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon;
 grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to authenticated, service_role;
 
@@ -20672,25 +20648,6 @@ as $$ select "better_supabase"."rebuild_open_items"($1) $$;
 revoke execute on function "api"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "api"."rebuild_open_items"(uuid) to service_role;
 
-create or replace function "api"."rebuild_open_items"(tenant uuid)
-returns integer
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."rebuild_open_items"($1) $$;
-revoke execute on function "api"."rebuild_open_items"(uuid) from public, anon;
-grant execute on function "api"."rebuild_open_items"(uuid) to authenticated, service_role;
-
-create or replace function "api"."open_items_drift"(tenant uuid)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."open_items_drift"($1) $$;
-revoke execute on function "api"."open_items_drift"(uuid) from public, anon, authenticated;
-grant execute on function "api"."open_items_drift"(uuid) to service_role;
-
 create or replace function "api"."open_items_drift"(tenant uuid)
 returns jsonb
 language sql
@@ -20700,16 +20657,6 @@ set search_path = ''
 as $$ select "better_supabase"."open_items_drift"($1) $$;
 revoke execute on function "api"."open_items_drift"(uuid) from public, anon;
 grant execute on function "api"."open_items_drift"(uuid) to authenticated, service_role;
-
-create or replace function "api"."open_items_page"(tenant uuid, side text default null, party_id text default null, "limit" integer default 50, "offset" integer default 0, count_cap integer default 10000)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."open_items_page"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon, authenticated;
-grant execute on function "api"."open_items_page"(uuid, text, text, integer, integer, integer) to service_role;
 
 create or replace function "api"."open_items_page"(tenant uuid, side text default null, party_id text default null, "limit" integer default 50, "offset" integer default 0, count_cap integer default 10000)
 returns jsonb
@@ -20876,7 +20823,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:c04fc0deee00e9c454b3aedcdd2b9efacb9505bd1d0ccc6cafb5c28970206d90
+-- @bsb-hash sha256:c8c2d886223ff81d8ee833b844dda7bc9eee08989da05df805079f6aa1e5d208
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -24230,8 +24177,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to service_role;
-revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon;
-grant execute on function "better_supabase"."rebuild_open_items"(uuid) to authenticated, service_role;
 
 -- The stored rows that differ from the fold, at most 100. No permission
 -- check: open_items_drift and import_integrity call it.
@@ -24298,8 +24243,6 @@ begin
   return "better_supabase"."open_items_drift_rows"(open_items_drift.tenant);
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_drift"(uuid) to service_role;
 revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon;
 grant execute on function "better_supabase"."open_items_drift"(uuid) to authenticated, service_role;
 
@@ -24348,8 +24291,6 @@ begin
   return jsonb_build_object('rows', v_rows, 'total', least(v_total, coalesce(open_items_page.count_cap, 10000)));
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to service_role;
 revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon;
 grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to authenticated, service_role;
 
@@ -25653,7 +25594,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:79a871b2084f15dc52451462e1bfcda83a35342b43a55a0c227015ccacbdbb56
+-- @bsb-hash sha256:4282852a19a829e3e865e9d2e7cc77b2070e702a3fb2ffd70385a4c86a2ae76b
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29043,8 +28984,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."rebuild_open_items"(uuid) to service_role;
-revoke execute on function "better_supabase"."rebuild_open_items"(uuid) from public, anon;
-grant execute on function "better_supabase"."rebuild_open_items"(uuid) to authenticated, service_role;
 
 -- The stored rows that differ from the fold, at most 100. No permission
 -- check: open_items_drift and import_integrity call it.
@@ -29111,8 +29050,6 @@ begin
   return "better_supabase"."open_items_drift_rows"(open_items_drift.tenant);
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_drift"(uuid) to service_role;
 revoke execute on function "better_supabase"."open_items_drift"(uuid) from public, anon;
 grant execute on function "better_supabase"."open_items_drift"(uuid) to authenticated, service_role;
 
@@ -29161,8 +29098,6 @@ begin
   return jsonb_build_object('rows', v_rows, 'total', least(v_total, coalesce(open_items_page.count_cap, 10000)));
 end;
 $$;
-revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to service_role;
 revoke execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) from public, anon;
 grant execute on function "better_supabase"."open_items_page"(uuid, text, text, integer, integer, integer) to authenticated, service_role;
 

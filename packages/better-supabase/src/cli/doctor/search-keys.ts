@@ -216,9 +216,13 @@ export function searchViewSources(
             subject: type,
             view: split(from.view),
             table: split(subject.table),
-            // The trigger also watches the id, tenant and archive columns.
+            // The trigger also watches the id, tenant, exclude and deletedAt
+            // columns of the record's own table.
             columns: [
               ...(subject.search?.columns ?? []),
+              ...(subject.search?.exclude === undefined
+                ? []
+                : [subject.search.exclude]),
               subject.id ?? "id",
               ...(subject.tenant === false
                 ? []

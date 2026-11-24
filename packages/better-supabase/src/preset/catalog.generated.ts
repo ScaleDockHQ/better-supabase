@@ -35566,6 +35566,14 @@ export const PRESET_CATALOG: PresetCatalog = {
           "title": "Draft a quote for the won deal"
         }
       ],
+      "schedules": [
+        {
+          "name": "expire",
+          "cron": "0 3 * * *",
+          "runs": "expire()",
+          "description": "Marks the sent quotes past their expiry date expired."
+        }
+      ],
       "automations": [
         {
           "key": "quotes.quote_to_order",

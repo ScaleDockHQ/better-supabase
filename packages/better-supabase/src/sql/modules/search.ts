@@ -103,10 +103,26 @@ function searchedSubjects(ctx: BlockSqlContext): readonly RegisteredSubject[] {
 const describes = (subjects: readonly RegisteredSubject[]): boolean =>
   subjects.some((subject) => subject.config.search?.description !== undefined);
 
-/** The columns whose change re-indexes a row. */
-function watchedColumns(subject: RegisteredSubject): readonly string[] {
+/**
+ * The columns whose change re-indexes a row. With `search.from`, the `exclude`
+ * column is watched too when the record's own table has a column of that name.
+ */
+function watchedColumns(
+  subject: RegisteredSubject,
+  layout: BlockSqlLayout,
+): readonly string[] {
   const { config } = subject;
   const own = config.search?.from === undefined;
+  const exclude = config.search?.exclude;
+
+  const archive =
+    !own &&
+    exclude !== undefined &&
+    layout.ownColumns?.[`${subject.schema}.${subject.table}`]?.includes(
+      exclude,
+    ) === true
+      ? exclude
+      : undefined;
 
   const names = [
     config.id ?? "id",
@@ -117,6 +133,7 @@ function watchedColumns(subject: RegisteredSubject): readonly string[] {
     ...(own ? (config.search?.facets ?? []) : []),
     own ? config.search?.exclude : undefined,
     ...(own ? [] : (config.search.columns ?? [])),
+    archive,
     config.deletedAt,
     typeof config.template === "string"
       ? config.template
@@ -328,6 +345,7 @@ function isAppTable(ctx: BlockSqlContext, subject: RegisteredSubject): boolean {
 function triggerSql(
   search: BlockSqlContext,
   subject: RegisteredSubject,
+  layout: BlockSqlLayout,
 ): string {
   const name = (suffix: string): string =>
     sqlIdent(`bsb_search_${subject.type}_${suffix}`.slice(0, 63));
@@ -341,7 +359,7 @@ function triggerSql(
 
   const type = sqlString(subject.type);
   const key = sqlString(subject.config.id ?? "id");
-  const watched = watchedColumns(subject);
+  const watched = watchedColumns(subject, layout);
   const on = subject.qualified;
 
   if (subject.config.search?.statement === true) {
@@ -409,7 +427,7 @@ function triggers(
   return subjects
     .filter((subject) => !isAppTable(ctx, subject))
     .filter((subject) => !later.has(subject.qualified))
-    .map((subject) => triggerSql(ctx, subject))
+    .map((subject) => triggerSql(ctx, subject, layout))
     .join("\n\n");
 }
 
@@ -436,7 +454,7 @@ export function ownerSearchTriggers(
       (subject) =>
         !isAppTable(search, subject) && tables.has(subject.qualified),
     )
-    .map((subject) => triggerSql(search, subject));
+    .map((subject) => triggerSql(search, subject, layout));
 
   const watch = watchEntries(subjects)
     .filter(
@@ -466,7 +484,7 @@ export function appTableSearchTriggers(
 
   const index = subjects
     .filter((subject) => isAppTable(ctx, subject))
-    .map((subject) => triggerSql(ctx, subject));
+    .map((subject) => triggerSql(ctx, subject, layout));
 
   const watch = watchEntries(subjects)
     .filter((entry) => isWatchedAppTable(ctx, entry))

@@ -45,7 +45,7 @@ function nameList(node: unknown): string[] | undefined {
  * `schema.table`, unquoted, from a regclass literal such as
  * `'public."Customers"'`.
  */
-function regclassName(target: string): string {
+function regclassName(target: string, schema = "public"): string {
   const parts = target.match(/"(?:[^"]|"")*"|[^.]+/g) ?? [];
 
   const names = parts.map((part) =>
@@ -54,7 +54,7 @@ function regclassName(target: string): string {
       : part.trim().toLowerCase(),
   );
 
-  return names.length === 1 ? `public.${names[0]!}` : names.join(".");
+  return names.length === 1 ? `${schema}.${names[0]!}` : names.join(".");
 }
 
 const POSITIONS = ["target", "ignore", "replace_trigger", "redact"] as const;
@@ -178,4 +178,30 @@ export function auditTrigger(
     redact: "redact" in settings ? names(settings.redact) : [],
     index,
   };
+}
+
+const IDENT = String.raw`(?:"(?:[^"]|"")+"|[a-z_][a-z0-9_$]*)`;
+const NAME = String.raw`${IDENT}(?:\s*\.\s*${IDENT})?`;
+
+const DO_DROP = new RegExp(
+  String.raw`\bdrop\s+table\s+(?:if\s+exists\s+)?(${NAME}(?:\s*,\s*${NAME})*)\s*(?:cascade|restrict)?\s*;`,
+  "gi",
+);
+
+/**
+ * The tables a `do $$ ... $$` body drops with a static `drop table`, as `drop`
+ * facts; a name built at run time through `execute` is not read.
+ */
+export function doBlockDrops(
+  code: string,
+  schema: string,
+  index: number,
+): AuditFact[] {
+  return [...code.matchAll(DO_DROP)].flatMap((match) =>
+    (match[1]!.match(new RegExp(NAME, "gi")) ?? []).map((name): AuditFact => ({
+      kind: "drop",
+      target: regclassName(name.replaceAll(/\s*\.\s*/g, "."), schema),
+      index,
+    })),
+  );
 }

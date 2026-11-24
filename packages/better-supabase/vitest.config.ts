@@ -26,9 +26,10 @@ export default defineConfig({
           // The first test in a CLI file pays the lazy command imports; with coverage on and
           // every workspace testing in parallel, that passes the 5 second default.
           // A beforeEach that runs a CLI command pays the same imports, and a hook has its own
-          // 10 second default (remove.test.ts timed out there on a loaded runner).
-          testTimeout: 20_000,
-          hookTimeout: 20_000,
+          // 10 second default (remove.test.ts timed out there on a loaded runner). The release
+          // gate on 2026-11-24 still hit 20 seconds on four standards tests on a slow runner.
+          testTimeout: 60_000,
+          hookTimeout: 60_000,
           typecheck: {
             enabled: true,
             include: ["tests/**/*.test-d.ts"],

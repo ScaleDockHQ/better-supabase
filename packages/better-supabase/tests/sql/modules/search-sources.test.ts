@@ -57,6 +57,32 @@ describe("search sources beyond the record's row", () => {
     );
   });
 
+  it("re-indexes a view-backed record when its exclude column changes, where the table has it", () => {
+    const updateOf = (ownColumns?: Record<string, string[]>): string => {
+      const sql = renderBlocks(["search"], {
+        subjects: SUBJECTS,
+        ...(ownColumns === undefined ? {} : { ownColumns }),
+      })
+        .filter((file) => file.module === "search")
+        .map((file) => file.contents)
+        .join("\n");
+
+      return /create trigger "bsb_search_customer_index_u"\s+after update of ([^\n]+) on/.exec(
+        sql,
+      )![1]!;
+    };
+
+    expect(
+      updateOf({
+        "public.customers": ["id", "organization_id", "name", "archived_at"],
+      }),
+    ).toBe(`"id", "organization_id", "name", "vat", "archived_at"`);
+    expect(updateOf()).toBe(`"id", "organization_id", "name", "vat"`);
+    expect(updateOf({ "public.customers": ["id", "name"] })).toBe(
+      `"id", "organization_id", "name", "vat"`,
+    );
+  });
+
   it("creates watch triggers without a do block and limits them to named columns", () => {
     const sql = sqlOf();
 

@@ -148,7 +148,7 @@ failing the audited write.
 
 Every table a block owns writes a row entry when something changes it outside a block function. Block functions already call `ctx.record`, and the row trigger skips a row that function recorded in the same transaction, so a change appears once. The triggers are deferred to commit, so a later direct write to the same row in that transaction is not listed.
 
-`blocks.audit.options.blockTables` sets the scope: `"entities"` (the default) covers each module's entity tables, `"all"` adds the other block tables, and `"none"` turns it off. The audit block's own tables never write row entries.
+`blocks.audit.options.blockTables` sets the scope: `"entities"` (the default) covers each module's entity tables, `"all"` adds the other block tables, and `"none"` turns it off. A module with `audit: false` gets no row triggers, and the audit block's own tables never write row entries.
 
 ## Bulk writes
 
@@ -205,8 +205,8 @@ audit: {
 },
 ```
 
-Set `audit: false` on a module to keep its actions out of the log; they
-still reach the outbox:
+Set `audit: false` on a module to keep its actions and the row triggers on
+its tables out of the log; its events still reach the outbox:
 
 ```ts
 blocks: { "flags": { audit: false } },

@@ -1,6 +1,6 @@
 {
   "name": "better-supabase",
-  "version": "0.84.0",
+  "version": "0.85.0",
   "description": "A typed data layer for Supabase: generated repositories that return Results and run under RLS, auth helpers, framework adapters and a CLI.",
   "keywords": [
     "auth",

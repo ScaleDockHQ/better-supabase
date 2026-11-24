@@ -1,5 +1,0 @@
----
-"better-supabase": minor
----
-
-`bsb.kept` and `bsb.remote` take `share: "tenant"`: callers who hold the same permissions in a tenant read one entry, still filled through the first caller's own client under RLS. An authorization provider lists the tables it shares in its new `tables` field (`share: "tenant"` or `"row"`, with the permissions their reads check), and `gen` writes those facts into the schema metadata. The new `shareKey` authorization hook names the caller's grant; `permissionsShareKey()` from `better-supabase/blocks/permissions` reads it from the permissions claim. Inside a shared fill a read of another table, a function call or a raw client answers a `forbidden` `DbError` with code `SHARE_REFUSED`, and the value is not stored. A refused share falls back to one entry per user and reports the reason `"share"` to `kept.onSkip`. Doctor BS428 fails a `tenant` table whose select policies filter by the caller, and `expectTenantShare` from `better-supabase/testing` checks a provider's hooks. See ADR 1221.

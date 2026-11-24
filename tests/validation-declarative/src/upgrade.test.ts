@@ -25,7 +25,7 @@ const upgrade = (dir: string) => run(["upgrade", "--cwd", dir]);
 
 // The first command loads the CLI from source, which takes about 5 s on a CI
 // runner.
-const TIMEOUT = 60_000;
+const TIMEOUT = 180_000;
 
 describe("upgrade on an app that owns its tables", () => {
   it(

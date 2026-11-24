@@ -98,10 +98,44 @@ function locate(
 const refText = (ref: ObjectRef): string =>
   `${ref.kind} ${ref.schema === undefined ? "" : `${ref.schema}.`}${ref.name}`;
 
-/** Built-in types pg-topo's own list lacks, so it reads them as `public.<name>`. */
+/**
+ * Types pg-topo reads as `public.<name>` that no schema file creates: built-ins
+ * its own list lacks, the `serial` shorthands, and the types of the extensions
+ * Supabase offers, which an unqualified name finds through the search path.
+ */
 const PG_TOPO_BUILTIN_TYPES: ReadonlySet<string> = new Set([
   "pg_snapshot",
   "xid8",
+  "smallserial",
+  "serial",
+  "bigserial",
+  "serial2",
+  "serial4",
+  "serial8",
+  "citext",
+  "vector",
+  "halfvec",
+  "sparsevec",
+  "hstore",
+  "ltree",
+  "lquery",
+  "ltxtquery",
+  "cube",
+  "earth",
+  "seg",
+  "isbn",
+  "isbn13",
+  "ismn",
+  "ismn13",
+  "issn",
+  "issn13",
+  "ean13",
+  "upc",
+  "geometry",
+  "geography",
+  "box2d",
+  "box3d",
+  "raster",
 ]);
 
 /**
@@ -131,6 +165,11 @@ function isPlatformRef(ref: ObjectRef): boolean {
   }
 
   if (ref.schema !== undefined && PLATFORM_SCHEMAS.has(ref.schema)) {
+    return true;
+  }
+
+  // A temporary table exists only in the session that creates it at run time.
+  if (ref.schema?.startsWith("pg_temp") === true) {
     return true;
   }
 

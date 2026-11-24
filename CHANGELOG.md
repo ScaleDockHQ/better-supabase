@@ -1,5 +1,143 @@
 # Changelog
 
+## 0.85.0 (2026-11-24)
+
+- The audit block takes `options.retention: { keep, onExpire, batch }`. With it set, the block
+  installs `housekeeping` and adds an `audit_retention` job to `maintenance()` that deletes
+  entries past `keep` in batches through `purge_audit_log`, creates the coming months of a
+  partitioned log and, with `onExpire: "detach"`, detaches whole expired months of a partitioned
+  log the block owns as their own tables. Unset keeps every entry, as before. Doctor BS389 stops
+  when retention is set, and the new live rule BS639 lists each audit exemption with its reason
+  and its last audit entry (ADR 1215).
+- The authorizer's request context gains `enforcement: "rls" | "definer"`. Repository `create`, `update`, `delete` and `upsert` through a caller's db send `rls`, because RLS checks the write again; an admin db never does. Block verbs send `definer`. Actions, routes, resource actions and MCP tools take `enforcement` on their definition and send nothing by default, which a provider treats as `definer`. `recordingAuthorizer` in `better-supabase/testing` records each check's operation, intent and enforcement, and `testAuthorizer` checks that `enforcement: "rls"` never turns a denial into a grant. Additive on `apiVersion: 1`. See ADR 1221.
+- `postgresCacheSql()` now creates `bsb_cache_get`, which reads an entry and checks its tags and the soft tags in one call, and `bsb_cache_mark_tags`, which writes each tag column with `greatest()` so concurrent expiries never drop one. It grants the tables and functions to `service_role` and adds an `expire_after` column for delayed expiry. Add the SQL to a new migration after you upgrade; until the functions exist, the store uses the two-request path, reports it once through `onError` and tries again after a minute. The store, the Next.js handler and the Astro provider take `functionPrefix`, and the store and the Next.js handler take `transport: { postgres }` instead of `client` to query through a pool. `postgresCacheStore` gains `lookup(key, softTags)` and `delete(key)`, and the Vercel Runtime Cache adapter gains `delete(key)`. The store rounds the fractional timestamps Next.js passes down to whole milliseconds; before, every write to the `bigint` columns failed. See ADR 1221.
+- Doctor adds BS429 (info), which lists the actions, write routes, resource actions and MCP tools that check a permission and set no `enforcement`, so each one's authorizer check runs as `definer` and reads the authorization version live. It adds BS731 (warning) for each SQL file the schema reader rejects, with the file, line, column and the Postgres version whose grammar rejected it; doctor used to skip such a file without a word. BS409 now warns when `blocks.permissions.disabled.user` or `.tenant` overrides the provider's `suspension` with the other form, since a missing row lets the subject through with a column and disables it with a row. `SchemaReadError` gains `major`, and the `gen`, config SQL and codemod messages name the grammar.
+- Doctor gains three information rules. BS641 reports a table with more than
+  `doctor.policies.max` policies (default 4) for one command and names each policy's kind and
+  origin: library, provider or app. BS642 reports an exposed table with RLS whose index leads with
+  an enum column, because `enum_eq` is not leakproof. BS643 counts the functions per schema by
+  caller: policy, trigger, app RPC, service only or unreferenced. The new `config functions`
+  command lists the same inventory, and `listFunctions` in `better-supabase/sql` classifies it
+  (ADR 1216).
+- `blocks.drive.options.grants: "roles"` keeps no `drive_grants` table: `roleFunctions.node` alone
+  names each member's role, `drive_grants(node)` lists the members it gives a role, and
+  `drive_share` and `drive_unshare` refuse with `DRIVE_SHARING_EXTERNAL`. Authorization providers
+  can add `functions.roleOn` (`{user}`, `{resource}`, `{id}`), which `roleFunctions.node: { rows }`
+  calls when the provider's roles are not permission keys, and the provider conformance kit checks
+  it. The default `grants: "table"` renders the same SQL as before (ADR 1220).
+- `bsb.kept()` and `postgresCacheHandler` fill a missing entry once. Concurrent misses in one process
+  share one fill. Across instances, `postgresCacheSql()` adds a `bsb_cache_leases` table and a
+  `bsb_cache_lease` function that hands one caller the fill; the others wait up to `wait` ms (250 by
+  default) for its entry, then fill themselves. Run `postgresCacheSql()` again in a migration to add
+  them. A `KeptStore` may implement `lease` and `release`; `vercelRuntimeCacheAdapter` does so with a
+  best-effort lock entry. See ADR 1221.
+- The `party`, `product`, `stock_allocation` and `stock_count` import entities write the new rows of a batch in one statement per table through `import_party_batch`, `import_product_batch`, `import_stock_allocation_batch` and `import_stock_count_batch`. With 2,000 new items an import takes 39 to 55 percent less time; results, counts, errors and the record map match the one-row path, which still handles updates and every item with a conflict in its batch. `supplier_item` and `asset` keep the one-row path, which was already faster than the gain. Run `better-supabase upgrade` (ADR 1217).
+- Breaking: a done import chunk drops its items and keeps its result, and `runs.finish` refuses a
+  run with a chunk that is not done (`IMPORT_CHUNKS_OPEN`). `importChunkHandler` marks the chunk
+  and its run failed on the job's last attempt (`fail_import_chunk` gains `final`), and
+  `maintenance()` clears the items of ended runs after `chunks.keepFailedItems` (default 7 days)
+  and, with `chunks.staleAfter`, cancels a run whose worker died. `runs.get` reports chunk counts
+  and bytes, `runs.conflicts` pages every conflict of a run, and a stock count without a location
+  goes to the organization's only active one. The chunks of a done 50,000-item run took 839,540
+  bytes and take none now (ADR 1223).
+- Add `bsb.kept(fn, options)`, which keeps a read in a store across requests and deploys. The function runs as the caller, under RLS, with one entry per user, tenant and authorization version, and a write to one of `tables` expires it. A stale entry is served while one call refreshes it. Pick the store with `createNext({ kept: { store } })`: `memoryKeptStore()` (the default), `vercelRuntimeCacheAdapter(getCache)`, which gains `expireTags`, or the new `postgresKeptStore()` from `better-supabase/cache-postgres`. An entry over 2 MB, 128 tags or 256 bytes per tag is not stored and is reported to `kept.onSkip`. See ADR 1221.
+- `postgresKeptLease()` from `better-supabase/cache-postgres` returns the fill lease of `postgresKeptStore` on its own, and `vercelRuntimeCacheAdapter(getCache, { lease })` takes it. The entries stay in the Runtime Cache, and one instance fills a missing `bsb.kept()` key instead of each instance whose read raced the lock entry. The `KeptLease` type is exported from `better-supabase/server` and `better-supabase/cache-postgres`.
+- `bsb.kept(fn, { share: "public" })` keeps one entry for every visitor and fills it as the `anon` role, under RLS, without reading the request or using the service role. The fill reads only `tables` and `functions`. Doctor rule BS645 reports a public entry on a table that `anon` can't select.
+- Breaking: `invoice_open_items` holds unallocated payments next to open invoices, so its
+  `document_id` no longer references `invoices`; filter on `document_type` in your own queries. The
+  store now matches the fold: its triggers and `rebuild_open_items` count the `credited` status,
+  refresh on a charge, a kind change and a party change, and keep future-dated invoices, which the
+  reads show from their issue date. `open_items_drift(tenant)` lists rows that differ from the
+  fold, `import_integrity` reports them, and doctor rule BS638 names the organizations to rebuild.
+  The invoices block moves to version 4, and the data migration rebuilds every organization. One
+  party's 100 open items read in 1.4 ms instead of 2.6 ms on the local stack (ADR 1214).
+- Request stats now count the calls of a fill that runs through a session handle (`bsb.cached({ session })`, `kept.as(session)`, `getAccess` with a key) on the render that made the handle. Each `bsb.kept` and `bsb.remote` call adds an entry record (`{ id, kind, outcome, fillMs }`) to the stats route, and `x-bsb-db-calls` ends in `tagCalls;hits;misses;fillMs`. `bsb.statsFetch(fetch)` counts the requests of a Supabase client the app builds itself. See ADR 1221.
+- Breaking: a record type with `search.from` must list `search.columns`, the columns of its own table the view reads; the config error names the record type. The search index trigger splits into `bsb_search_<type>_index` for inserts and deletes and `bsb_search_<type>_index_u`, which fires on `update of` the watched columns only when one of them changes value. On 1,000 rows of a view-backed type an update of an unlisted column drops from 71 ms and 1,000 trigger calls to 21 ms and none. The search block moves to version 6; run `better-supabase upgrade`. Doctor BS637 reports a column a source view reads that `search.columns` leaves out (ADR 1222).
+- Four defaults are stricter. `verifySharedSecret` returns false for an empty secret, so an unset
+  environment variable no longer matches a request without a header. `createMcp` throws when
+  `cookies: true` has no `allowedOrigins`, as its doc comment already required. `verifyHs256` rejects
+  a token without a numeric `exp` claim; Supabase tokens always carry one. The JWKS fetch stops after
+  10 seconds and refuses a response that declares more than 256 KB. The dev MCP server rejects tool
+  arguments that start with `-`.
+- `shareGuard(ctx, db)` from `better-supabase/server` lets an app's own service run inside a `share: "tenant"` fill. It gates a db the app builds itself, for example over its own Postgres pool, so it reads only the entry's tables and functions, and a refused read keeps the entry from being stored. The db must run as the caller: its claims carry the caller's `sub` and role, so a db for another user, for the service role or for no one is refused. Outside a shared fill it returns the db unchanged. `inTenantFill(ctx, tables, body)` from `better-supabase/testing` runs a service the way a shared fill does.
+- A `share: "tenant"` fill can call database functions. An authorization provider lists them in its new `sharedFunctions` field, by `schema.name`, with the tables each reads and the permissions those reads check, and `gen` writes them into the schema metadata. `bsb.kept` and `bsb.remote` take `functions: ["customer_payload"]`: the function's tables join the entry's tables and tags, its permissions join the share key, and inside the fill `$rpc` passes only the listed functions. Any other call still answers `SHARE_REFUSED`. Doctor BS430 fails a shared function that is security definer, isn't `language sql`, is volatile, reads the caller or reads a table its entry doesn't list, and `testAuthorizationProvider` checks that every table a shared function reads is shared per tenant. See ADR 1228.
+- Read SQL with one reader and compare statements by their canonical text (ADR 1212 and 1213).
+
+  Breaking for callers of `better-supabase/sql`: the statement splitter is gone from the entry. The CLI reads statements from the parser's scanner, which needs no valid grammar and keeps the same lines.
+
+  | Removed from `better-supabase/sql` | Use instead                                                                                       |
+  | ---------------------------------- | ------------------------------------------------------------------------------------------------- |
+  | `splitStatements`                  | Split in your own code, or read the file with the `better-supabase` CLI (`doctor`, `gen`, `sync`) |
+  | `SqlStatement` (type)              | `{ text: string; line: number }`                                                                  |
+
+  `sync` and the codemods compare statements by the parser's deparse, so spacing, comments, keyword case and redundant quoting no longer make a statement new. The migration file hash is versioned: new files end in `_v2-<8 hex digits>.sql`. A migration an earlier release wrote, with the old hash, is still recognized as the same file and is never renamed, so upgrading writes no new migration. A statement set that does not parse keeps the old name form.
+
+  - `better-supabase/sql` no longer exports the SQL text readers: `addedColumnTypes`, `adoptedColumnProblems`, `adoptedTables`, `adoptedViews`, `appColumnsOf`, `auditRegistrations`, `buildModel`, `checkValues`, `columnTagComments`, `conflicts`, `declaredCheckValues`, `declaredColumnTypes`, `declaredForeignKeys`, `declaredIndexes`, `declaredPolicies`, `declaredTableColumns`, `declaredTables`, `declaredUpdatedAtTriggers`, `declaredViews`, `duplicateObjects`, `duplicatePolicies`, `extensionSchema`, `mappingTagsOf`, `moduleWritesText`, `ownedColumns`, `ownerOf`, `parseDeclared`, `policyGrants`, `rlsTables`, `sameTenantLayout`, `sameTenantTagsOf`, `setParseStore`, `splitStatements`, `widenedCommands`, `withMappingTags`, `writtenValues` and the types `AdoptedTable`, `AdoptedView`, `CheckValues`, `ColumnTagComment`, `Declaration`, `DuplicateObject`, `OwnedColumn`, `ParseStore`, `SameTenantTags`, `SchemaModel`, `SqlStatement`, `TableCheckValues`. The CLI reads SQL with one reader on `@supabase/pg-parser`, and `sync` compares statements by their canonical text. New migration files end in `_v2-<hash>.sql`; earlier names stay recognized. `migrationFile` is async.
+- Breaking: order, fulfillment and return line quantities are `numeric`, with
+  `options.quantityScale` (0 to 6, default 0) setting how many decimals a quantity may have. Staff
+  orders carry `channel`, `source` and `externalId` (unique per organization and source, and
+  idempotent like `origin`), `invoicingPolicy`, `deliveryMethod`, `quoteId`, `orderDiscount`,
+  `promotionId`, `paymentRequired` with a `deposit`, and a `party`. Lines take `unit`,
+  `description`, `lineType` and the extra columns your schema files add. `orderPage`, `orderFacets`
+  and `orderCount` page orders by keyset from `page_orders`. The orders block moves to version 5;
+  rename a column of your own that one of the new block columns takes (ADR 1224).
+- A write now expires its tags in the `bsb.kept()` store as well as in the Next.js cache, and the
+  request stats count every tag call in `tagCalls`. The Runtime Cache store sends one `expireTag`
+  call per 16 tags. See ADR 1221.
+- The tasks block can treat MCP clients and API keys as agents, approve each hold kind under its own policy, and list the tasks that wait on a prerequisite:
+
+  - `options.claims.agents` lists the session kinds the claim rules treat as agents: `"agent"` (always), `"oauth-client"` (a token with `client_id`, or an `act` claim without a kind) and `"api-key"`. Such a session claims only tasks assigned to its user and can't take over a reserved task.
+  - `options.hold.approval.kinds` also takes a record from hold kind to `true` or `{ policy, onReject }`. Each kind files under its own policy and settles a rejection its own way; a field left out comes from the block-wide option.
+  - The `waiting` list filter returns open tasks whose `waiting_on` count is above zero.
+
+  The module moves to version 8; re-run `better-supabase add` to update the SQL. The upgrade adds no statement to an existing install.
+- `bsb.kept` and `bsb.remote` take `share: "tenant"`: callers who hold the same permissions in a tenant read one entry, still filled through the first caller's own client under RLS. An authorization provider lists the tables it shares in its new `tables` field (`share: "tenant"` or `"row"`, with the permissions their reads check), and `gen` writes those facts into the schema metadata. The new `shareKey` authorization hook names the caller's grant; `permissionsShareKey()` from `better-supabase/blocks/permissions` reads it from the permissions claim. Inside a shared fill a read of another table, a function call or a raw client answers a `forbidden` `DbError` with code `SHARE_REFUSED`, and the value is not stored. A refused share falls back to one entry per user and reports the reason `"share"` to `kept.onSkip`. Doctor BS428 fails a `tenant` table whose select policies filter by the caller, and `expectTenantShare` from `better-supabase/testing` checks a provider's hooks. See ADR 1221.
+- `better-supabase init` now writes `cookies: { encode: "tokens-only" }` in the browser client and
+  `auth: { cookie: { encode: "tokens-only" } }` in the server options, so a new app's session
+  cookie holds only the tokens. On the Next.js example this saves about 1,350 bytes per request
+  and one cookie chunk for a user with a permission claim. Existing apps keep the default until
+  they switch; the sessions page lists the steps. The new doctor information rule BS644 reports an
+  app whose cookie still carries the user object, lists the server files that call
+  `auth.getSession()`, and with `--as <user id>` measures that user's object in bytes.
+- `VersionStore.get` returns `{ version, at }` and `set(userId, version, at)` takes the time the version was read, so `createVersionCache` counts `maxStaleMs` from that time. Before, it dated a version taken from the shared store at the lookup, and a store whose keys never expire served a version of any age for another `maxStaleMs`, again and again. A store that still returns a number is read as a miss. `VersionStoreEntry` is exported from `better-supabase/server`. Breaking for a custom `store`; the 0.84 to 0.85 guide shows the new shape. See ADR 1227.
+- `server.warm()` and `bsb.warm()` load the JWKS and open the PostgREST, read replica, pool and flags connections before the first request, in parallel, and report a time per step. They never throw. `warm(bsb, { postgres, flags })` from `better-supabase/next/instrumentation` runs it from `register()` and logs a failed step. The auth docs say when `prefetchJwks: false` is still needed. See ADR 1221.
+- Fixes from the 0.85 adopter gate. The generated audit pgTAP file no longer checks a table that a `drop table` inside a `do` block removed, and a dropped `bsb_audit` trigger counts as `unaudit`. A block with `audit: false` gets no row audit triggers on its tables. The invoices module grants `rebuild_open_items` to the service role only and grants `open_items_drift` and `open_items_page` once, and the API schema writes one wrapper per function when a module grants it twice. A view-backed search subject (`search.from`) re-indexes when its `exclude` column, such as `archived_at`, changes, where its own table has that column. Doctor no longer reports extension types (`citext`, `halfvec`), `serial` types or `pg_temp` tables under BS721, `approvals: false` with `standaloneApprovals` on expenses under BS706, or an optional-column mapping that changes the render under BS427. The 0.84 to 0.85 guide says to run `add --adopt` after the schema diff.
+- The browser client from `better-supabase/client` no longer adds its own `visibilitychange`
+  listener to refresh the session. auth-js already refreshes when a hidden tab becomes visible and
+  the token expires within 90 seconds, so the second listener only added a duplicate `getSession`
+  and, near expiry, a second refresh call.
+- Make the codemods read TypeScript through the syntax tree and never skip a file in silence:
+
+  - `codemod naming` renames an environment variable where code names it (`process.env.NAME`, a key, a binding) and a hint code or event name only when the whole string is the name. Comments stay as they are, and a string that holds a renamed environment variable among other words gets a review line. `.env*` files and `turbo.json` keep a text rename.
+  - Every codemod with a source stage lists a TypeScript file that does not parse, with the line and the parser's message, instead of returning it unchanged.
+- Let `codemod prune`, `declared-rows`, `adopt-names` and `extra-columns` edit config values that the config imports from other files when `typescript` 7.1 or newer is installed, and list those files for review. Import merging in the account calls codemod uses one shared helper.
+- Read the session cookie and cache source rules (BS412, BS608, BS610, BS611, BS640) from the syntax tree. A comment, a string or a type annotation that mentions `encode: "tokens-only"`, `bsb.remote(`, `cookies()` or `bsb.admin(` no longer counts, and a function that follows such a string is still found. Findings, codes and lines stay the same for real code.
+- Read the TypeScript doctor source rules from the syntax tree. A comment or a string that mentions a call no longer counts, and findings, codes and lines stay the same for real code. BS260 reports only imported function and type names, and BS511 and BS621 count dynamic imports. BS210, BS219, BS227 and BS351 check receiver types when `typescript` 7.1 or newer is installed.
+- `doctor` parses each TypeScript source once for all rules instead of once per rule.
+- Read the SQL and dotenv doctor rules (hooks, dispatch regression, error codes, the import guard, BS221, BS226, BS389 and the env rules) as tokens, so a comment or a quoted string that names a function or a pooler URL no longer produces a finding. Codes and findings stay the same for real code. The table-modules codemod puts a new import after a leading `"use client"`, and the same-tenant and table-tags codemods remove an entry from the file that declares an imported config value.
+- `gen` records each rendered SQL module that parsed, by content hash, in the CLI cache and parses
+  only modules it has not seen, and it imports the configured read sets once per run instead of once
+  per consumer. `gen --check` on the CRM validation project goes from 5.55 s to 5.3 s.
+- Check more SQL at `gen` time, with the module or config key in the error:
+
+  - `gen` renders the installed modules and parses each one with the Postgres reader. A module that renders SQL Postgres rejects stops `gen` with the module name, the file position and the statement.
+  - Config SQL is checked for every key that holds SQL, not only `authorization.functions` and event payload `{ sql }` columns: the role sources' and platform roles' `through.where`, persona and fixture role `setup`, `vectorSearch` `boost`, `predicate` and `order`, and `realtime.triggers` payload `{ sql }` values. The error names the config path.
+- Add one guide from 0.82 to 0.85 with the steps in order. It says that an app on the Vercel Runtime Cache store needs `postgresCacheSql()` only when it takes its lease from Postgres.
+- The Vercel probe (`scripts/probe-vercel-tags.ts` and the Next.js example's `/api/probe/vercel-tags`) now checks the kept store too: a read on another instance (`--second`), an entry from the previous deployment, set, hit and miss latency, and 250 `expireTags` calls in one second. `--local` runs the same steps on `memoryKeptStore()`.
+- `better-supabase/next` loads the block clients that `bsb.record()` and `bsb.recordAt()` call on their first call instead of at import. A fresh Node process evaluates the entry in 93.1 ms instead of 104.5 ms, and loads 89 files (224.2 KB gzip) instead of 109 (256.8 KB).
+- - `outbox_register` starts a consumer after the events its own transaction emitted, also while an older transaction is open, so the consumer no longer receives them.
+  - `sole_owned_organizations` takes an optional `organization` (`soleOwnedOrganizations({ userId, organizationId })`): the list then names at most that organization, and another member's list needs the remove permission only there. The form without it still fails closed. The schema migration drops the one-argument signature (doctor BS235), so move any grant on `sole_owned_organizations(uuid)` to `(uuid, uuid)` in the same migration. In the migrations workflow the drop is skipped when a view or policy still calls the one-argument form, which then stays next to the new one and keeps answering one-argument calls, so drop or recreate those objects first.
+  - A baseline built before 0.83 does not move restored transaction ids back on `baseline apply`; rebuild it with `baseline build`. Restored rows share one transaction id, so the outbox orders them by position.
+  - The quotes block declares an `expire` timer (daily at 03:00) that runs `expire()`, so `blockSchedules` schedules quote expiry like the other block timers.
+- Request stats count a read that a `"use cache: private"` function makes through `bsb.cached()` with no session handle, including its time. This was already the case in 0.85; a test now holds it to the shape CentraKit uses for its order payload RPC.
+- `canonicalJson` skips the key sort for objects whose keys are already in order, and `snapshotOf` returns the snapshot it already built for the same verified auth state.
+- The CLI's SQL reader keeps a `begin atomic ... end` function body and a multi-action rule
+  (`do also (...; ...)`) in one statement. It used to end a statement at every semicolon outside a
+  string, so doctor rules, the migration and upgrade commands and the codemods that read
+  statements saw the body as several statements, each with its own line number. A file whose parentheses or `begin atomic` never close still splits at every
+  semicolon, as before (ADR 1226).
+- Build `sql upgrade` steps with the same context as the module files, so a step reads the configured tenant column and only touches columns an adopted table has. The tasks version 7 step no longer clears `delegate_profile` on a table without that column, and the tax version 2 step keys rates on `sql.tenantColumn` instead of `tenant_id`.
+
 ## 0.84.0 (2026-11-23)
 
 - Compare a block's `api: { schema }` with `database.sql.api`, so doctor BS427 and `codemod config --prune` report it as restated, and let the codemod set `database.sql.api` when most blocks name the same schema (it writes `api: false` on the blocks with no entry and keeps the change only when the render stays the same). BS427 now names a record type permission that repeats the provider's `actionKeys` as `recordTypes.<type>.permissions.<action>`; a doctor baseline entry for the old `subjects.` target is stale. Doctor BS715 counts, as info, the action keys the config writes that the provider's `actionKeys` could supply. The render and generator caches now include a hash of the config file and the project files it imports, and the generator cache includes the hash of the generator files, so an edit to an imported helper renders again.

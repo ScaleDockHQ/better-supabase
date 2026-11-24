@@ -456,6 +456,12 @@ describe("configIssues for a config written before 0.15", () => {
     );
   });
 
+  it("names gen.records for a top-level generateFeatures", () => {
+    expect(configIssues({ generateFeatures: false })).toContain(
+      "generateFeatures: renamed to `gen.records`; rename the key (it was `gen.recordTypes` from 0.15 to 0.53)",
+    );
+  });
+
   it("names gen.records for generateFeatures", () => {
     expect(configIssues({ gen: { generateFeatures: false } })).toContain(
       "gen.generateFeatures: renamed to `gen.records`; rename the key (it was `gen.recordTypes` from 0.15 to 0.53)",

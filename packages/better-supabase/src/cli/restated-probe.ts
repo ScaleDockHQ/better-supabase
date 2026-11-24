@@ -448,12 +448,23 @@ async function probeWithin(
   );
 }
 
-/** `structural` entries, then the probed ones whose path they do not name. */
+/**
+ * `structural` entries, then the probed ones whose path they do not name. An
+ * identity mapping of an optional column stays only when the probe rendered the
+ * same files without it: the mapping turns on the column where the render would
+ * not find it otherwise.
+ */
 export function mergeRestated(
   structural: readonly RestatedEntry[],
   probed: readonly RestatedEntry[],
 ): RestatedEntry[] {
-  const named = new Set(structural.map((entry) => entry.path));
+  const confirmed = new Set(probed.map((entry) => entry.path));
 
-  return [...structural, ...probed.filter((entry) => !named.has(entry.path))];
+  const kept = structural.filter(
+    (entry) => entry.kind !== "identity" || confirmed.has(entry.path),
+  );
+
+  const named = new Set(kept.map((entry) => entry.path));
+
+  return [...kept, ...probed.filter((entry) => !named.has(entry.path))];
 }

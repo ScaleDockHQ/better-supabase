@@ -6446,7 +6446,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@4 managed
--- @bsb-hash sha256:79c7d71ad28c81762ff883d61e92cd8b1f59893a8c841e2aaf34df800ee22180
+-- @bsb-hash sha256:06a1de3e111edd0ab9b308fc3cc65101c0aeec0ed37d1360cebc62193552b054
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8460,27 +8460,8 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."resolve_import_conflict"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."resolve_import_conflict"(uuid, text, text, text, text) from public, anon, authenticated;
-grant execute on function "api"."resolve_import_conflict"(uuid, text, text, text, text) to service_role;
-
-create or replace function "api"."resolve_import_conflict"(tenant uuid, source text, entity text, key text, action text)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."resolve_import_conflict"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."resolve_import_conflict"(uuid, text, text, text, text) from public, anon;
 grant execute on function "api"."resolve_import_conflict"(uuid, text, text, text, text) to authenticated, service_role;
-
-create or replace function "api"."import_integrity"(tenant uuid, source text default null)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."import_integrity"($1, $2) $$;
-revoke execute on function "api"."import_integrity"(uuid, text) from public, anon, authenticated;
-grant execute on function "api"."import_integrity"(uuid, text) to service_role;
 
 create or replace function "api"."import_integrity"(tenant uuid, source text default null)
 returns jsonb

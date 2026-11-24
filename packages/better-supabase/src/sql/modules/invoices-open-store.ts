@@ -320,7 +320,6 @@ begin
 end;
 $$;
 ${serviceGrant(`${store.fn("rebuild_open_items")}(${tenant})`)}
-${userGrant(`${store.fn("rebuild_open_items")}(${tenant})`)}
 
 -- The stored rows that differ from the fold, at most 100. No permission
 -- check: open_items_drift and import_integrity call it.
@@ -370,7 +369,6 @@ begin
   return ${store.fn("open_items_drift_rows")}(open_items_drift.tenant);
 end;
 $$;
-${serviceGrant(`${store.fn("open_items_drift")}(${tenant})`)}
 ${userGrant(`${store.fn("open_items_drift")}(${tenant})`)}
 `;
 }
@@ -466,7 +464,6 @@ begin
   return jsonb_build_object('rows', v_rows, 'total', least(v_total, coalesce(open_items_page.count_cap, 10000)));
 end;
 $$;
-${serviceGrant(`${store.fn("open_items_page")}(${ctx.idType}, text, text, integer, integer, integer)`)}
 ${userGrant(`${store.fn("open_items_page")}(${ctx.idType}, text, text, integer, integer, integer)`)}
 `;
 }
