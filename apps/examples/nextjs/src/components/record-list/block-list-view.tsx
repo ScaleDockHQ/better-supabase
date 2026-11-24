@@ -3,7 +3,7 @@
 import type { CellContext } from "@tanstack/react-table";
 
 import { useExtracted } from "next-intl";
-import { parseAsString, useQueryStates } from "nuqs";
+import { useQueryStates } from "nuqs";
 import { useMemo, useTransition } from "react";
 
 import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link, toAppHref } from "@/i18n/navigation";
+import { blockOverviewParsers } from "@/lib/block-overview-params";
 
 import type { RecordListColumns } from "./record-list-grid";
 import type { RecordListSort } from "./record-list-types";
@@ -169,15 +170,11 @@ export function BlockListView({
   const t = useExtracted("recordList");
   const [pending, startTransition] = useTransition();
 
-  const [state, setState] = useQueryStates(
-    {
-      q: parseAsString.withDefault(""),
-      f: parseAsString.withDefault(""),
-      sort: parseAsString.withDefault(""),
-      after: parseAsString.withDefault(""),
-    },
-    { shallow: false, startTransition, clearOnDefault: true },
-  );
+  const [state, setState] = useQueryStates(blockOverviewParsers, {
+    shallow: false,
+    startTransition,
+    clearOnDefault: true,
+  });
 
   const gridColumns = useMemo<RecordListColumns<BlockRow>>(
     () =>

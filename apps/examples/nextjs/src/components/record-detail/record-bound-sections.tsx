@@ -19,6 +19,7 @@ import {
   RecordReminders,
   RecordTags,
 } from "@/features/records/components/record-side-sections";
+import { RecordTasks } from "@/features/records/components/record-tasks";
 import { RecordWorkflows } from "@/features/records/components/record-workflows";
 
 import { AfterNavigation } from "./after-navigation";
@@ -34,6 +35,7 @@ export type BoundSection =
   | "relations"
   | "reminders"
   | "tags"
+  | "tasks"
   | "workflows";
 
 /**
@@ -137,6 +139,16 @@ export function RecordBoundSections({
               <Suspense key={section} fallback={<RecordSectionSkeleton />}>
                 <AfterNavigation>
                   <RecordConversations subject={subject} />
+                </AfterNavigation>
+              </Suspense>
+            );
+          }
+
+          case "tasks": {
+            return (
+              <Suspense key={section} fallback={<RecordSectionSkeleton />}>
+                <AfterNavigation>
+                  <RecordTasks subject={subject} />
                 </AfterNavigation>
               </Suspense>
             );

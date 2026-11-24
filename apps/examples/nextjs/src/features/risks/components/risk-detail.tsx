@@ -119,6 +119,7 @@ async function Body({ data, tab }: { data: RiskDetailData; tab: string }) {
               "approvals",
               "reminders",
               "conversations",
+              "tasks",
               "workflows",
             ]}
           />

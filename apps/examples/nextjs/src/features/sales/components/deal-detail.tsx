@@ -121,6 +121,7 @@ export async function DealDetail({
               "approvals",
               "reminders",
               "conversations",
+              "tasks",
               "workflows",
             ]}
           />

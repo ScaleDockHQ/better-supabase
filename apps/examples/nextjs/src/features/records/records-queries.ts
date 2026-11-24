@@ -524,3 +524,45 @@ export async function getRecordRuns(subject: RecordSubject) {
     .list({ tenant, subject, mode: "all", limit: 10 })
     .orThrow();
 }
+
+export interface RecordTaskRow {
+  readonly id: string;
+  readonly title: string;
+  readonly status: "todo" | "doing" | "done";
+  /** `YYYY-MM-DD`, or null when unscheduled. */
+  readonly dueOn: string | null;
+}
+
+const RECORD_TASK_LIMIT = 10;
+
+/** The tasks linked to the record through its relations, in rank order. */
+export async function getRecordTasks(
+  subject: RecordSubject,
+): Promise<readonly RecordTaskRow[]> {
+  const [{ db }, relations] = await Promise.all([
+    bsb.context(),
+    getRelations(subject),
+  ]);
+
+  if (relations.kind !== "ok") {
+    return [];
+  }
+
+  const ids = relations.data.links
+    .filter((link) => link.subjectType === "task")
+    .map((link) => link.subjectId)
+    .slice(0, RECORD_TASK_LIMIT);
+
+  if (ids.length === 0) {
+    return [];
+  }
+
+  return db.tasks
+    .list({
+      select: ["id", "title", "status", "dueOn"],
+      where: { id: { in: ids } },
+      orderBy: { rank: "asc" },
+      limit: RECORD_TASK_LIMIT,
+    })
+    .orThrow();
+}

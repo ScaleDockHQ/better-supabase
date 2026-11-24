@@ -111,6 +111,7 @@ export async function WorkOrderDetail({
               "approvals",
               "reminders",
               "conversations",
+              "tasks",
               "workflows",
             ]}
           />
