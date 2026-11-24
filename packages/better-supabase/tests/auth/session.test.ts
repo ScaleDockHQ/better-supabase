@@ -109,6 +109,31 @@ describe("ssrSession", () => {
     vi.restoreAllMocks();
   });
 
+  it("decodes the same raw cookie once across separate cookie lists", async () => {
+    const parse = vi.spyOn(JSON, "parse");
+
+    const cookies = applyCookieWrites(
+      [],
+      writeSession([], NAME, session({ access_token: "once" })),
+    );
+
+    const first = await ssrSession([...cookies], NAME);
+    const before = parse.mock.calls.length;
+    const second = await ssrSession([...cookies], NAME);
+
+    expect(second).toBe(first);
+    expect(parse).toHaveBeenCalledTimes(before);
+
+    const changed = applyCookieWrites(
+      [],
+      writeSession([], NAME, session({ access_token: "twice" })),
+    );
+
+    expect(await ssrSession(changed, NAME)).toMatchObject({
+      access_token: "twice",
+    });
+  });
+
   it("reads both encodings, whole or chunked, once per cookie list", async () => {
     const full = applyCookieWrites([], writeSession([], NAME, session()));
 

@@ -165,6 +165,12 @@ export interface SessionMemo<T> {
   get(token: string, load: () => Promise<T | null>): Promise<T | null>;
   /** Stores a value verified elsewhere (a refresh, a sign-in). */
   seed(token: string, value: T): Promise<void>;
+  /**
+   * Also counts this memo's lookups into `counters`. Servers that share the
+   * process memo each pass their own counters, and every one sees every
+   * lookup.
+   */
+  count(counters: SessionMemoCounters): void;
   /** Drops every entry `match` returns true for (a user's sessions). */
   evict(match: (value: T) => boolean): void;
   clear(): void;
@@ -198,7 +204,20 @@ export function sessionMemo<T>(
   const ttlMs = options.ttlMs ?? 300_000;
   const clock = options.now ?? Date.now;
   const entries = new Map<string, Entry<T>>();
-  const counters = options.counters ?? { hits: 0, misses: 0 };
+  const own: SessionMemoCounters = { hits: 0, misses: 0 };
+  const sinks = new Set<SessionMemoCounters>([options.counters ?? own]);
+
+  const hit = (): void => {
+    for (const sink of sinks) {
+      sink.hits += 1;
+    }
+  };
+
+  const miss = (): void => {
+    for (const sink of sinks) {
+      sink.misses += 1;
+    }
+  };
 
   const untilFor = (now: number, expiresAt: number | null): number =>
     expiresAt === null ? now + ttlMs : Math.min(now + ttlMs, expiresAt * 1000);
@@ -224,14 +243,14 @@ export function sessionMemo<T>(
       const known = entries.get(token);
 
       if (known && known.until > now) {
-        counters.hits += 1;
+        hit();
         // Refresh the entry's place in the LRU order.
         store(token, known);
 
         return known.promise;
       }
 
-      counters.misses += 1;
+      miss();
 
       const entry: Entry<T> = {
         promise: load().then(
@@ -282,17 +301,28 @@ export function sessionMemo<T>(
       }
     },
 
-    clear() {
-      entries.clear();
-      counters.hits = 0;
-      counters.misses = 0;
+    count(counters) {
+      sinks.add(counters);
     },
 
-    stats: () => ({
-      hits: counters.hits,
-      misses: counters.misses,
-      size: entries.size,
-    }),
+    clear() {
+      entries.clear();
+
+      for (const sink of sinks) {
+        sink.hits = 0;
+        sink.misses = 0;
+      }
+    },
+
+    stats() {
+      const [first] = sinks;
+
+      return {
+        hits: first?.hits ?? 0,
+        misses: first?.misses ?? 0,
+        size: entries.size,
+      };
+    },
   };
 }
 
@@ -300,7 +330,9 @@ export function sessionMemo<T>(
  * The process-wide memo. The proxy and the render are separate module graphs
  * (ADR 0340) and share this slot on `globalThis`, so a verification the proxy
  * seeded is a hit in the render. A custom clock, bound, ttl or counter object
- * gets a private memo, which is what tests use.
+ * gets a private memo, which is what tests use. A `counters` object alone
+ * attaches to the shared memo, so the proxy's seed after a refresh reaches the
+ * render and the counts still cover every lookup.
  */
 export function processSessionMemo<T>(
   expiresAt: (value: T) => number | null,
@@ -310,7 +342,6 @@ export function processSessionMemo<T>(
 
   if (
     given.now !== undefined ||
-    given.counters !== undefined ||
     given.max !== undefined ||
     given.ttlMs !== undefined
   ) {
@@ -319,8 +350,14 @@ export function processSessionMemo<T>(
 
   // SAFETY: PROCESS_MEMO is this module's symbol, so nothing else writes that slot.
   const scope = globalThis as { [PROCESS_MEMO]?: SessionMemo<T> };
+  scope[PROCESS_MEMO] ??= sessionMemo(expiresAt);
+  const shared = scope[PROCESS_MEMO];
 
-  return (scope[PROCESS_MEMO] ??= sessionMemo(expiresAt));
+  if (given.counters) {
+    shared.count(given.counters);
+  }
+
+  return shared;
 }
 
 /** Drops the process-wide memo. Tests call it so one file cannot seed the next. */
