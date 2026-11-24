@@ -10457,6 +10457,7 @@
       "hasColumnAccess",
       "instanceFunctions",
       "isBlockSqlIdType",
+      "isMemoized",
       "isModuleDataFile",
       "isRenderedFeature",
       "isRule",
