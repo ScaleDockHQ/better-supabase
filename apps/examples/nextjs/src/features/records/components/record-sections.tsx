@@ -1,4 +1,7 @@
-import { getExtracted } from "next-intl/server";
+import type { ReactNode } from "react";
+
+import { NextIntlClientProvider } from "next-intl";
+import { getExtracted, getMessages } from "next-intl/server";
 
 import {
   Card,
@@ -22,6 +25,7 @@ import {
 } from "@/features/records/components/related-items-panel";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
+import { APP_NAMESPACES, pick } from "@/i18n/namespaces";
 
 import type { RecordSubject } from "../record-subject";
 
@@ -32,6 +36,23 @@ import {
   getTimeline,
 } from "../records-queries";
 import { RecordCardSkeleton } from "./record-card-states";
+
+/**
+ * The record panels are client components that read the `records` and
+ * `customers` namespaces, which no route layout lists, so each panel carries
+ * its own messages.
+ */
+async function RecordMessages({ children }: { children: ReactNode }) {
+  const messages = await getMessages();
+
+  return (
+    <NextIntlClientProvider
+      messages={pick(messages, [...APP_NAMESPACES, "records", "customers"])}
+    >
+      {children}
+    </NextIntlClientProvider>
+  );
+}
 
 /**
  * Render inside `<Suspense>`: the files of any record, with the upload and
@@ -53,12 +74,14 @@ export async function RecordFiles({ subject }: { subject: RecordSubject }) {
   }
 
   return (
-    <AttachmentsUploader
-      subject={subject}
-      files={files}
-      canUpload={can(permissions, "attachments.upload")}
-      canRemove={can(permissions, "attachments.manage")}
-    />
+    <RecordMessages>
+      <AttachmentsUploader
+        subject={subject}
+        files={files}
+        canUpload={can(permissions, "attachments.upload")}
+        canRemove={can(permissions, "attachments.manage")}
+      />
+    </RecordMessages>
   );
 }
 
@@ -75,11 +98,13 @@ export async function RecordRelations({ subject }: { subject: RecordSubject }) {
   }
 
   return (
-    <RelatedItemsPanel
-      subject={subject}
-      relations={await getRelations(subject)}
-      canManage={can(permissions, "relations.manage")}
-    />
+    <RecordMessages>
+      <RelatedItemsPanel
+        subject={subject}
+        relations={await getRelations(subject)}
+        canManage={can(permissions, "relations.manage")}
+      />
+    </RecordMessages>
   );
 }
 
@@ -122,11 +147,13 @@ export async function RecordDiscussion({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <CommentThread
-          subject={subject}
-          authors={authors}
-          canComment={can(permissions, "messages.send")}
-        />
+        <RecordMessages>
+          <CommentThread
+            subject={subject}
+            authors={authors}
+            canComment={can(permissions, "messages.send")}
+          />
+        </RecordMessages>
       </CardContent>
     </Card>
   );
