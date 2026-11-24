@@ -139,6 +139,9 @@ export const ACTIONS: readonly ActionCase[] = [
       approved: true,
     },
   ]),
+  write(AGENTS, "decideApproval", "/assistant/agents", async () => [
+    { approvalId: "areas-12-13-approval-missing", approved: true },
+  ]),
   write(WEBHOOKS, "redeliverWebhook", "/settings/webhooks", async () => [
     { id: await firstRowId("webhook_deliveries") },
   ]),

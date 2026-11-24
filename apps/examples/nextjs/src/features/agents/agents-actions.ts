@@ -243,6 +243,36 @@ export const decideApprovals = bsbCore.action(
   },
 );
 
+/**
+ * Records the decision on one waiting tool call without starting the model. The
+ * decision is stored on the approval; the chat's turn picks it up the next time
+ * it continues, so a decision made here needs no gateway key.
+ */
+export const decideApproval = bsbCore.action(
+  {
+    input: v.object({
+      approvalId: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
+      approved: v.boolean(),
+    }),
+    requireTenant: true,
+    permission: "ai_chat.create",
+  },
+  async ({ approvalId, approved }, { supabase }) => {
+    const decided = await aiChat(supabase).approvals.decide({
+      approvalId,
+      approved,
+    });
+
+    if (!decided.ok) {
+      return decided;
+    }
+
+    refresh();
+
+    return ok(decided.data.decision);
+  },
+);
+
 /** Saves the rule of each changed tool; `null` removes a rule. */
 export const saveToolPolicies = bsbCore.action(
   {

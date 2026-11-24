@@ -168,10 +168,7 @@ export async function AgentApprovals({
             </TableCell>
             <TableCell className="text-right">
               {canDecide ? (
-                <AgentApprovalButtons
-                  chatId={approval.chatId}
-                  approvalId={approval.approvalId}
-                />
+                <AgentApprovalButtons approvalId={approval.approvalId} />
               ) : null}
             </TableCell>
           </TableRow>

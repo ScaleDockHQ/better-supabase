@@ -34,7 +34,10 @@ on conflict (run_id, step_key) do nothing;
 insert into better_supabase.ai_tool_approvals (approval_id, chat_id, owner_id, run_id, tool, tool_call_id, input) values
   ('areas-12-13-approval-1', '00000000-0000-4000-8000-00000a9c0001', '00000000-0000-4000-8000-0000000000a1',
    '00000000-0000-4000-8000-00000a9a0001', 'requestDiscountApproval', 'call-areas-1',
-   '{"reason": "Globex asked for 10 percent on a three year renewal"}'::jsonb)
+   '{"reason": "Globex asked for 10 percent on a three year renewal"}'::jsonb),
+  ('areas-12-13-approval-2', '00000000-0000-4000-8000-00000a9c0001', '00000000-0000-4000-8000-0000000000a1',
+   '00000000-0000-4000-8000-00000a9a0001', 'waiveSetupFee', 'call-areas-2',
+   '{"reason": "Waive the setup fee for the Globex renewal"}'::jsonb)
 on conflict (approval_id) do nothing;
 
 insert into better_supabase.guardrail_decisions (id, tenant_id, agent, stage, decision, reasons, chat_id) values
@@ -43,3 +46,32 @@ insert into better_supabase.guardrail_decisions (id, tenant_id, agent, stage, de
   ('00000000-0000-4000-8000-00000a9d0002', '00000000-0000-4000-8000-000000000001', 'renewals-desk', 'output', 'block',
    '[{"code": "topic", "detail": "The reply left the renewal topic"}]'::jsonb, '00000000-0000-4000-8000-00000a9c0002')
 on conflict (id) do nothing;
+
+-- The eval story: the assistant prompt's dataset with three items and two runs, the second one better.
+insert into better_supabase.eval_datasets (id, tenant_id, name, description) values
+  ('00000000-0000-4000-8000-00000a9e0001', '00000000-0000-4000-8000-000000000001', 'assistant.system', 'Seeded renewal questions')
+on conflict do nothing;
+
+insert into better_supabase.eval_items (id, dataset_id, input, expected) values
+  ('00000000-0000-4000-8000-00000a9e0011', '00000000-0000-4000-8000-00000a9e0001', '"When does the Globex contract renew?"', '"1 March"'),
+  ('00000000-0000-4000-8000-00000a9e0012', '00000000-0000-4000-8000-00000a9e0001', '"Who owns the Initech account?"', '"Dana"'),
+  ('00000000-0000-4000-8000-00000a9e0013', '00000000-0000-4000-8000-00000a9e0001', '"How many seats does Umbrella use?"', '"42"')
+on conflict do nothing;
+
+insert into better_supabase.eval_runs (id, dataset_id, tenant_id, prompt_name, prompt_version, model, status, summary, created_at, finished_at) values
+  ('00000000-0000-4000-8000-00000a9e0021', '00000000-0000-4000-8000-00000a9e0001', '00000000-0000-4000-8000-000000000001',
+   'assistant.system', 1, 'demo', 'completed',
+   '{"total": 3, "passed": 2, "failed": 1, "errored": 0, "passRate": 0.6667, "scorers": {}}'::jsonb, now() - interval '2 days', now() - interval '2 days'),
+  ('00000000-0000-4000-8000-00000a9e0022', '00000000-0000-4000-8000-00000a9e0001', '00000000-0000-4000-8000-000000000001',
+   'assistant.system', 2, 'demo', 'completed',
+   '{"total": 3, "passed": 3, "failed": 0, "errored": 0, "passRate": 1, "scorers": {}}'::jsonb, now() - interval '1 day', now() - interval '1 day')
+on conflict do nothing;
+
+insert into better_supabase.eval_results (run_id, item_id, output, scores, passed, latency_ms) values
+  ('00000000-0000-4000-8000-00000a9e0021', '00000000-0000-4000-8000-00000a9e0011', '1 March', '{"exact": {"score": 1, "passed": true}}'::jsonb, true, 420),
+  ('00000000-0000-4000-8000-00000a9e0021', '00000000-0000-4000-8000-00000a9e0012', 'Dana', '{"exact": {"score": 1, "passed": true}}'::jsonb, true, 380),
+  ('00000000-0000-4000-8000-00000a9e0021', '00000000-0000-4000-8000-00000a9e0013', 'About forty', '{"exact": {"score": 0, "passed": false, "reason": "Expected 42"}}'::jsonb, false, 510),
+  ('00000000-0000-4000-8000-00000a9e0022', '00000000-0000-4000-8000-00000a9e0011', '1 March', '{"exact": {"score": 1, "passed": true}}'::jsonb, true, 400),
+  ('00000000-0000-4000-8000-00000a9e0022', '00000000-0000-4000-8000-00000a9e0012', 'Dana', '{"exact": {"score": 1, "passed": true}}'::jsonb, true, 350),
+  ('00000000-0000-4000-8000-00000a9e0022', '00000000-0000-4000-8000-00000a9e0013', '42', '{"exact": {"score": 1, "passed": true}}'::jsonb, true, 460)
+on conflict do nothing;

@@ -51,11 +51,11 @@ export function EvalRunsCard({
         {points.length > 0 ? <PassRateChartLazy points={points} /> : null}
         <ul className="divide-y rounded-lg border text-sm">
           {runs.map((run) => (
-            <li key={run.id}>
+            <li key={run.id} className="flex items-center">
               <Link
                 href={`/assistant/evals/${encodeURIComponent(name)}?run=${run.id}`}
                 aria-current={run.id === selectedId ? "true" : undefined}
-                className="flex flex-wrap items-center gap-2 px-3 py-2 transition-colors hover:bg-muted aria-[current=true]:bg-muted"
+                className="flex min-w-0 flex-1 flex-wrap items-center gap-2 px-3 py-2 transition-colors hover:bg-muted aria-[current=true]:bg-muted"
               >
                 <span className="font-medium tabular-nums">
                   v{run.promptVersion}
@@ -93,6 +93,12 @@ export function EvalRunsCard({
                     })}
                   </span>
                 </span>
+              </Link>
+              <Link
+                href={`/assistant/evals/${encodeURIComponent(name)}/runs/${run.id}`}
+                className="px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {t("Open run")}
               </Link>
             </li>
           ))}

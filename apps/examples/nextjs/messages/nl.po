@@ -186,6 +186,7 @@ msgid "What happens when the model calls a tool: run it, ask first or refuse. Ru
 msgstr "Wat er gebeurt als het model een tool aanroept: uitvoeren, eerst vragen of weigeren. De regels gelden voor de hele organisatie."
 
 #: src/app/[locale]/(app)/assistant/evals/[name]/page.tsx
+#: src/app/[locale]/(app)/assistant/evals/[name]/runs/[run]/page.tsx
 msgctxt "evals.GtUOnK"
 msgid "All evals"
 msgstr "Alle evals"
@@ -1894,6 +1895,7 @@ msgctxt "work.HzfrYu"
 msgid "Grid"
 msgstr "Raster"
 
+#: src/app/[locale]/(app)/workflows/[definition]/page.tsx
 #: src/app/[locale]/(app)/workflows/builder/[definition]/page.tsx
 #: src/app/[locale]/(app)/workflows/templates/page.tsx
 msgctxt "workflows.hR2s7I"
@@ -1916,6 +1918,7 @@ msgid "Templates"
 msgstr "Sjablonen"
 
 #: src/app/[locale]/(app)/workflows/page.tsx
+#: src/features/workflows/components/definition-detail.tsx
 msgctxt "workflows.W1Qs5O"
 msgid "Runs"
 msgstr "Runs"
@@ -13245,11 +13248,13 @@ msgid "Import rated-down answers"
 msgstr "Omlaag beoordeelde antwoorden importeren"
 
 #: src/features/evals/components/eval-results.tsx
+#: src/features/evals/components/eval-run-detail.tsx
 msgctxt "evals.3NHsqm"
 msgid "Passed"
 msgstr "Geslaagd"
 
 #: src/features/evals/components/eval-results.tsx
+#: src/features/evals/components/eval-run-detail.tsx
 #: src/features/evals/components/eval-runs-card.tsx
 msgctxt "evals.vXCeIi"
 msgid "Failed"
@@ -13320,6 +13325,57 @@ msgctxt "evals.j_m-rA"
 msgid "Results appear as the run answers each item."
 msgstr "Resultaten verschijnen terwijl de run elk item beantwoordt."
 
+#: src/features/evals/components/eval-run-detail.tsx
+#: src/features/evals/components/eval-runs-card.tsx
+msgctxt "evals.95stPq"
+msgid "Completed"
+msgstr "Voltooid"
+
+#: src/features/evals/components/eval-run-detail.tsx
+#: src/features/evals/components/eval-runs-card.tsx
+msgctxt "evals.3wsVWF"
+msgid "Cancelled"
+msgstr "Geannuleerd"
+
+#: src/features/evals/components/eval-run-detail.tsx
+#: src/features/evals/components/eval-runs-card.tsx
+msgctxt "evals.nDyaq_"
+msgid "Running"
+msgstr "Actief"
+
+#: src/features/evals/components/eval-run-detail.tsx
+msgctxt "evals.aI80kg"
+msgid "Properties"
+msgstr "Eigenschappen"
+
+#: src/features/evals/components/eval-run-detail.tsx
+#: src/features/evals/components/eval-run-form.tsx
+msgctxt "evals.XgKAas"
+msgid "Prompt version"
+msgstr "Promptversie"
+
+#: src/features/evals/components/eval-run-detail.tsx
+#: src/features/evals/components/eval-run-form.tsx
+msgctxt "evals.rhSI1_"
+msgid "Model"
+msgstr "Model"
+
+#: src/features/evals/components/eval-run-detail.tsx
+msgctxt "evals.TDUfVk"
+msgid "Started"
+msgstr "Gestart"
+
+#: src/features/evals/components/eval-run-detail.tsx
+#: src/features/evals/components/pass-rate-chart.tsx
+msgctxt "evals.8NFplr"
+msgid "Pass rate"
+msgstr "Slagingspercentage"
+
+#: src/features/evals/components/eval-run-detail.tsx
+msgctxt "evals.GxWNZ7"
+msgid "Errored"
+msgstr "Met fout"
+
 #: src/features/evals/components/eval-run-form.tsx
 msgctxt "evals.Caeh_O"
 msgid "Run started"
@@ -13331,19 +13387,9 @@ msgid "Version {version, number}"
 msgstr "Versie {version, number}"
 
 #: src/features/evals/components/eval-run-form.tsx
-msgctxt "evals.XgKAas"
-msgid "Prompt version"
-msgstr "Promptversie"
-
-#: src/features/evals/components/eval-run-form.tsx
 msgctxt "evals.dOo0Ro"
 msgid "No versions"
 msgstr "Geen versies"
-
-#: src/features/evals/components/eval-run-form.tsx
-msgctxt "evals.rhSI1_"
-msgid "Model"
-msgstr "Model"
 
 #: src/features/evals/components/eval-run-form.tsx
 msgctxt "evals.bbsQzz"
@@ -13361,19 +13407,9 @@ msgid "Pass rate per run, oldest first. Pick a run to read its results."
 msgstr "Slagingspercentage per run, oudste eerst. Kies een run om de resultaten te lezen."
 
 #: src/features/evals/components/eval-runs-card.tsx
-msgctxt "evals.95stPq"
-msgid "Completed"
-msgstr "Voltooid"
-
-#: src/features/evals/components/eval-runs-card.tsx
-msgctxt "evals.3wsVWF"
-msgid "Cancelled"
-msgstr "Geannuleerd"
-
-#: src/features/evals/components/eval-runs-card.tsx
-msgctxt "evals.nDyaq_"
-msgid "Running"
-msgstr "Actief"
+msgctxt "evals.faeyEa"
+msgid "Open run"
+msgstr "Run openen"
 
 #: src/features/evals/components/eval-subject-table.tsx
 msgctxt "evals.9kGwPo"
@@ -13414,11 +13450,6 @@ msgstr "Gescripte runs"
 msgctxt "evals.4GjTZU"
 msgid "No AI Gateway key is set, so a run answers from a script and is recorded as scripted. The pass rate measures the script, not a model."
 msgstr "Er is geen AI Gateway-sleutel ingesteld, dus een run antwoordt uit een script en wordt als gescript vastgelegd. Het slagingspercentage meet het script, niet een model."
-
-#: src/features/evals/components/pass-rate-chart.tsx
-msgctxt "evals.8NFplr"
-msgid "Pass rate"
-msgstr "Slagingspercentage"
 
 #: src/features/field/components/advance-work-order-button.tsx
 msgctxt "field.s7o6zU"
@@ -34971,6 +35002,7 @@ msgid "State"
 msgstr "Status"
 
 #: src/features/workflows/builder/components/definition-record-list.tsx
+#: src/features/workflows/components/definition-detail.tsx
 msgctxt "workflows.xrk6zg"
 msgid "Updated"
 msgstr "Bijgewerkt"
@@ -35162,6 +35194,7 @@ msgid "Pick a credential"
 msgstr "Kies een inloggegeven"
 
 #: src/features/workflows/builder/components/node-panel.tsx
+#: src/features/workflows/components/definition-detail.tsx
 #: src/features/workflows/components/runs-record-list.tsx
 #: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.IuFETn"
@@ -35498,6 +35531,7 @@ msgid "Problems"
 msgstr "Problemen"
 
 #: src/features/workflows/builder/components/workflow-editor.tsx
+#: src/features/workflows/components/definition-detail.tsx
 msgctxt "workflows.4SJxF5"
 msgid "Versions"
 msgstr "Versies"
@@ -35506,6 +35540,102 @@ msgstr "Versies"
 msgctxt "workflows.qpG9y3"
 msgid "Version {version} is on the canvas. Save to keep it as the draft."
 msgstr "Versie {version} staat op het canvas. Sla op om hem als concept te bewaren."
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.PGJpP6"
+msgid "Not published"
+msgstr "Niet gepubliceerd"
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.31X_Hh"
+msgid "Published v{version, number}"
+msgstr "Gepubliceerd v{version, number}"
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.J_jXvc"
+msgid "Open in the builder"
+msgstr "Openen in de builder"
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.aI80kg"
+msgid "Properties"
+msgstr "Eigenschappen"
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.IoDlcd"
+msgid "Slug"
+msgstr "Slug"
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.MJeHfX"
+msgid "Recent runs"
+msgstr "Recente runs"
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.q1WWIr"
+msgid "In progress"
+msgstr "Bezig"
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.vXCeIi"
+msgid "Failed"
+msgstr "Mislukt"
+
+#: src/features/workflows/components/definition-detail.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.huCHmk"
+msgid "Steps"
+msgstr "Stappen"
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.sIMS7i"
+msgid "Progress"
+msgstr "Voortgang"
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.buVjbT"
+msgid "Share of the finished runs that completed."
+msgstr "Aandeel van de afgeronde runs dat is geslaagd."
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.I9W7ey"
+msgid "Completed runs"
+msgstr "Geslaagde runs"
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.85sSV_"
+msgid "{completed, number} of {finished, number} finished runs"
+msgstr "{completed, number} van {finished, number} afgeronde runs"
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.4neWP4"
+msgid "Save a version in the builder to see its steps here."
+msgstr "Sla een versie op in de builder om de stappen hier te zien."
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.qJ-myE"
+msgid "The latest runs of this workflow, newest first."
+msgstr "De laatste runs van deze workflow, nieuwste eerst."
+
+#: src/features/workflows/components/definition-detail.tsx
+msgctxt "workflows.uQh02F"
+msgid "No runs yet. Run it from the builder."
+msgstr "Nog geen runs. Start er een vanuit de builder."
+
+#: src/features/workflows/components/definition-detail.tsx
+#: src/features/workflows/components/runs-record-list.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.TDUfVk"
+msgid "Started"
+msgstr "Gestart"
+
+#: src/features/workflows/components/definition-detail.tsx
+#: src/features/workflows/components/runs-record-list.tsx
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.tzMNF3"
+msgid "Status"
+msgstr "Status"
 
 #: src/features/workflows/components/runs-record-list.tsx
 msgctxt "workflows.s8HBot"
@@ -35521,19 +35651,6 @@ msgstr "Laatste 24 uur"
 msgctxt "workflows.irFBKn"
 msgid "Last 7 days"
 msgstr "Laatste 7 dagen"
-
-#: src/features/workflows/components/runs-record-list.tsx
-#: src/features/workflows/components/workflow-runs.tsx
-msgctxt "workflows.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/workflows/components/runs-record-list.tsx
-#: src/features/workflows/components/workflow-run-detail.tsx
-#: src/features/workflows/components/workflow-runs.tsx
-msgctxt "workflows.TDUfVk"
-msgid "Started"
-msgstr "Gestart"
 
 #: src/features/workflows/components/runs-record-list.tsx
 #: src/features/workflows/components/workflow-run-detail.tsx
@@ -35690,11 +35807,6 @@ msgstr "Openen in de editor"
 msgctxt "workflows.lsX7TX"
 msgid "Cancel run"
 msgstr "Run annuleren"
-
-#: src/features/workflows/components/workflow-run-detail.tsx
-msgctxt "workflows.huCHmk"
-msgid "Steps"
-msgstr "Stappen"
 
 #: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.sINgHA"
