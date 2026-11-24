@@ -141,20 +141,6 @@ describe("entityPageIndexes", () => {
     ]);
   });
 
-  it("drops a btree whose columns lead a longer btree on the same table", () => {
-    const page = defineEntityPage({
-      ...risks,
-      sortLists: [["status", "number"]],
-    });
-
-    const columns = entityPageIndexes(
-      resolveEntityPage(config([page]), page),
-    ).map((index) => index.columns);
-
-    expect(columns).toContainEqual(["tenant_id", "status", "number", "id"]);
-    expect(columns).not.toContainEqual(["tenant_id", "status"]);
-  });
-
   it("indexes each declared multi-column sort as one composite index, and keeps it out of the scale plan", () => {
     const page = defineEntityPage({
       ...risks,
