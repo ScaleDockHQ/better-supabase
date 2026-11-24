@@ -111,4 +111,8 @@ export const ACTIONS: readonly ActionCase[] = [
   write(WEBHOOKS, "redeliverWebhook", "/settings/webhooks", async () => [
     { id: await firstRowId("webhook_deliveries") },
   ]),
+  // Service and logistics
+  write(COMPOSITES, "completeVisit", "/field/dispatch", async () => [
+    { workOrderId: await firstRowId("work_orders") },
+  ]),
 ];

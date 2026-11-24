@@ -57,4 +57,7 @@ export const recordPages = {
   person: bsbCore.record(sectionRecord("person")),
   deal: bsbCore.record(sectionRecord("deal")),
   contract: bsbCore.record(sectionRecord("contract")),
+  // Service and logistics
+  work_order: bsbCore.record(sectionRecord("work_order")),
+  shipment: bsbCore.record(sectionRecord("shipment")),
 } as const;

@@ -9,7 +9,15 @@ export default function FieldLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "field"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "customers",
+        "field",
+        "recordDetail",
+        "records",
+        "sales",
+        "subjects",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

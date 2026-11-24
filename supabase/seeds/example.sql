@@ -612,3 +612,56 @@ select better_supabase.open_appraisal_cycle((better_supabase.create_appraisal_cy
     jsonb_build_object('subjectUserId', '00000000-0000-4000-8000-0000000000a1')));
 
 select set_config('request.jwt.claims', '', false);
+
+-- Service and logistics story: a technician is on site with a forklift service
+-- (complete it with "Complete visit"), a second visit waits in the day plan, and
+-- three parcels sit at the three stages of tracking.
+insert into better_supabase.work_orders (tenant_id, title, description, priority, status, technician_id, starts_at, ends_at,
+  address, en_route_at, arrived_at, created_by)
+select '00000000-0000-4000-8000-000000000001', v.title, v.description, v.priority, v.status,
+  '00000000-0000-4000-8000-0000000000a1', now() + v.at, now() + v.at + interval '2 hours', v.address,
+  case when v.status in ('en_route', 'on_site') then now() + v.at - interval '30 minutes' end,
+  case when v.status = 'on_site' then now() + v.at - interval '10 minutes' end,
+  '00000000-0000-4000-8000-0000000000a1'
+from (values
+  ('Forklift hydraulic service', 'Replace the hydraulic filter and log the hour meter.', 'high', 'on_site', interval '-1 hour', 'Keizersgracht 1, Amsterdam'),
+  ('Dock door sensor check', 'Test the safety sensors on doors 3 and 4.', 'normal', 'scheduled', interval '3 hours', 'Loading dock, Rotterdam')
+) as v(title, description, priority, status, at, address)
+where not exists (
+  select 1 from better_supabase.work_orders w
+  where w.tenant_id = '00000000-0000-4000-8000-000000000001' and w.title = v.title);
+
+with new_shipments as (
+  insert into better_supabase.shipments (tenant_id, reference, status, from_address, to_address, direction, carrier, service,
+    tracking_number, labeled_at, delivered_at, created_by)
+  select '00000000-0000-4000-8000-000000000001', v.reference, v.status,
+    '{"company": "Acme Rockets", "line1": "Keizersgracht 1", "city": "Amsterdam", "postalCode": "1015 CJ", "country": "NL"}'::jsonb,
+    jsonb_build_object('name', v.recipient, 'line1', v.line1, 'city', v.city, 'postalCode', v.postal, 'country', 'NL'),
+    'outbound', case when v.status <> 'draft' then 'PostNL' end, case when v.status <> 'draft' then 'Parcel' end,
+    case when v.status <> 'draft' then 'SEED' || v.reference end,
+    case when v.status <> 'draft' then now() - interval '2 days' end,
+    case when v.status = 'delivered' then now() - interval '4 hours' end,
+    '00000000-0000-4000-8000-0000000000a1'
+  from (values
+    ('SH-SEED-01', 'draft', 'Initech facilities', 'Spuistraat 10', 'Utrecht', '3511 AB'),
+    ('SH-SEED-02', 'in_transit', 'Globex warehouse', 'Havenweg 4', 'Rotterdam', '3011 XY'),
+    ('SH-SEED-03', 'delivered', 'Hooli reception', 'Stationsplein 2', 'Eindhoven', '5611 AB')
+  ) as v(reference, status, recipient, line1, city, postal)
+  where not exists (
+    select 1 from better_supabase.shipments s
+    where s.tenant_id = '00000000-0000-4000-8000-000000000001' and s.reference = v.reference)
+  returning id, reference, status
+), parcels as (
+  insert into better_supabase.shipment_packages (tenant_id, shipment_id, position, weight_grams)
+  select '00000000-0000-4000-8000-000000000001', id, 1, 2400 from new_shipments
+)
+insert into better_supabase.shipment_tracking_events (tenant_id, shipment_id, external_id, status, occurred_at, description, location, source)
+select '00000000-0000-4000-8000-000000000001', n.id, 'seed-' || n.reference || '-' || e.step, e.status, now() - e.age, e.description, e.location, 'manual'
+from new_shipments n
+join (values
+  ('in_transit', 1, 'label_created', interval '2 days', 'Label created', 'Amsterdam'),
+  ('in_transit', 2, 'in_transit', interval '1 day', 'Picked up by the carrier', 'Amsterdam'),
+  ('delivered', 1, 'label_created', interval '2 days', 'Label created', 'Amsterdam'),
+  ('delivered', 2, 'in_transit', interval '30 hours', 'In sorting', 'Utrecht'),
+  ('delivered', 3, 'delivered', interval '4 hours', 'Delivered to reception', 'Eindhoven')
+) as e(for_status, step, status, age, description, location) on e.for_status = n.status;

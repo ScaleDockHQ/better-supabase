@@ -166,6 +166,26 @@ async function relationOptions(
         : [];
     }
 
+    // Service and logistics
+    case "work_order": {
+      return named(
+        (await db.dispatch.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (order) => ({ id: order.id, name: order.title }),
+        ),
+      );
+    }
+
+    case "shipment": {
+      return named(
+        (
+          await db.shipments.shipmentPage({ limit: OPTION_LIMIT }).orThrow()
+        ).items.map((shipment) => ({
+          id: shipment.id,
+          name: shipment.reference,
+        })),
+      );
+    }
+
     default: {
       const unreachable: never = subject.type;
 

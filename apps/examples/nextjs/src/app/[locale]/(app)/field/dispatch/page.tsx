@@ -2,10 +2,21 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { KpiBandSkeleton } from "@/components/record-list/kpi-band";
+import {
+  activeView,
+  RecordViewSwitch,
+} from "@/components/record-list/record-view-switch";
 import {
   DispatchBoard,
   DispatchBoardSkeleton,
 } from "@/features/field/components/dispatch-board";
+import {
+  FieldListSkeleton,
+  WorkOrderKpis,
+  WorkOrderOverview,
+} from "@/features/field/components/field-overviews";
+import { parseBlockList } from "@/lib/block-overview-query";
 
 // Next.js validates in development that a navigation here paints without
 // waiting on uncached work; tests/instant-routes.spec.ts checks it in a build.
@@ -27,9 +38,32 @@ export default function DispatchPage({
         )}
       />
       <Suspense fallback={<DispatchBoardSkeleton />}>
-        {searchParams.then((query) => (
-          <DispatchBoard query={query} />
-        ))}
+        {searchParams.then((raw) => {
+          const views = ["board", "table"] as const;
+          const view = activeView(raw, views);
+
+          return (
+            <>
+              <RecordViewSwitch
+                base="/field/dispatch"
+                active={view}
+                views={views}
+              />
+              {view === "table" ? (
+                <>
+                  <Suspense fallback={<KpiBandSkeleton />}>
+                    <WorkOrderKpis />
+                  </Suspense>
+                  <Suspense fallback={<FieldListSkeleton />}>
+                    <WorkOrderOverview query={parseBlockList(raw)} />
+                  </Suspense>
+                </>
+              ) : (
+                <DispatchBoard query={raw} />
+              )}
+            </>
+          );
+        })}
       </Suspense>
     </>
   );

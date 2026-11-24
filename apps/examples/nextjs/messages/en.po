@@ -765,6 +765,11 @@ msgctxt "field.G24OIU"
 msgid "Your stops for the day and the next step of each."
 msgstr "Your stops for the day and the next step of each."
 
+#: src/app/[locale]/(app)/field/dispatch/[id]/page.tsx
+msgctxt "field.R46QCU"
+msgid "All work orders"
+msgstr "All work orders"
+
 #: src/app/[locale]/(app)/field/dispatch/page.tsx
 msgctxt "field.g_6veL"
 msgid "Dispatch"
@@ -774,6 +779,11 @@ msgstr "Dispatch"
 msgctxt "field.6OAxn7"
 msgid "Schedule work orders into technicians' days and keep the backlog moving."
 msgstr "Schedule work orders into technicians' days and keep the backlog moving."
+
+#: src/app/[locale]/(app)/field/shipments/[id]/page.tsx
+msgctxt "field.b71ox9"
+msgid "All shipments"
+msgstr "All shipments"
 
 #: src/app/[locale]/(app)/field/shipments/page.tsx
 #: src/features/field/components/shipment-tracking.tsx
@@ -12693,6 +12703,7 @@ msgid "Leave for the stop"
 msgstr "Leave for the stop"
 
 #: src/features/field/components/advance-work-order-button.tsx
+#: src/features/field/components/work-order-detail.tsx
 msgctxt "field.W_6tSY"
 msgid "Arrived"
 msgstr "Arrived"
@@ -12748,11 +12759,13 @@ msgid "Show next week"
 msgstr "Show next week"
 
 #: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/work-order-detail.tsx
 msgctxt "field.FoMO5v"
 msgid "Technician"
 msgstr "Technician"
 
 #: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/field-overviews.tsx
 msgctxt "field.mX1AFw"
 msgid "Backlog"
 msgstr "Backlog"
@@ -12778,18 +12791,23 @@ msgid "Every open work order has a slot."
 msgstr "Every open work order has a slot."
 
 #: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/field-overviews.tsx
 #: src/features/field/components/new-work-order-dialog.tsx
 msgctxt "field.MEvKnW"
 msgid "Job"
 msgstr "Job"
 
 #: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/field-overviews.tsx
 #: src/features/field/components/new-work-order-dialog.tsx
+#: src/features/field/components/work-order-detail.tsx
 msgctxt "field.e6Ph5-"
 msgid "Address"
 msgstr "Address"
 
 #: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/work-order-detail.tsx
 msgctxt "field.8lCjAM"
 msgid "Priority"
 msgstr "Priority"
@@ -12803,6 +12821,253 @@ msgstr "Try again in a moment."
 msgctxt "field.62nsdy"
 msgid "Retry"
 msgstr "Retry"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.oWipJI"
+msgid "Waiting to be scheduled"
+msgstr "Waiting to be scheduled"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/work-order-badges.tsx
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.cXAlMR"
+msgid "Scheduled"
+msgstr "Scheduled"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.64CARr"
+msgid "In a technician's day"
+msgstr "In a technician's day"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.q1WWIr"
+msgid "In progress"
+msgstr "In progress"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.Rl5pxe"
+msgid "En route or on site"
+msgstr "En route or on site"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.yN7aqf"
+msgid "Urgent"
+msgstr "Urgent"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.zfJ0nl"
+msgid "Urgent priority, not yet done"
+msgstr "Urgent priority, not yet done"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.4MnrK6"
+msgid "Unscheduled"
+msgstr "Unscheduled"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/work-order-badges.tsx
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.UHCOTT"
+msgid "En route"
+msgstr "En route"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/work-order-badges.tsx
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.bC-TWQ"
+msgid "On site"
+msgstr "On site"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/work-order-badges.tsx
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.3wsVWF"
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.477I0g"
+msgid "Low"
+msgstr "Low"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.myq2ZL"
+msgid "Normal"
+msgstr "Normal"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.AxMhQr"
+msgid "High"
+msgstr "High"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.9anxhq"
+msgid "Starts"
+msgstr "Starts"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.fwIt1X"
+msgid "Newest"
+msgstr "Newest"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.n5QvJy"
+msgid "Start date"
+msgstr "Start date"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.93hZLk"
+msgid "The work orders didn't load"
+msgstr "The work orders didn't load"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.vmvLqO"
+msgid "No work orders yet"
+msgstr "No work orders yet"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.HpewdU"
+msgid "Open one from the dispatch board."
+msgstr "Open one from the dispatch board."
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.2atspc"
+msgid "Drafts"
+msgstr "Drafts"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.-0KYef"
+msgid "No label yet"
+msgstr "No label yet"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.oLBci1"
+msgid "In transit"
+msgstr "In transit"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.0zVZ_l"
+msgid "With the carrier"
+msgstr "With the carrier"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-detail.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.DMqnF4"
+msgid "Delivered"
+msgstr "Delivered"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.nMAyVs"
+msgid "Exceptions"
+msgstr "Exceptions"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.keNq0q"
+msgid "Needs a look"
+msgstr "Needs a look"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.yNSJTr"
+msgid "Label created"
+msgstr "Label created"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.UdVzmc"
+msgid "Out for delivery"
+msgstr "Out for delivery"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.YAnsyA"
+msgid "Exception"
+msgstr "Exception"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.wm96Jx"
+msgid "Returned"
+msgstr "Returned"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.Ej6KGx"
+msgid "Search reference or tracking number"
+msgstr "Search reference or tracking number"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.mcUhhf"
+msgid "Reference"
+msgstr "Reference"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/new-shipment-dialog.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.8Rkoyb"
+msgid "Recipient"
+msgstr "Recipient"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.BzQPM-"
+msgid "Destination"
+msgstr "Destination"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-detail.tsx
+msgctxt "field.YnD-57"
+msgid "Carrier"
+msgstr "Carrier"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.xrk6zg"
+msgid "Updated"
+msgstr "Updated"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.7CeqzL"
+msgid "The shipments didn't load"
+msgstr "The shipments didn't load"
+
+#: src/features/field/components/field-overviews.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.TsxaHw"
+msgid "No shipments yet"
+msgstr "No shipments yet"
+
+#: src/features/field/components/field-overviews.tsx
+msgctxt "field.Lvk61i"
+msgid "Create one to start tracking a parcel."
+msgstr "Create one to start tracking a parcel."
 
 #: src/features/field/components/new-shipment-dialog.tsx
 msgctxt "field.eTrzQC"
@@ -12818,12 +13083,6 @@ msgstr "New shipment"
 msgctxt "field.UMshQz"
 msgid "One package from the warehouse, saved as a draft."
 msgstr "One package from the warehouse, saved as a draft."
-
-#: src/features/field/components/new-shipment-dialog.tsx
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.8Rkoyb"
-msgid "Recipient"
-msgstr "Recipient"
 
 #: src/features/field/components/new-shipment-dialog.tsx
 msgctxt "field.LVbG7l"
@@ -12881,46 +13140,80 @@ msgctxt "field.2_2yg-"
 msgid "Add"
 msgstr "Add"
 
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.W6nwjo"
-msgid "Draft"
-msgstr "Draft"
+#: src/features/field/components/shipment-detail.tsx
+msgctxt "field.gs6OdV"
+msgid "The shipment didn't load"
+msgstr "The shipment didn't load"
 
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.yNSJTr"
-msgid "Label created"
-msgstr "Label created"
+#: src/features/field/components/shipment-detail.tsx
+msgctxt "field.n7yYXG"
+msgid "Service"
+msgstr "Service"
 
+#: src/features/field/components/shipment-detail.tsx
 #: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.oLBci1"
-msgid "In transit"
-msgstr "In transit"
+msgctxt "field.yT_GAp"
+msgid "Tracking number"
+msgstr "Tracking number"
 
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.UdVzmc"
-msgid "Out for delivery"
-msgstr "Out for delivery"
+#: src/features/field/components/shipment-detail.tsx
+msgctxt "field.dM-p3_"
+msgid "From"
+msgstr "From"
 
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.DMqnF4"
-msgid "Delivered"
-msgstr "Delivered"
+#: src/features/field/components/shipment-detail.tsx
+msgctxt "field.Q_5ViW"
+msgid "Parcels"
+msgstr "Parcels"
 
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.YAnsyA"
-msgid "Exception"
-msgstr "Exception"
+#: src/features/field/components/shipment-detail.tsx
+msgctxt "field.zCb8fX"
+msgid "Weight"
+msgstr "Weight"
 
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.wm96Jx"
-msgid "Returned"
-msgstr "Returned"
+#: src/features/field/components/shipment-detail.tsx
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.Lv0zJu"
+msgid "Details"
+msgstr "Details"
 
-#: src/features/field/components/shipment-tracking.tsx
-#: src/features/field/components/work-order-badges.tsx
-msgctxt "field.3wsVWF"
-msgid "Cancelled"
-msgstr "Cancelled"
+#: src/features/field/components/shipment-detail.tsx
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.9uOFF3"
+msgid "Overview"
+msgstr "Overview"
+
+#: src/features/field/components/shipment-detail.tsx
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.KQsZBW"
+msgid "Related"
+msgstr "Related"
+
+#: src/features/field/components/shipment-detail.tsx
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.ZmlNQ3"
+msgid "Activity"
+msgstr "Activity"
+
+#: src/features/field/components/shipment-detail.tsx
+msgctxt "field.v3tQCl"
+msgid "Delivery address"
+msgstr "Delivery address"
+
+#: src/features/field/components/shipment-detail.tsx
+msgctxt "field.D-v5e-"
+msgid "Tracking"
+msgstr "Tracking"
+
+#: src/features/field/components/shipment-detail.tsx
+msgctxt "field.uvuih3"
+msgid "No tracking events yet."
+msgstr "No tracking events yet."
+
+#: src/features/field/components/shipment-detail.tsx
+msgctxt "field.BYtLdP"
+msgid "Newest first."
+msgstr "Newest first."
 
 #: src/features/field/components/shipment-tracking.tsx
 msgctxt "field.xd9-PX"
@@ -12928,39 +13221,9 @@ msgid "The status follows the latest tracking event."
 msgstr "The status follows the latest tracking event."
 
 #: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.7CeqzL"
-msgid "The shipments didn't load"
-msgstr "The shipments didn't load"
-
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.TsxaHw"
-msgid "No shipments yet"
-msgstr "No shipments yet"
-
-#: src/features/field/components/shipment-tracking.tsx
 msgctxt "field.LLrtsC"
 msgid "Create a shipment, then buy its label from a carrier."
 msgstr "Create a shipment, then buy its label from a carrier."
-
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.mcUhhf"
-msgid "Reference"
-msgstr "Reference"
-
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.BzQPM-"
-msgid "Destination"
-msgstr "Destination"
-
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.yT_GAp"
-msgid "Tracking number"
-msgstr "Tracking number"
-
-#: src/features/field/components/shipment-tracking.tsx
-msgctxt "field.tzMNF3"
-msgid "Status"
-msgstr "Status"
 
 #: src/features/field/components/shipment-tracking.tsx
 msgctxt "field.-jwfm8"
@@ -13037,50 +13300,115 @@ msgctxt "field.tXYVJd"
 msgid "{from} to {to}"
 msgstr "{from} to {to}"
 
-#: src/features/field/components/work-order-badges.tsx
-msgctxt "field.4MnrK6"
-msgid "Unscheduled"
-msgstr "Unscheduled"
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.oxfy_i"
+msgid "The work order didn't load"
+msgstr "The work order didn't load"
 
-#: src/features/field/components/work-order-badges.tsx
-msgctxt "field.cXAlMR"
-msgid "Scheduled"
-msgstr "Scheduled"
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.04xGLE"
+msgid "Ends"
+msgstr "Ends"
 
-#: src/features/field/components/work-order-badges.tsx
-msgctxt "field.UHCOTT"
-msgid "En route"
-msgstr "En route"
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.ADKsID"
+msgid "Opened"
+msgstr "Opened"
 
-#: src/features/field/components/work-order-badges.tsx
-msgctxt "field.bC-TWQ"
-msgid "On site"
-msgstr "On site"
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.H4ETN2"
+msgid "No meter reading"
+msgstr "No meter reading"
 
-#: src/features/field/components/work-order-badges.tsx
-msgctxt "field.JXdbo8"
-msgid "Done"
-msgstr "Done"
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.CvJg7F"
+msgid "Complete the visit"
+msgstr "Complete the visit"
 
-#: src/features/field/components/work-order-badges.tsx
-msgctxt "field.477I0g"
-msgid "Low"
-msgstr "Low"
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.TZY4_c"
+msgid "Records the part and the meter reading, then marks the work order done."
+msgstr "Records the part and the meter reading, then marks the work order done."
 
-#: src/features/field/components/work-order-badges.tsx
-msgctxt "field.myq2ZL"
-msgid "Normal"
-msgstr "Normal"
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.40ua0c"
+msgid "Complete visit"
+msgstr "Complete visit"
 
-#: src/features/field/components/work-order-badges.tsx
-msgctxt "field.AxMhQr"
-msgid "High"
-msgstr "High"
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.b3wgJ_"
+msgid "Visit completed"
+msgstr "Visit completed"
 
-#: src/features/field/components/work-order-badges.tsx
-msgctxt "field.yN7aqf"
-msgid "Urgent"
-msgstr "Urgent"
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.qMePPG"
+msgid "Note"
+msgstr "Note"
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.mEAW7C"
+msgid "Part used"
+msgstr "Part used"
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.qVGRIE"
+msgid "Quantity"
+msgstr "Quantity"
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.ddfTTg"
+msgid "Meter"
+msgstr "Meter"
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.MOK_yK"
+msgid "Reading"
+msgstr "Reading"
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.wOG0Sd"
+msgid "Visit"
+msgstr "Visit"
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.wDl0_m"
+msgid "Schedule this work order on the dispatch board."
+msgstr "Schedule this work order on the dispatch board."
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.Y7TXhA"
+msgid "From the schedule to the finished job."
+msgstr "From the schedule to the finished job."
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.EyxPJo"
+msgid "Visit status"
+msgstr "Visit status"
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.1qdIBV"
+msgid "Left for the stop"
+msgstr "Left for the stop"
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.95stPq"
+msgid "Completed"
+msgstr "Completed"
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.vR3OoK"
+msgid "Parts used"
+msgstr "Parts used"
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.93Wf3k"
+msgid "No parts recorded yet."
+msgstr "No parts recorded yet."
+
+#: src/features/field/components/work-order-detail.tsx
+msgctxt "field.rFEurP"
+msgid "What the visit took from stock."
+msgstr "What the visit took from stock."
 
 #: src/features/finance-records/components/finance-detail.tsx
 msgctxt "finance.uf8udd"

@@ -2294,4 +2294,22 @@ export const ROUTES: readonly RouteEntry[] = [
     instant: true,
     scale: false,
   },
+  {
+    route: "/field/dispatch/[id]",
+    archetype: "detail",
+    url: null,
+    maxCalls: 12,
+    maxWaves: 3,
+    instant: true,
+    scale: false,
+  },
+  {
+    route: "/field/shipments/[id]",
+    archetype: "detail",
+    url: null,
+    maxCalls: 12,
+    maxWaves: 3,
+    instant: true,
+    scale: false,
+  },
 ];

@@ -139,3 +139,22 @@ export const unlinkContractRelations =
 
 export const removeContractAttachments =
   recordPages.contract.actions.attachments.remove;
+
+// Service and logistics
+export const linkWorkOrderRelations =
+  recordPages.work_order.actions.relations.link;
+
+export const unlinkWorkOrderRelations =
+  recordPages.work_order.actions.relations.unlink;
+
+export const removeWorkOrderAttachments =
+  recordPages.work_order.actions.attachments.remove;
+
+export const linkShipmentRelations =
+  recordPages.shipment.actions.relations.link;
+
+export const unlinkShipmentRelations =
+  recordPages.shipment.actions.relations.unlink;
+
+export const removeShipmentAttachments =
+  recordPages.shipment.actions.attachments.remove;

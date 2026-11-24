@@ -10,6 +10,8 @@ import { API_KEYS_TAG } from "@/features/api-keys/api-keys-cache";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { driveOf } from "@/features/drive/drive-client";
+import { FIELD_TAG } from "@/features/field/field-cache";
+import { MAINTENANCE_TAG } from "@/features/maintenance/maintenance-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -446,6 +448,75 @@ export const reconcileAccount = bsb.action(
       matched: run.data.matched.length,
       unmatched: run.data.unmatched.length,
       failed: run.data.failed.length,
+    });
+  },
+);
+
+// Service and logistics
+
+/** An empty form field is `""`; it means "not given". */
+const Blank = v.pipe(
+  v.optional(v.string(), ""),
+  v.trim(),
+  v.maxLength(2000),
+  v.transform((value) => (value === "" ? undefined : value)),
+);
+
+const Quantity = v.pipe(
+  v.optional(v.string(), ""),
+  v.trim(),
+  v.transform((value) => (value === "" ? undefined : value)),
+  v.check(
+    (value) => value === undefined || /^\d+(\.\d{1,3})?$/u.test(value),
+    "Enter a number with at most three decimals",
+  ),
+);
+
+/**
+ * Closes a visit: records the part used and the meter reading taken, then marks
+ * the work order done with the note: `service.completeVisit`. The status moves
+ * last, so a failed part or reading leaves the work order open.
+ */
+export const completeVisit = bsb.action(
+  {
+    input: v.object({
+      workOrderId: Id,
+      note: Blank,
+      partName: Blank,
+      partQuantity: Quantity,
+      meterId: Blank,
+      reading: Quantity,
+    }),
+    requireTenant: true,
+    permission: "dispatch.work",
+  },
+  async (
+    { workOrderId, note, partName, partQuantity, meterId, reading },
+    { db, auth },
+  ) => {
+    const visit = await db.$blocks.service.completeVisit({
+      workOrderId,
+      note,
+      parts:
+        partName === undefined
+          ? []
+          : [{ name: partName, quantity: partQuantity ?? "1" }],
+      readings:
+        meterId === undefined || reading === undefined
+          ? []
+          : [{ meterId, value: reading }],
+    });
+
+    if (!visit.ok) {
+      return visit;
+    }
+
+    await refreshCaller(auth, [FIELD_TAG, MAINTENANCE_TAG]);
+
+    return ok({
+      workOrderId: visit.data.workOrder.id,
+      parts: visit.data.parts,
+      readings: visit.data.readings,
     });
   },
 );

@@ -9,6 +9,9 @@ export const RECORD_TYPES = [
   "person",
   "deal",
   "contract",
+  // Service and logistics
+  "work_order",
+  "shipment",
 ] as const;
 
 export type RecordType = (typeof RECORD_TYPES)[number];

@@ -233,3 +233,171 @@ export async function loadShipmentTracking(
       .toReversed(),
   };
 }
+
+// Detail pages
+
+export interface WorkOrderPartRow {
+  readonly id: string;
+  readonly name: string;
+  readonly quantity: string;
+  readonly unit: string | null;
+}
+
+export interface MeterOption {
+  readonly id: string;
+  readonly name: string;
+  readonly unit: string;
+  readonly reading: string;
+}
+
+export interface WorkOrderDetail {
+  readonly card: WorkOrderCard;
+  readonly description: string | null;
+  readonly technician: string | null;
+  readonly enRouteAt: string | null;
+  readonly arrivedAt: string | null;
+  readonly completedAt: string | null;
+  readonly completionNote: string | null;
+  readonly createdAt: string;
+  readonly parts: readonly WorkOrderPartRow[];
+  readonly meters: readonly MeterOption[];
+}
+
+/**
+ * One work order with its parts and the meters a visit can read; `null` when
+ * absent.
+ */
+export async function loadWorkOrder(
+  id: string,
+): Promise<WorkOrderDetail | undefined | null> {
+  "use cache: private";
+  const request = await bsb.cached();
+  cacheTag(FIELD_TAG);
+  const { session, db } = request;
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
+  const order = await db.dispatch.get(id).orThrow();
+
+  if (!order) {
+    return undefined;
+  }
+
+  const [parts, metersRead, members] = await Promise.all([
+    db.dispatch.parts(id).orThrow(),
+    db.maintenance.meterPage({ limit: 100 }),
+    readMembers(request, tenant),
+  ]);
+
+  // A technician without maintenance access still sees the visit, without meters.
+  const meters = metersRead.ok ? metersRead.data.items : [];
+
+  const technician = members.find(
+    (member) => member.userId === order.technicianId,
+  );
+
+  return {
+    card: cardOf(order),
+    description: order.description ?? null,
+    technician: technician
+      ? (technician.name ?? technician.email ?? technician.userId)
+      : null,
+    enRouteAt: order.enRouteAt?.toString() ?? null,
+    arrivedAt: order.arrivedAt?.toString() ?? null,
+    completedAt: order.completedAt?.toString() ?? null,
+    completionNote: order.completionNote ?? null,
+    createdAt: order.createdAt.toString(),
+    parts: parts.map((part) => ({
+      id: part.id,
+      name: part.name,
+      quantity: part.quantity,
+      unit: part.unit ?? null,
+    })),
+    meters: meters.map((meter) => ({
+      id: meter.id,
+      name: meter.name,
+      unit: meter.unit,
+      reading: meter.reading,
+    })),
+  };
+}
+
+export interface ShipmentDetail {
+  readonly row: ShipmentRow;
+  readonly direction: string | null;
+  readonly service: string | null;
+  readonly trackingUrl: string | null;
+  readonly origin: string;
+  readonly address: readonly string[];
+  readonly packages: number;
+  readonly weightGrams: number;
+  readonly deliveredAt: string | null;
+  readonly deliveredTo: string | null;
+  readonly timeline: readonly TrackingStep[];
+}
+
+/** One shipment with its tracking timeline; `undefined` when it does not exist. */
+export async function loadShipment(
+  id: string,
+): Promise<ShipmentDetail | undefined | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(FIELD_TAG);
+
+  if (!tenantOf(session)) {
+    return null;
+  }
+
+  const shipment = await db.shipments.get(id).orThrow();
+
+  if (!shipment) {
+    return undefined;
+  }
+
+  const events = await db.shipments.trackingEvents(id).orThrow();
+  const { to } = shipment;
+
+  return {
+    row: {
+      id: shipment.id,
+      reference: shipment.reference,
+      status: shipment.status,
+      recipient: to.name ?? to.company ?? "",
+      destination: `${to.city}, ${to.country}`,
+      carrier: shipment.carrier ?? null,
+      trackingNumber: shipment.trackingNumber ?? null,
+      updatedAt: shipment.updatedAt.toString(),
+    },
+    direction: shipment.direction ?? null,
+    service: shipment.service ?? null,
+    trackingUrl: shipment.trackingUrl ?? null,
+    origin: shipment.from.company ?? shipment.from.name ?? shipment.from.city,
+    address: [
+      to.name,
+      to.company,
+      to.line1,
+      to.line2,
+      [to.postalCode, to.city].filter(Boolean).join(" "),
+      to.country,
+    ].filter((line): line is string => line !== undefined && line !== ""),
+    packages: shipment.packages.length,
+    weightGrams: shipment.packages.reduce(
+      (sum, parcel) => sum + parcel.weightGrams,
+      0,
+    ),
+    deliveredAt: shipment.deliveredAt?.toString() ?? null,
+    deliveredTo: shipment.deliveredTo ?? null,
+    timeline: events
+      .map((event) => ({
+        id: event.id,
+        status: event.status,
+        occurredAt: event.occurredAt.toString(),
+        description: event.description ?? null,
+        location: event.location ?? null,
+      }))
+      .toReversed(),
+  };
+}
