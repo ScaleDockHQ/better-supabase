@@ -14,7 +14,7 @@ const report = JSON.stringify({
       startTime: 1000,
       endTime: 41_000.4,
       assertionResults: [
-        { fullName: "a renders", duration: 31_000 },
+        { fullName: "a renders", duration: 11_000 },
         { fullName: "a reads", duration: 2000 },
         { fullName: "a skips", duration: null },
       ],
@@ -35,9 +35,9 @@ describe("durationsFromJson", () => {
 });
 
 describe("slowTestsFromJson", () => {
-  it("lists the tests over half the 60 second timeout", () => {
+  it("lists the tests over half the 20 second timeout", () => {
     expect(slowTestsFromJson(report)).toEqual([
-      { file: "tests/sql/a.test.ts", test: "a renders", durationMs: 31_000 },
+      { file: "tests/sql/a.test.ts", test: "a renders", durationMs: 11_000 },
     ]);
   });
 });

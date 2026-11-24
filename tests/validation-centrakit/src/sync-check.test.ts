@@ -16,7 +16,7 @@ describe("the committed module files", () => {
   // 30 s on CI runners in November 2026, so 30 s failed the 0.68.0 release run.
   it(
     "are what upgrade writes for the config and the provider snapshot",
-    { timeout: 180_000 },
+    { timeout: 120_000 },
     async () => {
       const result = await run(["upgrade", "--check", "--cwd", fixture]);
 

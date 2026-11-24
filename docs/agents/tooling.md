@@ -62,8 +62,8 @@ bump is one commit series:
   the `coverage` job merges the blob reports and checks the thresholds below
   (ADR 1229). A red `main` opens the `main-red` issue.
 - The `coverage` job also fails when a test file runs 50% and 5 seconds over
-  its baseline in `unit-durations.json`, or a test takes over 30 seconds (half
-  the 60 second timeout), and lists the 20 slowest files in the step summary.
+  its baseline in `unit-durations.json`, or a test takes over 10 seconds (half
+  the 20 second timeout), and lists the 20 slowest files in the step summary.
   After a deliberate change, refresh the baseline from a green run:
   `gh run download <run id> -n unit-report`, then
   `node scripts/unit-durations.ts --write packages/better-supabase/tests/unit-durations.json unit-report.json`,

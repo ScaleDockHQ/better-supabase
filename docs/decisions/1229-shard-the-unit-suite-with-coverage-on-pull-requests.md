@@ -31,7 +31,7 @@ job on a larger runner (`vars.UNIT_RUNNER`). That runner was never created, so t
 - The `coverage` job merges the blob reports and checks the same thresholds on the same scope, so
   a pull request fails on coverage before it merges. A shard checks none.
 - The same job fails when a file runs 50% and 5 seconds over its baseline, or a test takes over
-  half the 60 second timeout, and writes the 20 slowest files to the step summary
+  half the 20 second timeout, and writes the 20 slowest files to the step summary
   (`scripts/unit-durations.ts`). `docs/agents/tooling.md` says how to refresh the baseline.
 - `main` reuses a pull request's shards through the Turbo Remote Cache when the merge commit has
   the same inputs as the pull request's merge ref, which holds when `main` did not move between

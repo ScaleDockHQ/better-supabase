@@ -35,7 +35,7 @@ const fresh = async (
 const upgrade = (dir: string) => run(["upgrade", "--cwd", dir]);
 
 // The first command loads the CLI from source.
-const TIMEOUT = 180_000;
+const TIMEOUT = 60_000;
 
 // The app's three adopted tables, which a module must never create again.
 const APP_TABLES = ["organizations", "memberships", "profiles"] as const;

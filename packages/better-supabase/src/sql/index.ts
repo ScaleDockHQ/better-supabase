@@ -112,6 +112,7 @@ export type { BlockSqlTopic } from "./render.ts";
 
 export {
   clearMemo,
+  isMemoized,
   memoStats,
   memoized,
   setMemoBackend,

@@ -13,6 +13,5 @@ export default defineConfig({
   resolve: { conditions },
   ssr: { resolve: { conditions } },
   // These tests connect a definition from the core entry, which holds no connection runtime; the setup file installs the full one.
-  // The upgrade and single-tenant renders took over 60 seconds on a loaded release runner.
-  test: { setupFiles: ["./src/connection-runtime.ts"], testTimeout: 180_000 },
+  test: { setupFiles: ["./src/connection-runtime.ts"] },
 });

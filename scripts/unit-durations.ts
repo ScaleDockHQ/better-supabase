@@ -14,8 +14,8 @@ const SLOWEST = 20;
 const GROWTH = 1.5;
 const SLACK_MS = 5000;
 
-// Half of the unit project's 60 second testTimeout.
-const TEST_LIMIT_MS = 30_000;
+// Half of the unit project's 20 second testTimeout.
+const TEST_LIMIT_MS = 10_000;
 
 const reportSchema = v.object({
   testResults: v.array(
