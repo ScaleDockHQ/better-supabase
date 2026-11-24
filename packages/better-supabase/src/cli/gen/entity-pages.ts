@@ -371,15 +371,33 @@ export function entityPageIndexes(
 
   const carried = existing?.get(`${table.schema}.${table.name}`) ?? [];
 
-  return [...indexes.values()].filter(
-    (index) =>
-      index.kind !== "facet" ||
-      !carried.some(
-        (columns) =>
-          columns.length === index.columns.length &&
-          columns.every((column, at) => column === index.columns[at]),
-      ),
-  );
+  const all = [...indexes.values()];
+
+  const isPrefixOf = (shorter: readonly string[], longer: readonly string[]) =>
+    shorter.length < longer.length &&
+    shorter.every((column, at) => column === longer[at]);
+
+  return all
+    .filter(
+      (index) =>
+        // A btree whose columns lead another btree on the same table is
+        // served by that longer index, so it only costs writes.
+        index.method !== "btree" ||
+        !all.some(
+          (other) =>
+            other.method === "btree" &&
+            isPrefixOf(index.columns, other.columns),
+        ),
+    )
+    .filter(
+      (index) =>
+        index.kind !== "facet" ||
+        !carried.some(
+          (columns) =>
+            columns.length === index.columns.length &&
+            columns.every((column, at) => column === index.columns[at]),
+        ),
+    );
 }
 
 const quote = (name: string): string => `"${name.replaceAll('"', '""')}"`;
