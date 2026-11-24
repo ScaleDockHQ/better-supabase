@@ -104,9 +104,6 @@ export const ACTIONS: readonly ActionCase[] = [
   write(COMPOSITES, "payAndFulfilOrder", "/shop/orders", async () => [
     { orderId: await firstRowId("orders") },
   ]),
-  write(COMPOSITES, "publishEntryWithVersion", "/content", async () => [
-    { entryId: await firstRowId("content_entries") },
-  ]),
   write(COMPOSITES, "prescribeMedicationWithConsent", "/care", async () => [
     {
       clientId: await firstRowId("customers"),

@@ -3,7 +3,6 @@ import type { Tasks } from "better-supabase/blocks/tasks";
 
 import { rpcTransport } from "better-supabase/blocks";
 import { createCare } from "better-supabase/blocks/care";
-import { createCms } from "better-supabase/blocks/cms";
 import { createCommerce } from "better-supabase/blocks/commerce";
 import { createCrm } from "better-supabase/blocks/crm";
 import { createFilespace } from "better-supabase/blocks/filespace";
@@ -184,24 +183,6 @@ export function financeOf(db: AppDb) {
       tax: blocks.tax,
       banking: blocks.banking,
       invoices: blocks.invoices,
-    },
-  });
-}
-
-/**
- * The `cms` composite's helper: `publishWithVersion` over the content,
- * versions, approvals and attachments clients.
- */
-export function cmsOf(db: AppDb) {
-  const { $blocks: blocks } = db;
-
-  return createCms({
-    transport: rpcTransport(db.$client),
-    parts: {
-      content: blocks.content,
-      versions: blocks.versions,
-      approvals: blocks.approvals,
-      attachments: blocks.attachments,
     },
   });
 }

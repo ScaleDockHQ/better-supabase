@@ -69,7 +69,7 @@ test("an agent opens instantly, then its runs, approvals and guardrail hits stre
     main.getByRole("button", { name: "Approve" }).first(),
   ).toBeVisible();
 
-  await main.getByRole("link", { name: "Guardrails" }).click();
+  await main.locator('a[href*="tab=guardrails"]').click();
   await expect(
     main.getByText("The reply left the renewal topic"),
   ).toBeVisible();

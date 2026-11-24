@@ -518,9 +518,22 @@ export async function loadApplication(
     };
   }
 
+  const jobPipeline =
+    all.stages.length === 0 && detail.data.pipelineId !== undefined
+      ? await db.pipelines.get(detail.data.pipelineId)
+      : null;
+
+  const stages = jobPipeline?.ok
+    ? jobPipeline.data.stages.map((stage) => ({
+        id: stage.id,
+        name: stage.name,
+        category: stage.category,
+      }))
+    : all.stages;
+
   return {
     row,
-    stages: all.stages,
+    stages,
     rejectionReason: detail.data.rejectionReason ?? null,
     hiredAt: detail.data.hiredAt?.toString() ?? null,
     scorecards: detail.data.scorecards.map((card) => ({

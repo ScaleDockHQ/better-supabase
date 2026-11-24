@@ -9423,39 +9423,14 @@ msgid "Archived"
 msgstr "Gearchiveerd"
 
 #: src/features/content/components/content-detail.tsx
-msgctxt "content.L-LQwD"
-msgid "Publish with a version"
-msgstr "Publiceren met een versie"
-
-#: src/features/content/components/content-detail.tsx
-msgctxt "content.7_bh3y"
-msgid "Keeps a version of the content, then publishes the entry."
-msgstr "Bewaart een versie van de inhoud en publiceert daarna het item."
-
-#: src/features/content/components/content-detail.tsx
-msgctxt "content.vQrzW-"
-msgid "Publish with version"
-msgstr "Publiceren met versie"
-
-#: src/features/content/components/content-detail.tsx
 msgctxt "content.syEQFE"
 msgid "Publish"
 msgstr "Publiceren"
 
 #: src/features/content/components/content-detail.tsx
-msgctxt "content.ks_Dcy"
-msgid "Entry published with a version"
-msgstr "Item gepubliceerd met een versie"
-
-#: src/features/content/components/content-detail.tsx
-msgctxt "content.ncz4nZ"
-msgid "Version label (optional)"
-msgstr "Versielabel (optioneel)"
-
-#: src/features/content/components/content-detail.tsx
-msgctxt "content.TgZlDM"
-msgid "Spring launch"
-msgstr "Lenteslancering"
+msgctxt "content.wqN6DE"
+msgid "Entry published"
+msgstr "Item gepubliceerd"
 
 #: src/features/content/components/content-detail.tsx
 msgctxt "content.hrgo-E"

@@ -75,7 +75,10 @@ test("discussing a case posts the comment", async ({ page }) => {
   await dialog.getByRole("button", { name: "Post comment" }).click();
 
   await expect(
-    main.getByText("Re-test scheduled for Monday.").filter({ visible: true }),
+    main
+      .getByText("Re-test scheduled for Monday.")
+      .filter({ visible: true })
+      .first(),
   ).toBeVisible();
 });
 

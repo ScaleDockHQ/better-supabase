@@ -59,7 +59,7 @@ test("an application opens with its stage path, then its sections stream in", as
       .getByRole("list", { name: "Application stage" }),
   ).toBeVisible();
   await expect(
-    main.getByText("Interviews").filter({ visible: true }),
+    main.getByText("Interviews", { exact: true }).filter({ visible: true }),
   ).toBeVisible();
 });
 

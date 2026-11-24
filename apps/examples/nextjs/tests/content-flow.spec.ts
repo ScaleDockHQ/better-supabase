@@ -57,7 +57,7 @@ test("an entry opens with its status and its record sections", async ({
   ).toBeVisible();
   await expect(main.getByText("Draft").first()).toBeVisible();
   await expect(
-    main.getByRole("button", { name: "Publish with version" }),
+    main.getByRole("button", { name: "Publish", exact: true }),
   ).toBeVisible();
 });
 
@@ -74,8 +74,6 @@ test("a draft is published with a version from its page", async ({ page }) => {
     .getByRole("main")
     .getByRole("link", { name: `Launch ${slug}` })
     .click();
-  await page.getByRole("button", { name: "Publish with version" }).click();
-  await page.getByLabel("Version label (optional)").fill("First cut");
   await page.getByRole("button", { name: "Publish", exact: true }).click();
 
   await expect(

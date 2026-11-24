@@ -9423,39 +9423,14 @@ msgid "Archived"
 msgstr "Archived"
 
 #: src/features/content/components/content-detail.tsx
-msgctxt "content.L-LQwD"
-msgid "Publish with a version"
-msgstr "Publish with a version"
-
-#: src/features/content/components/content-detail.tsx
-msgctxt "content.7_bh3y"
-msgid "Keeps a version of the content, then publishes the entry."
-msgstr "Keeps a version of the content, then publishes the entry."
-
-#: src/features/content/components/content-detail.tsx
-msgctxt "content.vQrzW-"
-msgid "Publish with version"
-msgstr "Publish with version"
-
-#: src/features/content/components/content-detail.tsx
 msgctxt "content.syEQFE"
 msgid "Publish"
 msgstr "Publish"
 
 #: src/features/content/components/content-detail.tsx
-msgctxt "content.ks_Dcy"
-msgid "Entry published with a version"
-msgstr "Entry published with a version"
-
-#: src/features/content/components/content-detail.tsx
-msgctxt "content.ncz4nZ"
-msgid "Version label (optional)"
-msgstr "Version label (optional)"
-
-#: src/features/content/components/content-detail.tsx
-msgctxt "content.TgZlDM"
-msgid "Spring launch"
-msgstr "Spring launch"
+msgctxt "content.wqN6DE"
+msgid "Entry published"
+msgstr "Entry published"
 
 #: src/features/content/components/content-detail.tsx
 msgctxt "content.hrgo-E"

@@ -776,6 +776,7 @@ declare
   v_customers uuid[];
   v_course uuid;
   v_module uuid;
+  v_pipeline uuid;
 begin
   if exists (select 1 from better_supabase.job_openings j where j.tenant_id = v_tenant and j.title = 'Support agent') then
     return;
@@ -798,6 +799,15 @@ begin
     perform better_supabase.apply_to_job(v_support, jsonb_build_object('type', 'customer', 'id', v_customers[2]), 'careers page', null);
     perform better_supabase.apply_to_job(v_sales, jsonb_build_object('type', 'customer', 'id', v_customers[3]), 'linkedin', null);
     perform better_supabase.apply_to_job(v_sales, jsonb_build_object('type', 'customer', 'id', v_customers[4]), 'careers page', null);
+
+    v_pipeline := (better_supabase.save_pipeline(v_tenant, null, 'application', 'hiring', 'Hiring', null, true) ->> 'id')::uuid;
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'applied', 'Applied', 'active', null, null, null, null);
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'screen', 'Screen', 'active', null, null, null, null);
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'interview', 'Interview', 'active', null, null, null, null);
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'offer', 'Offer', 'active', null, null, null, null);
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'hired', 'Hired', 'hired', null, null, null, null);
+    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'rejected', 'Rejected', 'rejected', null, null, null, null);
+    update better_supabase.applications a set pipeline_id = v_pipeline where a.tenant_id = v_tenant and a.pipeline_id is null;
 
     update better_supabase.applications a set stage_id = ranked.id
     from (

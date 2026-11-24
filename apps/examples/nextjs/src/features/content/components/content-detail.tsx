@@ -14,18 +14,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { publishEntryWithVersion } from "@/features/composites/composites-actions";
 import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { settle } from "@/features/crm/crm-queries";
 import { ActionButton } from "@/features/sales/components/action-button";
-import { ActionDialog } from "@/features/sales/components/action-dialog";
 import {
   dateFormatter,
   holds,
   requirePermission,
 } from "@/features/sales/components/overview-support";
 
-import { archiveEntry } from "../content-actions";
+import { archiveEntry, publishEntry } from "../content-actions";
 import { getContentEntry } from "../content-queries";
 
 export function ContentDetailSkeleton() {
@@ -109,24 +107,12 @@ export async function ContentDetail({ id, tab }: { id: string; tab: string }) {
         canPublish ? (
           <>
             {entry.status === "draft" || entry.status === "scheduled" ? (
-              <ActionDialog
-                action={publishEntryWithVersion}
-                title={t("Publish with a version")}
-                description={t(
-                  "Keeps a version of the content, then publishes the entry.",
-                )}
-                trigger={t("Publish with version")}
-                submitLabel={t("Publish")}
-                successMessage={t("Entry published with a version")}
-                hidden={{ entryId: entry.id }}
-                fields={[
-                  {
-                    name: "label",
-                    label: t("Version label (optional)"),
-                    kind: "text",
-                    placeholder: t("Spring launch"),
-                  },
-                ]}
+              <ActionButton
+                action={publishEntry}
+                input={{ entryId: entry.id }}
+                label={t("Publish")}
+                variant="default"
+                successMessage={t("Entry published")}
               />
             ) : null}
             {entry.status === "archived" ? null : (

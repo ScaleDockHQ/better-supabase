@@ -13,7 +13,6 @@ import { BOOKINGS_TAG } from "@/features/bookings/bookings-cache";
 import { findBookingPage } from "@/features/bookings/bookings-queries";
 import { CALENDAR_TAG } from "@/features/calendar/calendar-cache";
 import { CASES_TAG } from "@/features/cases/cases-cache";
-import { CONTENT_TAG } from "@/features/content/content-cache";
 import { COURSES_TAG } from "@/features/courses/courses-cache";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
@@ -32,7 +31,6 @@ import { bsb } from "@/lib/supabase/server";
 
 import {
   careOf,
-  cmsOf,
   commerceOf,
   crmOf,
   filespaceOf,
@@ -568,18 +566,28 @@ export const openTicket = bsb.action(
     permission: "tasks.write",
   },
   async ({ title, body }, { db, auth, tenant }) => {
-    const opened = await supportOf(db).openTicket({
+    // `support.openTicket` starts the clocks on a `task` subject, and this app
+    // names the entity `work_item` (finding 4): the same two calls, by hand.
+    const created = await db.$blocks.tasks.create({
       organizationId: tenant,
-      ticket: body === undefined ? { title } : { title, body },
+      input: body === undefined ? { title } : { title, body },
     });
 
-    if (!opened.ok) {
-      return opened;
+    if (!created.ok) {
+      return created;
+    }
+
+    const clocks = await db.$blocks.sla.start({
+      subject: { type: "work_item", id: created.data.id },
+    });
+
+    if (!clocks.ok) {
+      return clocks;
     }
 
     await refreshCaller(auth, [PROJECTS_TAG, CASES_TAG]);
 
-    return ok({ id: opened.data.ticket.id, clocks: opened.data.clocks.length });
+    return ok({ id: created.data.id, clocks: clocks.data.length });
   },
 );
 
@@ -603,40 +611,6 @@ export const discussCase = bsb.action(
     await refreshCaller(auth, [CASES_TAG, CRM_TAG, CUSTOMERS_TAG]);
 
     return ok({ caseId });
-  },
-);
-
-/**
- * Keeps a version of an entry's content, then publishes it:
- * `cms.publishWithVersion`. A retry adds no second version for unchanged
- * content.
- */
-export const publishEntryWithVersion = bsb.action(
-  {
-    input: v.object({
-      entryId: Id,
-      label: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(120))),
-    }),
-    requireTenant: true,
-    permission: "content.publish",
-  },
-  async ({ entryId, label }, { db, auth }) => {
-    const published = await cmsOf(db).publishWithVersion({
-      entryId,
-      subject: { type: "content_entry", id: entryId },
-      label: label === "" ? undefined : label,
-    });
-
-    if (!published.ok) {
-      return published;
-    }
-
-    await refreshCaller(auth, [CONTENT_TAG]);
-
-    return ok({
-      entryId: published.data.entry.id,
-      version: published.data.version.number,
-    });
   },
 );
 
