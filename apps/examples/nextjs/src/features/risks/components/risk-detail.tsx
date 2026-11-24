@@ -113,7 +113,14 @@ async function Body({ data, tab }: { data: RiskDetailData; tab: string }) {
         <>
           <RecordBoundSections
             subject={subject}
-            sections={["tags", "fields", "approvals", "reminders"]}
+            sections={[
+              "tags",
+              "fields",
+              "approvals",
+              "reminders",
+              "conversations",
+              "workflows",
+            ]}
           />
           <Card size="sm">
             <CardHeader>

@@ -22,6 +22,7 @@ const READ_PERMISSION: Readonly<Record<PageRecordType, Permission>> = {
   contract: "contracts.read",
   quote: "quotes.read",
   customer: "customers.read",
+  case: "cases.read",
   agent: "agents.read",
 };
 
@@ -96,6 +97,21 @@ async function summarize(
 
       return found.ok
         ? { name: found.data.name, status: found.data.status }
+        : null;
+    }
+
+    case "case": {
+      const found = await db.cases.get(id);
+
+      return found.ok
+        ? {
+            number: found.data.number,
+            title: found.data.title,
+            kind: found.data.kind.name,
+            status: found.data.status,
+            severity: found.data.severity ?? null,
+            stage: found.data.stage?.name ?? null,
+          }
         : null;
     }
 

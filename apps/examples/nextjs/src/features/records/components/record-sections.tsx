@@ -15,6 +15,7 @@ import {
   AttachmentsUploader,
   AttachmentsUploaderSkeleton,
 } from "@/features/records/components/attachments-uploader";
+import { RecordLive } from "@/features/records/components/record-live";
 import {
   RecordTimeline,
   RecordTimelineSkeleton,
@@ -119,7 +120,12 @@ export async function RecordHistory({ subject }: { subject: RecordSubject }) {
     getAuthors(),
   ]);
 
-  return <RecordTimeline timeline={timeline} authors={authors} />;
+  return (
+    <>
+      <RecordLive topics={["attachments"]} />
+      <RecordTimeline timeline={timeline} authors={authors} />
+    </>
+  );
 }
 
 // skeleton: RecordDiscussionSkeleton, exported below

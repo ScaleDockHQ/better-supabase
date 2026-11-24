@@ -6,7 +6,10 @@ import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
+import type { ConversationRow } from "@/features/inbox/inbox-types";
+
 import { customerPage } from "@/features/customers/customer-record";
+import { toConversationRow } from "@/features/inbox/inbox-types";
 import { getMembers } from "@/features/organization/organization-queries";
 import {
   loadDirectory,
@@ -455,4 +458,69 @@ export async function getAuthors(): Promise<Readonly<Record<string, string>>> {
       return name ? [[member.userId, name]] : [];
     }),
   );
+}
+
+/** The newest conversations the lookup reads, across every status. */
+const CONVERSATION_WINDOW = 50;
+
+/**
+ * The inbox conversations of the people on the record: the record itself when
+ * it is a person, otherwise the people on its relations binding. The inbox
+ * lists by tenant, so the newest ones are filtered to those people.
+ */
+export async function getRecordConversations(
+  subject: RecordSubject,
+): Promise<readonly ConversationRow[]> {
+  const [{ db }, session] = await Promise.all([bsb.context(), getSession()]);
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return [];
+  }
+
+  const people = new Set<string>(subject.type === "person" ? [subject.id] : []);
+
+  if (subject.type !== "person") {
+    const { bindings } = await recordPages[subject.type].load(subject.id, {
+      bindings: ["relations"],
+    });
+
+    if (bindings.relations.kind === "ok") {
+      for (const link of bindings.relations.data) {
+        if (link.subject.type === "person") {
+          people.add(link.subject.id);
+        }
+      }
+    }
+  }
+
+  if (people.size === 0) {
+    return [];
+  }
+
+  const { items } = await db.inbox.conversations
+    .page({
+      organizationId: tenant,
+      filters: { status: ["all"] },
+      limit: CONVERSATION_WINDOW,
+    })
+    .orThrow();
+
+  return items
+    .filter((conversation) => people.has(conversation.contactId))
+    .map(toConversationRow);
+}
+
+/** The newest workflow runs started for one record. */
+export async function getRecordRuns(subject: RecordSubject) {
+  const [{ db }, session] = await Promise.all([bsb.context(), getSession()]);
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return [];
+  }
+
+  return db.workflows.runs
+    .list({ tenant, subject, mode: "all", limit: 10 })
+    .orThrow();
 }

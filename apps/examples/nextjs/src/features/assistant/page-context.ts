@@ -6,6 +6,7 @@ export const PAGE_RECORD_TYPES = [
   "contract",
   "quote",
   "customer",
+  "case",
   "agent",
 ] as const;
 
@@ -32,6 +33,7 @@ const RECORD_ROUTES: readonly {
   { prefix: "/crm/contracts/", type: "contract" },
   { prefix: "/crm/quotes/", type: "quote" },
   { prefix: "/customers/", type: "customer" },
+  { prefix: "/cases/", type: "case" },
   { prefix: "/assistant/agents/", type: "agent" },
 ];
 

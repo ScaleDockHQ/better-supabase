@@ -17,6 +17,7 @@ describe("pageContextOf", () => {
       recordId: ID,
     });
     expect(pageContextOf(`/assistant/agents/${ID}`).recordType).toBe("agent");
+    expect(pageContextOf(`/cases/${ID}`).recordType).toBe("case");
   });
 
   it("keeps only the path on a list or a page with another segment", () => {

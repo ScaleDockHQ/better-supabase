@@ -115,7 +115,14 @@ export async function DealDetail({
           <PropertiesRail title={t("Details")} properties={facts} />
           <RecordBoundSections
             subject={subject}
-            sections={["tags", "fields", "approvals", "reminders"]}
+            sections={[
+              "tags",
+              "fields",
+              "approvals",
+              "reminders",
+              "conversations",
+              "workflows",
+            ]}
           />
         </>
       }

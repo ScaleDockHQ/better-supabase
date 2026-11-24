@@ -2,6 +2,7 @@ import { Suspense } from "react";
 
 import type { RecordSubject } from "@/features/records/record-subject";
 
+import { RecordConversations } from "@/features/records/components/record-conversations";
 import {
   RecordDiscussion,
   RecordDiscussionSkeleton,
@@ -18,19 +19,22 @@ import {
   RecordReminders,
   RecordTags,
 } from "@/features/records/components/record-side-sections";
+import { RecordWorkflows } from "@/features/records/components/record-workflows";
 
 import { AfterNavigation } from "./after-navigation";
 import { RecordSectionSkeleton } from "./record-section-states";
 
 export type BoundSection =
   | "approvals"
+  | "conversations"
   | "discussion"
   | "fields"
   | "files"
   | "history"
   | "relations"
   | "reminders"
-  | "tags";
+  | "tags"
+  | "workflows";
 
 /**
  * The sections every record binds through `bsbCore.record`: each one reads its
@@ -123,6 +127,26 @@ export function RecordBoundSections({
               <Suspense key={section} fallback={<RecordSectionSkeleton />}>
                 <AfterNavigation>
                   <RecordTags subject={subject} />
+                </AfterNavigation>
+              </Suspense>
+            );
+          }
+
+          case "conversations": {
+            return (
+              <Suspense key={section} fallback={<RecordSectionSkeleton />}>
+                <AfterNavigation>
+                  <RecordConversations subject={subject} />
+                </AfterNavigation>
+              </Suspense>
+            );
+          }
+
+          case "workflows": {
+            return (
+              <Suspense key={section} fallback={<RecordSectionSkeleton />}>
+                <AfterNavigation>
+                  <RecordWorkflows subject={subject} />
                 </AfterNavigation>
               </Suspense>
             );
