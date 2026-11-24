@@ -38,11 +38,36 @@ const stringValue = (text: string): string => {
   return text.slice(open + 1, -1).replaceAll("''", "'");
 };
 
+/**
+ * One copy of each short token text per read: a large schema repeats its
+ * keywords, names and operators millions of times.
+ */
+type Interned = Map<string, string>;
+
+const INTERNED_LENGTH_MAX = 64;
+
+const interned = (strings: Interned, text: string): string => {
+  if (text.length > INTERNED_LENGTH_MAX) {
+    return text;
+  }
+
+  const known = strings.get(text);
+
+  if (known !== undefined) {
+    return known;
+  }
+
+  strings.set(text, text);
+
+  return text;
+};
+
 function classify(
   source: Source,
   token: ScanToken,
+  strings: Interned,
 ): Pick<CodeToken, "kind" | "text" | "value"> | "dollar" {
-  const text = source.slice(token.start, token.end);
+  const text = interned(strings, source.slice(token.start, token.end));
 
   if (token.kind.endsWith("SCONST") || token.kind === "BCONST") {
     return text.startsWith("$")
@@ -54,12 +79,16 @@ function classify(
     return {
       kind: "quoted",
       text,
-      value: text.slice(1, -1).replaceAll('""', '"'),
+      value: interned(strings, text.slice(1, -1).replaceAll('""', '"')),
     };
   }
 
   if (token.kind === "IDENT" || token.keywordKind !== "none") {
-    return { kind: "word", text: text.toLowerCase(), value: text };
+    return {
+      kind: "word",
+      text: interned(strings, text.toLowerCase()),
+      value: text,
+    };
   }
 
   if (token.kind === "ICONST" || token.kind === "FCONST") {
@@ -75,16 +104,23 @@ async function expand(
   first: number,
   depth: number,
   out: CodeToken[],
+  strings: Interned,
 ): Promise<void> {
   const scanned = await scan(text);
   const source = new Source(text, scanned);
 
   for (const token of source.tokens) {
     const line = first + source.lineAt(token.start) - 1;
-    const read = classify(source, token);
+    const read = classify(source, token, strings);
 
     if (read !== "dollar") {
-      out.push({ ...read, line, depth });
+      out.push({
+        kind: read.kind,
+        text: read.text,
+        value: read.value,
+        line,
+        depth,
+      });
       continue;
     }
 
@@ -98,7 +134,7 @@ async function expand(
     try {
       // The body of a function is plpgsql, which the SQL scanner tokenizes
       // well enough to find calls, strings and statement ends.
-      await expand(inner, scan, bodyLine, depth + 1, out);
+      await expand(inner, scan, bodyLine, depth + 1, out, strings);
     } catch {
       // A dollar-quoted text that is not code (an unterminated quote inside a
       // message, a template) stays one string.
@@ -121,7 +157,7 @@ export async function codeStatementsFrom(
 ): Promise<readonly CodeStatement[]> {
   const tokens: CodeToken[] = [];
 
-  await expand(text, scan, 1, 0, tokens);
+  await expand(text, scan, 1, 0, tokens, new Map());
 
   const top = tokens.flatMap((token, at) =>
     token.depth === 0 ? [{ token, at }] : [],

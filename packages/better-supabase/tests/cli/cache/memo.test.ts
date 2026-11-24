@@ -111,6 +111,24 @@ describe("memoized", () => {
     expect(memoStats.computed).toBe(1);
   });
 
+  it("answers a result it called memoized after the file drops it", async () => {
+    await installMemo(root);
+    memoized("pinned", ["kept"], isNumber, () => 1);
+    await installMemo(root);
+
+    expect(isMemoized("pinned", ["kept"], isNumber)).toBe(true);
+
+    for (let index = 0; index < 60; index += 1) {
+      memoized("pinned", [index], isNumber, () => index);
+    }
+
+    expect(
+      memoized("pinned", ["kept"], isNumber, () => {
+        throw new Error("computed a result isMemoized promised");
+      }),
+    ).toBe(1);
+  });
+
   it("keeps the file small: only the newest results of a name stay", async () => {
     await installMemo(root);
 

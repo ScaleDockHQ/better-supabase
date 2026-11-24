@@ -113,11 +113,21 @@ export function isMemoized<T>(
     return false;
   }
 
-  if (state.held.has(`${namespace}:${key}`)) {
-    return true;
+  const id = `${namespace}:${key}`;
+
+  if (state.held.has(id)) {
+    return accept(state.held.get(id));
   }
 
   const stored = state.backend?.get(namespace, key);
 
-  return stored !== undefined && accept(stored);
+  if (stored === undefined || !accept(stored)) {
+    return false;
+  }
+
+  // Held now, so a later write that drops it from the store can't turn the
+  // promised answer into a compute whose reads the caller skipped.
+  state.held.set(id, stored);
+
+  return true;
 }
