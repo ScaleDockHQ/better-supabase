@@ -432,6 +432,20 @@ async function localDatabaseUrl(root: string, env: CliEnv): Promise<string> {
   );
 }
 
+const NO_DATABASE = "No database to connect to";
+
+/**
+ * Whether `error` is the `not_found` that `databaseUrl` throws when no stack or
+ * URL is set.
+ */
+export function isNoDatabase(error: unknown): error is CliError {
+  return (
+    error instanceof CliError &&
+    error.code === "not_found" &&
+    error.message.startsWith(NO_DATABASE)
+  );
+}
+
 /** The running stack's `DB_URL`, or `not_found` naming both places it looked. */
 async function statusDatabaseUrl(
   root: string,
@@ -475,7 +489,7 @@ async function statusDatabaseUrl(
 
   throw new CliError(
     "not_found",
-    `No database to connect to: ${noPort}, and \`${command}\` ${failure}. Start the stack, set [db] port, or pass $DATABASE_URL or --db-url-stdin.`,
+    `${NO_DATABASE}: ${noPort}, and \`${command}\` ${failure}. Start the stack, set [db] port, or pass $DATABASE_URL or --db-url-stdin.`,
     {
       suggestion:
         stack === undefined

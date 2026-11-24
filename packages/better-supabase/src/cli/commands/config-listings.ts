@@ -1,4 +1,8 @@
+import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
+import type { ShareCheck } from "../doctor/function-shares.ts";
+import type { Snapshot } from "../introspect/types.ts";
 
 import {
   FUNCTION_CALLERS,
@@ -9,9 +13,111 @@ import {
 } from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { commandMeta } from "../core/manifest.ts";
+import {
+  checkShareable,
+  qualifiedName,
+  shareScope,
+} from "../doctor/function-shares.ts";
+import { toCatalog } from "../introspect/catalog.ts";
 import { schemaTagComments } from "../schema-tags.ts";
 import { loadSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
+
+/** `public.*_payload` as a pattern over `schema.name`. */
+function globPattern(glob: string): RegExp {
+  const escaped = qualifiedName(glob)
+    .split("*")
+    .map((part) => part.replaceAll(/[$()+.?[\\\]^{|}]/gu, String.raw`\$&`))
+    .join(".*");
+
+  return new RegExp(`^${escaped}$`, "u");
+}
+
+function verdictOf(check: ShareCheck): string {
+  if (check.reasons.length > 0) {
+    return "can't be shared";
+  }
+
+  return check.listed || check.name.startsWith("better_supabase.")
+    ? "shareable"
+    : "shareable once sharedFunctions lists it";
+}
+
+function shareLines(check: ShareCheck, depth: number): string[] {
+  const pad = "  ".repeat(depth);
+
+  const facts = [
+    ...(check.reads.length > 0 ? [`reads ${check.reads.join(", ")}`] : []),
+    ...(check.permissions.length > 0
+      ? [`filters by ${check.permissions.join(", ")}`]
+      : []),
+  ];
+
+  return [
+    `${pad}${check.name}: ${verdictOf(check)}${facts.length > 0 ? ` (${facts.join("; ")})` : ""}`,
+    ...check.reasons.map((reason) => `${pad}  - ${reason}`),
+    ...check.calls.flatMap((call) => shareLines(call, depth + 1)),
+  ];
+}
+
+/**
+ * `config functions --shareable`: BS430's check on functions before they are
+ * listed.
+ */
+export async function shareableReport(
+  config: ResolvedConfig,
+  snapshot: Snapshot,
+  glob: string,
+): Promise<CommandResult> {
+  const provider = config.authorization;
+
+  if (!provider) {
+    return {
+      code: 1,
+      errorCode: "failed",
+      error:
+        "The config sets no authorization provider, so no function can be shared per tenant.",
+    };
+  }
+
+  const catalog = toCatalog(snapshot);
+  const pattern = globPattern(glob);
+
+  const matched = catalog.functions.filter((fn) =>
+    pattern.test(`${fn.schema}.${fn.name}`),
+  );
+
+  if (matched.length === 0) {
+    return {
+      code: 0,
+      output: `No function matches ${glob}.`,
+      data: { version: 1, functions: [] },
+    };
+  }
+
+  const scope = shareScope(
+    provider,
+    catalog.functions,
+    catalog.tables,
+    snapshot.extras.functionSources,
+  );
+
+  const checks = await Promise.all(
+    matched.map((fn) => checkShareable(fn, scope)),
+  );
+
+  const passing = checks.filter((check) => check.reasons.length === 0).length;
+
+  return {
+    code: 0,
+    output: [
+      ...checks.flatMap((check) => shareLines(check, 0)),
+      "",
+      `${String(passing)} of ${String(checks.length)} can be shared.`,
+    ].join("\n"),
+    data: { version: 1, functions: checks },
+  };
+}
 
 export const configActionsCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("config actions"),
@@ -68,6 +174,12 @@ export const configFunctionsCommand: AnyCommand = defineCliCommand({
       type: "boolean",
       description: "List every function, not only the counts per schema",
     },
+    shareable: {
+      type: "string",
+      description:
+        "Check whether a share: \"tenant\" fill may call the functions that match, e.g. 'public.*_payload', with every reason and the functions they call (doctor BS430)",
+      valueHint: "glob",
+    },
   },
   run: async (args, { config, env, io }) => {
     const snapshot = await loadSnapshot(
@@ -75,6 +187,10 @@ export const configFunctionsCommand: AnyCommand = defineCliCommand({
       env,
       await sourceArgs(args, io),
     );
+
+    if (args.shareable !== undefined) {
+      return shareableReport(config, snapshot, args.shareable);
+    }
 
     const inventory = snapshot.extras.functionInventory;
 

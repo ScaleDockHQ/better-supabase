@@ -1,0 +1,18 @@
+{
+  "name": "@better-supabase/next-durable-cache",
+  "private": true,
+  "description": "Builds the Next.js example with experimental.durableUseCacheEntries and records which \"use cache\" entries a later build reads.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

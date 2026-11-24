@@ -204,7 +204,8 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   with `EXPOSE_TESTING_API=1`.
 - Without `cacheHandlers.remote`, each `next start` keeps its own remote
   entries. The example points `remoteCacheHandler` at a file store when
-  `BSB_REMOTE_CACHE_DIR` is set; only the tests set it.
+  `BSB_REMOTE_CACHE_DIR` is set; only the tests set it. `BSB_DURABLE_USE_CACHE=1`
+  adds `experimental.durableUseCacheEntries`, for tests/next-durable-cache.
 - Realtime doesn't replay a broadcast sent before the channel joined. A test
   that bumps the authorization version waits for the `phx_reply` with status
   `ok` to the `realtime:authz:<uid>` join first (`authzJoined` in

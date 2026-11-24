@@ -1,5 +1,13 @@
 # better-supabase
 
+## 0.85.1
+
+### Patch Changes
+
+- [#1154](https://github.com/ScaleDockHQ/better-supabase/pull/1154) [`8aaff80`](https://github.com/ScaleDockHQ/better-supabase/commit/8aaff8053d0e98e218a536595bfeb9c85dc96ee6) Thanks [@mick340](https://github.com/mick340)! - `doctor` runs within a 2 GB heap again on a project with a long migration history. It reads the migrations as code tokens one file at a time instead of keeping them all, reads SQL files one after another, keeps fewer scanned and parsed texts, and only parses the app sources that call `kept`. A cached result that `doctor` found at the start no longer fails the run with "The SQL reader has not read this text yet" when a later write drops it from the cache file.
+
+- [#1152](https://github.com/ScaleDockHQ/better-supabase/pull/1152) [`8a45058`](https://github.com/ScaleDockHQ/better-supabase/commit/8a45058410461542cd5c30a779d79e878e6336aa) Thanks [@mick340](https://github.com/mick340)! - `upgrade`, `doctor`, `gen` and `add --adopt` start faster and use less memory: the adoption check reads the default SQL of only the blocks it asks about, and only when its cached result is missing, and each SQL text is scanned once.
+
 ## 0.85.0
 
 ### Minor Changes

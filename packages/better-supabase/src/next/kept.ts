@@ -252,11 +252,13 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
           : undefined;
 
       const share = canonicalJson(
-        cacheKeyOf({
+        await cacheKeyOf({
           userId: view.kind === "user" ? view.user.id : null,
           tenant,
           support: null,
           snapshot: snapshotOf(ctx.auth),
+          // `version` carries the schema hash.
+          meta: undefined,
           share:
             shared === undefined
               ? "user"

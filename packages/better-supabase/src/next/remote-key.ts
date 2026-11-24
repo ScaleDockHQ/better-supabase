@@ -55,11 +55,12 @@ export async function remoteKeyOf<Ctx, C, P>(
     input.onRefused(decided.error);
   }
 
-  const parts = cacheKeyOf({
+  const parts = await cacheKeyOf({
     userId: view.kind === "user" ? view.user.id : null,
     tenant: input.tenant,
     support: ctx.support?.session.id ?? null,
     snapshot: input.snapshot,
+    meta: input.meta,
     share:
       shared === undefined
         ? asked === "tenant"

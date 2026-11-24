@@ -10,7 +10,11 @@ import type { SOURCE_ARGS } from "./source-args.ts";
 import { CliError } from "../core/errors.ts";
 import { applyPlan, insideRoot, planResult } from "../core/files.ts";
 import { restrictSchemas, serializeGenerator } from "../introspect/typegen.ts";
-import { loadSnapshot, serializeSnapshot } from "./snapshot.ts";
+import {
+  DEFAULT_SNAPSHOT_PATH,
+  loadSnapshot,
+  serializeSnapshot,
+} from "./snapshot.ts";
 import { sourceArgs } from "./source-args.ts";
 
 /** The flags `gen --save-snapshot` reads. */
@@ -83,7 +87,7 @@ export async function saveSnapshot(
   const out =
     args.out ??
     (format === "snapshot"
-      ? (config.source.snapshot ?? "supabase/snapshot.json")
+      ? (config.source.snapshot ?? DEFAULT_SNAPSHOT_PATH)
       : "supabase/generator-metadata.json");
 
   const contents =

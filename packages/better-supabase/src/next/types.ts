@@ -131,6 +131,13 @@ export interface NextDebugOptions {
   readonly budget?: DbBudget;
   /** Where `bsb.debugRoute()` is mounted. Defaults to `/api/bsb-stats`. */
   readonly route?: string;
+  /**
+   * Reports the process's first request: the time `better-supabase/next` took
+   * to evaluate, when it was ready, and the first `createNext`, `warm()`,
+   * `getClaims` and query. The stats header gets a `cold=` field while a step
+   * is new, and the first query logs one `bsb.cold` line.
+   */
+  readonly coldStart?: boolean;
 }
 
 export interface ProxyOptions<C = unknown, P = unknown> {
@@ -1126,6 +1133,15 @@ export interface RemoteCacheKey {
   readonly shared: string | null;
   /** The support session the caller acts in. */
   readonly support: string | null;
+  /**
+   * A hash of the generated schema meta, so an entry filled before a migration
+   * and `gen` is not read after it, also when
+   * `experimental.durableUseCacheEntries` keeps entries across deploys. `null`
+   * without a generated schema.
+   */
+  readonly schema: string | null;
+  /** The better-supabase version that filled the entry. */
+  readonly library: string;
   /** The tables a `share: "tenant"` entry may read. */
   readonly tables?: readonly string[];
   /** The functions a `share: "tenant"` entry may call. */

@@ -819,12 +819,18 @@ export const COMMANDS: readonly CommandSpec[] = [
       {
         name: "functions",
         description:
-          "Counts the functions of each schema by caller: policy, trigger, app RPC, service only or unreferenced; --all lists each",
+          "Counts the functions of each schema by caller: policy, trigger, app RPC, service only or unreferenced; --all lists each, --shareable checks candidates for a shared fill",
         docs: "/docs/cli/config#list-the-functions",
         examples: [
           {
             command: "better-supabase config functions --all",
             description: "Lists every function with its caller class",
+          },
+          {
+            command:
+              "better-supabase config functions --shareable 'public.*_payload'",
+            description:
+              'Says for each matching function whether a share: "tenant" fill may call it, with every reason and the functions it calls',
           },
         ],
         effects: [READS_DATABASE, MANAGEMENT_API],

@@ -49,5 +49,18 @@ the per-organization overrides) are not in the fixture. The provider owns
 those decisions, so the tests that used to edit overrides now check the
 provider's answers through `can` and the invitation role checks instead.
 
+## Page payloads for a shared entry
+
+`supabase/page-payloads.sql` holds a customer page payload that mixes the
+organization's customers with the caller's starred ones, and its split into
+`customer_list_payload`, which a `share: "tenant"` entry may call, and
+`customer_starred`, a per-user read. It filters through
+`app_auth.allowed_org_ids(key)`, the app's own name for the provider's
+permission helper. `src/page-payloads.test.ts` loads the file in a rolled-back
+transaction, checks that the two halves answer what the mixed payload
+answered, and runs `config functions --shareable` on a snapshot with a config
+that adds the provider fields the split needs (`tables` and
+`permissionFilters`), which the frozen snapshot doesn't have yet.
+
 The fixture keeps its name for history. `validation-adopt-provider` would
 describe it better if it ever gains a second adopted schema.

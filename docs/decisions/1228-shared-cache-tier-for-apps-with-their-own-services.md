@@ -56,6 +56,42 @@ write, cross-instance read, deployment version, latency and a burst of tag
 expiries. `--local` runs on `memoryKeptStore()`. The Vercel numbers wait for a
 maintainer run on a preview deployment.
 
+### Permission filters inside a shared function
+
+Added after 0.85, when CentraKit's payload functions all failed BS430 because
+each narrowed its rows with a provider helper that reads the caller. A
+provider may list such helpers in `permissionFilters`, each with the position
+of its permission key argument. BS430 admits a call to one when the key is a
+string literal that the function's `permissions` lists, and refuses a key
+built at run time.
+
+The argument that this is sound: a shared entry is keyed on the tenant and
+the share key, and the share key names the caller's grants for the entry's
+`permissions` in that tenant. Two callers with the same key therefore hold the
+same grants for every listed permission. A listed helper's result depends only
+on the caller's grants for its key in the current tenant, so it returns the
+same ids to both callers, and the function, whose other inputs are its
+arguments and tables shared per tenant, returns the same rows. A literal key
+is what makes the share key cover the call; a computed key could name a
+permission the share key leaves out. The helper's own body is the provider's
+promise, not doctor's: a helper that reads a user id, a row-level grant or the
+clock breaks the argument, so the field's documentation says so and a
+provider lists only helpers it can vouch for. RLS checks every row the fill
+reads as the caller who fills the entry; it does not check the other callers
+the entry serves, so a wrong declaration leaks rows between them, as any wrong
+`sharedFunctions` entry does.
+
+BS430 also reports every reason a function fails instead of the first, matches
+tables and functions as `schema.name` through the function's `search_path`,
+and admits a `better_supabase` helper that passes the same check on its own,
+so the pure library helpers (`permission_matches`, `round_half_even` and 46
+more) need no listing. `config functions --shareable <glob>` runs the check on
+functions before they are listed. For it and for the recursive check,
+introspection now reads the bodies of every `language sql`, security invoker,
+non-volatile function in the read schemas when the config has a provider:
+the root stack's snapshot grows from 38.71 MB to 39.12 MB, and the read takes
+the same time (443 ms against 416 ms).
+
 ## Alternatives considered
 
 - **A tenant function plus a per-user read.** Keep only the table reads shared

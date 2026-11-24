@@ -4,6 +4,7 @@ import { encodeCacheTag } from "./cache-vercel.ts";
 import { canonicalJson } from "./canonical-json.ts";
 import { isRecord } from "./guards.ts";
 import { cacheTagsOf } from "./tags.ts";
+import { VERSION } from "./version.ts";
 
 /** What a kept entry holds. Times are epoch milliseconds, `revalidate` seconds. */
 export interface KeptEnvelope {
@@ -166,7 +167,13 @@ export async function keptKey(parts: {
   readonly version: string;
 }): Promise<string> {
   const hash = await sha256(
-    canonicalJson([parts.name, parts.args, parts.share, parts.version]),
+    canonicalJson([
+      parts.name,
+      parts.args,
+      parts.share,
+      parts.version,
+      VERSION,
+    ]),
   );
 
   return `kept:${hash}`;
@@ -178,6 +185,27 @@ export async function keptKey(parts: {
  */
 export async function keptVersionOf(meta: unknown): Promise<string> {
   return (await sha256(canonicalJson(meta))).slice(0, 16);
+}
+
+const schemaHashes = new WeakMap<object, Promise<string | null>>();
+
+/**
+ * {@link keptVersionOf}, once per meta object, or `null` without a generated
+ * schema or when hashing fails.
+ */
+export function schemaHashOf(meta: unknown): Promise<string | null> {
+  if (typeof meta !== "object" || meta === null) {
+    return Promise.resolve(null);
+  }
+
+  let hash = schemaHashes.get(meta);
+
+  if (!hash) {
+    hash = keptVersionOf(meta).catch(() => null);
+    schemaHashes.set(meta, hash);
+  }
+
+  return hash;
 }
 
 function isKeptEnvelope(value: unknown): value is KeptEnvelope {
