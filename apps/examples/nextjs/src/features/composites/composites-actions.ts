@@ -1,12 +1,14 @@
 "use server";
 
-import { dbError, err, ok } from "better-supabase";
+import { dbError, err, invalidInput, ok } from "better-supabase";
 import { money } from "better-supabase/commerce";
 import { refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { API_KEYS_TAG } from "@/features/api-keys/api-keys-cache";
+import { BANKING_TAG } from "@/features/banking/banking-cache";
+import { BILLING_TAG } from "@/features/billing/billing-cache";
 import { BOOKINGS_TAG } from "@/features/bookings/bookings-cache";
 import { findBookingPage } from "@/features/bookings/bookings-queries";
 import { CALENDAR_TAG } from "@/features/calendar/calendar-cache";
@@ -17,11 +19,13 @@ import { CRM_TAG } from "@/features/crm/crm-cache";
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { driveOf } from "@/features/drive/drive-client";
 import { FIELD_TAG } from "@/features/field/field-cache";
+import { FINANCE_RECORDS_TAG } from "@/features/finance-records/finance-records-cache";
 import { MAINTENANCE_TAG } from "@/features/maintenance/maintenance-cache";
 import { ONBOARDING_TAG } from "@/features/onboarding/onboarding-cache";
 import { PEOPLE_TAG } from "@/features/people/people-cache";
 import { PRIVACY_TAG } from "@/features/privacy/privacy-cache";
 import { PROJECTS_TAG } from "@/features/projects/projects-cache";
+import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { present } from "@/lib/present";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -37,6 +41,7 @@ import {
   financeOf,
   learningOf,
   peopleOf,
+  procurementOf,
   projectsOf,
   recruitingOf,
   salesOf,
@@ -261,12 +266,21 @@ export const settleReturn = bsb.action(
       orderId: Id,
       returnId: Id,
       disposition: v.picklist(["restock", "quarantine", "reject"]),
-      refund: v.optional(v.boolean(), false),
+      refund: v.optional(
+        v.union([
+          v.boolean(),
+          v.pipe(
+            v.picklist(["true", "false"]),
+            v.transform((value) => value === "true"),
+          ),
+        ]),
+        false,
+      ),
     }),
     requireTenant: true,
     permission: "orders.manage",
   },
-  async ({ orderId, returnId, disposition, refund }, { db }) => {
+  async ({ orderId, returnId, disposition, refund }, { db, auth }) => {
     const settled = await commerceOf(db).processReturn({
       orderId,
       returnId,
@@ -277,6 +291,8 @@ export const settleReturn = bsb.action(
     if (!settled.ok) {
       return settled;
     }
+
+    await refreshCaller(auth, FINANCE_TAGS);
 
     return ok({
       disposition: settled.data.disposition,
@@ -437,7 +453,7 @@ export const payAndFulfilOrder = bsb.action(
       return done;
     }
 
-    await refreshCaller(auth, [CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CUSTOMERS_TAG, SHOP_TAG]);
 
     return ok({ shipped: done.data.fulfillment.shipped });
   },
@@ -973,5 +989,143 @@ export const bookWithReminder = bsb.action(
     await refreshCaller(auth, [BOOKINGS_TAG, CALENDAR_TAG]);
 
     return ok({ id: booked.data.booking.id });
+  },
+);
+
+const FINANCE_TAGS = [FINANCE_RECORDS_TAG, BILLING_TAG, BANKING_TAG, SHOP_TAG];
+
+/**
+ * Closes an accounting period when nothing blocks it: `finance.closePeriod`. A
+ * period with blockers stays open and the action returns them as the error, so
+ * the page can list what to fix first.
+ */
+export const closeAccountingPeriod = bsb.action(
+  {
+    input: v.object({ periodId: Id }),
+    requireTenant: true,
+    permission: "accounting.manage",
+  },
+  async ({ periodId }, { db, auth }) => {
+    const closed = await financeOf(db).closePeriod(periodId);
+
+    if (!closed.ok) {
+      return closed;
+    }
+
+    if (!closed.data.closed) {
+      return err(
+        invalidInput(
+          `The period can't close yet: ${closed.data.blockers.join(" ")}`,
+          closed.data.blockers.map((blocker) => ({
+            path: ["periodId"],
+            code: "PERIOD_BLOCKED",
+            message: blocker,
+          })),
+        ),
+      );
+    }
+
+    await refreshCaller(auth, FINANCE_TAGS);
+
+    return ok({ id: closed.data.period.id, status: closed.data.period.status });
+  },
+);
+
+/**
+ * Pays the supplier bills due by a day in one batch: `procurement.payDueBills`
+ * creates the batch, posts it to the books and exports the SEPA file. The bank
+ * details of the suppliers come from the dialog, one IBAN for every supplier of
+ * the run.
+ */
+export const payDueBills = bsb.action(
+  {
+    input: v.object({
+      accountId: Id,
+      dueBy: v.pipe(v.string(), v.isoDate()),
+      creditorName: v.pipe(
+        v.string(),
+        v.trim(),
+        v.minLength(1),
+        v.maxLength(70),
+      ),
+      creditorIban: v.pipe(
+        v.string(),
+        v.trim(),
+        v.minLength(8),
+        v.maxLength(34),
+      ),
+    }),
+    requireTenant: true,
+    permission: "banking.manage",
+  },
+  async (
+    { accountId, dueBy, creditorName, creditorIban },
+    { db, tenant, auth },
+  ) => {
+    const bills = await db.invoices.page({
+      organizationId: tenant,
+      limit: 200,
+    });
+
+    if (!bills.ok) {
+      return bills;
+    }
+
+    const creditors = Object.fromEntries(
+      bills.data.items.flatMap((bill) =>
+        bill.direction === "purchase" && bill.company
+          ? [[bill.company.id, { name: creditorName, iban: creditorIban }]]
+          : [],
+      ),
+    );
+
+    const paid = await procurementOf(db).payDueBills({
+      batch: { accountId, dueBy: Temporal.PlainDate.from(dueBy), creditors },
+      sepa: {},
+    });
+
+    if (!paid.ok) {
+      return paid;
+    }
+
+    await refreshCaller(auth, FINANCE_TAGS);
+
+    return ok({ id: paid.data.batch.id, sepa: paid.data.sepa !== null });
+  },
+);
+
+/** Asks for the return of every unit of an order: `orders.requestReturn`. */
+export const requestOrderReturn = bsb.action(
+  {
+    input: v.object({
+      orderId: Id,
+      reason: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500))),
+    }),
+    requireTenant: true,
+    permission: "orders.manage",
+  },
+  async ({ orderId, reason }, { db, auth }) => {
+    const order = await db.orders.getOrder(orderId);
+
+    if (!order.ok) {
+      return order;
+    }
+
+    const requested = await db.orders.requestReturn({
+      orderId,
+      lines: order.data.lines.map((line) => ({
+        lineId: line.id,
+        quantity: line.quantity,
+      })),
+      reason: reason === "" ? undefined : reason,
+    });
+
+    if (!requested.ok) {
+      return requested;
+    }
+
+    await refreshCaller(auth, [SHOP_TAG]);
+
+    return ok({ id: requested.data.id, quantity: requested.data.quantity });
   },
 );

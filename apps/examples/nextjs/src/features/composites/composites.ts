@@ -11,6 +11,7 @@ import { createFinance } from "better-supabase/blocks/finance";
 import { createGovernance } from "better-supabase/blocks/governance";
 import { createLearning } from "better-supabase/blocks/learning";
 import { createPeople } from "better-supabase/blocks/people";
+import { createProcurement } from "better-supabase/blocks/procurement";
 import { createProjects } from "better-supabase/blocks/projects";
 import { createRecruiting } from "better-supabase/blocks/recruiting";
 import { createKeyRotator } from "better-supabase/blocks/saas";
@@ -323,6 +324,24 @@ export function schedulingOf(db: AppDb) {
       bookings: blocks.bookings,
       calendar: blocks.calendar,
       reminders: blocks.reminders,
+    },
+  });
+}
+
+/**
+ * The `procurement` composite's helper: `payDueBills` batches the bills that
+ * are due, posts the batch to the books and exports the bank file.
+ */
+export function procurementOf(db: AppDb) {
+  const { $blocks: blocks } = db;
+
+  return createProcurement({
+    transport: rpcTransport(db.$client),
+    parts: {
+      rfqs: blocks.rfqs,
+      inventory: blocks.inventory,
+      invoices: blocks.invoices,
+      banking: blocks.banking,
     },
   });
 }

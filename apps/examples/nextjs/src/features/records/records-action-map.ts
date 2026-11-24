@@ -47,6 +47,24 @@ import {
   linkVulnerabilityRelations,
   removeVulnerabilityAttachments,
   unlinkVulnerabilityRelations,
+  linkOrderRelations,
+  unlinkOrderRelations,
+  removeOrderAttachments,
+  linkInvoiceRelations,
+  unlinkInvoiceRelations,
+  removeInvoiceAttachments,
+  linkProductionOrderRelations,
+  unlinkProductionOrderRelations,
+  removeProductionOrderAttachments,
+  linkInspectionRelations,
+  unlinkInspectionRelations,
+  removeInspectionAttachments,
+  linkProductRelations,
+  unlinkProductRelations,
+  removeProductAttachments,
+  linkTillRelations,
+  unlinkTillRelations,
+  removeTillAttachments,
 } from "./records-actions";
 
 /** The Server Actions of the shared sections, by record type. */
@@ -133,5 +151,35 @@ export const recordActions = {
     link: linkCourseRelations,
     unlink: unlinkCourseRelations,
     removeAttachment: removeCourseAttachments,
+  },
+  order: {
+    link: linkOrderRelations,
+    unlink: unlinkOrderRelations,
+    removeAttachment: removeOrderAttachments,
+  },
+  invoice: {
+    link: linkInvoiceRelations,
+    unlink: unlinkInvoiceRelations,
+    removeAttachment: removeInvoiceAttachments,
+  },
+  production_order: {
+    link: linkProductionOrderRelations,
+    unlink: unlinkProductionOrderRelations,
+    removeAttachment: removeProductionOrderAttachments,
+  },
+  inspection: {
+    link: linkInspectionRelations,
+    unlink: unlinkInspectionRelations,
+    removeAttachment: removeInspectionAttachments,
+  },
+  product: {
+    link: linkProductRelations,
+    unlink: unlinkProductRelations,
+    removeAttachment: removeProductAttachments,
+  },
+  till: {
+    link: linkTillRelations,
+    unlink: unlinkTillRelations,
+    removeAttachment: removeTillAttachments,
   },
 } as const;

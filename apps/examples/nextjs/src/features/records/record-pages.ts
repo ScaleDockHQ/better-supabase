@@ -71,4 +71,10 @@ export const recordPages = {
   employee: bsbCore.record(sectionRecord("employee")),
   application: bsbCore.record(sectionRecord("application")),
   course: bsbCore.record(sectionRecord("course")),
+  order: bsbCore.record(sectionRecord("order")),
+  invoice: bsbCore.record(sectionRecord("invoice")),
+  production_order: bsbCore.record(sectionRecord("production_order")),
+  inspection: bsbCore.record(sectionRecord("inspection")),
+  product: bsbCore.record(sectionRecord("product")),
+  till: bsbCore.record(sectionRecord("till")),
 } as const;

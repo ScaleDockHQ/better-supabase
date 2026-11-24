@@ -13,6 +13,7 @@ import {
   loadHiringBoard,
 } from "@/features/people/people-queries";
 import { loadDeals } from "@/features/sales/pipeline/pipeline-queries";
+import { getOrders, getProducts } from "@/features/shop/shop-queries";
 import { getSession } from "@/features/user/user-queries";
 import { bsb } from "@/lib/supabase/server";
 
@@ -273,6 +274,82 @@ async function relationOptions(
           (course) => ({ id: course.id, name: course.title }),
         ),
       );
+    }
+
+    case "order": {
+      const orders = await getOrders();
+
+      return orders.kind === "ok"
+        ? named(
+            orders.data.orders.map((order) => ({
+              id: order.id,
+              name: order.number,
+            })),
+          )
+        : [];
+    }
+
+    case "invoice": {
+      return tenant
+        ? named(
+            (
+              await db.invoices
+                .page({ organizationId: tenant, limit: OPTION_LIMIT })
+                .orThrow()
+            ).items.map((invoice) => ({
+              id: invoice.id,
+              name: String(invoice.number ?? invoice.id),
+            })),
+          )
+        : [];
+    }
+
+    case "production_order": {
+      return tenant
+        ? named(
+            (
+              await db.manufacturing
+                .orderPage({ limit: OPTION_LIMIT })
+                .orThrow()
+            ).items.map((order) => ({ id: order.id, name: order.number })),
+          )
+        : [];
+    }
+
+    case "inspection": {
+      return tenant
+        ? named(
+            (
+              await db.inspections.page({ limit: OPTION_LIMIT }).orThrow()
+            ).items.map((inspection) => ({
+              id: inspection.id,
+              name: inspection.title,
+            })),
+          )
+        : [];
+    }
+
+    case "product": {
+      const products = await getProducts();
+
+      return products.kind === "ok"
+        ? named(
+            products.data.map((product) => ({
+              id: product.id,
+              name: product.title,
+            })),
+          )
+        : [];
+    }
+
+    case "till": {
+      return tenant
+        ? named(
+            (
+              await db.tills.tillPage({ limit: OPTION_LIMIT }).orThrow()
+            ).items.map((till) => ({ id: till.id, name: till.name })),
+          )
+        : [];
     }
 
     default: {

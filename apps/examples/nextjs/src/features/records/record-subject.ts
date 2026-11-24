@@ -23,6 +23,12 @@ export const RECORD_TYPES = [
   "employee",
   "application",
   "course",
+  "order",
+  "invoice",
+  "production_order",
+  "inspection",
+  "product",
+  "till",
 ] as const;
 
 export type RecordType = (typeof RECORD_TYPES)[number];

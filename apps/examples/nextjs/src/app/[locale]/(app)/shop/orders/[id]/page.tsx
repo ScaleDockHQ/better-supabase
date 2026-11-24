@@ -2,6 +2,7 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import { activeTab } from "@/components/record-detail/record-detail-tabs";
 import { buttonVariants } from "@/components/ui/button";
 import {
   OrderDetail,
@@ -16,6 +17,7 @@ export const instant = true;
 
 export default function OrderPage({
   params,
+  searchParams,
 }: PageProps<"/[locale]/shop/orders/[id]">) {
   const t = useExtracted("shop");
 
@@ -33,8 +35,11 @@ export default function OrderPage({
         {t("All orders")}
       </Link>
       <Suspense fallback={<OrderDetailSkeleton />}>
-        {params.then(({ id }) => (
-          <OrderDetail id={id} />
+        {Promise.all([params, searchParams]).then(([{ id }, raw]) => (
+          <OrderDetail
+            id={id}
+            tab={activeTab(raw, ["overview", "activity", "related"])}
+          />
         ))}
       </Suspense>
     </>

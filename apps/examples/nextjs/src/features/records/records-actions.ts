@@ -236,3 +236,51 @@ export const unlinkCourseRelations =
 
 export const removeCourseAttachments =
   recordPages.course.actions.attachments.remove;
+
+export const linkOrderRelations = recordPages.order.actions.relations.link;
+
+export const unlinkOrderRelations = recordPages.order.actions.relations.unlink;
+
+export const removeOrderAttachments =
+  recordPages.order.actions.attachments.remove;
+
+export const linkInvoiceRelations = recordPages.invoice.actions.relations.link;
+
+export const unlinkInvoiceRelations =
+  recordPages.invoice.actions.relations.unlink;
+
+export const removeInvoiceAttachments =
+  recordPages.invoice.actions.attachments.remove;
+
+export const linkProductionOrderRelations =
+  recordPages.production_order.actions.relations.link;
+
+export const unlinkProductionOrderRelations =
+  recordPages.production_order.actions.relations.unlink;
+
+export const removeProductionOrderAttachments =
+  recordPages.production_order.actions.attachments.remove;
+
+export const linkInspectionRelations =
+  recordPages.inspection.actions.relations.link;
+
+export const unlinkInspectionRelations =
+  recordPages.inspection.actions.relations.unlink;
+
+export const removeInspectionAttachments =
+  recordPages.inspection.actions.attachments.remove;
+
+export const linkProductRelations = recordPages.product.actions.relations.link;
+
+export const unlinkProductRelations =
+  recordPages.product.actions.relations.unlink;
+
+export const removeProductAttachments =
+  recordPages.product.actions.attachments.remove;
+
+export const linkTillRelations = recordPages.till.actions.relations.link;
+
+export const unlinkTillRelations = recordPages.till.actions.relations.unlink;
+
+export const removeTillAttachments =
+  recordPages.till.actions.attachments.remove;

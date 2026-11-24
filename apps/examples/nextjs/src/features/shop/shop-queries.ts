@@ -269,6 +269,11 @@ export interface OrderView extends DetailTotals {
     readonly id: string;
     readonly status: Order["fulfillments"][number]["status"];
   }[];
+  readonly returns: readonly {
+    readonly id: string;
+    readonly status: Order["returns"][number]["status"];
+    readonly quantity: number;
+  }[];
 }
 
 /** The caller's open cart, shown as a draft order. */
@@ -314,6 +319,11 @@ function orderView(order: Order): OrderView {
     paidTotal: order.paidTotal,
     placedAt: order.placedAt.toString(),
     fulfillments: order.fulfillments.map(({ id, status }) => ({ id, status })),
+    returns: order.returns.map(({ id, status, lines }) => ({
+      id,
+      status,
+      quantity: lines.reduce((sum, line) => sum + line.quantity, 0),
+    })),
   };
 }
 

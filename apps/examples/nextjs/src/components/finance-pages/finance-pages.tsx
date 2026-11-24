@@ -24,6 +24,7 @@ import {
   InvoiceTimeButton,
   PrepareTaxReturnDialog,
 } from "@/features/finance-records/components/finance-record-actions";
+import { PayDueBillsButton } from "@/features/finance-records/components/pay-due-bills";
 import { FINANCE_PATHS } from "@/features/finance-records/finance-records-paths";
 import { ConnectivityFallback } from "@/features/offline/components/connectivity-fallback";
 import { PermissionGate } from "@/features/user/components/permission-gate";
@@ -84,8 +85,11 @@ function createFor(
       };
     }
 
+    case "payables": {
+      return { permission: "banking.manage", node: <PayDueBillsButton /> };
+    }
+
     case "invoices":
-    case "payables":
     case "expenses":
     case "ledger":
     case "journal":

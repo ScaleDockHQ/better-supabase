@@ -28,12 +28,12 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { issueInvoice } from "@/features/billing/billing-actions";
+import { closeAccountingPeriod } from "@/features/composites/composites-actions";
 import { toast } from "@/lib/toast";
 
 import {
   approvePayable,
   archiveLegalEntity,
-  closePeriod,
   createBankAccount,
   createLegalEntity,
   createPayrollRun,
@@ -370,7 +370,7 @@ export function PeriodActions({
         done={t("Period locked")}
       />
       <RunButton
-        action={closePeriod}
+        action={closeAccountingPeriod}
         input={{ periodId }}
         label={t("Close period")}
         done={t("Period closed")}
