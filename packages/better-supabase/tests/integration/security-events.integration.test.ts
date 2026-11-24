@@ -52,6 +52,13 @@ describe.skipIf(!live)("security-events module", () => {
         status: "enabled",
       });
 
+      const endpointCount = () =>
+        s.value<number>(
+          "(select count(*)::int from better_supabase.webhook_endpoints)",
+        );
+
+      const endpointsBefore = (await endpointCount()) - 1;
+
       const emit = () =>
         tx
           .emit({
@@ -92,11 +99,8 @@ describe.skipIf(!live)("security-events module", () => {
       ).toBe(0);
 
       expect(await tx.deleteStream(stream.id).orThrow()).toBe(true);
-      expect(
-        await s.value<number>(
-          "(select count(*)::int from better_supabase.webhook_endpoints)",
-        ),
-      ).toBe(0);
+      // The seeded sample already holds webhook endpoints, so compare with the count before.
+      expect(await endpointCount()).toBe(endpointsBefore);
     } finally {
       await s.close();
     }
