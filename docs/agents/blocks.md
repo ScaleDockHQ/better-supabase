@@ -123,7 +123,7 @@ codemod; a new block uses the convention from the start.
   `OPERATIONS` and `MODULE_PERMISSION_SCOPES` in
   `src/sql/modules/permissions-model.ts`, and to `DEFAULT_ROLES` when a default
   role should hold them. Declare the keys on the manifest's `entities.<key>.permissions`
-  as `<block>.<entity>.<verb>` (`src/blocks/permission-keys.ts`, ADR 0799), so
+  as `<block>.<entity>.<verb>` (ADR 0799), so
   `gen.permissionCatalog` writes the catalog rows and the default grants; a new
   block never needs a hand-written catalog migration.
 - Every entity a user can rename goes in `NAMES.entities` (ADR 0060): its
