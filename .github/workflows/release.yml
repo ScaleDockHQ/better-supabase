@@ -24,6 +24,7 @@ jobs:
     outputs:
       affected: ${{ steps.base.outputs.affected }}
       base: ${{ steps.base.outputs.base }}
+      skip: ${{ steps.skip.outputs.skip }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -54,9 +55,31 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
+      # A release pull request merge only moves versions, changelogs and changesets. When its
+      # first parent is the last green Release commit, the gate already ran on that code.
+      - name: Skip the gate for a version-only merge
+        env:
+          LAST_GREEN: ${{ steps.base.outputs.base }}
+        run: |
+          skip=false
+          parent=$(git rev-parse HEAD^1)
+          if [ "$LAST_GREEN" = "$parent" ]; then
+            other=$(git diff --name-only HEAD^1 HEAD \
+              | grep -Ev '^(\.changeset/.*\.md|(.*/)?CHANGELOG\.md|(.*/)?package\.json|(.*/)?server\.json)$' || true)
+            changed=$(git diff -U0 HEAD^1 HEAD -- '*package.json' '*server.json' \
+              | grep -E '^[+-][^+-]' \
+              | grep -Ev '^[+-][[:space:]]*"[^"]+":[[:space:]]*"[~^]?[0-9]+\.[0-9]+\.[0-9]+[^"]*",?$' || true)
+            if [ -z "$other" ] && [ -z "$changed" ]; then
+              skip=true
+            fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+        id: skip
+
   # The same gate as CI, on the release commit, for what changed since the last green run.
   verify:
     needs: base
+    if: needs.base.outputs.skip != 'true'
     permissions:
       contents: read
       id-token: write
@@ -110,7 +133,8 @@ jobs:
 
   select-mode:
     name: Select mode
-    needs: verify
+    needs: [base, verify]
+    if: ${{ always() && needs.base.result == 'success' && (needs.verify.result == 'success' || (needs.verify.result == 'skipped' && needs.base.outputs.skip == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
