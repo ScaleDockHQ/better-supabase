@@ -2,7 +2,7 @@
 
 import { SparklesIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { usePathname } from "@/i18n/navigation";
 import type { ModelOption } from "../assistant-queries";
 
 import { loadAssistantSlot } from "../assistant-slot-actions";
+import { pageContextOf } from "../page-context";
 import { AssistantChatLazy } from "./assistant-chat-lazy";
 
 interface Slot {
@@ -34,6 +35,7 @@ interface Slot {
 export function AssistantSlot() {
   const t = useExtracted("assistant");
   const pathname = usePathname();
+  const pageContext = useMemo(() => pageContextOf(pathname), [pathname]);
   const [open, setOpen] = useState(false);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [chatId] = useState(() => crypto.randomUUID());
@@ -66,6 +68,9 @@ export function AssistantSlot() {
           <SheetDescription className="flex items-center gap-2">
             {t("Opened from")}
             <Badge variant="outline">{pathname}</Badge>
+            {pageContext.recordType === undefined ? null : (
+              <Badge variant="secondary">{pageContext.recordType}</Badge>
+            )}
           </SheetDescription>
         </SheetHeader>
         <div className="p-4">
@@ -77,6 +82,7 @@ export function AssistantSlot() {
               messages={[]}
               durableAvailable={slot.durable}
               models={slot.models}
+              pageContext={pageContext}
             />
           )}
         </div>

@@ -1,7 +1,13 @@
 import { getExtracted } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
+import {
+  RecordDetailTabs,
+  activeTab,
+} from "@/components/record-detail/record-detail-tabs";
+import { KpiBandSkeleton } from "@/components/record-list/kpi-band";
 import { Badge } from "@/components/reui/badge";
 import {
   Card,
@@ -14,17 +20,68 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
+import { getAgentActivity } from "../agent-activity-queries";
 import { getAgent } from "../agents-queries";
+import {
+  AgentApprovals,
+  AgentGuardrails,
+  AgentKpis,
+  AgentRuns,
+} from "./agent-activity";
 import { AgentEditor } from "./agent-editor";
 import { AgentPublish } from "./agent-publish";
 
-/** Render inside `<Suspense>`: reads the `id` param and the agent. */
-export async function AgentDetail({ id }: { id: string }) {
-  const [agent, permissions, t] = await Promise.all([
+const TABS = ["overview", "runs", "approvals", "guardrails"] as const;
+
+/** The tab's body: reads what the agent did, behind its own `<Suspense>`. */
+async function AgentTabBody({
+  slug,
+  tab,
+  canDecide,
+}: {
+  slug: string;
+  tab: string;
+  canDecide: boolean;
+}) {
+  const activity = await getAgentActivity(slug);
+
+  switch (tab) {
+    case "runs": {
+      return <AgentRuns activity={activity} />;
+    }
+
+    case "approvals": {
+      return <AgentApprovals activity={activity} canDecide={canDecide} />;
+    }
+
+    case "guardrails": {
+      return <AgentGuardrails activity={activity} />;
+    }
+
+    default: {
+      return <AgentKpis activity={activity} />;
+    }
+  }
+}
+
+/** Render inside `<Suspense>`: reads the `id` param, the tab and the agent. */
+export async function AgentDetail({
+  id,
+  searchParams,
+}: {
+  id: string;
+  searchParams: Promise<
+    Readonly<Record<string, string | string[] | undefined>>
+  >;
+}) {
+  const [agent, permissions, t, raw] = await Promise.all([
     getAgent(id),
     getPermissions(),
     getExtracted("agents"),
+    searchParams,
   ]);
+
+  const tab = activeTab(raw, TABS);
 
   if (agent === undefined) {
     notFound();
@@ -84,7 +141,26 @@ export async function AgentDetail({ id }: { id: string }) {
         </>
       }
     >
-      <AgentEditor agent={agent} canWrite={canWrite} />
+      <RecordDetailTabs
+        base={`/assistant/agents/${agent.id}`}
+        active={tab}
+        tabs={[
+          { value: "overview", label: t("Overview") },
+          { value: "runs", label: t("Runs") },
+          { value: "approvals", label: t("Approvals") },
+          { value: "guardrails", label: t("Guardrails") },
+        ]}
+      />
+      <Suspense fallback={<KpiBandSkeleton />}>
+        <AgentTabBody
+          slug={agent.slug}
+          tab={tab}
+          canDecide={can(permissions, "ai_chat.create")}
+        />
+      </Suspense>
+      {tab === "overview" ? (
+        <AgentEditor agent={agent} canWrite={canWrite} />
+      ) : null}
     </RecordDetailFrame>
   );
 }

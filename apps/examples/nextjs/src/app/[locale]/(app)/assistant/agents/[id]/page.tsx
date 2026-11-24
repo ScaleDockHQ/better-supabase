@@ -14,6 +14,7 @@ export const instant = true;
 
 export default function AgentPage({
   params,
+  searchParams,
 }: PageProps<"/[locale]/assistant/agents/[id]">) {
   const t = useExtracted("agents");
 
@@ -32,7 +33,7 @@ export default function AgentPage({
       </Link>
       <Suspense fallback={<AgentDetailSkeleton />}>
         {params.then(({ id }) => (
-          <AgentDetail id={id} />
+          <AgentDetail id={id} searchParams={searchParams} />
         ))}
       </Suspense>
     </>
