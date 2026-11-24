@@ -942,6 +942,11 @@ token check and the first database connection before it answers. To see which
 part of that is better-supabase's, set `debug.coldStart`:
 
 ```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { createNext } from "better-supabase/next";
+
+import { betterSupabase } from "./index";
+
 export const bsb = createNext(betterSupabase, { debug: { coldStart: true } });
 ```
 
