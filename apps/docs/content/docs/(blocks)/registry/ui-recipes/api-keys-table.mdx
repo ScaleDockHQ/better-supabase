@@ -45,6 +45,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useApiKeys } from "@/hooks/use-api-keys";
+import { Link } from "@/i18n/navigation";
 import { apiKeysConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
 
@@ -154,7 +155,12 @@ export function ApiKeyTable({
                 className={revoking.includes(key.id) ? "opacity-50" : undefined}
               >
                 <TableCell className="font-medium">
-                  {key.name}{" "}
+                  <Link
+                    href={`/settings/api-keys/${key.id}`}
+                    className="hover:underline"
+                  >
+                    {key.name}
+                  </Link>{" "}
                   {key.userId ? (
                     <Badge variant="outline">{t("Personal")}</Badge>
                   ) : null}

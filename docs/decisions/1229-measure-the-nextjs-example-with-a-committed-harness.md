@@ -72,3 +72,12 @@ page. The follow-ups below are ranked and none is tuned in this change.
    `support.openTicket` hardcodes the `task` subject while this app names the
    entity `work_item`. The sample works around both; see
    `tmp/findings/sample-depth-findings.md`.
+
+### Baseline raise for the full sample
+
+The full sample adds the record kit, the area routes and the shared navigation to every
+page. The next-build baselines moved on purpose: the server chunks of every route grew by
+about 0.6 MB raw (3.2 MB to 3.8 MB) because the config now carries the descriptors of all
+13 areas, and the first-load JavaScript of the finance and banking record pages grew by up
+to 9 percent. A follow-up should split those descriptors per area so a route loads only
+its own.
