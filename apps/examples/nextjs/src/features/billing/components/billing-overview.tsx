@@ -1,7 +1,9 @@
+import { formatMoney } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
-import { getExtracted, getFormatter } from "next-intl/server";
+import { getExtracted, getFormatter, getLocale } from "next-intl/server";
 import { Suspense } from "react";
 
+import { KpiBand } from "@/components/record-list/kpi-band";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -40,7 +42,7 @@ export async function CurrentPlan() {
     return null;
   }
 
-  const [permissions, subscription, stripePlan, plans, t, format] =
+  const [permissions, subscription, stripePlan, plans, t, format, locale] =
     await Promise.all([
       getPermissions(),
       getSubscription(organizationId),
@@ -48,38 +50,65 @@ export async function CurrentPlan() {
       getPlans(),
       getExtracted("billing"),
       getFormatter(),
+      getLocale(),
     ]);
 
   const current = plans.find(
     (plan) => plan.key === (stripePlan ?? subscription?.planKey),
   );
 
+  const periodEnd = subscription?.currentPeriodEnd
+    ? new Date(subscription.currentPeriodEnd)
+    : undefined;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("Current plan")}</CardTitle>
-        <CardDescription>
-          {subscription?.currentPeriodEnd
-            ? t("Renews {date}", {
-                date: format.dateTime(new Date(subscription.currentPeriodEnd), {
-                  dateStyle: "long",
-                }),
-              })
-            : t("No renewal date")}
-        </CardDescription>
-        <CardAction>
-          <Badge data-testid="current-plan">{current?.name ?? t("None")}</Badge>
-        </CardAction>
-      </CardHeader>
-      <CardContent>
-        <PlanFeatures />
-      </CardContent>
-      {can(permissions, "onboarding.complete") ? (
-        <CardFooter>
-          <MarkPlanReviewedButton />
-        </CardFooter>
-      ) : null}
-    </Card>
+    <div className="flex flex-col gap-6">
+      <KpiBand
+        kpis={[
+          { label: t("Plan"), value: current?.name ?? t("None") },
+          {
+            label: t("Price"),
+            value: current ? formatMoney(current.price, locale) : "-",
+            hint: t("Per month"),
+          },
+          {
+            label: t("Renews"),
+            value: periodEnd
+              ? format.dateTime(periodEnd, { dateStyle: "medium" })
+              : "-",
+          },
+          { label: t("Status"), value: subscription?.status ?? t("None") },
+        ]}
+      />
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Current plan")}</CardTitle>
+          <CardDescription>
+            {subscription?.currentPeriodEnd
+              ? t("Renews {date}", {
+                  date: format.dateTime(
+                    new Date(subscription.currentPeriodEnd),
+                    { dateStyle: "long" },
+                  ),
+                })
+              : t("No renewal date")}
+          </CardDescription>
+          <CardAction>
+            <Badge data-testid="current-plan">
+              {current?.name ?? t("None")}
+            </Badge>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          <PlanFeatures />
+        </CardContent>
+        {can(permissions, "onboarding.complete") ? (
+          <CardFooter>
+            <MarkPlanReviewedButton />
+          </CardFooter>
+        ) : null}
+      </Card>
+    </div>
   );
 }
 

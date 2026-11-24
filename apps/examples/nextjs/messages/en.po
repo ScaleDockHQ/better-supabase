@@ -6495,6 +6495,37 @@ msgid "Total"
 msgstr "Total"
 
 #: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.fz0z4c"
+msgid "Plan"
+msgstr "Plan"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.450Fty"
+msgid "None"
+msgstr "None"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.b1zuN9"
+msgid "Price"
+msgstr "Price"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.-mv46A"
+msgid "Per month"
+msgstr "Per month"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.1A_d7u"
+msgid "Renews"
+msgstr "Renews"
+
+#: src/features/billing/components/billing-overview.tsx
+#: src/features/billing/components/invoices-table.tsx
+msgctxt "billing.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/billing/components/billing-overview.tsx
 #: src/features/billing/components/plan-picker.tsx
 msgctxt "billing.ZBALng"
 msgid "Current plan"
@@ -6509,11 +6540,6 @@ msgstr "Renews {date}"
 msgctxt "billing.lyN_DP"
 msgid "No renewal date"
 msgstr "No renewal date"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.450Fty"
-msgid "None"
-msgstr "None"
 
 #: src/features/billing/components/billing-overview.tsx
 msgctxt "billing.eBMj51"
@@ -6654,11 +6680,6 @@ msgstr "Invoices show up here once they're created."
 msgctxt "billing.Ecfndm"
 msgid "Invoice"
 msgstr "Invoice"
-
-#: src/features/billing/components/invoices-table.tsx
-msgctxt "billing.tzMNF3"
-msgid "Status"
-msgstr "Status"
 
 #: src/features/billing/components/invoices-table.tsx
 msgctxt "billing.g9pEhE"
@@ -30037,6 +30058,31 @@ msgctxt "sessions.iIenp6"
 msgid "End session"
 msgstr "End session"
 
+#: src/features/settings/components/preferences.tsx
+msgctxt "settings.y1Z3or"
+msgid "Language"
+msgstr "Language"
+
+#: src/features/settings/components/preferences.tsx
+msgctxt "settings.8Jjasl"
+msgid "Organization settings"
+msgstr "Organization settings"
+
+#: src/features/settings/components/preferences.tsx
+msgctxt "settings.Dojzg5"
+msgid "Editable"
+msgstr "Editable"
+
+#: src/features/settings/components/preferences.tsx
+msgctxt "settings.-htCfG"
+msgid "Read only"
+msgstr "Read only"
+
+#: src/features/settings/components/preferences.tsx
+msgctxt "settings.n4iwct"
+msgid "Needs the settings.update permission."
+msgstr "Needs the settings.update permission."
+
 #: src/features/settings/components/settings-layout.tsx
 msgctxt "settings.7ccWHk"
 msgid "Only admins can change this."
@@ -31255,6 +31301,41 @@ msgid "Rotate"
 msgstr "Rotate"
 
 #: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.lIiKcw"
+msgid "Active key"
+msgstr "Active key"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.a5msuh"
+msgid "Yes"
+msgstr "Yes"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.450Fty"
+msgid "None"
+msgstr "None"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.sLK5Lz"
+msgid "No signing key yet"
+msgstr "No signing key yet"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.RjIiCh"
+msgid "Previous keys"
+msgstr "Previous keys"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.z-jKka"
+msgid "Published until the tokens they signed expire."
+msgstr "Published until the tokens they signed expire."
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.XPGKVw"
+msgid "Published keys"
+msgstr "Published keys"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
 msgctxt "signingKeys.Y0PHiM"
 msgid "Signing keys"
 msgstr "Signing keys"
@@ -31278,11 +31359,6 @@ msgstr "Try again in a moment."
 msgctxt "signingKeys.62nsdy"
 msgid "Retry"
 msgstr "Retry"
-
-#: src/features/signing-keys/components/signing-keys-rotation.tsx
-msgctxt "signingKeys.sLK5Lz"
-msgid "No signing key yet"
-msgstr "No signing key yet"
 
 #: src/features/signing-keys/components/signing-keys-rotation.tsx
 msgctxt "signingKeys.khoIsc"

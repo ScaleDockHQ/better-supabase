@@ -137,3 +137,18 @@ test("a member opens instantly with the seat view", async ({ page }) => {
   await expect(main.getByText("Seats used")).toBeVisible();
   await expect(main.getByText("Seats left")).toBeVisible();
 });
+
+// oxlint-disable-next-line vitest/prefer-each -- Playwright has no test.each (1 finding)
+for (const [path, label] of [
+  ["/settings/signing-keys", "Active key"],
+  ["/settings/billing", "Renews"],
+  ["/settings/preferences", "Organization settings"],
+] as const) {
+  test(`${path} shows its KPI band`, async ({ page }) => {
+    await page.goto(path);
+
+    await expect(
+      page.getByRole("main").getByTestId("kpi-band").getByText(label),
+    ).toBeVisible();
+  });
+}
