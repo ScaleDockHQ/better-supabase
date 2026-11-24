@@ -29873,7 +29873,7 @@ function StartsCell({ row }: MeetingCell) {
 function TitleCell({ row }: MeetingCell) {
   return (
     <Link
-      href={`/meetings?meeting=${row.original.id}`}
+      href={`/meetings/${row.original.id}`}
       className="font-medium underline-offset-4 transition-colors hover:underline"
     >
       {row.original.title}

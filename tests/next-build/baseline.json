@@ -440,7 +440,7 @@
     "brotli": 358229
   },
   "/[locale]/(app)/deadlines/page": {
-    "raw": 1592771,
+    "raw": 1593914,
     "gzip": 509611,
     "brotli": 446060
   },
@@ -450,7 +450,7 @@
     "brotli": 403001
   },
   "/[locale]/(app)/documents/page": {
-    "raw": 1280112,
+    "raw": 1280743,
     "gzip": 407250,
     "brotli": 355838
   },
@@ -475,12 +475,12 @@
     "brotli": 445844
   },
   "/[locale]/(app)/drive/[folderId]/page": {
-    "raw": 1439031,
-    "gzip": 462887,
+    "raw": 1441790,
+    "gzip": 464089,
     "brotli": 404893
   },
   "/[locale]/(app)/drive/page": {
-    "raw": 1606671,
+    "raw": 1609430,
     "gzip": 511118,
     "brotli": 446912
   },
@@ -865,7 +865,7 @@
     "brotli": 535243
   },
   "/[locale]/(app)/projects/portfolio/page": {
-    "raw": 1278114,
+    "raw": 1279036,
     "gzip": 407002,
     "brotli": 355635
   },

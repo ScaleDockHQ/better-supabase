@@ -18,7 +18,7 @@
     "raw": 3830721
   },
   "/[locale]/(app)/advisories/vulnerabilities/[id]/page": {
-    "raw": 3917500
+    "raw": 3918807
   },
   "/[locale]/(app)/advisories/vulnerabilities/page": {
     "raw": 3824649
@@ -108,19 +108,19 @@
     "raw": 3817646
   },
   "/[locale]/(app)/banking/accounts/[id]/page": {
-    "raw": 3958589
+    "raw": 3959914
   },
   "/[locale]/(app)/banking/accounts/page": {
-    "raw": 3958518
+    "raw": 3959843
   },
   "/[locale]/(app)/banking/page": {
-    "raw": 3854249
+    "raw": 3855596
   },
   "/[locale]/(app)/banking/transactions/[id]/page": {
-    "raw": 3958613
+    "raw": 3959938
   },
   "/[locale]/(app)/banking/transactions/page": {
-    "raw": 3958544
+    "raw": 3959869
   },
   "/[locale]/(app)/beta/page": {
     "raw": 3804560
@@ -144,16 +144,16 @@
     "raw": 3829336
   },
   "/[locale]/(app)/care/[clientId]/page": {
-    "raw": 3905001
+    "raw": 3906399
   },
   "/[locale]/(app)/care/page": {
     "raw": 3825201
   },
   "/[locale]/(app)/cases/[id]/page": {
-    "raw": 3921479
+    "raw": 3922918
   },
   "/[locale]/(app)/cases/page": {
-    "raw": 3873166
+    "raw": 3874564
   },
   "/[locale]/(app)/chat/page": {
     "raw": 3807271
@@ -177,7 +177,7 @@
     "raw": 3825066
   },
   "/[locale]/(app)/courses/[courseId]/page": {
-    "raw": 3929012
+    "raw": 3930451
   },
   "/[locale]/(app)/courses/page": {
     "raw": 3839701
@@ -207,7 +207,7 @@
     "raw": 3864300
   },
   "/[locale]/(app)/crm/deals/[id]/page": {
-    "raw": 3964178
+    "raw": 3965617
   },
   "/[locale]/(app)/crm/deals/page": {
     "raw": 3908594
@@ -234,7 +234,7 @@
     "raw": 3864304
   },
   "/[locale]/(app)/crm/quotes/[id]/page": {
-    "raw": 3864209
+    "raw": 3865501
   },
   "/[locale]/(app)/crm/quotes/page": {
     "raw": 3866780
@@ -276,13 +276,13 @@
     "raw": 3824962
   },
   "/[locale]/(app)/deadlines/page": {
-    "raw": 3819952
+    "raw": 3821069
   },
   "/[locale]/(app)/documents/[id]/page": {
     "raw": 3809298
   },
   "/[locale]/(app)/documents/page": {
-    "raw": 3815366
+    "raw": 3818345
   },
   "/[locale]/(app)/documents/register/[id]/page": {
     "raw": 3833790
@@ -297,16 +297,16 @@
     "raw": 3822040
   },
   "/[locale]/(app)/drive/[folderId]/page": {
-    "raw": 3838139
+    "raw": 3863486
   },
   "/[locale]/(app)/drive/page": {
-    "raw": 3844264
+    "raw": 3869611
   },
   "/[locale]/(app)/field/day/page": {
     "raw": 3838545
   },
   "/[locale]/(app)/field/dispatch/[id]/page": {
-    "raw": 3931653
+    "raw": 3932951
   },
   "/[locale]/(app)/field/dispatch/page": {
     "raw": 3861539
@@ -318,61 +318,61 @@
     "raw": 3859602
   },
   "/[locale]/(app)/finance/accounting/[id]/page": {
-    "raw": 3958582
+    "raw": 3959907
   },
   "/[locale]/(app)/finance/accounting/page": {
-    "raw": 3958512
+    "raw": 3959837
   },
   "/[locale]/(app)/finance/billable-time/[id]/page": {
-    "raw": 3958604
+    "raw": 3959929
   },
   "/[locale]/(app)/finance/billable-time/page": {
-    "raw": 3958535
+    "raw": 3959860
   },
   "/[locale]/(app)/finance/expenses/[id]/page": {
-    "raw": 3958574
+    "raw": 3959899
   },
   "/[locale]/(app)/finance/expenses/page": {
-    "raw": 3958505
+    "raw": 3959830
   },
   "/[locale]/(app)/finance/invoices/[id]/page": {
-    "raw": 3958574
+    "raw": 3959899
   },
   "/[locale]/(app)/finance/invoices/page": {
-    "raw": 3958507
+    "raw": 3959832
   },
   "/[locale]/(app)/finance/ledger/[id]/page": {
-    "raw": 3958562
+    "raw": 3959887
   },
   "/[locale]/(app)/finance/ledger/page": {
-    "raw": 3958495
+    "raw": 3959820
   },
   "/[locale]/(app)/finance/page": {
     "raw": 3825029
   },
   "/[locale]/(app)/finance/payables/[id]/page": {
-    "raw": 3958572
+    "raw": 3959897
   },
   "/[locale]/(app)/finance/payables/page": {
-    "raw": 3963750
+    "raw": 3965075
   },
   "/[locale]/(app)/finance/periods/[id]/page": {
-    "raw": 3958568
+    "raw": 3959893
   },
   "/[locale]/(app)/finance/periods/page": {
-    "raw": 3958501
+    "raw": 3959826
   },
   "/[locale]/(app)/finance/recurring/[id]/page": {
-    "raw": 3958580
+    "raw": 3959905
   },
   "/[locale]/(app)/finance/recurring/page": {
-    "raw": 3958513
+    "raw": 3959838
   },
   "/[locale]/(app)/finance/tax/[id]/page": {
-    "raw": 3958544
+    "raw": 3959869
   },
   "/[locale]/(app)/finance/tax/page": {
-    "raw": 3958492
+    "raw": 3959817
   },
   "/[locale]/(app)/forbidden/page": {
     "raw": 3801421
@@ -384,10 +384,10 @@
     "raw": 3827224
   },
   "/[locale]/(app)/funding/[id]/page": {
-    "raw": 3958506
+    "raw": 3959831
   },
   "/[locale]/(app)/funding/page": {
-    "raw": 3962211
+    "raw": 3963536
   },
   "/[locale]/(app)/imports/page": {
     "raw": 3806822
@@ -417,10 +417,10 @@
     "raw": 3807310
   },
   "/[locale]/(app)/legal-entities/[id]/page": {
-    "raw": 3958548
+    "raw": 3959873
   },
   "/[locale]/(app)/legal-entities/page": {
-    "raw": 3967611
+    "raw": 3968936
   },
   "/[locale]/(app)/lims/[id]/page": {
     "raw": 3846955
@@ -483,19 +483,19 @@
     "raw": 3818088
   },
   "/[locale]/(app)/payroll/[id]/page": {
-    "raw": 3958510
+    "raw": 3959835
   },
   "/[locale]/(app)/payroll/page": {
-    "raw": 3967496
+    "raw": 3968821
   },
   "/[locale]/(app)/people/[id]/page": {
-    "raw": 3927692
+    "raw": 3928999
   },
   "/[locale]/(app)/people/encryption/page": {
     "raw": 3825621
   },
   "/[locale]/(app)/people/hiring/[id]/page": {
-    "raw": 3921495
+    "raw": 3922802
   },
   "/[locale]/(app)/people/hiring/page": {
     "raw": 3847302
@@ -510,7 +510,7 @@
     "raw": 3823437
   },
   "/[locale]/(app)/people/page": {
-    "raw": 3869085
+    "raw": 3870483
   },
   "/[locale]/(app)/people/time/page": {
     "raw": 3840913
@@ -531,7 +531,7 @@
     "raw": 3845417
   },
   "/[locale]/(app)/projects/portfolio/page": {
-    "raw": 3829583
+    "raw": 3854449
   },
   "/[locale]/(app)/property/leases/[id]/page": {
     "raw": 3819837
@@ -552,7 +552,7 @@
     "raw": 3840176
   },
   "/[locale]/(app)/risks/[id]/page": {
-    "raw": 3925769
+    "raw": 3927208
   },
   "/[locale]/(app)/risks/page": {
     "raw": 3836759
@@ -573,7 +573,7 @@
     "raw": 3809313
   },
   "/[locale]/(app)/settings/api-keys/[id]/page": {
-    "raw": 3843554
+    "raw": 3844846
   },
   "/[locale]/(app)/settings/api-keys/page": {
     "raw": 3830556
@@ -627,7 +627,7 @@
     "raw": 3829325
   },
   "/[locale]/(app)/settings/members/page": {
-    "raw": 3843903
+    "raw": 3845195
   },
   "/[locale]/(app)/settings/numbering/page": {
     "raw": 3808797
@@ -744,7 +744,7 @@
     "raw": 3828569
   },
   "/[locale]/(app)/shop/orders/[id]/page": {
-    "raw": 3936202
+    "raw": 3937527
   },
   "/[locale]/(app)/shop/orders/page": {
     "raw": 3842190
