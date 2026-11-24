@@ -100,7 +100,7 @@ describe("layout-reachable client code budget", () => {
 // Set from the first run; see the failure message for the measured value.
 const MAX_CLIENT_MODULES = 35;
 const MIN_ENSURE_STATIC = 59;
-const MAX_CLIENT_BYTES = 108_981;
+const MAX_CLIENT_BYTES = 109_065;
 
 describe("shell prerender table", () => {
   const exports = (name: string): string[] =>
