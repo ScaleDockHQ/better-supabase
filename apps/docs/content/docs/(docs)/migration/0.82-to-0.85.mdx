@@ -1,0 +1,113 @@
+---
+title: From 0.82 to 0.85
+description: One ordered checklist for an app that goes from better-supabase 0.82.0 to 0.85.0 in one step, with the shared cache tier on Next.js Cache Components and Vercel. It links to the 0.82 to 0.83 and 0.84 to 0.85 guides for each change.
+---
+
+This page is the order to do the work in when an app moves from 0.82.0 to
+0.85.0 at once. 0.83.0 was never published, so 0.84.0 is the first release
+after 0.82.0 that carries the 0.83 changes. Each step links to the section of
+[From 0.82 to 0.83](/docs/migration/0.82-to-0.83) or
+[From 0.84 to 0.85](/docs/migration/0.84-to-0.85) that explains it; read
+those for the detail. The steps assume a Next.js 16 app with Cache Components
+on Vercel and an authorization provider that ships its own adapter.
+
+## Checklist
+
+1. **Bump the package.** Set `better-supabase` to `0.85.0` and remove
+   `@supabase/pg-delta` and `@supabase/pg-topo` from your own
+   `package.json`: the CLI installs them now
+   ([Direct dependencies](/docs/migration/0.82-to-0.83#direct-dependencies)).
+   Then run `pnpm install`.
+2. **Run the 0.83 codemods**, in this order, and review the diff after each:
+
+   ```bash
+   pnpm better-supabase codemod blocks-list
+   pnpm better-supabase codemod config --prune
+   pnpm better-supabase codemod record-types
+   pnpm better-supabase codemod table-tags
+   pnpm better-supabase codemod doctor-baseline
+   ```
+
+   See [Codemod and render checks](/docs/migration/0.82-to-0.83#codemod-and-render-checks).
+
+3. **Move the provider fields.** Move permission keys and floors from the
+   config to the provider
+   ([0.83 provider fields](/docs/migration/0.82-to-0.83#provider-fields)).
+   To share cache entries per tenant later, have the provider declare
+   `tables` and its hooks `shareKey`, and list a page function under
+   `sharedFunctions`
+   ([0.85 provider fields](/docs/migration/0.84-to-0.85#provider-fields)).
+   An authorizer that reads `context.enforcement` must treat an unset value
+   as `"definer"`
+   ([The authorizer context](/docs/migration/0.84-to-0.85#the-authorizer-context)).
+4. **Upgrade and generate.** Run `pnpm better-supabase upgrade`, which moves
+   the `tasks` module to version 7 and writes the trigger, function and table
+   changes. Then run `pnpm better-supabase gen`, `pnpm db:gen` and
+   `pnpm supabase:diff <name>`, and apply the migration. Review the
+   [task coordination](/docs/migration/0.82-to-0.83#task-coordination)
+   changes: `claimNext` now picks only the caller's own tasks unless you set
+   `claims.next: "any"`.
+5. **Run doctor** with `pnpm better-supabase doctor`. The new rules from
+   0.83 ([Doctor](/docs/migration/0.82-to-0.83#doctor)) and 0.85
+   ([Doctor rules](/docs/migration/0.84-to-0.85#doctor-rules)) report, among
+   others, a provider value that disagrees with the config (BS427), a table
+   with more than four policies for one command (BS641), a shared function that
+   isn't security invoker (BS430) and a public kept entry on a table `anon`
+   can't select (BS645). Run `pnpm better-supabase gen --save-snapshot` once
+   so an offline doctor has the function inventory.
+6. **Fix the data changes.** Add `search.columns` to every record type with
+   `search.from` ([Search source views](/docs/migration/0.84-to-0.85#search-source-views)),
+   finish an import run only when every chunk is done and read `result`
+   instead of `items` ([Import chunks](/docs/migration/0.84-to-0.85#import-chunks)),
+   and filter `invoice_open_items` on `document_type` if you query it
+   ([Open items](/docs/migration/0.84-to-0.85#open-items)). Import batches
+   need no code.
+7. **Adopt `bsb.kept()`.** Pick the store in `createNext`, then move the
+   reads that repeat across requests into `bsb.kept()`
+   ([Keep reads across requests and deploys](/docs/concepts/caching#keep-reads-across-requests-and-deploys)).
+   Use `share: "tenant"` for a list every member with the same grant sees,
+   `functions` for a page that loads in one RPC, `share: "public"` for data
+   with no tenant, and `shareGuard(ctx, db)` around a service that builds
+   its own `db`.
+8. **Warm the instance.** Await `warm(bsb, { postgres: pool })` from
+   `better-supabase/next/instrumentation` in `register()`, so the first
+   request doesn't open the JWKS, PostgREST and pool connections itself
+   ([Server](/docs/auth/server)).
+9. **Re-check the request stats.** Turn on `debug: { budget }` and compare
+   the calls and waves of each page with the numbers from 0.82
+   ([Budget](/docs/frameworks/next-cache-components#budget)). A kept hit
+   counts no call, a fill counts the calls it made, and reads inside
+   `"use cache: private"` count on the request that rendered them.
+
+## Which store needs the cache tables
+
+`postgresCacheSql()` creates the entries, tags and leases tables and their
+functions. Only `postgresKeptStore()`, `postgresCacheHandler()` and
+`postgresKeptLease()` read them. An app that keeps its entries on the Vercel
+Runtime Cache with `vercelRuntimeCacheAdapter(getCache)` and takes no
+Postgres lease doesn't need `postgresCacheSql()` at all. Add it when you pass
+`lease: postgresKeptLease({ client })`, which uses only the leases table and
+its function, or when you move the entries to Postgres.
+
+| Store                                                                    | Needs `postgresCacheSql()` |
+| ------------------------------------------------------------------------ | -------------------------- |
+| `memoryKeptStore()`, the default                                         | No                         |
+| `vercelRuntimeCacheAdapter(getCache)`                                    | No                         |
+| `vercelRuntimeCacheAdapter(getCache, { lease: postgresKeptLease(...) })` | Yes, for the leases        |
+| `postgresKeptStore({ client })`                                          | Yes                        |
+
+## What changed between 0.84.0 and 0.85.0 in this step
+
+| Change                                      | Before                        | After                                         |
+| ------------------------------------------- | ----------------------------- | --------------------------------------------- |
+| `./next` evaluation in a fresh Node process | 104.5 ms, 109 files, 256.8 KB | 93.1 ms, 89 files, 224.2 KB                   |
+| Miss on four instances, Runtime Cache lock  | 4 fills, p50 82.8 ms          | 1 fill with `postgresKeptLease`, p50 103.0 ms |
+| A page RPC in a `share: "tenant"` fill      | refused, kept per user        | shared when the provider lists it             |
+| A slow RPC inside `"use cache: private"`    | counted                       | counted (now covered by a test)               |
+
+The lease numbers come from `pnpm bench:lease` on a Runtime Cache stand-in
+whose writes reach other instances 25 ms later; the
+[caching page](/docs/concepts/caching#keep-reads-across-requests-and-deploys)
+explains the setup. The Vercel rows of the
+[0.85 measurements](/docs/migration/0.84-to-0.85#what-the-changes-measure)
+are still pending a maintainer run of `scripts/probe-vercel-tags.ts`.
