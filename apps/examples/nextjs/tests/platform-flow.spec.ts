@@ -88,3 +88,52 @@ for (const path of ["/settings/api-keys", "/settings/webhooks"]) {
     await expect(page.getByRole("main").getByTestId("kpi-band")).toBeVisible();
   });
 }
+
+test("a role opens instantly with its permission matrix", async ({ page }) => {
+  await page.goto("/settings/roles");
+
+  const link = page.getByRole("link", { name: "Admin" }).first();
+
+  await expect(link).toBeVisible();
+
+  await expectInstant(page, {
+    during: async () => {
+      await link.click();
+      await page.waitForURL((url) =>
+        /^\/settings\/roles\/[^/]+$/.test(url.pathname),
+      );
+    },
+    visible: [page.getByRole("link", { name: "All roles" })],
+  });
+
+  const main = page.getByRole("main");
+
+  await expect(main.getByTestId("kpi-band")).toBeVisible();
+  await expect(main.getByText("Permission matrix")).toBeVisible();
+});
+
+test("a member opens instantly with the seat view", async ({ page }) => {
+  await page.goto("/settings/members");
+
+  const link = page
+    .getByRole("main")
+    .locator('a[href*="/settings/members/"]')
+    .first();
+
+  await expect(link).toBeVisible();
+
+  await expectInstant(page, {
+    during: async () => {
+      await link.click();
+      await page.waitForURL((url) =>
+        /^\/settings\/members\/[^/]+$/.test(url.pathname),
+      );
+    },
+    visible: [page.getByRole("link", { name: "All members" })],
+  });
+
+  const main = page.getByRole("main");
+
+  await expect(main.getByText("Seats used")).toBeVisible();
+  await expect(main.getByText("Seats left")).toBeVisible();
+});

@@ -20819,11 +20819,15 @@ msgid "Email"
 msgstr "E-mail"
 
 #: src/features/members/components/invite-within-seats.tsx
-#: src/features/members/components/member-detail.tsx
 #: src/features/members/components/member-table.tsx
 msgctxt "members.1ZgrhW"
 msgid "Role"
 msgstr "Rol"
+
+#: src/features/members/components/member-detail.tsx
+msgctxt "members.aI80kg"
+msgid "Properties"
+msgstr "Eigenschappen"
 
 #: src/features/members/components/member-detail.tsx
 #: src/features/members/components/member-table.tsx
@@ -20838,14 +20842,37 @@ msgid "Teams"
 msgstr "Teams"
 
 #: src/features/members/components/member-detail.tsx
-msgctxt "members.B50Tuv"
-msgid "Not on a team"
-msgstr "Niet in een team"
-
-#: src/features/members/components/member-detail.tsx
 msgctxt "members.Csh2rX"
 msgid "Grants"
 msgstr "Rechten"
+
+#: src/features/members/components/member-detail.tsx
+#: src/features/members/components/seat-usage.tsx
+msgctxt "members.7jVCfx"
+msgid "Seats used"
+msgstr "Plekken in gebruik"
+
+#: src/features/members/components/member-detail.tsx
+msgctxt "members.O-VDVM"
+msgid "Members of the organization, this one included."
+msgstr "Leden van de organisatie, dit lid meegeteld."
+
+#: src/features/members/components/member-detail.tsx
+#: src/features/members/components/seat-usage.tsx
+msgctxt "members.60sykO"
+msgid "Seats left"
+msgstr "Plekken over"
+
+#: src/features/members/components/member-detail.tsx
+#: src/features/members/components/seat-usage.tsx
+msgctxt "members.PfW4AI"
+msgid "No limit"
+msgstr "Geen limiet"
+
+#: src/features/members/components/member-detail.tsx
+msgctxt "members.B50Tuv"
+msgid "Not on a team"
+msgstr "Niet in een team"
 
 #: src/features/members/components/member-detail.tsx
 msgctxt "members.cNB6uz"
@@ -20961,21 +20988,6 @@ msgstr "Openstaande uitnodigingen"
 msgctxt "members.z7B1G5"
 msgid "There is no mailer in this example: copy the link and send it yourself."
 msgstr "Dit voorbeeld heeft geen mailer: kopieer de link en verstuur hem zelf."
-
-#: src/features/members/components/seat-usage.tsx
-msgctxt "members.7jVCfx"
-msgid "Seats used"
-msgstr "Plekken in gebruik"
-
-#: src/features/members/components/seat-usage.tsx
-msgctxt "members.60sykO"
-msgid "Seats left"
-msgstr "Plekken over"
-
-#: src/features/members/components/seat-usage.tsx
-msgctxt "members.PfW4AI"
-msgid "No limit"
-msgstr "Geen limiet"
 
 #: src/features/members/components/seat-usage.tsx
 msgctxt "members.wVhpgd"
@@ -22940,16 +22952,19 @@ msgid "Organizations"
 msgstr "Organisaties"
 
 #: src/features/organization/use-role-label.ts
+#: src/features/roles/components/role-detail.tsx
 msgctxt "organization.zINlao"
 msgid "Owner"
 msgstr "Eigenaar"
 
 #: src/features/organization/use-role-label.ts
+#: src/features/roles/components/role-detail.tsx
 msgctxt "organization.iHN12u"
 msgid "Admin"
 msgstr "Beheerder"
 
 #: src/features/organization/use-role-label.ts
+#: src/features/roles/components/role-detail.tsx
 msgctxt "organization.7L86Z5"
 msgid "Member"
 msgstr "Lid"
@@ -26412,6 +26427,63 @@ msgid "{members, plural, one {# member} other {# members}} · {count, number} of
 msgstr "{members, plural, one {# lid} other {# leden}} · {count, number} van {total, number} rechten"
 
 #: src/features/roles/components/role-detail.tsx
+msgctxt "roles.lKv8ex"
+msgid "Default"
+msgstr "Standaard"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.ju74V1"
+msgid "Customised"
+msgstr "Aangepast"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.aI80kg"
+msgid "Properties"
+msgstr "Eigenschappen"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.EcglP9"
+msgid "Key"
+msgstr "Sleutel"
+
+#: src/features/roles/components/role-detail.tsx
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.-a-2ug"
+msgid "Members"
+msgstr "Leden"
+
+#: src/features/roles/components/role-detail.tsx
+#: src/features/roles/components/roles-grid.tsx
+msgctxt "roles.SFuk1v"
+msgid "Permissions"
+msgstr "Rechten"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.Dojzg5"
+msgid "Editable"
+msgstr "Bewerkbaar"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.a5msuh"
+msgid "Yes"
+msgstr "Ja"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.oUWADl"
+msgid "No"
+msgstr "Nee"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.tAIDGl"
+msgid "Added to the default"
+msgstr "Toegevoegd aan de standaard"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.dXULc9"
+msgid "Removed from the default"
+msgstr "Verwijderd uit de standaard"
+
+#: src/features/roles/components/role-detail.tsx
 msgctxt "roles.Ymelch"
 msgid "The owner role holds every permission and can't change."
 msgstr "De eigenaarsrol heeft elk recht en kan niet worden gewijzigd."
@@ -26420,6 +26492,16 @@ msgstr "De eigenaarsrol heeft elk recht en kan niet worden gewijzigd."
 msgctxt "roles.Fq40c4"
 msgid "You can read this role. Changing it needs the roles.manage permission and every key it holds."
 msgstr "Je kunt deze rol bekijken. Wijzigen vereist het recht roles.manage en elke sleutel die de rol heeft."
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.v0Bvoq"
+msgid "Permission matrix"
+msgstr "Rechtenmatrix"
+
+#: src/features/roles/components/role-detail.tsx
+msgctxt "roles.HJtPt_"
+msgid "Every key the organization's roles use, grouped by module."
+msgstr "Elke sleutel die de rollen van de organisatie gebruiken, per module gegroepeerd."
 
 #: src/features/roles/components/roles-grid.tsx
 msgctxt "roles.F9jeKU"
@@ -26435,16 +26517,6 @@ msgstr "{count, plural, one {# afwijking} other {# afwijkingen}}"
 msgctxt "roles.1ZgrhW"
 msgid "Role"
 msgstr "Rol"
-
-#: src/features/roles/components/roles-grid.tsx
-msgctxt "roles.-a-2ug"
-msgid "Members"
-msgstr "Leden"
-
-#: src/features/roles/components/roles-grid.tsx
-msgctxt "roles.SFuk1v"
-msgid "Permissions"
-msgstr "Rechten"
 
 #: src/features/roles/components/roles-grid.tsx
 msgctxt "roles.pi29lP"
