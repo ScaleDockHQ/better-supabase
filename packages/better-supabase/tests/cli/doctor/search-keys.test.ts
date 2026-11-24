@@ -70,6 +70,31 @@ describe("search key types (BS632)", () => {
     expect(pairs[1]?.right.column).toBe("customer_id");
   });
 
+  it("pairs a watch key with the record id and each hop of through", () => {
+    const pairs = searchKeyPairs({
+      order: {
+        table: "public.orders",
+        search: {
+          watch: [
+            {
+              table: "public.tags",
+              key: "order_id",
+              through: [
+                { table: "public.order_tags", from: "tag_id", to: "id" },
+              ],
+            },
+          ],
+        },
+      },
+      note: { table: "public.notes" },
+    });
+
+    expect(pairs.map((pair) => [pair.where, pair.right.column])).toEqual([
+      ["order watch[0]", "id"],
+      ["order watch[0] through[0]", "order_id"],
+    ]);
+  });
+
   it("reports a pair whose catalog types differ and skips an unknown column", () => {
     const pairs = searchKeyPairs({
       order: {
@@ -172,6 +197,43 @@ describe("BS637 check", () => {
         use("customers", "name"),
       ]).map((entry) => entry.missing),
     ).toEqual([["status", "title"]]);
+  });
+
+  it("counts the exclude column as watched, but not another archive flag", () => {
+    const archived = {
+      order: {
+        ...viewed.order,
+        search: { ...viewed.order.search, exclude: "archived_at" },
+      },
+    };
+
+    expect(
+      unlistedViewColumns(searchViewSources(archived), [
+        use("orders", "archived_at"),
+        use("orders", "closed_at"),
+      ]).map((entry) => entry.missing),
+    ).toEqual([["closed_at"]]);
+  });
+
+  it("reads an unqualified table as public and names several columns", async () => {
+    const bare = {
+      order: {
+        table: "orders",
+        search: { from: { view: "order_search", key: "order_id" } },
+      },
+    };
+
+    const { database } = live([
+      use("orders", "title"),
+      use("orders", "status"),
+    ]);
+
+    const findings = await unlisted?.check(context(database, bare));
+
+    expect(findings?.[0]?.message).toContain(
+      'reads "status", "title" of "public"."orders"',
+    );
+    expect(findings?.[0]?.message).toContain("an update of them");
   });
 
   it("reads view_column_usage for the source views and reports the gap", async () => {
