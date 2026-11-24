@@ -1,4 +1,4 @@
-import { createLoader, parseAsString } from "nuqs/server";
+import { parseAsString } from "nuqs/server";
 
 /**
  * The URL state of a block overview, shared by the server (`parseBlockList`)
@@ -11,5 +11,3 @@ export const blockOverviewParsers = {
   sort: parseAsString.withDefault(""),
   after: parseAsString.withDefault(""),
 };
-
-export const loadBlockOverviewParams = createLoader(blockOverviewParsers);

@@ -84,4 +84,6 @@ its own.
 
 Later in the same change, the record sections for conversations and workflow
 progress and the live refresh on the timeline raised the first-load and server
-baselines again; both files were rewritten from the final build.
+baselines again; both files were rewritten from the final build. The tasks section and
+the shared overview parsers raised them by under 5 KB of server code and 345 bytes of
+first-load JavaScript per route, and both files were rewritten once more.

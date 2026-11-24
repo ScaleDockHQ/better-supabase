@@ -1,9 +1,13 @@
+import { createLoader } from "nuqs/server";
+
 import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 import type { Mutable } from "@/lib/block-status-list";
 
-import { loadBlockOverviewParams } from "@/lib/block-overview-params";
+import { blockOverviewParsers } from "@/lib/block-overview-params";
 
 const SEARCH_MAX = 100;
+
+const loadBlockOverviewParams = createLoader(blockOverviewParsers);
 
 type RawParams = Readonly<Record<string, string | string[] | undefined>>;
 
