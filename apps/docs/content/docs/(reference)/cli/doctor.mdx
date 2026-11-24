@@ -2546,6 +2546,29 @@ and reports:
   `permissions`, so the entry would be keyed on the wrong grant;
 - a name the database has no table for.
 
+### BS430
+
+**Error: a function the provider shares per tenant reads past its tables.** An
+authorization provider's `sharedFunctions` entry says a database function
+returns the same rows to every caller with the entry's permissions in a
+tenant, so a `share: "tenant"` fill of `bsb.kept` or `bsb.remote` may call it
+and keep one entry for all of them. Doctor reads the function from the catalog
+and reports one that:
+
+- is `security definer`, so it reads past the caller's RLS;
+- isn't `language sql`: doctor can't read a PL/pgSQL body, so it can't tell
+  which tables the function reads;
+- is volatile;
+- reads the caller (an `auth.*` function, `current_setting`,
+  `better_supabase.current_user_id()`, `current_user` or `session_user`);
+- calls a function in the read schemas that `sharedFunctions` doesn't list;
+- reads a table its `tables` don't list.
+
+It also reports a listed table the provider's `tables` doesn't share per
+tenant, and a function or table the database lacks. A function that returns
+the caller's own rows next to the tenant's can't be shared: split it into a
+tenant function and a per-user read.
+
 ### BS429
 
 **Info: a write definition sets no enforcement.** An action, a route bound to
@@ -3147,6 +3170,17 @@ writes both for a new app. The finding lists the server files that call
 `bsb.claims()` before you switch. With `--as <user id>` and a database, it adds
 the bytes that user's object takes in the cookie. See
 [Encoding](/docs/auth/sessions#encoding).
+
+### BS645
+
+**Warning: a public kept entry reads a table `anon` can't select.**
+`bsb.kept(fn, { share: "public" })` fills as the `anon` role and keeps one
+entry for every visitor. Doctor reads the `tables` of each such call in the
+app's sources and reports a table without an `anon` select grant, or with RLS
+and no permissive select policy that applies to `anon`. The fill would keep an
+empty read for everyone until the entry expires. Add an `anon` select policy
+that exposes only the public rows, or keep the read per user. See
+[Keep public data for every visitor](/docs/concepts/caching#keep-public-data-for-every-visitor).
 
 ### BS633
 

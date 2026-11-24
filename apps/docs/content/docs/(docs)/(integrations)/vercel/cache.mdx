@@ -190,3 +190,19 @@ it.
 
 `updateTag` is expected to throw in a Route Handler, since Next.js allows it
 only in Server Actions; the probe records the error.
+
+The same run then checks the kept store, through
+`vercelRuntimeCacheAdapter(getCache)`: it stores an entry and reads it back,
+reads an entry the previous deployment wrote under a fixed key, times 40 set,
+hit and miss round trips, and starts 250 `expireTags` calls in one second.
+Add `--second` to read the entry from up to 10 more requests until one lands
+on another instance. Run a redeploy between two runs to see whether entries
+survive a deploy. `--local` runs the kept steps on `memoryKeptStore()` with
+no preview, as a baseline.
+
+| Kept store step                      | Vercel, fra1           | `--local`            |
+| ------------------------------------ | ---------------------- | -------------------- |
+| Read on another instance             | pending maintainer run | same process         |
+| Entry from the previous deployment   | pending maintainer run | not applicable       |
+| Set, hit and miss p50 / p95          | pending maintainer run | under 0.05 ms each   |
+| 250 `expireTags` calls in one second | pending maintainer run | 250 accepted, 1.23 s |

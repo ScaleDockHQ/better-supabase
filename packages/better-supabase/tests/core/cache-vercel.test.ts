@@ -125,6 +125,29 @@ describe("vercelRuntimeCacheAdapter", () => {
     expect(await adapter.lease("kept:a", "two", 1500)).toBe(true);
   });
 
+  it("takes the lease from the lease option and writes no lock entry", async () => {
+    const cache = fakeCache();
+
+    const lease = {
+      lease: vi.fn<
+        (key: string, holder: string, ttlMs: number) => Promise<boolean>
+      >(() => Promise.resolve(false)),
+      release: vi.fn<(key: string, holder: string) => Promise<void>>(() =>
+        Promise.resolve(),
+      ),
+    };
+
+    const adapter = vercelRuntimeCacheAdapter(() => cache, { lease });
+
+    expect(await adapter.lease("kept:a", "one", 1500)).toBe(false);
+    await adapter.release("kept:a", "one");
+
+    expect(lease.lease).toHaveBeenCalledExactlyOnceWith("kept:a", "one", 1500);
+    expect(lease.release).toHaveBeenCalledExactlyOnceWith("kept:a", "one");
+    expect(cache.get).not.toHaveBeenCalled();
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
   it("sets the lock entry with a ttl in whole seconds", async () => {
     const cache = fakeCache();
     const adapter = vercelRuntimeCacheAdapter(() => cache);

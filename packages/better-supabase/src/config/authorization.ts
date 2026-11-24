@@ -524,6 +524,17 @@ export interface AuthorizationTableShare<Key extends string = string> {
   readonly permissions: readonly Key[];
 }
 
+/** One entry of `AuthorizationProvider.sharedFunctions`. */
+export interface AuthorizationFunctionShare<Key extends string = string> {
+  /**
+   * Every table the function reads (`orders` or `public.orders`). Each one must
+   * be a `tenant` entry of `tables`.
+   */
+  readonly tables: readonly string[];
+  /** The keys the select policies of those reads check in the tenant. */
+  readonly permissions: readonly Key[];
+}
+
 /**
  * An authorization system the SQL modules, the policies and doctor delegate to.
  * It is plain data, usually built from the provider's own output files.
@@ -634,6 +645,18 @@ export interface AuthorizationProvider<Key extends string = string> {
    * generated table metadata, and doctor BS428 checks it against the policies.
    */
   readonly tables?: Readonly<Record<string, AuthorizationTableShare<Key>>>;
+  /**
+   * Functions a `share: "tenant"` fill may call, by name (`page_payload` or
+   * `api.page_payload`), with the tables they read and the permissions those
+   * reads check. A function's result then depends only on the rows RLS shows
+   * the caller in those tables, so one entry serves every holder of the
+   * permissions in the tenant. `gen` copies it into the generated metadata, and
+   * doctor BS430 checks that each function is `security invoker`, reads only
+   * those tables and never reads the caller's identity.
+   */
+  readonly sharedFunctions?: Readonly<
+    Record<string, AuthorizationFunctionShare<Key>>
+  >;
   /** What the provider found wrong while building this, for doctor. */
   readonly problems?: readonly string[];
 }

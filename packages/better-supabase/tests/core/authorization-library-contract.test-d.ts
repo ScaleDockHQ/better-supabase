@@ -321,6 +321,13 @@ describe("authorization library contract", () => {
         ownedClaims: ["permissions"],
         teamIdsTruncatedClaim: "team_ids_truncated",
       },
+      tables: { customers: { share: "tenant", permissions: ["crm.read"] } },
+      sharedFunctions: {
+        "api.customer_payload": {
+          tables: ["customers"],
+          permissions: ["crm.read"],
+        },
+      },
     };
 
     expectTypeOf(older.apiVersion).toEqualTypeOf<1>();

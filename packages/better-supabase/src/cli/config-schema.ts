@@ -550,6 +550,12 @@ const authorization = v.strictObject({
       }),
     ),
   ),
+  sharedFunctions: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({ tables: strings, permissions: strings }),
+    ),
+  ),
   problems: v.optional(strings),
 });
 

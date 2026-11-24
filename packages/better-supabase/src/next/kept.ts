@@ -4,6 +4,7 @@ import type { CacheAdapter } from "../core/cache.ts";
 import type { EventHub } from "../core/events.ts";
 import type { KeptCache, KeptStore } from "../core/kept-cache.ts";
 import type { CacheEntryStat } from "../core/stats.ts";
+import type { SchemaMeta } from "../schema/types.ts";
 import type { TenantShare } from "../server/tenant-share.ts";
 import type {
   CacheScope,
@@ -22,7 +23,11 @@ import {
   memoryKeptStore,
 } from "../core/kept-cache.ts";
 import { cacheTagsOf } from "../core/tags.ts";
-import { sharedReader } from "../server/tenant-share.ts";
+import {
+  sharedFunctionsOf,
+  sharedReader,
+  tablesWithFunctions,
+} from "../server/tenant-share.ts";
 import { withReadSetTables } from "./action-bound.ts";
 import { tableTags } from "./cache.ts";
 import { applyCacheEntry } from "./entry.ts";
@@ -62,11 +67,14 @@ export interface KeptDeps<Ctx extends KeptContext<C, P>, C, P> {
     record: CacheEntryStat,
     source: SessionHandle | undefined,
   ) => void;
+  /** The `anon` context a `share: "public"` entry fills with. */
+  readonly publicScope: () => KeptScope<Ctx, C, P>;
   /** How a `share: "tenant"` entry of `ctx` that reads `tables` is keyed. */
   readonly tenantShare: (
     ctx: Ctx,
     tables: readonly string[],
     tenant: string | undefined,
+    functions?: readonly string[],
   ) => Promise<TenantShare>;
 }
 
@@ -99,6 +107,8 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
 ): KeptBinding<Ctx> {
   let cache: KeptCache | undefined;
   let version: Promise<string> | undefined;
+  // SAFETY: `createNext` passes the generated schema's meta, or nothing.
+  const schemaMeta = deps.meta as SchemaMeta | undefined;
   /** Functions whose `share: "tenant"` refusal was logged. */
   const warned = new Set<string>();
 
@@ -181,18 +191,27 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
       source: SessionHandle | undefined,
       args: A,
     ): Promise<R> => {
-      const { ctx, view, scope, tenant } = await deps.scopeOf(
-        source,
-        options.tenant?.(...args),
-      );
+      const open = options.share === "public";
+
+      // A public entry never reads the request, so it runs in a plain
+      // "use cache" scope too.
+      const { ctx, view, scope, tenant } = open
+        ? deps.publicScope()
+        : await deps.scopeOf(source, options.tenant?.(...args));
 
       const appTags =
         typeof options.tags === "function"
           ? options.tags(...args)
           : (options.tags ?? []);
 
+      const declared = tablesWithFunctions(
+        schemaMeta,
+        options.tables ?? [],
+        options.functions,
+      );
+
       const entry = withReadSetTables({
-        ...(options.tables ? { tables: options.tables } : {}),
+        ...(declared.length > 0 ? { tables: declared } : {}),
         ...(options.readSet ? { readSet: options.readSet } : {}),
         tags: appTags,
         life: { stale: revalidate, revalidate, expire },
@@ -223,10 +242,14 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
 
       const decided: TenantShare =
         options.share === "tenant"
-          ? await deps.tenantShare(ctx, tables, tenant)
+          ? await deps.tenantShare(ctx, tables, tenant, options.functions)
           : { kind: "user" };
 
-      const shared = decided.kind === "shared" ? decided.key : undefined;
+      const shared = open
+        ? "public"
+        : decided.kind === "shared"
+          ? decided.key
+          : undefined;
 
       const share = canonicalJson(
         cacheKeyOf({
@@ -235,7 +258,9 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
           support: null,
           snapshot: snapshotOf(ctx.auth),
           share:
-            shared === undefined ? "user" : { key: () => `tenant:${shared}` },
+            shared === undefined
+              ? "user"
+              : { key: () => (open ? "public" : `tenant:${shared}`) },
         }),
       );
 
@@ -264,7 +289,13 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
       }
 
       const reader =
-        shared === undefined ? undefined : sharedReader(ctx, tables);
+        shared === undefined
+          ? undefined
+          : sharedReader(
+              ctx,
+              tables,
+              sharedFunctionsOf(schemaMeta, options.functions),
+            );
 
       const tags = [
         ...(view.kind === "user" && shared === undefined

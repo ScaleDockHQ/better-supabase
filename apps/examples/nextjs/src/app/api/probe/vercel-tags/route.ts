@@ -1,7 +1,16 @@
 import { getCache, invalidateByTag } from "@vercel/functions";
+import { vercelRuntimeCacheAdapter } from "better-supabase/server";
 import { revalidateTag, updateTag } from "next/cache";
+import * as v from "valibot";
 
 import { env } from "@/env";
+import {
+  burst,
+  keptRead,
+  keptWrite,
+  latency,
+  versionRead,
+} from "@/lib/kept-probe";
 
 type Expire = (tags: string[]) => Promise<void> | void;
 
@@ -14,6 +23,16 @@ interface Step {
 }
 
 const READ_AFTER_MS = [0, 250, 1000, 3000];
+
+const noStore = { headers: { "cache-control": "no-store" } };
+
+/** What scripts/probe-vercel-tags.ts sends; no body runs the tag steps. */
+const Body = v.variant("step", [
+  v.object({
+    step: v.picklist(["tags", "kept-write", "version", "latency", "burst"]),
+  }),
+  v.object({ step: v.literal("kept-read"), key: v.string() }),
+]);
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -106,6 +125,55 @@ export async function POST(request: Request): Promise<Response> {
     return new Response(null, { status: 401 });
   }
 
+  const store = vercelRuntimeCacheAdapter(getCache, {
+    namespace: "bsb-kept-probe",
+  });
+
+  const parsed = v.safeParse(
+    Body,
+    await request.json().catch(() => ({ step: "tags" })),
+  );
+
+  const body = parsed.success ? parsed.output : { step: "tags" as const };
+
+  switch (body.step) {
+    case "kept-write": {
+      return Response.json(await keptWrite(store), noStore);
+    }
+
+    case "kept-read": {
+      return Response.json(await keptRead(store, body.key), noStore);
+    }
+
+    case "version": {
+      return Response.json(
+        await versionRead(
+          store,
+          request.headers.get("x-vercel-deployment-url") ?? "local",
+        ),
+        noStore,
+      );
+    }
+
+    case "latency": {
+      return Response.json(await latency(store), noStore);
+    }
+
+    case "burst": {
+      return Response.json(await burst(store), noStore);
+    }
+
+    case "tags": {
+      break;
+    }
+
+    default: {
+      const never: never = body;
+
+      return never;
+    }
+  }
+
   const steps = [
     await probe("updateTag", (tags) => {
       for (const tag of tags) {
@@ -138,6 +206,6 @@ export async function POST(request: Request): Promise<Response> {
       limits,
       oversizedTag: { rejects: rejected !== null, error: rejected },
     },
-    { headers: { "cache-control": "no-store" } },
+    noStore,
   );
 }

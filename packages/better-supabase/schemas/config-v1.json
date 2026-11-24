@@ -1608,6 +1608,28 @@
                 "additionalProperties": false
               }
             },
+            "sharedFunctions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "tables": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["tables", "permissions"],
+                "additionalProperties": false
+              }
+            },
             "problems": {
               "type": "array",
               "items": {

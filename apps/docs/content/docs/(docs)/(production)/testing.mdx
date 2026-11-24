@@ -426,6 +426,25 @@ it("keeps organizations apart", async () => {
 [`doctor`](/docs/cli/doctor#bs107) reports tenant tables whose policies skip
 a command before a test has to.
 
+## Services in a shared fill
+
+`inTenantFill(ctx, tables, body)` runs `body` with the context a
+`share: "tenant"` fill of `bsb.kept()` hands it, and returns its value with
+the first refused read. Use it to check that an app's own service, given a db
+through [`shareGuard`](/docs/concepts/caching#run-your-own-services-in-a-shared-fill),
+reads only the entry's tables:
+
+```ts
+import { shareGuard } from "better-supabase/server";
+import { inTenantFill } from "better-supabase/testing";
+
+const fill = await inTenantFill(ctx, ["customers"], (shared) =>
+  customerService(shareGuard(shared, appDb)).page(organizationId),
+);
+
+expect(fill.refused).toBeUndefined();
+```
+
 ## Database budget
 
 `expectDbBudget(page, { maxCalls, maxWaves, maxVerifications, maxAdminCalls, during })` fails a Playwright
