@@ -111,3 +111,10 @@ whose writes reach other instances 25 ms later; the
 explains the setup. The Vercel rows of the
 [0.85 measurements](/docs/migration/0.84-to-0.85#what-the-changes-measure)
 are still pending a maintainer run of `scripts/probe-vercel-tags.ts`.
+
+A kept read after a deploy is untested on Vercel. Nothing has yet shown that
+an entry one deployment writes to the Runtime Cache is there for the next
+deployment, nor that a tag expired before a deploy stays expired after it.
+Until the probe's "Entry from the previous deployment" row has a Vercel
+result, plan for a cold kept tier after every deploy: the first read of each
+entry fills it again, under the caller's RLS.
