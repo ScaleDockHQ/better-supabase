@@ -181,7 +181,7 @@ Written by `node scripts/check-example-generated.ts --write`; do not edit by han
 | records/work-center                 | 0         |
 | server                              | 253       |
 | server-api                          | 3         |
-| server-core                         | 82        |
+| server-core                         | 83        |
 | server-shell                        | 45        |
 | session-counters                    | 0         |
 | shell                               | 0         |
