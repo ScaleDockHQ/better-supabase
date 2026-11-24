@@ -58,6 +58,11 @@ msgctxt "approvals.csSfAQ"
 msgid "Requests that need a decision before the action runs."
 msgstr "Requests that need a decision before the action runs."
 
+#: src/app/[locale]/(app)/areas/[area]/page.tsx
+msgctxt "areas.M3bn5M"
+msgid "All areas"
+msgstr "All areas"
+
 #: src/app/[locale]/(app)/areas/page.tsx
 msgctxt "areas.AGx9HC"
 msgid "Product areas"
@@ -4510,7 +4515,203 @@ msgctxt "approvals.PoX2HN"
 msgid "Send request"
 msgstr "Send request"
 
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.CQa3R9"
+msgid "Deals"
+msgstr "Deals"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.epJ5ty"
+msgid "Quotes"
+msgstr "Quotes"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.ZwpbZp"
+msgid "Contracts"
+msgstr "Contracts"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.4S241U"
+msgid "Contacts"
+msgstr "Contacts"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.6dqYnF"
+msgid "Invoices"
+msgstr "Invoices"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.8K_n1E"
+msgid "Legal entities"
+msgstr "Legal entities"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.qGb-T3"
+msgid "Locations"
+msgstr "Locations"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.p7zCOV"
+msgid "Inspections"
+msgstr "Inspections"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas._s79W_"
+msgid "Risks"
+msgstr "Risks"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.E03-aK"
+msgid "Change requests"
+msgstr "Change requests"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.TTLDST"
+msgid "Cases"
+msgstr "Cases"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.TkYZBT"
+msgid "Customers"
+msgstr "Customers"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas._JFTDQ"
+msgid "Warranty claims"
+msgstr "Warranty claims"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.d1uESJ"
+msgid "Assets"
+msgstr "Assets"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.izHU3r"
+msgid "Work orders"
+msgstr "Work orders"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.Z_P45E"
+msgid "Facilities"
+msgstr "Facilities"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.mtr3R4"
+msgid "Incidents"
+msgstr "Incidents"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.LUrJwE"
+msgid "Channels"
+msgstr "Channels"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.UxTJRa"
+msgid "Projects"
+msgstr "Projects"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.yhU1et"
+msgid "Tasks"
+msgstr "Tasks"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.CPjPRM"
+msgid "Time entries"
+msgstr "Time entries"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.nFa1Ms"
+msgid "Approvals"
+msgstr "Approvals"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.HHzdGS"
+msgid "Employees"
+msgstr "Employees"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.R85gsW"
+msgid "Courses"
+msgstr "Courses"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.3kP3Of"
+msgid "Announcements"
+msgstr "Announcements"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.Q4yNVn"
+msgid "Content entries"
+msgstr "Content entries"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.dMaTpi"
+msgid "Meetings"
+msgstr "Meetings"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.yGsZm0"
+msgid "Forms"
+msgstr "Forms"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.y10hgk"
+msgid "Care plans"
+msgstr "Care plans"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.M_xDHn"
+msgid "Observations"
+msgstr "Observations"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.S7z-wf"
+msgid "Client notes"
+msgstr "Client notes"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.l5XCJW"
+msgid "Advisories"
+msgstr "Advisories"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.SxEfhc"
+msgid "Deadlines"
+msgstr "Deadlines"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.GBnvl1"
+msgid "Agents"
+msgstr "Agents"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.p7buKP"
+msgid "Prompts"
+msgstr "Prompts"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.F42bEw"
+msgid "Schedules"
+msgstr "Schedules"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.-a-2ug"
+msgid "Members"
+msgstr "Members"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.NZ8yBj"
+msgid "Domains"
+msgstr "Domains"
+
+#: src/features/areas/area-kpis.ts
+msgctxt "areas.V8cirD"
+msgid "Access requests"
+msgstr "Access requests"
+
 #: src/features/areas/components/area-cards.tsx
+#: src/features/areas/components/area-hub.tsx
 msgctxt "areas.mEfo2O"
 msgid "Screens of {area}"
 msgstr "Screens of {area}"
@@ -4519,6 +4720,21 @@ msgstr "Screens of {area}"
 msgctxt "areas.oBoa2n"
 msgid "Presets"
 msgstr "Presets"
+
+#: src/features/areas/components/area-hub.tsx
+msgctxt "areas.dANS8k"
+msgid "Flow"
+msgstr "Flow"
+
+#: src/features/areas/components/area-hub.tsx
+msgctxt "areas.NZu-3P"
+msgid "Presets and composites"
+msgstr "Presets and composites"
+
+#: src/features/areas/components/area-hub.tsx
+msgctxt "areas.WIgkLd"
+msgid "The blocks this area is built from, and the actions that span them."
+msgstr "The blocks this area is built from, and the actions that span them."
 
 #: src/features/assets/components/asset-actions-bar.tsx
 msgctxt "assets.S7kM2a"

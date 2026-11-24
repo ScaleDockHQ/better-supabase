@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-import type { AppPathname } from "@/i18n/navigation";
-
 import {
   Card,
   CardDescription,
@@ -9,7 +7,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link } from "@/i18n/navigation";
+import { Link, toAppHref } from "@/i18n/navigation";
 
 export interface Kpi {
   readonly label: string;
@@ -17,7 +15,7 @@ export interface Kpi {
   readonly value: string;
   readonly hint?: string;
   /** A page the figure opens, such as the list the number counts. */
-  readonly href?: AppPathname;
+  readonly href?: string;
   readonly icon?: ReactNode;
 }
 
@@ -43,7 +41,7 @@ function KpiTile({ kpi }: { kpi: Kpi }) {
     body
   ) : (
     <Link
-      href={kpi.href}
+      href={toAppHref(kpi.href)}
       className="rounded-xl transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       {body}

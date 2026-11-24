@@ -1314,6 +1314,15 @@ export const ROUTES: readonly RouteEntry[] = [
     scale: false,
   },
   {
+    route: "/areas/[area]",
+    archetype: "dashboard",
+    url: null,
+    maxCalls: 8,
+    maxWaves: 2,
+    instant: true,
+    scale: false,
+  },
+  {
     route: "/my-work",
     archetype: "overview",
     url: "/my-work",

@@ -18,7 +18,7 @@ test("the sales hub shows its KPI band and opens the deals from it", async ({
 }) => {
   await page.goto("/crm");
 
-  await expect(page.getByTestId("kpi-band")).toBeVisible();
+  await expect(page.getByTestId("kpi-band").first()).toBeVisible();
   await expect(page.getByText("Closing soonest")).toBeVisible();
 
   const link = page.getByRole("link", { name: /Open deals/ });
@@ -100,4 +100,22 @@ test("a contract opens with its status path and its record sections", async ({
     page.getByRole("list", { name: "Contract status" }),
   ).toBeVisible();
   await expect(page.getByText("Obligations", { exact: true })).toBeVisible();
+});
+
+test("an area hub opens instantly from the areas page and shows its figures", async ({
+  page,
+}) => {
+  await page.goto("/areas");
+
+  const link = page.getByRole("link", { name: "ERP", exact: true });
+
+  await expectInstant(page, {
+    during: async () => {
+      await link.click();
+      await page.waitForURL((url) => url.pathname === "/areas/erp");
+    },
+    visible: [page.getByRole("link", { name: "All areas" })],
+  });
+
+  await expect(page.getByTestId("kpi-band").first()).toBeVisible();
 });
