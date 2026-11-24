@@ -1281,6 +1281,7 @@ msgid "All projects"
 msgstr "Alle projecten"
 
 #: src/app/[locale]/(app)/projects/page.tsx
+#: src/features/projects/components/project-portfolio.tsx
 msgctxt "projects.UxTJRa"
 msgid "Projects"
 msgstr "Projecten"
@@ -1289,6 +1290,22 @@ msgstr "Projecten"
 msgctxt "projects.1eG-hs"
 msgid "One tasks table as a grid, a board, a calendar, a timeline and a Gantt chart."
 msgstr "Eén takentabel als raster, bord, agenda, tijdlijn en Gantt-diagram."
+
+#: src/app/[locale]/(app)/projects/page.tsx
+#: src/app/[locale]/(app)/projects/portfolio/page.tsx
+msgctxt "projects.uNOJ2Q"
+msgid "Portfolio"
+msgstr "Portfolio"
+
+#: src/app/[locale]/(app)/projects/portfolio/page.tsx
+msgctxt "projects.ViGzfU"
+msgid "All tasks"
+msgstr "Alle taken"
+
+#: src/app/[locale]/(app)/projects/portfolio/page.tsx
+msgctxt "projects.n5HiI9"
+msgid "The hours tracked on every project, this week's utilization and what is left of each budget."
+msgstr "De geregistreerde uren per project, de bezetting van deze week en wat er van elk budget over is."
 
 #: src/app/[locale]/(app)/property/leases/[id]/page.tsx
 msgctxt "leases.Z63eLG"
@@ -23478,6 +23495,106 @@ msgstr "Tags"
 msgctxt "projects.IrAvDh"
 msgid "Open this project's board"
 msgstr "Open het bord van dit project"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.x--0uE"
+msgid "The portfolio didn't load"
+msgstr "De portfolio is niet geladen"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.zSQxsi"
+msgid "Not in the trash"
+msgstr "Niet in de prullenbak"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.DZ4RC0"
+msgid "Hours this week"
+msgstr "Uren deze week"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.RQALIw"
+msgid "Tracked by the whole team"
+msgstr "Geregistreerd door het hele team"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.pQCsMk"
+msgid "Utilization"
+msgstr "Bezetting"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.aJWmK5"
+msgid "Against a 40 hour week per member"
+msgstr "Op basis van een werkweek van 40 uur per lid"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.NBalph"
+msgid "Tracked time and budget of every project."
+msgstr "Geregistreerde tijd en budget van elk project."
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.gkvdf7"
+msgid "No projects yet"
+msgstr "Nog geen projecten"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.6hYvct"
+msgid "Create one from the task views."
+msgstr "Maak er een aan vanuit de taakweergaven."
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.dxuPgK"
+msgid "{hours} h tracked, {billable} h billable"
+msgstr "{hours} u geregistreerd, {billable} u factureerbaar"
+
+#: src/features/projects/components/project-time-card.tsx
+msgctxt "projects.CeHomx"
+msgid "Time and budget"
+msgstr "Tijd en budget"
+
+#: src/features/projects/components/project-time-card.tsx
+msgctxt "projects.4tAvZv"
+msgid "{count, plural, one {# entry} other {# entries}} tracked"
+msgstr "{count, plural, one {# registratie} other {# registraties}}"
+
+#: src/features/projects/components/project-time-card.tsx
+msgctxt "projects.HlljQp"
+msgid "Tracked"
+msgstr "Geregistreerd"
+
+#: src/features/projects/components/project-time-card.tsx
+msgctxt "projects.VW5079"
+msgid "{hours} h"
+msgstr "{hours} u"
+
+#: src/features/projects/components/project-time-card.tsx
+msgctxt "projects.cwvEov"
+msgid "Billable"
+msgstr "Factureerbaar"
+
+#: src/features/projects/components/project-time-card.tsx
+msgctxt "projects.eWayLA"
+msgid "Billable value"
+msgstr "Factureerbare waarde"
+
+#: src/features/projects/components/project-time-card.tsx
+msgctxt "projects.YIjtSu"
+msgid "None yet"
+msgstr "Nog geen"
+
+#: src/features/projects/components/project-time-card.tsx
+msgctxt "projects.EPnB3p"
+msgid "Budget left"
+msgstr "Budget over"
+
+#: src/features/projects/components/project-time-card.tsx
+msgctxt "projects.RIRAq4"
+msgid "No budget set"
+msgstr "Geen budget ingesteld"
+
+#: src/features/projects/components/project-time-card.tsx
+msgctxt "projects.bHjRSA"
+msgid "Used up"
+msgstr "Opgebruikt"
 
 #: src/features/projects/components/task-board.tsx
 msgctxt "projects.jy6a7A"

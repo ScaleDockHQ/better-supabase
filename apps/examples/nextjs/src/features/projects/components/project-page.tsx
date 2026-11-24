@@ -2,6 +2,7 @@ import { formatMoney, money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { getExtracted, getFormatter, getLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import { Badge } from "@/components/reui/badge";
 import {
@@ -30,6 +31,7 @@ import {
 } from "../projects-queries";
 import { ProjectHistory } from "./project-history";
 import { ProjectLoadError } from "./project-load-error";
+import { ProjectTimeCard, ProjectTimeCardSkeleton } from "./project-time-card";
 import { TaskFormDialogLazy } from "./task-form-dialog-lazy";
 import { TaskImportAction } from "./task-import-action";
 import { TaskStatusBadge } from "./task-status-badge";
@@ -191,6 +193,9 @@ export async function ProjectPage({ id }: { id: string }) {
             </dl>
           </CardContent>
         </Card>
+        <Suspense fallback={<ProjectTimeCardSkeleton />}>
+          <ProjectTimeCard id={record.id} />
+        </Suspense>
         {history.kind === "ok" ? (
           <ProjectHistory
             projectId={record.id}

@@ -665,3 +665,25 @@ join (values
   ('delivered', 2, 'in_transit', interval '30 hours', 'In sorting', 'Utrecht'),
   ('delivered', 3, 'delivered', interval '4 hours', 'Delivered to reception', 'Eindhoven')
 ) as e(for_status, step, status, age, description, location) on e.for_status = n.status;
+
+-- Projects story: two projects with a budget, and tracked time on them (two billable
+-- entries at an hourly rate and one internal), so the portfolio and the project
+-- page show hours, billable value and what is left of the budget.
+insert into public.projects (id, organization_id, name, budget_minor, currency, lead_id)
+select v.id, '00000000-0000-4000-8000-000000000001', v.name, v.budget, 'EUR', '00000000-0000-4000-8000-0000000000a1'
+from (values
+  ('00000000-0000-4000-8000-00000000b001'::uuid, 'Warehouse automation rollout', 1500000::bigint),
+  ('00000000-0000-4000-8000-00000000b002'::uuid, 'Customer portal refresh', 400000::bigint)
+) as v(id, name, budget)
+where not exists (select 1 from public.projects p where p.id = v.id);
+
+insert into better_supabase.time_entries (tenant_id, user_id, subject_type, subject_id, started_at, ended_at, billable, rate, rate_currency, note)
+select '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', 'project', e.project, current_date - e.days + time '09:00', current_date - e.days + time '09:00' + (e.hours || ' hours')::interval, e.billable, e.rate, 'EUR', e.note
+from (values
+  ('00000000-0000-4000-8000-00000000b001', 45, 6, true, 9500::bigint, 'Dock layout workshop'),
+  ('00000000-0000-4000-8000-00000000b001', 46, 4, true, 9500::bigint, 'Scanner integration'),
+  ('00000000-0000-4000-8000-00000000b001', 47, 2, false, null::bigint, 'Internal planning')
+) as e(project, days, hours, billable, rate, note)
+where not exists (
+  select 1 from better_supabase.time_entries t where t.subject_id = e.project and t.note = e.note
+);

@@ -2321,4 +2321,13 @@ export const ROUTES: readonly RouteEntry[] = [
     instant: true,
     scale: false,
   },
+  {
+    route: "/projects/portfolio",
+    archetype: "overview",
+    url: "/projects/portfolio",
+    maxCalls: 7,
+    maxWaves: 2,
+    instant: true,
+    scale: false,
+  },
 ];
