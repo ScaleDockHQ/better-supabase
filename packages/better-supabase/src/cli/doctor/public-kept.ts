@@ -37,6 +37,11 @@ function publicEntries(context: DoctorContext): PublicEntry[] {
   const found: PublicEntry[] = [];
 
   for (const source of context.sources) {
+    // A call to `.kept` names it in the text, so the rest need no parse.
+    if (!source.text.includes("kept")) {
+      continue;
+    }
+
     walk(parseSource(source.text).program, {
       enter(node) {
         if (

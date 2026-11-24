@@ -12,7 +12,7 @@ import type { Snapshot } from "../introspect/types.ts";
 import type { Paint } from "../style.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
-import { databaseUrl, stdinDatabaseUrl } from "../config.ts";
+import { databaseUrl, isNoDatabase, stdinDatabaseUrl } from "../config.ts";
 import { contentMapperSetup } from "../content-mapper.ts";
 import { databaseHost, isLocalDatabaseUrl } from "../core/agent.ts";
 import { defineCliCommand, list } from "../core/command.ts";
@@ -78,7 +78,7 @@ import {
 } from "../supabase-config.ts";
 import { openSymbolTier } from "../typescript-symbols/index.ts";
 import { VERSION } from "../version.ts";
-import { loadSnapshot } from "./snapshot.ts";
+import { DEFAULT_SNAPSHOT_PATH, loadSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceFlags } from "./source-args.ts";
 
 const ARGS = {
@@ -303,6 +303,79 @@ async function readBaseline(
   }
 }
 
+/** Errors `noDatabaseError` built, so a rethrow doesn't explain twice. */
+const explained = new WeakSet<CliError>();
+
+/** The snapshot doctor reads when no database runs. */
+function savedSnapshotPath(config: ResolvedConfig): string {
+  return config.source.snapshot ?? DEFAULT_SNAPSHOT_PATH;
+}
+
+/**
+ * `cause` with the reason this run can't do without a database: the checks that
+ * need one, the flags that read it, or the snapshot that's missing.
+ */
+function noDatabaseError(
+  config: ResolvedConfig,
+  rules: readonly { readonly code: string }[],
+  cause: CliError,
+  needsDatabase: boolean,
+): CliError {
+  if (explained.has(cause)) {
+    return cause;
+  }
+
+  const live = rules
+    .map((rule) => rule.code)
+    .filter((code) => LIVE_CODES.has(code));
+
+  const path = savedSnapshotPath(config);
+
+  const reason = needsDatabase
+    ? "--stats, --explain, --explain-write, --as and --yes read the database itself."
+    : live.length > 0
+      ? `These checks need a database: ${live.join(", ")}. The others read the schema from ${path} when no database runs, so save it with \`better-supabase gen --save-snapshot\` while the stack is up and leave these out with --ignore or --only.`
+      : `None of these checks needs a database, but there is no ${path} to read the schema from. Save it with \`better-supabase gen --save-snapshot\` while the stack is up, then run doctor again without it.`;
+
+  const error = new CliError("not_found", `${cause.message} ${reason}`, {
+    ...(cause.problem.suggestion === undefined
+      ? {}
+      : { suggestion: cause.problem.suggestion }),
+    cause,
+  });
+
+  explained.add(error);
+
+  return error;
+}
+
+/**
+ * The saved snapshot, for a run whose checks read only the schema and the
+ * sources, when no database is reachable.
+ */
+async function savedSnapshotWithoutDatabase(
+  config: ResolvedConfig,
+  env: CliEnv,
+  rules: readonly { readonly code: string }[],
+  cause: CliError,
+  needsDatabase: boolean,
+): Promise<{ readonly snapshot: Snapshot; readonly path: string }> {
+  const path = savedSnapshotPath(config);
+
+  if (
+    !needsDatabase &&
+    !rules.some((rule) => LIVE_CODES.has(rule.code)) &&
+    existsSync(resolve(config.root, path))
+  ) {
+    return {
+      snapshot: await loadSnapshot(config, env, { snapshotPath: path }),
+      path,
+    };
+  }
+
+  throw noDatabaseError(config, rules, cause, needsDatabase);
+}
+
 export async function runDoctor(
   config: ResolvedConfig,
   args: DoctorValues,
@@ -434,6 +507,16 @@ export async function runDoctor(
             : { database: options.database }),
         };
 
+  // A live check can reach the missing database before the snapshot does.
+  const explain = (cause: unknown): unknown =>
+    isNoDatabase(cause)
+      ? noDatabaseError(config, rules, cause, source.live === true)
+      : cause;
+
+  // Closing a connection that never opened rejects with the cause it failed on.
+  const closeQuietly = (): Promise<unknown> =>
+    opened.close().catch(() => undefined);
+
   // Source-only checks run without a database: the schema only names includes.
   const sourceOnly =
     rules.length > 0 && rules.every((rule) => SOURCE_ONLY_CODES.has(rule.code));
@@ -465,14 +548,30 @@ export async function runDoctor(
   ] = await Promise.all([
     options.snapshot ??
       loadSnapshot(config, env, source, pg, opened.open).catch(
-        (cause: unknown) => {
-          if (!sourceOnly) {
+        async (cause: unknown) => {
+          if (sourceOnly) {
+            noSnapshot = errorText(cause);
+
+            return NO_SNAPSHOT;
+          }
+
+          if (!isNoDatabase(cause)) {
             throw cause;
           }
 
-          noSnapshot = errorText(cause);
+          const saved = await savedSnapshotWithoutDatabase(
+            config,
+            env,
+            rules,
+            cause,
+            source.live === true,
+          );
 
-          return NO_SNAPSHOT;
+          options.log?.(
+            `No database is running, so doctor read the schema from ${saved.path}. It is as current as the last \`better-supabase gen --save-snapshot\`.`,
+          );
+
+          return saved.snapshot;
         },
       ),
     Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
@@ -533,8 +632,8 @@ export async function runDoctor(
       : undefined,
     listedDependencies(config.root).catch(() => undefined),
   ]).catch(async (cause: unknown) => {
-    await opened.close();
-    throw cause;
+    await closeQuietly();
+    throw explain(cause);
   });
 
   const replay = opened.open ? (await opened.open()).replay : undefined;

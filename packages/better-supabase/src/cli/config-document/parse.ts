@@ -49,7 +49,7 @@ export function parseModule(text: string, path: string): ParsedModule {
  * bounds the memory a large app holds.
  */
 const PARSED = new Map<string, ParseResult>();
-const PARSED_CHARS_MAX = 24_000_000;
+const PARSED_CHARS_MAX = 8_000_000;
 let parsedChars = 0;
 
 function remember(text: string, result: ParseResult): void {

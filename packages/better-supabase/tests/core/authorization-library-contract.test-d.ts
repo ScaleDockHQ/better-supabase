@@ -328,6 +328,7 @@ describe("authorization library contract", () => {
           permissions: ["crm.read"],
         },
       },
+      permissionFilters: { "app_auth.allowed_ids": { keyArgument: 0 } },
     };
 
     expectTypeOf(older.apiVersion).toEqualTypeOf<1>();

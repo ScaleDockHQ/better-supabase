@@ -1139,6 +1139,9 @@
   "/api/pipelines/list/route": {
     "raw": 2694043
   },
+  "/api/probe/durable-cache/route": {
+    "raw": 1192298
+  },
   "/api/probe/vercel-tags/route": {
     "raw": 299998
   },

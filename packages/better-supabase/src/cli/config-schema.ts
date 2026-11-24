@@ -556,6 +556,14 @@ const authorization = v.strictObject({
       v.strictObject({ tables: strings, permissions: strings }),
     ),
   ),
+  permissionFilters: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({
+        keyArgument: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      }),
+    ),
+  ),
   problems: v.optional(strings),
 });
 

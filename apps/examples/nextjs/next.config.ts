@@ -35,9 +35,27 @@ const config = createNextConfig({
   // `experimental.taint` swaps in the experimental React build, which adds about
   // 21 kB (6.6 kB gzip) to the first load of every route, and the next-build
   // baseline never grows. createNext leaves tokens untainted without it.
-  experimental: { globalNotFound: false, taint: false },
+  experimental: experimental(),
   ...remoteCache(),
 });
+
+/**
+ * `BSB_DURABLE_USE_CACHE=1` (tests/next-durable-cache) adds
+ * `durableUseCacheEntries`, which keys a `"use cache"` entry on a code hash
+ * instead of the build id.
+ */
+function experimental(): NonNullable<NextConfigOverrides["experimental"]> {
+  const flags: NonNullable<NextConfigOverrides["experimental"]> = {
+    globalNotFound: false,
+    taint: false,
+  };
+
+  if (process.env["BSB_DURABLE_USE_CACHE"] === "1") {
+    flags.durableUseCacheEntries = true;
+  }
+
+  return flags;
+}
 
 /**
  * The e2e test runs two `next start` instances over one directory, or over the

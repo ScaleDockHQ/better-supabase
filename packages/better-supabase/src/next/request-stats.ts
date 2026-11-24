@@ -1,7 +1,5 @@
 import type { RequestContext } from "../core/plugin.ts";
-import type { StatsRecorder } from "../core/stats.ts";
-
-import { formatStats } from "./collector.ts";
+import type { DbStats, StatsRecorder } from "../core/stats.ts";
 
 /** Options of `bsb.admin()`; `request` attaches the calls to that render. */
 export interface RequestAdminOptions {
@@ -22,14 +20,15 @@ export const verifyOption = (
       }
     : {};
 
-/** Sets the stats header from a recorder's totals so far. */
+/** Sets the stats header from a recorder's totals so far, through `format`. */
 export const stampStats = (
   headers: Headers,
   name: string,
   recorder: StatsRecorder | undefined,
+  format: (stats: DbStats) => string,
 ): void => {
   if (recorder) {
-    headers.set(name, formatStats(recorder.snapshot()));
+    headers.set(name, format(recorder.snapshot()));
   }
 };
 

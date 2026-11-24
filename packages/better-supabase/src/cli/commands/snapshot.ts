@@ -26,6 +26,9 @@ import { pgFunctionHooks, readSupabaseConfig } from "../supabase-config.ts";
 const SNAPSHOT_SCHEMA_URL =
   "https://unpkg.com/better-supabase/schemas/snapshot-v3.json";
 
+/** Where `gen --save-snapshot` writes when `database.source.snapshot` is unset. */
+export const DEFAULT_SNAPSHOT_PATH = "supabase/snapshot.json";
+
 /** Schemas that are always read, for doctor checks on helper functions. */
 const EXTRA_SCHEMAS = ["better_supabase"];
 
@@ -176,6 +179,7 @@ export async function loadSnapshot(
   const db = opened.value;
   const hooks = toml ? pgFunctionHooks(toml.document) : [];
   const functions = bootstrapFunctionNames(config);
+  const shareable = config.authorization !== undefined;
 
   const schemas = [
     ...config.schemas,
@@ -185,10 +189,15 @@ export async function loadSnapshot(
 
   try {
     const read = (): Promise<Snapshot> =>
-      introspect(db.queryable, schemas, { hooks, functions });
+      introspect(db.queryable, schemas, { hooks, functions, shareable });
 
     return await (source.cache
-      ? cachedIntrospect(config.root, db, [schemas, hooks, functions], read)
+      ? cachedIntrospect(
+          config.root,
+          db,
+          [schemas, hooks, functions, shareable],
+          read,
+        )
       : read());
   } finally {
     if (!shared) {

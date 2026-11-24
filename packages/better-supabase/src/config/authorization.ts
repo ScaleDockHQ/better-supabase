@@ -535,6 +535,12 @@ export interface AuthorizationFunctionShare<Key extends string = string> {
   readonly permissions: readonly Key[];
 }
 
+/** One entry of `AuthorizationProvider.permissionFilters`. */
+export interface AuthorizationPermissionFilter {
+  /** The zero-based position of the argument that holds the permission key. */
+  readonly keyArgument: number;
+}
+
 /**
  * An authorization system the SQL modules, the policies and doctor delegate to.
  * It is plain data, usually built from the provider's own output files.
@@ -650,12 +656,28 @@ export interface AuthorizationProvider<Key extends string = string> {
    * `api.page_payload`), with the tables they read and the permissions those
    * reads check. A function's result then depends only on the rows RLS shows
    * the caller in those tables, so one entry serves every holder of the
-   * permissions in the tenant. `gen` copies it into the generated metadata, and
-   * doctor BS430 checks that each function is `security invoker`, reads only
-   * those tables and never reads the caller's identity.
+   * permissions in the tenant. `gen` copies it into the generated metadata.
+   * Doctor BS430 checks that each function is `security invoker`, `language
+   * sql` and not volatile, reads only those tables, never reads the caller
+   * (`current_user`, `session_user`, `current_setting`, `auth.*`), and calls
+   * only functions that pass the same check: one `sharedFunctions` lists, a
+   * `better_supabase` helper that passes on its own, or a `permissionFilters`
+   * helper with a literal key that `permissions` lists.
    */
   readonly sharedFunctions?: Readonly<
     Record<string, AuthorizationFunctionShare<Key>>
+  >;
+  /**
+   * The provider's SQL helpers that return the ids a permission grants the
+   * caller in the current tenant (`app_auth.allowed_org_ids(key)`), by
+   * `schema.name`. Such a call filters the way the select policy of a `tenant`
+   * table does, so a `sharedFunctions` function may make it when the key is a
+   * string literal that its entry's `permissions` lists: the key is then part
+   * of the share key. The helper must depend only on the caller's grants for
+   * that key in the tenant (ADR 1228).
+   */
+  readonly permissionFilters?: Readonly<
+    Record<string, AuthorizationPermissionFilter>
   >;
   /** What the provider found wrong while building this, for doctor. */
   readonly problems?: readonly string[];

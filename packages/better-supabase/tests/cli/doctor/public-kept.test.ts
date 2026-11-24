@@ -50,7 +50,10 @@ const context = (snap: Snapshot): DoctorContext => ({
   configToml: undefined,
   envFiles: [],
   gitignore: "",
-  sources: [{ path: "src/lib/plans.ts", text: SOURCE }],
+  sources: [
+    { path: "src/lib/plans.ts", text: SOURCE },
+    { path: "src/lib/other.ts", text: "export const other = 1;\n" },
+  ],
 });
 
 const run = (snap: Snapshot) =>

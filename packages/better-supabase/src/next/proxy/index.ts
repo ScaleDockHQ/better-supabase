@@ -59,16 +59,15 @@ export function createProxy<
 
   const base = { resolve: runtime.resolve, sessions };
 
-  const { collector, statsHeader, statsRoute, flushAfter } = proxyRuntime(
-    betterSupabase,
-    options,
-  );
+  const { collector, statsHeader, statsValue, statsRoute, flushAfter } =
+    proxyRuntime(betterSupabase, options);
 
   const handle = proxyHandler<C, P>({
     base,
     logger: betterSupabase.events.logger,
     collector,
     statsHeader,
+    statsValue,
     statsRoute,
     flushAfter,
   });

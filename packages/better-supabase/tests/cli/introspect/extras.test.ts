@@ -578,4 +578,23 @@ describe("readExtras", () => {
       "functionSources",
     );
   });
+
+  it("reads the bodies a shared fill could call when asked", async () => {
+    const db = fakeSql([
+      [
+        "as function_source",
+        [{ schema: "public", name: "visible", source: "select 1 from pages" }],
+      ],
+    ]);
+
+    const extras = await readExtras(db.pg, ["public"], [], [], true);
+    const sql = db.texts().find((text) => text.includes("as function_source"));
+
+    expect(sql).toContain("n.nspname = any(array['public']::text[])");
+    expect(sql).toContain("l.lanname = 'sql'");
+    expect(sql).toContain("not p.prosecdef and p.provolatile <> 'v'");
+    expect(extras.functionSources).toEqual({
+      "public.visible": "select 1 from pages",
+    });
+  });
 });

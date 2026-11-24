@@ -135,11 +135,14 @@ export async function readSchemaFacts(
   files: readonly { readonly path: string; readonly text: string }[],
   options: { majorVersion?: number } = {},
 ): Promise<readonly FileFacts[]> {
-  return Promise.all(
-    files.map((file) =>
-      readFileFacts(file.text, { ...options, path: file.path }),
-    ),
-  );
+  const read: FileFacts[] = [];
+
+  // One file at a time, so only one parse tree is alive at once.
+  for (const file of files) {
+    read.push(await readFileFacts(file.text, { ...options, path: file.path }));
+  }
+
+  return read;
 }
 
 /**
@@ -156,20 +159,18 @@ export async function readSchemaFactsLeniently(
 ): Promise<readonly SchemaReadError[]> {
   const failures: SchemaReadError[] = [];
 
-  await Promise.all(
-    files.map(async (file) => {
-      try {
-        await readFileFacts(file.text, { ...options, path: file.path });
-      } catch (error) {
-        if (!(error instanceof SchemaReadFailure)) {
-          throw error;
-        }
-
-        failures.push(error.details);
-        unparsed.set(file.text, factsFrom(new Source(file.text, []), []));
+  for (const file of files) {
+    try {
+      await readFileFacts(file.text, { ...options, path: file.path });
+    } catch (error) {
+      if (!(error instanceof SchemaReadFailure)) {
+        throw error;
       }
-    }),
-  );
+
+      failures.push(error.details);
+      unparsed.set(file.text, factsFrom(new Source(file.text, []), []));
+    }
+  }
 
   return failures;
 }
@@ -198,6 +199,14 @@ const scans = new Map<
 >();
 
 /**
+ * The scanned characters `scans` keeps, oldest dropped first. A text is scanned
+ * again by the readers that prime it, but a large project's every migration and
+ * function body must not stay in memory.
+ */
+const SCANNED_CHARS_MAX = 2_000_000;
+let scannedChars = 0;
+
+/**
  * The tokens of a SQL text, comments included, with byte offsets. A codemod
  * rewrites names through them, so a string or a comment never matches.
  *
@@ -219,9 +228,27 @@ export async function scanSql(
 
   let tokens = byText.get(text);
 
-  if (tokens === undefined) {
-    tokens = unwrapScanResult(parserFor(version).scan(text));
-    byText.set(text, tokens);
+  if (tokens !== undefined) {
+    return tokens;
+  }
+
+  tokens = unwrapScanResult(parserFor(version).scan(text));
+  byText.set(text, tokens);
+  scannedChars += text.length;
+
+  for (const [grammar, kept] of scans) {
+    for (const [oldest] of kept) {
+      if (scannedChars <= SCANNED_CHARS_MAX || oldest === text) {
+        break;
+      }
+
+      kept.delete(oldest);
+      scannedChars -= oldest.length;
+    }
+
+    if (kept.size === 0) {
+      scans.delete(grammar);
+    }
   }
 
   return tokens;
@@ -280,7 +307,9 @@ export async function parseStatements(
 /** Statements split ahead of time, by file text. */
 const split = new Map<string, readonly SqlStatement[]>();
 const blanked = new Map<string, string>();
-const raw = new Map<string, readonly string[]>();
+
+/** The length of each raw statement, so the text itself is not kept twice. */
+const raw = new Map<string, readonly number[]>();
 const parted = new Map<string, readonly SqlPart[]>();
 
 /**
@@ -295,22 +324,23 @@ export async function primeStatements(
   texts: readonly string[],
   options: { majorVersion?: number } = {},
 ): Promise<void> {
-  await Promise.all(
-    texts.map(async (text) => {
-      if (split.has(text)) {
-        return;
-      }
+  for (const text of texts) {
+    if (split.has(text)) {
+      continue;
+    }
 
-      const scanned = await scanSql(text, options);
+    const scanned = await scanSql(text, options);
 
-      const source = new Source(text, scanned);
+    const source = new Source(text, scanned);
 
-      split.set(text, statementsFrom(source));
-      blanked.set(text, blankedFrom(source));
-      raw.set(text, rawStatementsFrom(source));
-      parted.set(text, partsFrom(source));
-    }),
-  );
+    split.set(text, statementsFrom(source));
+    blanked.set(text, blankedFrom(source));
+    raw.set(
+      text,
+      rawStatementsFrom(source).map((statement) => statement.length),
+    );
+    parted.set(text, partsFrom(source));
+  }
 }
 
 /**
@@ -362,22 +392,37 @@ export async function primeCodeStatements(
   texts: readonly string[],
   options: { majorVersion?: number } = {},
 ): Promise<void> {
-  await Promise.all(
-    texts.map(async (text) => {
-      if (coded.has(text)) {
-        return;
-      }
+  for (const text of texts) {
+    if (!coded.has(text)) {
+      coded.set(text, await readCodeStatements(text, options));
+    }
+  }
+}
 
-      try {
-        coded.set(
-          text,
-          await codeStatementsFrom(text, (body) => scanSql(body, options)),
-        );
-      } catch {
-        coded.set(text, []);
-      }
-    }),
-  );
+/**
+ * The code statements of a text, like `codeStatementsOf`, read now and not kept
+ * unless `primeCodeStatements` read it before, for a reader that goes through
+ * many texts once.
+ *
+ * @param text - A SQL text.
+ * @param options - The Postgres major version.
+ * @returns Its statements, or none when the scanner rejects the text.
+ */
+export async function readCodeStatements(
+  text: string,
+  options: { majorVersion?: number } = {},
+): Promise<readonly CodeStatement[]> {
+  const known = coded.get(text);
+
+  if (known !== undefined) {
+    return known;
+  }
+
+  try {
+    return await codeStatementsFrom(text, (body) => scanSql(body, options));
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -408,15 +453,21 @@ export function codeStatementsOf(text: string): readonly CodeStatement[] {
  * @returns The statements in source order.
  */
 export function rawStatementsOf(text: string): readonly string[] {
-  const known = raw.get(text);
+  const lengths = raw.get(text);
 
-  if (known === undefined) {
+  if (lengths === undefined) {
     throw new Error(
       "The SQL reader has not scanned this text yet; await primeStatements first.",
     );
   }
 
-  return known;
+  let start = 0;
+
+  return lengths.map((length) => {
+    start += length;
+
+    return text.slice(start - length, start);
+  });
 }
 
 /**

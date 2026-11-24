@@ -44,6 +44,26 @@ Doctor never prints env values, only variable names and line numbers.
 
 Side effects: Reads the database, writes to the database with `--yes`, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
 
+## Without a database
+
+When no database runs and none is configured, doctor reads the schema from
+the saved snapshot instead: `source.snapshot` in the config, else
+`supabase/snapshot.json`, which `better-supabase gen --save-snapshot` writes.
+It says so on stderr, since the result is as current as the last save:
+
+```bash
+pnpm better-supabase gen --save-snapshot   # while the stack is up
+pnpm better-supabase doctor --only BS103,BS106,BS430
+```
+
+Some checks need the database itself: the advisors (BS100 and BS200) and the
+checks that read statistics, plans, settings or live rows (BS208, BS209,
+BS212, BS225, BS236, BS238, BS241, BS242, BS245, BS363, BS399, BS638 and
+BS639). When a run includes one of them and no database answers, doctor stops
+and names them, so you can leave them out with `--ignore` or `--only`. The
+flags `--stats`, `--explain`, `--explain-write`, `--as` and `--yes` always
+need the database.
+
 ## In CI
 
 `--format github` writes workflow annotations, so findings show up on the pull
@@ -2555,21 +2575,63 @@ authorization provider's `sharedFunctions` entry says a database function
 returns the same rows to every caller with the entry's permissions in a
 tenant, so a `share: "tenant"` fill of `bsb.kept` or `bsb.remote` may call it
 and keep one entry for all of them. Doctor reads the function from the catalog
-and reports one that:
+and reports, in one finding, every reason it fails. A function fails when it:
 
 - is `security definer`, so it reads past the caller's RLS;
 - isn't `language sql`: doctor can't read a PL/pgSQL body, so it can't tell
   which tables the function reads;
 - is volatile;
-- reads the caller (an `auth.*` function, `current_setting`,
-  `better_supabase.current_user_id()`, `current_user` or `session_user`);
-- calls a function in the read schemas that `sharedFunctions` doesn't list;
-- reads a table its `tables` don't list.
+- has no body in the catalog, or one that doesn't parse;
+- reads the caller: `current_user`, `current_role`, `session_user` or `user`,
+  any `auth.*` function, `current_setting`, or a function named
+  `current_user_id`;
+- reads a table its `tables` don't list;
+- calls a function in a schema doctor didn't read (built-ins and `pg_catalog`
+  pass);
+- calls a function in the read schemas that isn't admitted.
+
+Names match as `schema.name`. A bare table or function name resolves through
+the function's `search_path` (its own schema, then `public`, when it sets
+none), and a bare key in `sharedFunctions` or `tables` means `public`. A call
+is admitted in three cases:
+
+| The callee                                                                                             | Condition                                                                      |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| A function `sharedFunctions` lists                                                                     | Its reads stay inside this entry's `tables`; its own finding covers the rest   |
+| A `better_supabase` helper                                                                             | It passes the same check on its own                                            |
+| One of the provider's [`permissionFilters`](/docs/extending/authorization-providers#permissionfilters) | The permission key is a string literal, and the entry's `permissions` lists it |
+
+The library helpers that pass on their own read no tables and no caller, so
+their result depends only on their arguments. With every block installed, this
+release has 48: `bsb_valid_bsn`, `bsb_valid_iban`, `chain_row_hash`,
+`currency_minor_units`, `data_lifecycle_credentials`, the `deadline_*`
+validators (`deadline_citation_bad`, `deadline_codes`,
+`deadline_condition_bad`, `deadline_meta_bad`, `deadline_rule_from_v1`,
+`deadline_sorted`, `deadline_whole`), `document_address`,
+`document_slot_rank`, `document_tax_summary`, `drive_retention_kind`,
+`flag_condition_matches`, the `form_*` helpers (`form_answer_matches`,
+`form_answer_merge`, `form_answer_split`, `form_condition_holds`,
+`form_condition_schema`, `form_correct_fits`), `import_entities`,
+`incoming_webhook_subject_readable`, `inspection_team_with_lead`,
+`interactive_only`, `interactive_only_role`, `leave_working_days`,
+`messaging_file_anchor_valid`, `metric_definitions`, `normalize_phone`,
+`number_format_pattern`, `number_format_period`, `number_period_kind`,
+`observation_flag`, `operation_permission`, `parse_mentions`,
+`permission_matches`, `request_id_or_null`, `round_half_even`,
+`rule_boolean`, `rule_text`, `scim_group_role`, `scope_permissions`,
+`subject_types`, `time_week` and `usage_meters`. Run
+`better-supabase config functions --shareable 'better_supabase.*'` for the
+list in your schema. A helper that answers for the caller, such as
+`better_supabase.tenant_ids_with` (security definer), fails the check, so a
+shared function can't call it; use a `permissionFilters` helper instead.
 
 It also reports a listed table the provider's `tables` doesn't share per
-tenant, and a function or table the database lacks. A function that returns
-the caller's own rows next to the tenant's can't be shared: split it into a
-tenant function and a per-user read.
+tenant, a permission key a `permissionFilters` call passes that the entry's
+`permissions` leaves out, and a function or table the database lacks. A
+function that returns the caller's own rows next to the tenant's can't be
+shared: split it into a tenant function and a per-user read.
+[`config functions --shareable`](/docs/cli/config#check-functions-before-you-share-them)
+runs the same check before you list a function.
 
 ### BS429
 
@@ -3183,6 +3245,20 @@ and no permissive select policy that applies to `anon`. The fill would keep an
 empty read for everyone until the entry expires. Add an `anon` select policy
 that exposes only the public rows, or keep the read per user. See
 [Keep public data for every visitor](/docs/concepts/caching#keep-public-data-for-every-visitor).
+
+### BS646
+
+**Warning: durable use cache entries with a shared reader.** `next.config`
+turns on `experimental.durableUseCacheEntries` and a source file calls
+`bsb.public()`, `bsb.remote()`, `bsb.cached({ scope: "remote" })` or uses
+`"use cache: remote"`. The entries then outlive a deploy: their key follows
+your code and the generated schema, not the database's policies or the
+Supabase project. A migration that changes only a policy or a function body
+keeps the old entries, and so does a deployment on another Supabase project
+that shares the cache handler. Expire the tables' tags after such a
+migration, keep one cache handler per Supabase project, or use `bsb.kept()`
+with a `version`. See
+[durable use cache entries](/docs/frameworks/next-cache-components#durable-use-cache-entries).
 
 ### BS633
 

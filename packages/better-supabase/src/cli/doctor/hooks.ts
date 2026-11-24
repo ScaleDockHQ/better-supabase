@@ -143,8 +143,15 @@ function createsFunction(text: string, fn: FunctionRef): boolean {
   });
 }
 
+const AUTH_ADMIN = "supabase_auth_admin";
+const NAMES_AUTH_ADMIN = /supabase_auth_admin/iu;
+
 /** Whether the text grants execute on `fn` to `supabase_auth_admin`. */
 function grantsAuthAdmin(text: string, fn: FunctionRef): boolean {
+  if (!NAMES_AUTH_ADMIN.test(text)) {
+    return false;
+  }
+
   return codeStatementsOf(text).some(({ tokens }) => {
     if (!wordsAt(tokens, 0, "grant", "execute", "on", "function")) {
       return false;
@@ -172,7 +179,7 @@ function grantsAuthAdmin(text: string, fn: FunctionRef): boolean {
         .some(
           (token) =>
             (token.kind === "word" || token.kind === "quoted") &&
-            token.value.toLowerCase() === "supabase_auth_admin",
+            token.value.toLowerCase() === AUTH_ADMIN,
         )
     );
   });
@@ -191,6 +198,21 @@ function markerFileFor(
 
   return (context.sqlFiles ?? []).find(
     (file) => file.text.includes(marker) && createsFunction(file.text, fn),
+  );
+}
+
+/**
+ * The SQL files the hook checks read as code tokens: those with the provider's
+ * hook marker or a grant to `supabase_auth_admin`. Doctor primes these besides
+ * the schema files.
+ */
+export function hookTokenFiles(context: DoctorContext): readonly TextFile[] {
+  const marker = providerHook(context)?.markers?.hook;
+
+  return (context.sqlFiles ?? []).filter(
+    (file) =>
+      (marker !== undefined && file.text.includes(marker)) ||
+      NAMES_AUTH_ADMIN.test(file.text),
   );
 }
 
