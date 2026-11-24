@@ -3246,6 +3246,20 @@ empty read for everyone until the entry expires. Add an `anon` select policy
 that exposes only the public rows, or keep the read per user. See
 [Keep public data for every visitor](/docs/concepts/caching#keep-public-data-for-every-visitor).
 
+### BS646
+
+**Warning: durable use cache entries with a shared reader.** `next.config`
+turns on `experimental.durableUseCacheEntries` and a source file calls
+`bsb.public()`, `bsb.remote()`, `bsb.cached({ scope: "remote" })` or uses
+`"use cache: remote"`. The entries then outlive a deploy: their key follows
+your code and the generated schema, not the database's policies or the
+Supabase project. A migration that changes only a policy or a function body
+keeps the old entries, and so does a deployment on another Supabase project
+that shares the cache handler. Expire the tables' tags after such a
+migration, keep one cache handler per Supabase project, or use `bsb.kept()`
+with a `version`. See
+[durable use cache entries](/docs/frameworks/next-cache-components#durable-use-cache-entries).
+
 ### BS633
 
 **Info: an app row trigger has no `importing()` guard.** An import writes many

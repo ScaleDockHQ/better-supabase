@@ -307,3 +307,77 @@ describe("BS608 reads the tree", () => {
     ).toHaveLength(1);
   });
 });
+
+function durable(
+  context: Pick<DoctorContext, "sources" | "nextConfig">,
+): readonly { message: string; location?: { line: number } }[] {
+  const rule = NEXT_CACHE_RULES.find((entry) => entry.code === "BS646");
+  // SAFETY: BS646 reads only `sources` and `nextConfig`.
+  const findings = rule?.check(context as unknown as DoctorContext);
+
+  if (!Array.isArray(findings)) {
+    throw new TypeError("BS646 runs synchronously");
+  }
+
+  return findings;
+}
+
+const DURABLE_CONFIG: TextFile = {
+  path: "next.config.ts",
+  text: [
+    "export default createNextConfig({",
+    "  experimental: { durableUseCacheEntries: true },",
+    "});",
+  ].join("\n"),
+};
+
+const PUBLIC: TextFile = {
+  path: "src/app/pricing/data.ts",
+  text: [
+    "export async function plans() {",
+    '  "use cache: remote";',
+    '  const { db } = await bsb.public({ tables: ["plans"] });',
+    "}",
+  ].join("\n"),
+};
+
+describe("BS646", () => {
+  it("reports the flag when a shared reader fills entries", () => {
+    for (const source of [REMOTE, PUBLIC]) {
+      const findings = durable({
+        sources: [source],
+        nextConfig: DURABLE_CONFIG,
+      });
+
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain(source.path);
+      expect(findings[0]?.location?.line).toBe(2);
+    }
+  });
+
+  it("is quiet without the flag, with it off, or with only private reads", () => {
+    const privateOnly: TextFile = {
+      path: "src/app/me/data.ts",
+      text: 'export async function me() {\n  "use cache: private";\n  return bsb.user();\n}',
+    };
+
+    expect(
+      durable({
+        sources: [REMOTE],
+        nextConfig: { path: "next.config.ts", text: "export default {};" },
+      }),
+    ).toHaveLength(0);
+    expect(
+      durable({
+        sources: [REMOTE],
+        nextConfig: {
+          path: "next.config.ts",
+          text: "export default { experimental: { durableUseCacheEntries: false } };",
+        },
+      }),
+    ).toHaveLength(0);
+    expect(
+      durable({ sources: [privateOnly], nextConfig: DURABLE_CONFIG }),
+    ).toHaveLength(0);
+  });
+});

@@ -163,6 +163,54 @@ function remoteWithoutHandler(context: DoctorContext): FindingInput[] {
   return [];
 }
 
+/** Where `next.config` turns on `durableUseCacheEntries`. */
+function durableFlagAt(program: Program): number | undefined {
+  return firstMatch(
+    program,
+    (node) =>
+      node.type === "Property" &&
+      !node.computed &&
+      nameOf(node.key) === "durableUseCacheEntries" &&
+      !(node.value.type === "Literal" && node.value.value === false),
+  );
+}
+
+/**
+ * `durableUseCacheEntries` with a shared reader (BS646): its entries outlive a
+ * deploy, and their key holds neither the database's policies nor the Supabase
+ * project.
+ */
+function durableSharedEntries(context: DoctorContext): FindingInput[] {
+  const config = context.nextConfig;
+  const flag = config && durableFlagAt(parseSource(config.text).program);
+
+  if (!config || flag === undefined) {
+    return [];
+  }
+
+  const reader = context.sources.find((file) => {
+    const { program } = parseSource(file.text);
+
+    return (
+      remoteScopeAt(program) !== undefined ||
+      firstMatch(program, (node) => isMemberCall(node, "bsb", "public")) !==
+        undefined
+    );
+  });
+
+  if (!reader) {
+    return [];
+  }
+
+  return [
+    {
+      message: `${config.path} turns on \`experimental.durableUseCacheEntries\`, and ${reader.path} fills a shared entry (\`bsb.public()\` or a remote scope). Its key then follows your code and the generated schema, not the deploy: a migration that changes a policy or a function body without changing the generated files keeps the old entries, and so does a deployment that points at another Supabase project through the same cache handler. Expire the tables' tags after such a migration, give each Supabase project its own handler, or use \`bsb.kept()\` with a \`version\`.`,
+      target: `${config.path}:durableUseCacheEntries`,
+      location: { file: config.path, line: lineColumn(config.text, flag).line },
+    },
+  ];
+}
+
 interface DirectiveFunction {
   readonly name: string;
   readonly file: string;
@@ -352,6 +400,14 @@ export const NEXT_CACHE_RULES: readonly Rule[] = [
     description:
       'A function with `"use cache"` calls `cookies()`, `headers()`, `bsb.cached()`, `bsb.context()` or `bsb.user()`. Next.js rejects request reads in a shared cache scope, and a per-user result must not be shared. Use `bsb.public()` for data every visitor may read, or `"use cache: private"` for the user\'s own.',
     check: requestInPlainCache,
+  },
+  {
+    code: "BS646",
+    severity: "warning",
+    title: "Durable use cache entries with a shared reader",
+    description:
+      '`experimental.durableUseCacheEntries` keys a `"use cache"` entry on a hash of the code and the generated schema instead of the build, so `bsb.public()` and remote-scope entries outlive a deploy. A migration that changes a policy or a function body without changing the generated files, or a deployment on another Supabase project that shares the cache handler, then reads the old entries. Expire the tags after such a migration, keep one handler per Supabase project, or use `bsb.kept()` with a `version`.',
+    check: durableSharedEntries,
   },
   ...CLIENT_BARREL_RULES,
   ...PUBLIC_KEPT_RULES,

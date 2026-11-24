@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 import type {
@@ -6,13 +7,16 @@ import type {
   KeptStore,
 } from "../../src/core/kept-cache.ts";
 
+import { canonicalJson } from "../../src/core/canonical-json.ts";
 import {
   KEPT_LIMITS,
   createKeptCache,
   keptKey,
   keptVersionOf,
   memoryKeptStore,
+  schemaHashOf,
 } from "../../src/core/kept-cache.ts";
+import { VERSION } from "../../src/core/version.ts";
 
 function clock(start = 1_000_000): {
   now: () => number;
@@ -82,6 +86,31 @@ describe("keptKey", () => {
 
     expect(one).toHaveLength(16);
     expect(await keptVersionOf({ tables: { a: 2 } })).not.toBe(one);
+  });
+
+  it("carries the package version, so an upgrade starts new entries", async () => {
+    const parts = { name: "f", args: [1], share: "u1", version: "v" };
+
+    const hash = createHash("sha256")
+      .update(canonicalJson(["f", [1], "u1", "v", VERSION]))
+      .digest("hex");
+
+    expect(await keptKey(parts)).toBe(`kept:${hash}`);
+  });
+});
+
+describe("schemaHashOf", () => {
+  it("hashes each meta object once and follows a gen run", async () => {
+    const meta = { tables: { a: 1 } };
+    const first = schemaHashOf(meta);
+
+    expect(schemaHashOf(meta)).toBe(first);
+    expect(await first).toBe(await keptVersionOf(meta));
+    expect(await schemaHashOf({ tables: { a: 2 } })).not.toBe(await first);
+  });
+
+  it("is null without a generated schema", async () => {
+    expect(await schemaHashOf(undefined)).toBeNull();
   });
 });
 

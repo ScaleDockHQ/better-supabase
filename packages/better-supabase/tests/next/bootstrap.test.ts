@@ -4,6 +4,8 @@ import type { RemoteCacheKey } from "../../src/next/index.ts";
 
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { createSupabase } from "../../src/core/define.ts";
+import { keptVersionOf } from "../../src/core/kept-cache.ts";
+import { VERSION } from "../../src/core/version.ts";
 import { defineSchema } from "../../src/index.ts";
 import { createNext, sessionTag } from "../../src/next/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -122,6 +124,8 @@ describe("bsb.remote()", () => {
       authzVersion: 4,
       shared: null,
       support: null,
+      schema: await keptVersionOf(createSupabase(schema).meta),
+      library: VERSION,
     });
     expect(mocks.cacheLife).toHaveBeenLastCalledWith({
       stale: 300,
@@ -195,6 +199,8 @@ describe("bsb.sessionHandle()", () => {
       authzVersion: 2,
       shared: null,
       support: null,
+      schema: await keptVersionOf(createSupabase(schema).meta),
+      library: VERSION,
     });
 
     // The scope can't read the request: the headers are gone.

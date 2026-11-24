@@ -29,6 +29,7 @@ const {
   CONNECT_GMAIL_CONNECTOR,
   CONNECT_OUTLOOK_CONNECTOR,
   BSB_REMOTE_CACHE_DIR,
+  BSB_DURABLE_USE_CACHE,
   BSB_REMOTE_CACHE_STORE,
   BSB_TAG_PROBE_SECRET,
   STRIPE_SECRET_KEY,
@@ -82,6 +83,9 @@ export const env = createEnv({
     // The directory cache-handlers/shared-remote.ts keeps remote entries in;
     // next.config.ts reads it directly, since the handler is set at build.
     BSB_REMOTE_CACHE_DIR: v.optional(v.string()),
+    // `1`: next.config.ts turns on `experimental.durableUseCacheEntries`, for
+    // tests/next-durable-cache.
+    BSB_DURABLE_USE_CACHE: v.optional(v.picklist(["1"])),
     // `postgres`: the e2e test's two instances share cache-handlers/postgres-remote.ts
     // instead of the directory.
     BSB_REMOTE_CACHE_STORE: v.optional(
@@ -126,6 +130,7 @@ export const env = createEnv({
     CONNECT_GMAIL_CONNECTOR,
     CONNECT_OUTLOOK_CONNECTOR,
     BSB_REMOTE_CACHE_DIR,
+    BSB_DURABLE_USE_CACHE,
     BSB_REMOTE_CACHE_STORE,
     BSB_TAG_PROBE_SECRET,
     STRIPE_SECRET_KEY,

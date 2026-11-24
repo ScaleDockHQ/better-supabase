@@ -1133,6 +1133,15 @@ export interface RemoteCacheKey {
   readonly shared: string | null;
   /** The support session the caller acts in. */
   readonly support: string | null;
+  /**
+   * A hash of the generated schema meta, so an entry filled before a migration
+   * and `gen` is not read after it, also when
+   * `experimental.durableUseCacheEntries` keeps entries across deploys. `null`
+   * without a generated schema.
+   */
+  readonly schema: string | null;
+  /** The better-supabase version that filled the entry. */
+  readonly library: string;
   /** The tables a `share: "tenant"` entry may read. */
   readonly tables?: readonly string[];
   /** The functions a `share: "tenant"` entry may call. */

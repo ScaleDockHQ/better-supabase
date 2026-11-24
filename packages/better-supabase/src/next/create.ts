@@ -688,12 +688,13 @@ export function createNext<
       // can't rebuild from a handle: it reads the request's own.
       const snapshot = ctx.support ? null : snapshotOf(ctx.auth);
 
-      const handle = cacheKeyOf({
+      const handle = await cacheKeyOf({
         userId: view.kind === "user" ? view.user.id : null,
         tenant: tenantFor(ctx, view),
         support: ctx.support?.session.id ?? null,
         snapshot,
         share: "session",
+        meta: betterSupabase.meta,
       });
 
       parkUntilResponseEnds(

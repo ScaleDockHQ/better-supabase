@@ -3,6 +3,8 @@ import { after } from "next/server.js";
 import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { CacheShare, RemoteCacheKey } from "./types.ts";
 
+import { schemaHashOf } from "../core/kept-cache.ts";
+import { VERSION } from "../core/version.ts";
 import { handOff } from "./remote-handoff.ts";
 
 /** What a caller needs to name the key of its session. */
@@ -12,13 +14,17 @@ export interface KeyParts<C> {
   readonly support: string | null;
   readonly snapshot: SessionSnapshot<C> | null;
   readonly share: CacheShare<C>;
+  /** The generated schema meta the key's `schema` hash is taken of. */
+  readonly meta: unknown;
 }
 
 /**
  * The serializable key of a session or a shared entry. The token is never a
  * part, so a rotation keeps the entries keyed by it.
  */
-export function cacheKeyOf<C>(parts: KeyParts<C>): RemoteCacheKey {
+export async function cacheKeyOf<C>(
+  parts: KeyParts<C>,
+): Promise<RemoteCacheKey> {
   const { share, snapshot } = parts;
   const shared = typeof share === "object" ? share.key(snapshot) : null;
 
@@ -32,6 +38,8 @@ export function cacheKeyOf<C>(parts: KeyParts<C>): RemoteCacheKey {
     authzVersion: shared === null ? (snapshot?.authzVersion ?? null) : null,
     shared,
     support: parts.support,
+    schema: await schemaHashOf(parts.meta),
+    library: VERSION,
   };
 }
 

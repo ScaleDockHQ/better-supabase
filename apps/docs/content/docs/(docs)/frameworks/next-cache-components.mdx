@@ -453,6 +453,37 @@ arguments, user and schema version instead, and expires it on a write. It
 works inside and outside `'use cache: private'`; see
 [Keep reads across requests and deploys](/docs/concepts/caching#keep-reads-across-requests-and-deploys).
 
+### Durable use cache entries
+
+Next.js 16.4.6 has `experimental.durableUseCacheEntries` (Turbopack only). With
+it on, a `"use cache"` entry is keyed on a hash of the function's code, the
+Next.js version and the env vars the code names, instead of the build, so a
+deploy that changes none of them reads the entries of the one before.
+`"use cache: private"` entries never reach a cache handler, so the flag
+doesn't touch them.
+
+| Reader                                  | Starts new entries after                                                       | Keeps the old entries after                                                                                 |
+| --------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `bsb.public()` in `"use cache: remote"` | a change to your code, `gen` output or better-supabase                         | a migration that changes only policies or function bodies; another Supabase project set only in runtime env |
+| `bsb.remote()`, `scope: "remote"`       | the same, and a new schema hash or better-supabase version in `RemoteCacheKey` | the same; the user, session, tenant, authorization version and share key still bound each entry             |
+| `bsb.kept()`                            | a new schema hash, `version` or better-supabase version                        | anything else, as without the flag                                                                          |
+
+The code hash covers the whole module graph of the route, including the
+generated `generated.meta.js` and better-supabase's built code. The env part
+holds only variables the code names literally: better-supabase reads its own
+by a computed name, so they never join the key, and neither do the
+per-deployment `VERCEL_*` variables unless your code names them.
+
+Use the flag when your remote reads are expensive and your deploys rarely
+change the database: a deploy then starts warm. Keep it off, and use
+`bsb.kept()` with a `version` you bump, when a migration can change what a
+read returns without changing the generated files (a new policy, a changed
+function body), or when previews and production share one cache handler but
+use different Supabase projects. With the flag on and a shared reader,
+`better-supabase doctor` reports [BS646](/docs/cli/doctor#bs646).
+`tests/next-durable-cache` builds the example with the flag and checks each
+row of this table.
+
 ### Remote scope
 
 `'use cache: remote'` keeps an entry on the server, shared across instances,
