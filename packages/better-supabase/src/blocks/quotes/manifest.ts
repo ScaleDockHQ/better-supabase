@@ -55,4 +55,12 @@ export const quotesBlock: BlockOf<
   ],
   handlers: { "quotes.from_deal": quoteFromDealFactory },
   automations: QUOTES_AUTOMATIONS,
+  schedules: [
+    {
+      name: "expire",
+      cron: "0 3 * * *",
+      runs: "expire()",
+      description: "Marks the sent quotes past their expiry date expired.",
+    },
+  ],
 });
