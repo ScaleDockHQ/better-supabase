@@ -1,13 +1,12 @@
 // The unit time budget (ADR 1230). As a Vitest reporter on the coverage job's merge, it writes
-// each file's test time and every test past half its timeout to `unit-times.json` in the
+// each file's time and every test past half its timeout to `unit-times.json` in the
 // working directory. As a script, it checks that file against the baselines or writes them.
 //
 //   node scripts/unit-durations.ts --check unit-times.json
 //   node scripts/unit-durations.ts --write unit-times.json [more-unit-times.json ...]
-import type { Reporter, TestModule, Vitest } from "vitest/node";
+import type { Reporter, TestModule } from "vitest/node";
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { relative } from "node:path";
 import * as v from "valibot";
 
 // The shards pack on this file; the slow tests file lists the tests already past half their timeout.
@@ -15,6 +14,9 @@ export const DURATIONS = "packages/better-supabase/tests/unit-durations.json";
 export const SLOW_TESTS = "scripts/unit-slow-tests.json";
 
 const SLOWEST = 20;
+
+// Blob reports keep the CI runner's absolute paths; file names start after this.
+const LIBRARY = "packages/better-supabase/";
 
 // The unit project's testTimeout, for a test whose report carries none.
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -37,19 +39,22 @@ export type UnitTimes = v.InferOutput<typeof timesSchema>;
 
 /** Collects the times while Vitest replays the merged blob reports. */
 export default class UnitTimesReporter implements Reporter {
-  private root = "";
-
-  onInit(vitest: Vitest): void {
-    this.root = vitest.config.root;
-  }
-
   onTestRunEnd(testModules: readonly TestModule[]): void {
     const times: UnitTimes = { files: {}, slowTests: [] };
 
     for (const module of testModules) {
-      const file = relative(this.root, module.moduleId).replaceAll("\\", "/");
+      const path = module.moduleId.replaceAll("\\", "/");
+      const file = path.slice(path.lastIndexOf(LIBRARY) + LIBRARY.length);
+      const diagnostic = module.diagnostic();
 
-      times.files[file] = Math.round(module.diagnostic().duration);
+      // Import and setup time count too: a shard's wall time follows the sum, not the tests alone.
+      times.files[file] = Math.round(
+        diagnostic.duration +
+          diagnostic.collectDuration +
+          diagnostic.setupDuration +
+          diagnostic.prepareDuration +
+          diagnostic.environmentSetupDuration,
+      );
 
       for (const test of module.children.allTests()) {
         const durationMs = Math.round(test.diagnostic()?.duration ?? 0);

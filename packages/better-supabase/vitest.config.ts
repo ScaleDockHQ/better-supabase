@@ -79,6 +79,9 @@ export default mergeConfig(
       // On a laptop, one worker per core is slower: the workers starve each other and the
       // other Turbo tasks. CI runners have few cores and nothing else running.
       maxWorkers: env.CI ? undefined : "50%",
+      // Vitest reads the sequencer from the root config only. An integration file has no measured
+      // duration, so its shards split by count.
+      sequence: { sequencer: DurationSequencer },
       projects: [
         {
           extends: true,
@@ -92,8 +95,6 @@ export default mergeConfig(
             // 10 second default (remove.test.ts timed out there on a loaded runner).
             testTimeout: 20_000,
             hookTimeout: 20_000,
-            // Only this project: integration shards stay on Vitest's path hash.
-            sequence: { sequencer: DurationSequencer },
             typecheck: {
               enabled: true,
               include: ["tests/**/*.test-d.ts"],
