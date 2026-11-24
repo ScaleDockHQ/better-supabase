@@ -10,6 +10,7 @@ import type { RecordListColumns } from "@/components/record-list/record-list-gri
 import type { RecordListPage } from "@/components/record-list/record-list-types";
 import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
+import { IntentLink } from "@/components/intent-link";
 import { RecordListView } from "@/components/record-list/record-list-view";
 import { useBlockListState } from "@/components/record-list/use-block-list-state";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,17 @@ import { deadlineList } from "../deadlines-list";
 import { DeadlineStateBadge, useDeadlineLabel } from "./deadline-badges";
 
 type DeadlineCell = CellContext<ReadOnlyGridFeatures, DeadlineRow>;
+
+function KindCell({ row }: DeadlineCell) {
+  return (
+    <IntentLink
+      href={`/deadlines/${row.original.id}`}
+      className="font-medium hover:underline"
+    >
+      {row.original.kind}
+    </IntentLink>
+  );
+}
 
 function StateCell({ row }: DeadlineCell) {
   return <DeadlineStateBadge state={row.original.state} />;
@@ -87,7 +99,7 @@ export function DeadlineRecordList({
   const list = useBlockListState(deadlineList);
 
   const columns: RecordListColumns<DeadlineRow> = [
-    { accessorKey: "kind", header: t("Deadline"), size: 220 },
+    { id: "kind", header: t("Deadline"), size: 220, cell: KindCell },
     { accessorKey: "groupKey", header: t("Group"), size: 160 },
     { accessorKey: "subjectType", header: t("Record"), size: 140 },
     { id: "due", header: t("Due"), size: 180, cell: DueCell },

@@ -33,6 +33,8 @@ const TABLE_OF_ROUTE = {
   "/care-plans/[id]": "care_plans",
   "/prescriptions/[id]": "prescriptions",
   "/incidents/[id]": "incidents",
+  "/deadlines/[id]": "deadlines",
+  "/meetings/[id]": "meetings",
   "/settings/option-sets/[id]": "option_sets",
   "/forms/[id]": "forms",
   "/maintenance/meters/[id]": "maintenance_meters",
