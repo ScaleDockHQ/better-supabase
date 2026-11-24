@@ -65,10 +65,12 @@ bump is one commit series:
   its baseline in `unit-durations.json`, or a test runs past half its timeout
   and is not in `scripts/unit-slow-tests.json` (or grew 50% and 5 seconds past
   it there). It lists the 20 slowest files in the step summary. After a
-  deliberate change, or to shrink the slow list, refresh both baselines from a
-  green run: `gh run download <run id> -n unit-times`, then
-  `node scripts/unit-durations.ts --write unit-times.json`, and commit them
-  with the reason.
+  deliberate change, or to shrink the slow list, refresh both baselines from
+  two or more green runs, because a file's time swings by up to 1.8 times
+  with its shard neighbours and the baselines keep the slowest run:
+  `gh run download <run id> -n unit-times -D <dir>` for each run, then
+  `node scripts/unit-durations.ts --write <dir>/unit-times.json ...`, and
+  commit them with the reason.
 - Coverage counts every file in `packages/better-supabase/src` (except
   `src/cli/bin.ts`), from unit tests only, with a separate threshold set for
   `src/cli/**`. Code that needs a database or the

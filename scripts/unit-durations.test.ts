@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { UnitTimes } from "./unit-durations.ts";
 
-import { findings, grew, slowestFilesSummary } from "./unit-durations.ts";
+import {
+  findings,
+  grew,
+  slowestFilesSummary,
+  slowestOf,
+} from "./unit-durations.ts";
 
 const times: UnitTimes = {
   files: {
@@ -53,5 +58,28 @@ describe("slowestFilesSummary", () => {
     expect(summary.indexOf("tests/new.test.ts")).toBeLessThan(
       summary.indexOf("tests/slow.test.ts"),
     );
+  });
+});
+
+describe("slowestOf", () => {
+  it("keeps the slowest time of each file and slow test over the runs", () => {
+    const { files, slowTests } = slowestOf([
+      times,
+      {
+        files: { "tests/slow.test.ts": 50_000, "tests/noisy.test.ts": 1000 },
+        slowTests: [
+          {
+            id: "tests/slow.test.ts > known",
+            durationMs: 9000,
+            timeoutMs: 20_000,
+          },
+        ],
+      },
+    ]);
+
+    expect(files.get("tests/slow.test.ts")).toBe(50_000);
+    expect(files.get("tests/noisy.test.ts")).toBe(2000);
+    expect(slowTests.get("tests/slow.test.ts > known")).toBe(12_000);
+    expect(slowTests.get("tests/slow.test.ts > fresh")).toBe(11_000);
   });
 });

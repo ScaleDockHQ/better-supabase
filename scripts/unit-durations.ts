@@ -3,7 +3,7 @@
 // working directory. As a script, it checks that file against the baselines or writes them.
 //
 //   node scripts/unit-durations.ts --check unit-times.json
-//   node scripts/unit-durations.ts --write unit-times.json
+//   node scripts/unit-durations.ts --write unit-times.json [more-unit-times.json ...]
 import type { Reporter, TestModule, Vitest } from "vitest/node";
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -67,6 +67,33 @@ export default class UnitTimesReporter implements Reporter {
 
     writeFileSync("unit-times.json", `${JSON.stringify(times)}\n`);
   }
+}
+
+/**
+ * The slowest time of each file and slow test over several runs. A file's time
+ * swings by up to 1.8 times between runs with other files on its shard, so the
+ * baselines keep the worst one.
+ */
+export function slowestOf(
+  runs: readonly UnitTimes[],
+): Readonly<Record<"files" | "slowTests", Map<string, number>>> {
+  const files = new Map<string, number>();
+  const slowTests = new Map<string, number>();
+
+  for (const run of runs) {
+    for (const [file, ms] of Object.entries(run.files)) {
+      files.set(file, Math.max(ms, files.get(file) ?? 0));
+    }
+
+    for (const test of run.slowTests) {
+      slowTests.set(
+        test.id,
+        Math.max(test.durationMs, slowTests.get(test.id) ?? 0),
+      );
+    }
+  }
+
+  return { files, slowTests };
 }
 
 /** True when `ms` grew past the budget over `before`. */
@@ -150,32 +177,32 @@ function sortedJson(entries: [string, number][]): string {
   )}\n`;
 }
 
+function readTimes(path: string): UnitTimes {
+  return v.parse(timesSchema, JSON.parse(readFileSync(path, "utf-8")));
+}
+
 function main(): number {
-  const [flag, timesPath] = process.argv.slice(2);
+  const [flag, ...paths] = process.argv.slice(2);
+  const [timesPath] = paths;
 
   if (timesPath === undefined || (flag !== "--check" && flag !== "--write")) {
     process.stderr.write(
-      "usage: unit-durations --check|--write <unit-times.json>\n",
+      "usage: unit-durations --check <unit-times.json> | --write <unit-times.json>...\n",
     );
 
     return 1;
   }
 
-  const times = v.parse(
-    timesSchema,
-    JSON.parse(readFileSync(timesPath, "utf-8")),
-  );
-
   if (flag === "--write") {
-    writeFileSync(DURATIONS, sortedJson(Object.entries(times.files)));
-    writeFileSync(
-      SLOW_TESTS,
-      sortedJson(times.slowTests.map((test) => [test.id, test.durationMs])),
-    );
+    const { files, slowTests } = slowestOf(paths.map(readTimes));
+
+    writeFileSync(DURATIONS, sortedJson([...files]));
+    writeFileSync(SLOW_TESTS, sortedJson([...slowTests]));
 
     return 0;
   }
 
+  const times = readTimes(timesPath);
   const durations = readMap(DURATIONS);
   const found = findings(times, durations, readMap(SLOW_TESTS));
 
