@@ -1143,25 +1143,27 @@ export async function runRules(
     schemaReadErrors,
   };
 
-  for (const rule of rules) {
-    const help = `${DOCS_URL}#${rule.code.toLowerCase()}`;
-    const skipped = skippedForMetadata(context.snapshot, rule, help);
+  // Rules that wait on I/O run together; findings keep the rule order.
+  const perRule = await Promise.all(
+    rules.map(async (rule): Promise<Finding[]> => {
+      const help = `${DOCS_URL}#${rule.code.toLowerCase()}`;
+      const skipped = skippedForMetadata(context.snapshot, rule, help);
 
-    if (skipped) {
-      findings.push(skipped);
-      continue;
-    }
+      if (skipped) {
+        return [skipped];
+      }
 
-    for (const input of await rule.check(scoped)) {
-      findings.push({
+      return (await rule.check(scoped)).map((input) => ({
         code: rule.code,
         severity: rule.severity,
         title: rule.title,
         help,
         ...input,
-      });
-    }
-  }
+      }));
+    }),
+  );
+
+  findings.push(...perRule.flat());
 
   return findings;
 }
