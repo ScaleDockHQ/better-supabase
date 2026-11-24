@@ -1,6 +1,7 @@
 import "server-only";
 import type { AdvisoryStatus } from "better-supabase/blocks/advisories";
 
+import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { bsb } from "@/lib/supabase/server";
@@ -103,4 +104,66 @@ export async function getVulnerabilities(): Promise<
     epssScore: vulnerability.epssScore ?? null,
     kev: vulnerability.kev,
   }));
+}
+
+/** One tracked vulnerability with its enrichment, serializable. */
+export interface VulnerabilityDetail extends VulnerabilityRow {
+  readonly details: string | null;
+  readonly aliases: readonly string[];
+  readonly cvssVector: string | null;
+  readonly cvssVersion: string | null;
+  readonly epssPercentile: number | null;
+  readonly kevAddedOn: string | null;
+  readonly kevDueOn: string | null;
+  readonly affectedPurls: readonly string[];
+  readonly enrichedAt: string | null;
+  readonly updatedAt: string;
+}
+
+/**
+ * One vulnerability; `undefined` when it is not tracked, `null` without an
+ * organization. The block has no single get, so it reads the page the id sits
+ * on, up to 200 rows.
+ */
+export async function getVulnerability(
+  id: string,
+): Promise<VulnerabilityDetail | undefined | null> {
+  "use cache: private";
+  const { db, session } = await bsb.cached();
+  cacheTag(ADVISORIES_TAG);
+
+  if (!tenantOf(session)) {
+    return null;
+  }
+
+  const items = await db.advisories
+    .pageVulnerabilities({ limit: 200 })
+    .map((page) => page.items)
+    .orThrow();
+
+  const found = items.find((item) => item.id === id);
+
+  if (found === undefined) {
+    return undefined;
+  }
+
+  return {
+    id: found.id,
+    vulnId: found.vulnId,
+    summary: found.summary ?? null,
+    severity: found.severity ?? null,
+    cvssScore: found.cvssScore ?? null,
+    epssScore: found.epssScore ?? null,
+    kev: found.kev,
+    details: found.details ?? null,
+    aliases: found.aliases,
+    cvssVector: found.cvssVector ?? null,
+    cvssVersion: found.cvssVersion ?? null,
+    epssPercentile: found.epssPercentile ?? null,
+    kevAddedOn: found.kevAddedOn ?? null,
+    kevDueOn: found.kevDueOn ?? null,
+    affectedPurls: found.affectedPurls,
+    enrichedAt: found.enrichedAt?.toString() ?? null,
+    updatedAt: found.updatedAt.toString(),
+  };
 }

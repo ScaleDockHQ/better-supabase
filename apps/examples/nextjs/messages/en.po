@@ -17,6 +17,27 @@ msgctxt "advisories.JFdDVw"
 msgid "Security advisories for the software the organization ships: products, tracked vulnerabilities and the CSAF documents that tell customers what to do."
 msgstr "Security advisories for the software the organization ships: products, tracked vulnerabilities and the CSAF documents that tell customers what to do."
 
+#: src/app/[locale]/(app)/advisories/vulnerabilities/[id]/page.tsx
+msgctxt "advisories.fTXJ6q"
+msgid "All vulnerabilities"
+msgstr "All vulnerabilities"
+
+#: src/app/[locale]/(app)/advisories/vulnerabilities/page.tsx
+msgctxt "advisories.yAMTuZ"
+msgid "All advisories"
+msgstr "All advisories"
+
+#: src/app/[locale]/(app)/advisories/vulnerabilities/page.tsx
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.dzuQpn"
+msgid "Vulnerabilities"
+msgstr "Vulnerabilities"
+
+#: src/app/[locale]/(app)/advisories/vulnerabilities/page.tsx
+msgctxt "advisories.c9CM4_"
+msgid "Every vulnerability the organization tracks, with its severity, scores and whether it is exploited."
+msgstr "Every vulnerability the organization tracks, with its severity, scores and whether it is exploited."
+
 #: src/app/[locale]/(app)/announcements/[id]/page.tsx
 msgctxt "announcements.ILTgGU"
 msgid "All announcements"
@@ -2877,6 +2898,7 @@ msgid "Product"
 msgstr "Product"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
 msgctxt "advisories.vCAhII"
 msgid "Severity"
 msgstr "Severity"
@@ -2912,19 +2934,20 @@ msgid "No products yet. Add the first one to start."
 msgstr "No products yet. Add the first one to start."
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
 msgctxt "advisories.x9I9p7"
 msgid "The vulnerabilities didn't load"
 msgstr "The vulnerabilities didn't load"
 
 #: src/features/advisories/components/advisory-sections.tsx
-msgctxt "advisories.dzuQpn"
-msgid "Vulnerabilities"
-msgstr "Vulnerabilities"
-
-#: src/features/advisories/components/advisory-sections.tsx
 msgctxt "advisories.Aox3ks"
 msgid "Enriched hourly from OSV, EPSS and the CISA KEV catalog."
 msgstr "Enriched hourly from OSV, EPSS and the CISA KEV catalog."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.pFK6bJ"
+msgid "View all"
+msgstr "View all"
 
 #: src/features/advisories/components/advisory-sections.tsx
 msgctxt "advisories.oJdN7Y"
@@ -2938,26 +2961,33 @@ msgid "Id"
 msgstr "Id"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
 msgctxt "advisories.HU3ax_"
 msgid "CVSS"
 msgstr "CVSS"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-detail.tsx
 msgctxt "advisories.AI_idA"
 msgid "EPSS"
 msgstr "EPSS"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
 msgctxt "advisories.zJVS0y"
 msgid "Known exploited"
 msgstr "Known exploited"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-detail.tsx
 msgctxt "advisories.a5msuh"
 msgid "Yes"
 msgstr "Yes"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-detail.tsx
 msgctxt "advisories.oUWADl"
 msgid "No"
 msgstr "No"
@@ -3029,6 +3059,7 @@ msgid "Enter a CVE, GHSA or OSV id. CVSS, EPSS and the CISA KEV flag arrive with
 msgstr "Enter a CVE, GHSA or OSV id. CVSS, EPSS and the CISA KEV flag arrive with the next enrichment run."
 
 #: src/features/advisories/components/track-vulnerability-dialog.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
 msgctxt "advisories.RrCui3"
 msgid "Summary"
 msgstr "Summary"
@@ -3174,6 +3205,155 @@ msgstr "Deny"
 msgctxt "agents.5kp1Ie"
 msgid "Denied"
 msgstr "Denied"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories._uybTa"
+msgid "The vulnerability didn't load"
+msgstr "The vulnerability didn't load"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.2pzTGC"
+msgid "Critical"
+msgstr "Critical"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.AxMhQr"
+msgid "High"
+msgstr "High"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.ovJ26C"
+msgid "Medium"
+msgstr "Medium"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.477I0g"
+msgid "Low"
+msgstr "Low"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.na02sI"
+msgid "Fix due"
+msgstr "Fix due"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.prEyoO"
+msgid "Enriched"
+msgstr "Enriched"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.xrk6zg"
+msgid "Updated"
+msgstr "Updated"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.Ds5c4_"
+msgid "Export record"
+msgstr "Export record"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.DvvHJS"
+msgid "Export requested"
+msgstr "Export requested"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.9uOFF3"
+msgid "Overview"
+msgstr "Overview"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.ZmlNQ3"
+msgid "Activity"
+msgstr "Activity"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.KQsZBW"
+msgid "Related"
+msgstr "Related"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.Q8Qw5B"
+msgid "Description"
+msgstr "Description"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.1u6oy4"
+msgid "Affected packages"
+msgstr "Affected packages"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.cMUyL8"
+msgid "No affected packages recorded."
+msgstr "No affected packages recorded."
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.cEl7Po"
+msgid "Also known as {aliases}"
+msgstr "Also known as {aliases}"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.gNBUWx"
+msgid "The vulnerability figures didn't load"
+msgstr "The vulnerability figures didn't load"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.HlljQp"
+msgid "Tracked"
+msgstr "Tracked"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.450Fty"
+msgid "None"
+msgstr "None"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.sBEZ0Z"
+msgid "Exploited"
+msgstr "Exploited"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.mvNjJC"
+msgid "Vulnerability"
+msgstr "Vulnerability"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.F0jAC6"
+msgid "Highest CVSS"
+msgstr "Highest CVSS"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.se-5_u"
+msgid "Highest EPSS"
+msgstr "Highest EPSS"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.i8olRt"
+msgid "Vulnerability id"
+msgstr "Vulnerability id"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.1b5T4W"
+msgid "Search vulnerabilities"
+msgstr "Search vulnerabilities"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.z4dttZ"
+msgid "No vulnerabilities tracked"
+msgstr "No vulnerabilities tracked"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.8fhjhw"
+msgid "Track a CVE, GHSA or OSV id to see its severity and whether it is exploited."
+msgstr "Track a CVE, GHSA or OSV id to see its severity and whether it is exploited."
 
 #: src/features/agents/components/agent-detail.tsx
 msgctxt "agents.9uOFF3"
@@ -25859,6 +26039,16 @@ msgid "Retry"
 msgstr "Retry"
 
 #: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.Ds5c4_"
+msgid "Export record"
+msgstr "Export record"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.DvvHJS"
+msgid "Export requested"
+msgstr "Export requested"
+
+#: src/features/risks/components/risk-detail.tsx
 msgctxt "risks.ETRyBL"
 msgid "Rating"
 msgstr "Rating"
@@ -25904,6 +26094,21 @@ msgstr "Materialized as"
 msgctxt "risks.dxHwqQ"
 msgid "No cases linked."
 msgstr "No cases linked."
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.9uOFF3"
+msgid "Overview"
+msgstr "Overview"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.ZmlNQ3"
+msgid "Activity"
+msgstr "Activity"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.KQsZBW"
+msgid "Related"
+msgstr "Related"
 
 #: src/features/risks/components/risk-detail.tsx
 msgctxt "risks.Q8Qw5B"

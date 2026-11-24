@@ -116,6 +116,9 @@ export const ACTIONS: readonly ActionCase[] = [
   write(E_PRESCRIBING, "cancelPrescription", "/prescriptions", async () => [
     { prescriptionId: await firstRowId("prescriptions") },
   ]),
+  write(COMPOSITES, "exportRecordSubject", "/risks", async () => [
+    { subjectType: "risk", subjectId: await firstRowId("risks") },
+  ]),
   write(COMPOSITES, "reconcileAccount", "/banking/accounts", async () => [
     { accountId: await firstRowId("bank_accounts") },
   ]),

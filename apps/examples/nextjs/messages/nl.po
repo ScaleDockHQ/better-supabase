@@ -17,6 +17,27 @@ msgctxt "advisories.JFdDVw"
 msgid "Security advisories for the software the organization ships: products, tracked vulnerabilities and the CSAF documents that tell customers what to do."
 msgstr "Beveiligingsadviezen voor de software die de organisatie levert: producten, gevolgde kwetsbaarheden en de CSAF-documenten die klanten vertellen wat ze moeten doen."
 
+#: src/app/[locale]/(app)/advisories/vulnerabilities/[id]/page.tsx
+msgctxt "advisories.fTXJ6q"
+msgid "All vulnerabilities"
+msgstr "Alle kwetsbaarheden"
+
+#: src/app/[locale]/(app)/advisories/vulnerabilities/page.tsx
+msgctxt "advisories.yAMTuZ"
+msgid "All advisories"
+msgstr "Alle adviezen"
+
+#: src/app/[locale]/(app)/advisories/vulnerabilities/page.tsx
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.dzuQpn"
+msgid "Vulnerabilities"
+msgstr "Kwetsbaarheden"
+
+#: src/app/[locale]/(app)/advisories/vulnerabilities/page.tsx
+msgctxt "advisories.c9CM4_"
+msgid "Every vulnerability the organization tracks, with its severity, scores and whether it is exploited."
+msgstr "Elke kwetsbaarheid die de organisatie bijhoudt, met ernst, scores en of ze wordt misbruikt."
+
 #: src/app/[locale]/(app)/announcements/[id]/page.tsx
 msgctxt "announcements.ILTgGU"
 msgid "All announcements"
@@ -2877,6 +2898,7 @@ msgid "Product"
 msgstr "Product"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
 msgctxt "advisories.vCAhII"
 msgid "Severity"
 msgstr "Ernst"
@@ -2912,19 +2934,20 @@ msgid "No products yet. Add the first one to start."
 msgstr "Nog geen producten. Voeg het eerste toe om te beginnen."
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
 msgctxt "advisories.x9I9p7"
 msgid "The vulnerabilities didn't load"
 msgstr "De kwetsbaarheden zijn niet geladen"
 
 #: src/features/advisories/components/advisory-sections.tsx
-msgctxt "advisories.dzuQpn"
-msgid "Vulnerabilities"
-msgstr "Kwetsbaarheden"
-
-#: src/features/advisories/components/advisory-sections.tsx
 msgctxt "advisories.Aox3ks"
 msgid "Enriched hourly from OSV, EPSS and the CISA KEV catalog."
 msgstr "Elk uur aangevuld vanuit OSV, EPSS en de CISA KEV-catalogus."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.pFK6bJ"
+msgid "View all"
+msgstr "Alles bekijken"
 
 #: src/features/advisories/components/advisory-sections.tsx
 msgctxt "advisories.oJdN7Y"
@@ -2938,26 +2961,33 @@ msgid "Id"
 msgstr "Id"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
 msgctxt "advisories.HU3ax_"
 msgid "CVSS"
 msgstr "CVSS"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-detail.tsx
 msgctxt "advisories.AI_idA"
 msgid "EPSS"
 msgstr "EPSS"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
 msgctxt "advisories.zJVS0y"
 msgid "Known exploited"
 msgstr "Bekend misbruikt"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-detail.tsx
 msgctxt "advisories.a5msuh"
 msgid "Yes"
 msgstr "Ja"
 
 #: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/vulnerability-detail.tsx
 msgctxt "advisories.oUWADl"
 msgid "No"
 msgstr "Nee"
@@ -3029,6 +3059,7 @@ msgid "Enter a CVE, GHSA or OSV id. CVSS, EPSS and the CISA KEV flag arrive with
 msgstr "Voer een CVE-, GHSA- of OSV-id in. CVSS, EPSS en de CISA KEV-markering volgen bij de volgende verrijkingsronde."
 
 #: src/features/advisories/components/track-vulnerability-dialog.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
 msgctxt "advisories.RrCui3"
 msgid "Summary"
 msgstr "Samenvatting"
@@ -3174,6 +3205,155 @@ msgstr "Weigeren"
 msgctxt "agents.5kp1Ie"
 msgid "Denied"
 msgstr "Geweigerd"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories._uybTa"
+msgid "The vulnerability didn't load"
+msgstr "De kwetsbaarheid is niet geladen"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.2pzTGC"
+msgid "Critical"
+msgstr "Kritiek"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.AxMhQr"
+msgid "High"
+msgstr "Hoog"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.ovJ26C"
+msgid "Medium"
+msgstr "Gemiddeld"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.477I0g"
+msgid "Low"
+msgstr "Laag"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.na02sI"
+msgid "Fix due"
+msgstr "Oplossen voor"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.prEyoO"
+msgid "Enriched"
+msgstr "Verrijkt"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.xrk6zg"
+msgid "Updated"
+msgstr "Bijgewerkt"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.Ds5c4_"
+msgid "Export record"
+msgstr "Record exporteren"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.DvvHJS"
+msgid "Export requested"
+msgstr "Export aangevraagd"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.9uOFF3"
+msgid "Overview"
+msgstr "Overzicht"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.ZmlNQ3"
+msgid "Activity"
+msgstr "Activiteit"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.KQsZBW"
+msgid "Related"
+msgstr "Gerelateerd"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.Q8Qw5B"
+msgid "Description"
+msgstr "Beschrijving"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.1u6oy4"
+msgid "Affected packages"
+msgstr "Getroffen pakketten"
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.cMUyL8"
+msgid "No affected packages recorded."
+msgstr "Geen getroffen pakketten vastgelegd."
+
+#: src/features/advisories/components/vulnerability-detail.tsx
+msgctxt "advisories.cEl7Po"
+msgid "Also known as {aliases}"
+msgstr "Ook bekend als {aliases}"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.gNBUWx"
+msgid "The vulnerability figures didn't load"
+msgstr "De cijfers van de kwetsbaarheden zijn niet geladen"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.HlljQp"
+msgid "Tracked"
+msgstr "Bijgehouden"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.450Fty"
+msgid "None"
+msgstr "Geen"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.sBEZ0Z"
+msgid "Exploited"
+msgstr "Misbruikt"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.mvNjJC"
+msgid "Vulnerability"
+msgstr "Kwetsbaarheid"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.F0jAC6"
+msgid "Highest CVSS"
+msgstr "Hoogste CVSS"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.se-5_u"
+msgid "Highest EPSS"
+msgstr "Hoogste EPSS"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.i8olRt"
+msgid "Vulnerability id"
+msgstr "Kwetsbaarheid-id"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.1b5T4W"
+msgid "Search vulnerabilities"
+msgstr "Kwetsbaarheden zoeken"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.z4dttZ"
+msgid "No vulnerabilities tracked"
+msgstr "Geen kwetsbaarheden bijgehouden"
+
+#: src/features/advisories/components/vulnerability-overview.tsx
+msgctxt "advisories.8fhjhw"
+msgid "Track a CVE, GHSA or OSV id to see its severity and whether it is exploited."
+msgstr "Volg een CVE-, GHSA- of OSV-id om de ernst te zien en of de kwetsbaarheid wordt misbruikt."
 
 #: src/features/agents/components/agent-detail.tsx
 msgctxt "agents.9uOFF3"
@@ -25859,6 +26039,16 @@ msgid "Retry"
 msgstr "Opnieuw proberen"
 
 #: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.Ds5c4_"
+msgid "Export record"
+msgstr "Record exporteren"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.DvvHJS"
+msgid "Export requested"
+msgstr "Export aangevraagd"
+
+#: src/features/risks/components/risk-detail.tsx
 msgctxt "risks.ETRyBL"
 msgid "Rating"
 msgstr "Beoordeling"
@@ -25904,6 +26094,21 @@ msgstr "Gerealiseerd als"
 msgctxt "risks.dxHwqQ"
 msgid "No cases linked."
 msgstr "Geen cases gekoppeld."
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.9uOFF3"
+msgid "Overview"
+msgstr "Overzicht"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.ZmlNQ3"
+msgid "Activity"
+msgstr "Activiteit"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.KQsZBW"
+msgid "Related"
+msgstr "Gerelateerd"
 
 #: src/features/risks/components/risk-detail.tsx
 msgctxt "risks.Q8Qw5B"

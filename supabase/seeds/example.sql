@@ -732,3 +732,31 @@ select better_supabase.create_prescription('00000000-0000-4000-8000-000000000001
 from ordered;
 
 select set_config('request.jwt.claims', '', false);
+
+-- Governance story: a supplier risk that is rated and mitigated, and two tracked
+-- vulnerabilities, one of them critical. A matrix is created only when the
+-- organization has none, so a seed that adds its own default keeps it.
+select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a1"}', false);
+
+select better_supabase.save_risk_matrix(
+  '00000000-0000-4000-8000-000000000001', 'story-matrix', '5 by 5 matrix',
+  '[{"label":"Rare","value":1},{"label":"Unlikely","value":2},{"label":"Possible","value":3},{"label":"Likely","value":4},{"label":"Almost certain","value":5}]'::jsonb,
+  '[{"label":"Insignificant","value":1},{"label":"Minor","value":2},{"label":"Moderate","value":3},{"label":"Major","value":4},{"label":"Severe","value":5}]'::jsonb,
+  '[{"key":"low","min":1,"max":4,"label":"Low"},{"key":"medium","min":5,"max":9,"label":"Medium"},{"key":"high","min":10,"max":16,"label":"High"},{"key":"critical","min":17,"max":25,"label":"Critical"}]'::jsonb,
+  'product', true, null)
+where not exists (select 1 from better_supabase.risk_matrices where tenant_id = '00000000-0000-4000-8000-000000000001');
+
+with created as (
+  select better_supabase.create_risk('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+    'title', 'Payment provider outage', 'category', 'operational',
+    'description', 'Checkout stops while the payment provider is down.',
+    'cause', 'A single provider handles every card payment.',
+    'consequence', 'Orders are lost for as long as the outage lasts.',
+    'reviewIntervalMonths', 6)) as row
+)
+select better_supabase.assess_risk((created.row ->> 'id')::uuid, 4, 4, 2, 3, 'A second provider is on the roadmap.') from created;
+
+select better_supabase.save_vulnerability('00000000-0000-4000-8000-000000000001', 'CVE-2026-31001', 'Remote code execution in the image resizer', null, null, null, '3.1', 9.8, null);
+select better_supabase.save_vulnerability('00000000-0000-4000-8000-000000000001', 'CVE-2026-31002', 'Open redirect in the login callback', null, null, null, '3.1', 5.4, null);
+
+select set_config('request.jwt.claims', '', false);

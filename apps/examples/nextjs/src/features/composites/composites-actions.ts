@@ -14,6 +14,7 @@ import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { driveOf } from "@/features/drive/drive-client";
 import { FIELD_TAG } from "@/features/field/field-cache";
 import { MAINTENANCE_TAG } from "@/features/maintenance/maintenance-cache";
+import { PRIVACY_TAG } from "@/features/privacy/privacy-cache";
 import { PROJECTS_TAG } from "@/features/projects/projects-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -24,6 +25,7 @@ import {
   commerceOf,
   crmOf,
   filespaceOf,
+  governanceOf,
   keyRotationOf,
   financeOf,
   projectsOf,
@@ -664,5 +666,43 @@ export const prescribeMedicationWithConsent = bsb.action(
     await refreshCaller(auth, [CUSTOMERS_TAG]);
 
     return ok({ orderId: prescribed.data.id });
+  },
+);
+
+/**
+ * Requests the export of one record and writes the audit entry that records it:
+ * `governance.exportSubject`.
+ */
+export const exportRecordSubject = bsb.action(
+  {
+    input: v.object({
+      subjectType: v.pipe(
+        v.string(),
+        v.trim(),
+        v.minLength(1),
+        v.maxLength(60),
+      ),
+      subjectId: Id,
+    }),
+    requireTenant: true,
+    permission: "data_lifecycle.export",
+  },
+  async ({ subjectType, subjectId }, { db, auth, tenant }) => {
+    const exported = await governanceOf(db).exportSubject({
+      organizationId: tenant,
+      subjectType,
+      subjectId,
+    });
+
+    if (!exported.ok) {
+      return exported;
+    }
+
+    await refreshCaller(auth, [PRIVACY_TAG]);
+
+    return ok({
+      exportId: exported.data.export.id,
+      auditId: exported.data.auditId,
+    });
   },
 );
