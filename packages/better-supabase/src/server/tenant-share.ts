@@ -43,9 +43,7 @@ const refusal = (table: string, why: string): DbError =>
  * Whether every table may be shared per tenant, and the grant part of the key
  * the provider's `shareKey` hook returns for the caller.
  */
-export async function tenantShareOf(
-  input: TenantShareInput,
-): Promise<TenantShare> {
+async function tenantShareOf(input: TenantShareInput): Promise<TenantShare> {
   const functions = input.functions ?? [];
 
   if (input.tables.length === 0 && functions.length === 0) {

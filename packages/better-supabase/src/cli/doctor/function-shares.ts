@@ -1,4 +1,4 @@
-import type { CatalogFunction, CatalogTable } from "../../config/snapshot.ts";
+import type { CatalogFunction, CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
 import { providerLabel } from "../authorization.ts";

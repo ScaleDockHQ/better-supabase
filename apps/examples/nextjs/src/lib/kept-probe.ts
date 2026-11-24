@@ -10,9 +10,9 @@ import * as v from "valibot";
 export type ProbeStore = Pick<KeptStore, "expireTags" | "get" | "set">;
 
 /** One id per module instance, so two requests show whether they met. */
-export const INSTANCE: string = crypto.randomUUID().slice(0, 8);
+const INSTANCE: string = crypto.randomUUID().slice(0, 8);
 
-export const VERSION_KEY = "bsb-probe:version";
+const VERSION_KEY = "bsb-probe:version";
 
 export interface KeptWrite {
   readonly key: string;

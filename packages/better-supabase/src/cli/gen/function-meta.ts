@@ -1,5 +1,5 @@
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { SchemaMeta } from "../../schema/types.ts";
+import type { SchemaMeta } from "../../index.ts";
 import type { TableModel } from "./model-types.ts";
 
 import { resolveBlock } from "../../sql/index.ts";

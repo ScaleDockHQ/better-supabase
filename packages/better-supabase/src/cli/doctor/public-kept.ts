@@ -2,7 +2,7 @@ import type { Node } from "oxc-parser";
 
 import { walk } from "oxc-walker";
 
-import type { CatalogTable } from "../../config/snapshot.ts";
+import type { CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { lineColumn, parseSource } from "../config-document/parse.ts";
