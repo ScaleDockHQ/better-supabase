@@ -6,7 +6,12 @@ import { test } from "@playwright/test";
 import { expectInstant } from "better-supabase/testing";
 
 import { ROUTES } from "./routes.manifest";
-import { openableRoutes, pushRoute, signIn } from "./support/example-session";
+import {
+  openableRoutes,
+  prefetchRoute,
+  pushRoute,
+  signIn,
+} from "./support/example-session";
 
 // One case per route that exports `instant = true`, generated from the route
 // manifest: a client navigation from the dashboard paints the page's first
@@ -23,7 +28,10 @@ test.beforeEach(async ({ page }) => {
 for (const entry of instantRoutes) {
   test(`${entry.route} navigates instantly`, async ({ page }) => {
     await expectInstant(page, {
-      during: () => pushRoute(page, entry.url),
+      during: async () => {
+        await prefetchRoute(page, entry.url);
+        await pushRoute(page, entry.url);
+      },
       visible: [page.getByRole("heading", { level: 1 }).first()],
       maxCalls: entry.maxCalls,
       maxWaves: entry.maxWaves,
