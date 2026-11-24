@@ -102,3 +102,7 @@ Apps apply the `workflow-sdk` version 9 migration before they deploy
 `@workflow/world-postgres` 5.4.1. An app that sets `GRAPHILE_WORKER_SCHEMA`
 to another schema gets a warning at startup, and its purge backstops go
 there instead.
+
+## Closure
+
+The time box ended on 2026-11-21. The `minimumReleaseAgeExclude` entries were removed on 2026-11-24 and every release passes `minimumReleaseAge` on its own.

@@ -39,4 +39,17 @@ describe("signatures", () => {
     expect(verifySharedSecret(request, "right")).toBe(true);
     expect(verifySharedSecret(request, "wrong")).toBe(false);
   });
+
+  it("verifySharedSecret never accepts an empty secret", () => {
+    expect(verifySharedSecret(new Request("https://x.test"), "")).toBe(false);
+
+    expect(
+      verifySharedSecret(
+        new Request("https://x.test", {
+          headers: { authorization: "Bearer " },
+        }),
+        "",
+      ),
+    ).toBe(false);
+  });
 });

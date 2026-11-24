@@ -12,19 +12,20 @@ Run `better-supabase upgrade`, then generate a migration with
 `pnpm supabase:diff <name>` and `better-supabase add --adopt`. The upgrade
 writes the trigger, function and table changes below.
 
-| Section                                           | Needs code                                                             |
-| ------------------------------------------------- | ---------------------------------------------------------------------- |
-| [Provider fields](#provider-fields)               | Optional: declare `tables` and `shareKey` to share cache entries       |
-| [The authorizer context](#the-authorizer-context) | Treat an unset `context.enforcement` as `definer`                      |
-| [Search source views](#search-source-views)       | Add `search.columns` to every record type with `search.from`           |
-| [Import chunks](#import-chunks)                   | Finish a run only when every chunk is done; read `result`, not `items` |
-| [Import batches](#import-batches)                 | None; run `better-supabase upgrade`                                    |
-| [Open items](#open-items)                         | Filter `invoice_open_items` on `document_type` if you query it         |
-| [Audit retention](#audit-retention)               | Optional: set `retention` so `maintenance()` purges the log            |
-| [Doctor rules](#doctor-rules)                     | None; set `doctor.policies.max` to move the BS641 limit                |
-| [Version store](#version-store)                   | Return `{ version, at }` from `get`, and take `at` in `set`            |
-| [Staff orders](#staff-orders)                     | Rename a column of your own that a new block column takes              |
-| [Drive role grants](#drive-role-grants)           | None; set `grants: "roles"` to drop the drive grants table             |
+| Section                                           | Needs code                                                                             |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [Provider fields](#provider-fields)               | Optional: declare `tables` and `shareKey` to share cache entries                       |
+| [The authorizer context](#the-authorizer-context) | Treat an unset `context.enforcement` as `definer`                                      |
+| [Search source views](#search-source-views)       | Add `search.columns` to every record type with `search.from`                           |
+| [Import chunks](#import-chunks)                   | Finish a run only when every chunk is done; read `result`, not `items`                 |
+| [Import batches](#import-batches)                 | None; run `better-supabase upgrade`                                                    |
+| [Open items](#open-items)                         | Filter `invoice_open_items` on `document_type` if you query it                         |
+| [Audit retention](#audit-retention)               | Optional: set `retention` so `maintenance()` purges the log                            |
+| [Doctor rules](#doctor-rules)                     | None; set `doctor.policies.max` to move the BS641 limit                                |
+| [Version store](#version-store)                   | Return `{ version, at }` from `get`, and take `at` in `set`                            |
+| [Staff orders](#staff-orders)                     | Rename a column of your own that a new block column takes                              |
+| [Drive role grants](#drive-role-grants)           | None; set `grants: "roles"` to drop the drive grants table                             |
+| [Stricter auth defaults](#stricter-auth-defaults) | Set a shared secret, `allowedOrigins` for cookie MCP, and `exp` on custom HS256 tokens |
 
 ## Provider fields
 
@@ -233,3 +234,12 @@ deployment and a maintainer run of `scripts/probe-vercel-tags.ts`.
 | 1,000-row list read, 9 against 13 policies                          | 0.92 ms                          | 1.00 ms (no fold, ADR 1218) |
 | Session cookie of a member, `user-and-tokens` against `tokens-only` | 3,137 B                          | 1,788 B                     |
 | Session cookie of an admin with many permissions                    | 6,979 B in 3 chunks              | 5,609 B in 2 chunks         |
+
+## Stricter auth defaults
+
+Four checks that used to pass now fail. `verifySharedSecret` returns false for
+an empty secret, so set the environment variable before you deploy. `createMcp`
+throws when `cookies: true` has no `allowedOrigins`. `verifyHs256` rejects a
+token without a numeric `exp` claim, which only matters for tokens you mint
+yourself. The JWKS fetch stops after 10 seconds and refuses a response larger
+than 256 KB.

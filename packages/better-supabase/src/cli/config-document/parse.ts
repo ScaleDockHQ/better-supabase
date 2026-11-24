@@ -44,19 +44,54 @@ export function parseModule(text: string, path: string): ParsedModule {
 }
 
 /**
+ * Texts read by `parseSource`, newest last. Every doctor rule reads the same
+ * sources, so one parse serves all of them. Callers only read the tree; the cap
+ * bounds the memory a large app holds.
+ */
+const PARSED = new Map<string, ParseResult>();
+const PARSED_CHARS_MAX = 24_000_000;
+let parsedChars = 0;
+
+function remember(text: string, result: ParseResult): void {
+  PARSED.set(text, result);
+  parsedChars += text.length;
+
+  for (const [oldest] of PARSED) {
+    if (parsedChars <= PARSED_CHARS_MAX) {
+      break;
+    }
+
+    PARSED.delete(oldest);
+    parsedChars -= oldest.length;
+  }
+}
+
+/**
  * Parses source text of unknown flavour. `<T>value` assertions and `<T>(x) =>`
  * generics are only valid in `.ts`, JSX only in `.tsx`, so it reads the text as
  * TypeScript first and as TSX when that reports errors, and keeps the read with
  * fewer errors. A text that parses in neither keeps the recovered tree.
  */
 export function parseSource(text: string): ParseResult {
-  const typescript = parseSync("source.ts", text, { sourceType: "module" });
+  const known = PARSED.get(text);
 
-  if (typescript.errors.length === 0) {
-    return typescript;
+  if (known !== undefined) {
+    // Re-insert so the entry counts as the newest.
+    PARSED.delete(text);
+    PARSED.set(text, known);
+
+    return known;
   }
 
-  const tsx = parseSync("source.tsx", text, { sourceType: "module" });
+  const typescript = parseSync("source.ts", text, { sourceType: "module" });
+  let result = typescript;
 
-  return tsx.errors.length < typescript.errors.length ? tsx : typescript;
+  if (typescript.errors.length > 0) {
+    const tsx = parseSync("source.tsx", text, { sourceType: "module" });
+    result = tsx.errors.length < typescript.errors.length ? tsx : typescript;
+  }
+
+  remember(text, result);
+
+  return result;
 }

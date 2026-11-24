@@ -276,6 +276,24 @@ export function createDevMcp(options: DevMcpOptions): ProtocolServer {
       };
     }
 
+    // A value that starts with `-` would be read as a flag of the command.
+    const flagLike = Object.entries(parsed.output)
+      .filter(([key]) => key !== "effectsDigest")
+      .flatMap(([, value]) => (Array.isArray(value) ? value : [value]))
+      .find((value) => typeof value === "string" && value.startsWith("-"));
+
+    if (flagLike !== undefined) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Invalid arguments: "${flagLike}" starts with "-".`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
     const argv = [...tool.argv(parsed.output), ...globals];
 
     if (tool.writes) {

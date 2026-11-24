@@ -347,6 +347,11 @@ export function verifySharedSecret(
   secret: string,
   headerName = "authorization",
 ): boolean {
+  // An unset secret reads as "" and an absent header too; they must not match.
+  if (secret === "") {
+    return false;
+  }
+
   const value = request.headers.get(headerName) ?? "";
   const token = value.replace(/^Bearer\s+/i, "");
 

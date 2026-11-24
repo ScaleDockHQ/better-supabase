@@ -18,8 +18,8 @@ numbers and the report records them once a maintainer runs it.
 | `@workflow/world-postgres`   | 5.4.1                                                              | 2026-11-21 20:44 UTC       |
 
 eve 1.1.0 bundles core 5.6.1 and world 5.2.2, so it is not the supported line.
-Until the dates above, ADR 1105 lists these releases in
-`minimumReleaseAgeExclude`; delete those entries once the dates pass.
+All of these releases now pass `minimumReleaseAge`, and
+`pnpm-workspace.yaml` has no `minimumReleaseAgeExclude` entries.
 Never lower or bypass `minimumReleaseAge`; read versions with `pnpm view` when
 you bump.
 
@@ -108,8 +108,7 @@ Vercel Queues on the project that hosts the eve service before the run.
    Vercel Connect (`teamId`, `orgId`) and the Resend channel config.
 4. After 2026-12-09 17:48 UTC, 2026-12-12 and 2026-12-19 (see
    `pnpm-workspace.yaml`), remove the `trustPolicyExclude` entries once
-   `pnpm install` accepts the releases on their own, and drop the
-   `minimumReleaseAgeExclude` blocks once their dates pass (ADR 1097).
+   `pnpm install` accepts the releases on their own (ADR 1097).
 
 ## What stays unproven
 

@@ -116,6 +116,18 @@ describe("createMcp", () => {
     });
   });
 
+  it("refuses cookie mode without allowedOrigins", () => {
+    expect(() =>
+      createMcp(betterSupabase, {
+        env,
+        auth: { jwks: signer.jwks },
+        name: "crm",
+        version: "1.0.0",
+        cookies: true,
+      }),
+    ).toThrow("allowedOrigins");
+  });
+
   it("checks the Host header and links the connect docs from the metadata", async () => {
     const strict = createMcp(betterSupabase, {
       env,

@@ -99,6 +99,9 @@ function isSupabaseJwksUrl(url: URL): boolean {
 /** The most bytes read from a JWKS response. */
 const MAX_JWKS_BYTES = 256 * 1024;
 
+/** A JWKS fetch that has not answered by then fails like any network error. */
+const JWKS_FETCH_TIMEOUT_MS = 10_000;
+
 /** A fetched key set and the epoch milliseconds of its fetch. */
 interface CachedJwks {
   readonly keys: RawJwks;
@@ -336,11 +339,22 @@ async function fetchRawJwks(
 ): Promise<Result<RawJwks>> {
   const response = await (customFetch ?? fetch)(url, {
     headers: { accept: "application/jwk-set+json, application/json" },
+    signal: AbortSignal.timeout(JWKS_FETCH_TIMEOUT_MS),
   });
 
   if (!response.ok) {
     return err(
       dbError("network", `The JWKS answered ${response.status}`, {
+        code: "JWKS_FETCH_FAILED",
+      }),
+    );
+  }
+
+  const declared = Number(response.headers.get("content-length") ?? 0);
+
+  if (declared > MAX_JWKS_BYTES) {
+    return err(
+      dbError("network", "The JWKS response is too large", {
         code: "JWKS_FETCH_FAILED",
       }),
     );
