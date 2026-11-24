@@ -62,12 +62,13 @@ bump is one commit series:
   the `coverage` job merges the blob reports and checks the thresholds below
   (ADR 1229). A red `main` opens the `main-red` issue.
 - The `coverage` job also fails when a test file runs 50% and 5 seconds over
-  its baseline in `unit-durations.json`, or a test takes over 10 seconds (half
-  the 20 second timeout), and lists the 20 slowest files in the step summary.
-  After a deliberate change, refresh the baseline from a green run:
-  `gh run download <run id> -n unit-report`, then
-  `node scripts/unit-durations.ts --write packages/better-supabase/tests/unit-durations.json unit-report.json`,
-  and commit it with the reason.
+  its baseline in `unit-durations.json`, or a test runs past half its timeout
+  and is not in `scripts/unit-slow-tests.json` (or grew 50% and 5 seconds past
+  it there). It lists the 20 slowest files in the step summary. After a
+  deliberate change, or to shrink the slow list, refresh both baselines from a
+  green run: `gh run download <run id> -n unit-times`, then
+  `node scripts/unit-durations.ts --write unit-times.json`, and commit them
+  with the reason.
 - Coverage counts every file in `packages/better-supabase/src` (except
   `src/cli/bin.ts`), from unit tests only, with a separate threshold set for
   `src/cli/**`. Code that needs a database or the

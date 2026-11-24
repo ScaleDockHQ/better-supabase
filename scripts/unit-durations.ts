@@ -1,107 +1,108 @@
-// Turns a merged Vitest JSON report into the duration map the unit shards pack on, or checks the
-// report against that map for the coverage job's step summary (ADR 1229).
+// The unit time budget (ADR 1229). As a Vitest reporter on the coverage job's merge, it writes
+// each file's test time and every test past half its timeout to `unit-times.json` in the
+// working directory. As a script, it checks that file against the baselines or writes them.
 //
-//   node scripts/unit-durations.ts --write packages/better-supabase/tests/unit-durations.json report.json
-//   node scripts/unit-durations.ts --check packages/better-supabase/tests/unit-durations.json report.json
+//   node scripts/unit-durations.ts --check unit-times.json
+//   node scripts/unit-durations.ts --write unit-times.json
+import type { Reporter, TestModule, Vitest } from "vitest/node";
+
 import { readFileSync, writeFileSync } from "node:fs";
+import { relative } from "node:path";
 import * as v from "valibot";
 
-const MARKER = "packages/better-supabase/";
+// The shards pack on this file; the slow tests file lists the tests already past half their timeout.
+export const DURATIONS = "packages/better-supabase/tests/unit-durations.json";
+export const SLOW_TESTS = "scripts/unit-slow-tests.json";
+
 const SLOWEST = 20;
 
-// A file fails when it runs this much over its baseline, and by at least SLACK_MS: runner noise
+// The unit project's testTimeout, for a test whose report carries none.
+const DEFAULT_TIMEOUT_MS = 20_000;
+
+// A time fails when it runs this much over its baseline, and by at least SLACK_MS: runner noise
 // moves a one second file by more than half.
 const GROWTH = 1.5;
 const SLACK_MS = 5000;
 
-// Half of the unit project's 20 second testTimeout.
-const TEST_LIMIT_MS = 10_000;
-
-const reportSchema = v.object({
-  testResults: v.array(
-    v.object({
-      name: v.string(),
-      startTime: v.number(),
-      endTime: v.number(),
-      assertionResults: v.optional(
-        v.array(
-          v.object({
-            fullName: v.string(),
-            duration: v.optional(v.nullable(v.number())),
-          }),
-        ),
-        [],
-      ),
-    }),
+const timesSchema = v.object({
+  files: v.record(v.string(), v.number()),
+  slowTests: v.array(
+    v.object({ id: v.string(), durationMs: v.number(), timeoutMs: v.number() }),
   ),
 });
 
 const baselineSchema = v.record(v.string(), v.number());
 
-export interface FileDuration {
-  readonly file: string;
-  readonly durationMs: number;
+export type UnitTimes = v.InferOutput<typeof timesSchema>;
+
+/** Collects the times while Vitest replays the merged blob reports. */
+export default class UnitTimesReporter implements Reporter {
+  private root = "";
+
+  onInit(vitest: Vitest): void {
+    this.root = vitest.config.root;
+  }
+
+  onTestRunEnd(testModules: readonly TestModule[]): void {
+    const times: UnitTimes = { files: {}, slowTests: [] };
+
+    for (const module of testModules) {
+      const file = relative(this.root, module.moduleId).replaceAll("\\", "/");
+
+      times.files[file] = Math.round(module.diagnostic().duration);
+
+      for (const test of module.children.allTests()) {
+        const durationMs = Math.round(test.diagnostic()?.duration ?? 0);
+        const timeoutMs = test.options.timeout ?? DEFAULT_TIMEOUT_MS;
+
+        if (durationMs > timeoutMs / 2) {
+          times.slowTests.push({
+            id: `${file} > ${test.fullName}`,
+            durationMs,
+            timeoutMs,
+          });
+        }
+      }
+    }
+
+    writeFileSync("unit-times.json", `${JSON.stringify(times)}\n`);
+  }
 }
 
-export interface SlowTest {
-  readonly file: string;
-  readonly test: string;
-  readonly durationMs: number;
+/** True when `ms` grew past the budget over `before`. */
+export function grew(ms: number, before: number): boolean {
+  return ms > before * GROWTH && ms - before > SLACK_MS;
 }
 
-type VitestJsonReport = v.InferOutput<typeof reportSchema>;
+/** The findings that fail the job, one line each. */
+export function findings(
+  times: UnitTimes,
+  durations: ReadonlyMap<string, number>,
+  slowBaseline: ReadonlyMap<string, number>,
+): string[] {
+  const files = Object.entries(times.files).flatMap(([file, ms]) => {
+    const before = durations.get(file);
 
-function relativeName(name: string): string {
-  const path = name.replaceAll("\\", "/");
-  const at = path.lastIndexOf(MARKER);
-
-  return at === -1 ? path : path.slice(at + MARKER.length);
-}
-
-function parseReport(json: string): VitestJsonReport {
-  return v.parse(reportSchema, JSON.parse(json));
-}
-
-/** File durations from a Vitest `--reporter=json` document, in path order. */
-export function durationsFromJson(json: string): FileDuration[] {
-  return parseReport(json)
-    .testResults.map((result) => ({
-      file: relativeName(result.name),
-      durationMs: Math.max(0, Math.round(result.endTime - result.startTime)),
-    }))
-    .toSorted((a, b) => a.file.localeCompare(b.file));
-}
-
-/** Tests that ran longer than half their timeout. */
-export function slowTestsFromJson(json: string): SlowTest[] {
-  return parseReport(json).testResults.flatMap((result) =>
-    result.assertionResults
-      .filter((test) => (test.duration ?? 0) > TEST_LIMIT_MS)
-      .map((test) => ({
-        file: relativeName(result.name),
-        test: test.fullName,
-        durationMs: Math.round(test.duration ?? 0),
-      })),
-  );
-}
-
-/**
- * Files that grew past the budget over their baseline. A file without a
- * baseline passes.
- */
-export function overBaseline(
-  rows: readonly FileDuration[],
-  baseline: ReadonlyMap<string, number>,
-): FileDuration[] {
-  return rows.filter((row) => {
-    const before = baseline.get(row.file);
-
-    return (
-      before !== undefined &&
-      row.durationMs > before * GROWTH &&
-      row.durationMs - before > SLACK_MS
-    );
+    return before !== undefined && grew(ms, before)
+      ? [
+          `File over its time budget: \`${file}\` took ${seconds(ms)} s, baseline ${seconds(before)} s.`,
+        ]
+      : [];
   });
+
+  const tests = times.slowTests.flatMap((test) => {
+    const before = slowBaseline.get(test.id);
+
+    if (before !== undefined && !grew(test.durationMs, before)) {
+      return [];
+    }
+
+    return [
+      `Test over half its ${seconds(test.timeoutMs)} s timeout: \`${test.id}\` took ${seconds(test.durationMs)} s${before === undefined ? "" : `, baseline ${seconds(before)} s`}.`,
+    ];
+  });
+
+  return [...files, ...tests];
 }
 
 function seconds(ms: number): string {
@@ -110,11 +111,11 @@ function seconds(ms: number): string {
 
 /** A markdown table of the files that take the longest. */
 export function slowestFilesSummary(
-  rows: readonly FileDuration[],
-  baseline: ReadonlyMap<string, number> = new Map(),
+  times: UnitTimes,
+  durations: ReadonlyMap<string, number>,
 ): string {
-  const slowest = rows
-    .toSorted((a, b) => b.durationMs - a.durationMs)
+  const slowest = Object.entries(times.files)
+    .toSorted((a, b) => b[1] - a[1])
     .slice(0, SLOWEST);
 
   return [
@@ -122,16 +123,18 @@ export function slowestFilesSummary(
     "",
     "| File | Seconds | Baseline |",
     "| --- | --- | --- |",
-    ...slowest.map((row) => {
-      const before = baseline.get(row.file);
+    ...slowest.map(([file, ms]) => {
+      const before = durations.get(file);
 
-      return `| \`${row.file}\` | ${seconds(row.durationMs)} | ${before === undefined ? "new" : seconds(before)} |`;
+      return `| \`${file}\` | ${seconds(ms)} | ${before === undefined ? "new" : seconds(before)} |`;
     }),
+    "",
+    `${times.slowTests.length} tests ran past half their timeout; \`${SLOW_TESTS}\` lists the known ones.`,
     "",
   ].join("\n");
 }
 
-function readBaseline(path: string): Map<string, number> {
+function readMap(path: string): Map<string, number> {
   return new Map(
     Object.entries(
       v.parse(baselineSchema, JSON.parse(readFileSync(path, "utf-8"))),
@@ -139,69 +142,56 @@ function readBaseline(path: string): Map<string, number> {
   );
 }
 
-function check(baselinePath: string, reportPath: string): number {
-  const json = readFileSync(reportPath, "utf-8");
-  const rows = durationsFromJson(json);
-  const baseline = readBaseline(baselinePath);
-  const grown = overBaseline(rows, baseline);
-  const slow = slowTestsFromJson(json);
+function sortedJson(entries: [string, number][]): string {
+  return `${JSON.stringify(
+    Object.fromEntries(entries.toSorted((a, b) => a[0].localeCompare(b[0]))),
+    null,
+    2,
+  )}\n`;
+}
 
-  process.stdout.write(slowestFilesSummary(rows, baseline));
+function main(): number {
+  const [flag, timesPath] = process.argv.slice(2);
 
-  for (const row of grown) {
-    process.stdout.write(
-      `\nFile over its time budget: \`${row.file}\` took ${seconds(row.durationMs)} s, baseline ${seconds(baseline.get(row.file) ?? 0)} s.\n`,
-    );
-  }
-
-  for (const test of slow) {
-    process.stdout.write(
-      `\nTest over half its timeout: \`${test.file}\` > ${test.test} took ${seconds(test.durationMs)} s.\n`,
-    );
-  }
-
-  if (grown.length > 0 || slow.length > 0) {
-    process.stdout.write(
-      "\nMake the test faster or split it. After a deliberate change, refresh the baseline (docs/agents/tooling.md).\n",
+  if (timesPath === undefined || (flag !== "--check" && flag !== "--write")) {
+    process.stderr.write(
+      "usage: unit-durations --check|--write <unit-times.json>\n",
     );
 
     return 1;
   }
 
-  return 0;
-}
-
-function usage(): number {
-  process.stderr.write(
-    "usage: unit-durations --write|--check <durations.json> <report.json>\n",
+  const times = v.parse(
+    timesSchema,
+    JSON.parse(readFileSync(timesPath, "utf-8")),
   );
 
-  return 1;
-}
+  if (flag === "--write") {
+    writeFileSync(DURATIONS, sortedJson(Object.entries(times.files)));
+    writeFileSync(
+      SLOW_TESTS,
+      sortedJson(times.slowTests.map((test) => [test.id, test.durationMs])),
+    );
 
-function main(): number {
-  const [flag, baselinePath, reportPath] = process.argv.slice(2);
-
-  if (baselinePath === undefined || reportPath === undefined) {
-    return usage();
+    return 0;
   }
 
-  if (flag === "--check") {
-    return check(baselinePath, reportPath);
+  const durations = readMap(DURATIONS);
+  const found = findings(times, durations, readMap(SLOW_TESTS));
+
+  process.stdout.write(slowestFilesSummary(times, durations));
+
+  for (const line of found) {
+    process.stdout.write(`\n${line}\n`);
   }
 
-  if (flag !== "--write") {
-    return usage();
+  if (found.length > 0) {
+    process.stdout.write(
+      "\nMake the test faster or split it. After a deliberate change, refresh the baselines (docs/agents/tooling.md).\n",
+    );
+
+    return 1;
   }
-
-  const durations = Object.fromEntries(
-    durationsFromJson(readFileSync(reportPath, "utf-8")).map((row) => [
-      row.file,
-      row.durationMs,
-    ]),
-  );
-
-  writeFileSync(baselinePath, `${JSON.stringify(durations, null, 2)}\n`);
 
   return 0;
 }

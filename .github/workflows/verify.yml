@@ -262,6 +262,9 @@ jobs:
       # With --affected, the shards skip the library when nothing it depends on changed. Ask Turbo
       # the same question, so a missing upload fails instead of passing as "not affected".
       - name: Merge the shards and check the thresholds
+        env:
+          # Also writes unit-times.json for the time budget below.
+          TIMES_REPORTER: ${{ github.workspace }}/scripts/unit-durations.ts
         run: |
           read -ra affected <<< "$AFFECTED"
           selected=$(pnpm exec turbo run test --filter=better-supabase "${affected[@]}" --dry=json \
@@ -278,22 +281,21 @@ jobs:
             exit 1
           fi
           cd packages/better-supabase
-          # The JSON report keeps the file and test times for the budget check below.
-          status=0
-          pnpm exec vitest --merge-reports --coverage --reporter=dot --reporter=json \
-            --outputFile.json=../../unit-report.json || status=$?
-          if [ -f ../../unit-report.json ]; then
-            cd ../..
-            node scripts/unit-durations.ts --check packages/better-supabase/tests/unit-durations.json \
-              unit-report.json >> "$GITHUB_STEP_SUMMARY" || status=$?
-          fi
-          exit "$status"
+          pnpm exec vitest --merge-reports --coverage --silent=passed-only \
+            --reporter=default --reporter="$TIMES_REPORTER"
 
-      # `node scripts/unit-durations.ts --write` refreshes the baseline from this file.
-      - name: Upload the merged report
-        if: ${{ !cancelled() && hashFiles('unit-report.json') != '' }}
+      - name: Check the time budget
+        if: ${{ !cancelled() && hashFiles('packages/better-supabase/unit-times.json') != '' }}
+        run: |
+          set -o pipefail
+          node scripts/unit-durations.ts --check packages/better-supabase/unit-times.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # `node scripts/unit-durations.ts --write` refreshes both baselines from this file.
+      - name: Upload the unit times
+        if: ${{ !cancelled() && hashFiles('packages/better-supabase/unit-times.json') != '' }}
         uses: actions/upload-artifact@v7
         with:
-          name: unit-report
-          path: unit-report.json
+          name: unit-times
+          path: packages/better-supabase/unit-times.json
           retention-days: 14
