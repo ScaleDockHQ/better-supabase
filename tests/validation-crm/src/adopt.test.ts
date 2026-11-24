@@ -44,7 +44,7 @@ describe("add --preset --adopt on the CRM schema", () => {
   it(
     "proposes the adopt mappings the config holds",
     // A cold render of the preset under a loaded CI runner took 25 to 33 s.
-    { timeout: 60_000 },
+    { timeout: 180_000 },
     async () => {
       await writeFile(
         join(dir, "better-supabase.config.json"),
