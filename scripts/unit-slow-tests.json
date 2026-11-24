@@ -1,1 +1,7 @@
-{}
+{
+  "tests/cli/cache/module-store.test.ts > the disk module store > renders every registered module from a store a full render filled": 15307,
+  "tests/cli/cli.test.ts > fixtures > are in sync with the generator": 14754,
+  "tests/cli/init-existing.test.ts > init on an existing project > treats a --from that is not a url as --preset, and refuses both": 13305,
+  "tests/sql/index-skip.test.ts > repeated indexes > finds no two indexes of the same definition across every module": 10775,
+  "tests/sql/scope.test.ts > blocks.memberships.names.organization > leaves no organization identifier but parameter names": 10971
+}
