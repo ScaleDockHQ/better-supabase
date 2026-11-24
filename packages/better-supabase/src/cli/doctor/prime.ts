@@ -8,6 +8,7 @@ import {
 } from "../schema-reader/index.ts";
 import { primeSchemaFacts } from "../sql-facts.ts";
 import { adoptionContext, appTablesOf } from "./app-tables.ts";
+import { hookTokenFiles } from "./hooks.ts";
 
 /**
  * Reads the context's SQL files with the parser so the rules can scan them. A
@@ -23,10 +24,16 @@ export async function primeDoctorFacts(
     { lenient: true },
   );
 
-  // The rules that read calls and names in SQL bodies read code tokens.
-  await primeCodeStatements([
-    ...(context.sqlFiles ?? []).map((file) => file.text),
-  ]);
+  // The rules that read calls and names in SQL bodies read code tokens. BS629
+  // reads the migrations one at a time itself, so they are not all kept.
+  await primeCodeStatements(
+    [
+      ...(context.sqlFiles ?? []).filter(
+        (file) => !file.path.includes("/migrations/"),
+      ),
+      ...hookTokenFiles(context),
+    ].map((file) => file.text),
+  );
 
   await primeAdoption(
     context.config.blocks,

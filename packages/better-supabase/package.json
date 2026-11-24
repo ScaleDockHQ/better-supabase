@@ -2827,6 +2827,7 @@
     "bench": "node tests/next/next.bench.ts && node tests/core/plugins.bench.ts && node tests/core/compile.bench.ts && node tests/server/context.bench.ts && node tests/cli/spec/spec.bench.ts",
     "bench:cache": "node tests/bench/cache-tier.ts",
     "bench:cli": "node tests/bench/cli-wall.ts",
+    "bench:doctor-heap": "node --expose-gc tests/bench/doctor-heap.ts",
     "bench:jwt": "node tests/bench/jwt-matrix.ts",
     "bench:lease": "node tests/bench/kept-lease.ts",
     "bench:live": "node tests/bench/postgrest-floor.ts && node tests/bench/executors.ts",
