@@ -186,6 +186,15 @@ async function relationOptions(
       );
     }
 
+    // Support
+    case "case": {
+      return named(
+        (await db.cases.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (item) => ({ id: item.id, name: `${item.number} ${item.title}` }),
+        ),
+      );
+    }
+
     default: {
       const unreachable: never = subject.type;
 

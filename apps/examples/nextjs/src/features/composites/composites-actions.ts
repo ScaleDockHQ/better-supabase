@@ -7,11 +7,13 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { API_KEYS_TAG } from "@/features/api-keys/api-keys-cache";
+import { CASES_TAG } from "@/features/cases/cases-cache";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { driveOf } from "@/features/drive/drive-client";
 import { FIELD_TAG } from "@/features/field/field-cache";
 import { MAINTENANCE_TAG } from "@/features/maintenance/maintenance-cache";
+import { PROJECTS_TAG } from "@/features/projects/projects-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -518,5 +520,56 @@ export const completeVisit = bsb.action(
       parts: visit.data.parts,
       readings: visit.data.readings,
     });
+  },
+);
+
+const Text = v.pipe(v.string(), v.trim(), v.minLength(1));
+
+/**
+ * Opens a support ticket as a task and starts its SLA clocks:
+ * `support.openTicket`.
+ */
+export const openTicket = bsb.action(
+  {
+    input: v.object({ title: Text, body: Blank }),
+    requireTenant: true,
+    permission: "tasks.write",
+  },
+  async ({ title, body }, { db, auth, tenant }) => {
+    const opened = await supportOf(db).openTicket({
+      organizationId: tenant,
+      ticket: body === undefined ? { title } : { title, body },
+    });
+
+    if (!opened.ok) {
+      return opened;
+    }
+
+    await refreshCaller(auth, [PROJECTS_TAG, CASES_TAG]);
+
+    return ok({ id: opened.data.ticket.id, clocks: opened.data.clocks.length });
+  },
+);
+
+/** Posts a comment on a case: `collaboration.discuss`. */
+export const discussCase = bsb.action(
+  {
+    input: v.object({ caseId: Id, comment: Text }),
+    requireTenant: true,
+    permission: "cases.read",
+  },
+  async ({ caseId, comment }, { db, auth }) => {
+    const discussion = await db.$blocks.collaboration.discuss({
+      subject: { type: "case", id: caseId },
+      comment: { body: comment },
+    });
+
+    if (!discussion.ok) {
+      return discussion;
+    }
+
+    await refreshCaller(auth, [CASES_TAG, CRM_TAG, CUSTOMERS_TAG]);
+
+    return ok({ caseId });
   },
 );

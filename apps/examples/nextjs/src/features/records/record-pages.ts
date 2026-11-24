@@ -60,4 +60,6 @@ export const recordPages = {
   // Service and logistics
   work_order: bsbCore.record(sectionRecord("work_order")),
   shipment: bsbCore.record(sectionRecord("shipment")),
+  // Support
+  case: bsbCore.record(sectionRecord("case")),
 } as const;

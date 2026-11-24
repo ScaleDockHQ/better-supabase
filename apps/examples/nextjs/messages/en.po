@@ -337,6 +337,12 @@ msgctxt "care.y1nMyB"
 msgid "The clients in your care. Open one for their notes, care plan, observations, medication, consents and access log."
 msgstr "The clients in your care. Open one for their notes, care plan, observations, medication, consents and access log."
 
+#: src/app/[locale]/(app)/cases/[id]/page.tsx
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.smeTxj"
+msgid "All cases"
+msgstr "All cases"
+
 #: src/app/[locale]/(app)/cases/page.tsx
 msgctxt "cases.TTLDST"
 msgid "Cases"
@@ -346,6 +352,36 @@ msgstr "Cases"
 msgctxt "cases.0jbldy"
 msgid "Nonconformities, complaints, incidents and the other cases of the organization, from report to a verified close."
 msgstr "Nonconformities, complaints, incidents and the other cases of the organization, from report to a verified close."
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.OOfCJ5"
+msgid "Open a ticket"
+msgstr "Open a ticket"
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.bFuL-c"
+msgid "Creates the ticket as a task and starts its response clocks."
+msgstr "Creates the ticket as a task and starts its response clocks."
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.ktxDyR"
+msgid "Open ticket"
+msgstr "Open ticket"
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.i9VKNb"
+msgid "Ticket opened"
+msgstr "Ticket opened"
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.9a9-ww"
+msgid "Title"
+msgstr "Title"
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.Lv0zJu"
+msgid "Details"
+msgstr "Details"
 
 #: src/app/[locale]/(app)/chat/page.tsx
 msgctxt "chat.WTrOy3"
@@ -7362,6 +7398,7 @@ msgid "Open, required"
 msgstr "Open, required"
 
 #: src/features/cases/components/case-detail.tsx
+#: src/features/cases/components/case-overviews.tsx
 msgctxt "cases.JfG49w"
 msgid "Open"
 msgstr "Open"
@@ -7370,6 +7407,36 @@ msgstr "Open"
 msgctxt "cases.nDeMD5"
 msgid "Close case"
 msgstr "Close case"
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.QoUBHM"
+msgid "Discuss this case"
+msgstr "Discuss this case"
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.NC5JnC"
+msgid "The comment appears in the case discussion below."
+msgstr "The comment appears in the case discussion below."
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.krIw0o"
+msgid "Discuss"
+msgstr "Discuss"
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.8PRXSA"
+msgid "Post comment"
+msgstr "Post comment"
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.VTN7xO"
+msgid "Comment posted"
+msgstr "Comment posted"
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.LgbKvU"
+msgid "Comment"
+msgstr "Comment"
 
 #: src/features/cases/components/case-labels.ts
 msgctxt "cases.477I0g"
@@ -7466,6 +7533,72 @@ msgctxt "cases.cpI605"
 msgid "Improvement"
 msgstr "Improvement"
 
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.nf-yok"
+msgid "Not yet closed"
+msgstr "Not yet closed"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.Fv1ZSz"
+msgid "Closed"
+msgstr "Closed"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.DYA-tb"
+msgid "Verified and closed"
+msgstr "Verified and closed"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.GJK1OB"
+msgid "Every kind, every stage"
+msgstr "Every kind, every stage"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.kFkPWB"
+msgid "Number"
+msgstr "Number"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.KpN3WY"
+msgid "Case"
+msgstr "Case"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.vCAhII"
+msgid "Severity"
+msgstr "Severity"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.g9pEhE"
+msgid "Due"
+msgstr "Due"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.fwIt1X"
+msgid "Newest"
+msgstr "Newest"
+
+#: src/features/cases/components/case-overviews.tsx
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.741_Ec"
+msgid "The cases didn't load"
+msgstr "The cases didn't load"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.OlQQZ7"
+msgid "No cases yet"
+msgstr "No cases yet"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.HlZIKv"
+msgid "Report one from an inspection or a lab result."
+msgstr "Report one from an inspection or a lab result."
+
 #: src/features/cases/components/case-sections.tsx
 msgctxt "cases.162kF7"
 msgid "Try again in a moment."
@@ -7485,11 +7618,6 @@ msgstr "Open cases"
 msgctxt "cases.4NNkXw"
 msgid "Each open case in its stage. Drag a card to move it; closing happens on the case once nothing blocks it."
 msgstr "Each open case in its stage. Drag a card to move it; closing happens on the case once nothing blocks it."
-
-#: src/features/cases/components/case-sections.tsx
-msgctxt "cases.741_Ec"
-msgid "The cases didn't load"
-msgstr "The cases didn't load"
 
 #: src/features/cases/components/case-sections.tsx
 msgctxt "cases.I-RtUF"

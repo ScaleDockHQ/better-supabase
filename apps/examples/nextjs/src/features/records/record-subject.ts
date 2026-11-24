@@ -12,6 +12,8 @@ export const RECORD_TYPES = [
   // Service and logistics
   "work_order",
   "shipment",
+  // Support
+  "case",
 ] as const;
 
 export type RecordType = (typeof RECORD_TYPES)[number];

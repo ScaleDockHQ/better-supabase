@@ -115,4 +115,11 @@ export const ACTIONS: readonly ActionCase[] = [
   write(COMPOSITES, "completeVisit", "/field/dispatch", async () => [
     { workOrderId: await firstRowId("work_orders") },
   ]),
+  // Support
+  write(COMPOSITES, "openTicket", "/cases", async () => [
+    { title: "Printer on the second floor is offline" },
+  ]),
+  write(COMPOSITES, "discussCase", "/cases", async () => [
+    { caseId: await firstRowId("cases"), comment: "Looking into the cause." },
+  ]),
 ];

@@ -337,6 +337,12 @@ msgctxt "care.y1nMyB"
 msgid "The clients in your care. Open one for their notes, care plan, observations, medication, consents and access log."
 msgstr "De cliënten in je zorg. Open er een voor de notities, het zorgplan, de observaties, de medicatie, de toestemmingen en het inzagelog."
 
+#: src/app/[locale]/(app)/cases/[id]/page.tsx
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.smeTxj"
+msgid "All cases"
+msgstr "Alle dossiers"
+
 #: src/app/[locale]/(app)/cases/page.tsx
 msgctxt "cases.TTLDST"
 msgid "Cases"
@@ -346,6 +352,36 @@ msgstr "Cases"
 msgctxt "cases.0jbldy"
 msgid "Nonconformities, complaints, incidents and the other cases of the organization, from report to a verified close."
 msgstr "Afwijkingen, klachten, incidenten en de andere cases van de organisatie, van melding tot een geverifieerde afsluiting."
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.OOfCJ5"
+msgid "Open a ticket"
+msgstr "Ticket openen"
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.bFuL-c"
+msgid "Creates the ticket as a task and starts its response clocks."
+msgstr "Maakt het ticket als taak aan en start de reactietimers."
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.ktxDyR"
+msgid "Open ticket"
+msgstr "Ticket openen"
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.i9VKNb"
+msgid "Ticket opened"
+msgstr "Ticket geopend"
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.9a9-ww"
+msgid "Title"
+msgstr "Titel"
+
+#: src/app/[locale]/(app)/cases/page.tsx
+msgctxt "cases.Lv0zJu"
+msgid "Details"
+msgstr "Details"
 
 #: src/app/[locale]/(app)/chat/page.tsx
 msgctxt "chat.WTrOy3"
@@ -7362,6 +7398,7 @@ msgid "Open, required"
 msgstr "Open, verplicht"
 
 #: src/features/cases/components/case-detail.tsx
+#: src/features/cases/components/case-overviews.tsx
 msgctxt "cases.JfG49w"
 msgid "Open"
 msgstr "Open"
@@ -7370,6 +7407,36 @@ msgstr "Open"
 msgctxt "cases.nDeMD5"
 msgid "Close case"
 msgstr "Case sluiten"
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.QoUBHM"
+msgid "Discuss this case"
+msgstr "Dit dossier bespreken"
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.NC5JnC"
+msgid "The comment appears in the case discussion below."
+msgstr "De reactie verschijnt hieronder in de discussie van het dossier."
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.krIw0o"
+msgid "Discuss"
+msgstr "Bespreken"
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.8PRXSA"
+msgid "Post comment"
+msgstr "Reactie plaatsen"
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.VTN7xO"
+msgid "Comment posted"
+msgstr "Reactie geplaatst"
+
+#: src/features/cases/components/case-discussion.tsx
+msgctxt "cases.LgbKvU"
+msgid "Comment"
+msgstr "Reactie"
 
 #: src/features/cases/components/case-labels.ts
 msgctxt "cases.477I0g"
@@ -7466,6 +7533,72 @@ msgctxt "cases.cpI605"
 msgid "Improvement"
 msgstr "Verbetering"
 
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.nf-yok"
+msgid "Not yet closed"
+msgstr "Nog niet gesloten"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.Fv1ZSz"
+msgid "Closed"
+msgstr "Gesloten"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.DYA-tb"
+msgid "Verified and closed"
+msgstr "Gecontroleerd en gesloten"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.GJK1OB"
+msgid "Every kind, every stage"
+msgstr "Elk type, elke fase"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.kFkPWB"
+msgid "Number"
+msgstr "Nummer"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.KpN3WY"
+msgid "Case"
+msgstr "Dossier"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.vCAhII"
+msgid "Severity"
+msgstr "Ernst"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.g9pEhE"
+msgid "Due"
+msgstr "Uiterlijk"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.fwIt1X"
+msgid "Newest"
+msgstr "Nieuwste"
+
+#: src/features/cases/components/case-overviews.tsx
+#: src/features/cases/components/case-sections.tsx
+msgctxt "cases.741_Ec"
+msgid "The cases didn't load"
+msgstr "De cases zijn niet geladen"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.OlQQZ7"
+msgid "No cases yet"
+msgstr "Nog geen dossiers"
+
+#: src/features/cases/components/case-overviews.tsx
+msgctxt "cases.HlZIKv"
+msgid "Report one from an inspection or a lab result."
+msgstr "Meld er een vanuit een inspectie of labresultaat."
+
 #: src/features/cases/components/case-sections.tsx
 msgctxt "cases.162kF7"
 msgid "Try again in a moment."
@@ -7485,11 +7618,6 @@ msgstr "Open cases"
 msgctxt "cases.4NNkXw"
 msgid "Each open case in its stage. Drag a card to move it; closing happens on the case once nothing blocks it."
 msgstr "Elke open case in zijn fase. Sleep een kaart om hem te verplaatsen; sluiten gebeurt op de case zodra niets het tegenhoudt."
-
-#: src/features/cases/components/case-sections.tsx
-msgctxt "cases.741_Ec"
-msgid "The cases didn't load"
-msgstr "De cases zijn niet geladen"
 
 #: src/features/cases/components/case-sections.tsx
 msgctxt "cases.I-RtUF"

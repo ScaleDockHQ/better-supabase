@@ -158,3 +158,11 @@ export const unlinkShipmentRelations =
 
 export const removeShipmentAttachments =
   recordPages.shipment.actions.attachments.remove;
+
+// Support
+export const linkCaseRelations = recordPages.case.actions.relations.link;
+
+export const unlinkCaseRelations = recordPages.case.actions.relations.unlink;
+
+export const removeCaseAttachments =
+  recordPages.case.actions.attachments.remove;

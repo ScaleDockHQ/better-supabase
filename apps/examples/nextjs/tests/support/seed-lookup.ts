@@ -38,6 +38,7 @@ const TABLE_OF_ROUTE = {
   // Service and logistics
   "/field/dispatch/[id]": "work_orders",
   "/field/shipments/[id]": "shipments",
+  "/cases/[id]": "cases",
 } as const satisfies Readonly<Record<string, string>>;
 
 const isKnownRoute = (route: string): route is keyof typeof TABLE_OF_ROUTE =>

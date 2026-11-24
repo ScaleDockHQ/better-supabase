@@ -1,4 +1,7 @@
 import {
+  linkCaseRelations,
+  removeCaseAttachments,
+  unlinkCaseRelations,
   linkContractRelations,
   linkCompanyRelations,
   linkCustomerRelations,
@@ -59,5 +62,11 @@ export const recordActions = {
     link: linkShipmentRelations,
     unlink: unlinkShipmentRelations,
     removeAttachment: removeShipmentAttachments,
+  },
+  // Support
+  case: {
+    link: linkCaseRelations,
+    unlink: unlinkCaseRelations,
+    removeAttachment: removeCaseAttachments,
   },
 } as const;
