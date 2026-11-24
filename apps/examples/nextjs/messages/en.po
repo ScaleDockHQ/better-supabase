@@ -418,6 +418,11 @@ msgctxt "compliance.4zT1k6"
 msgid "What you are asked to read, how each framework's controls stand, the evidence that is due, the contracts coming up for renewal and what the organization asks consent for."
 msgstr "What you are asked to read, how each framework's controls stand, the evidence that is due, the contracts coming up for renewal and what the organization asks consent for."
 
+#: src/app/[locale]/(app)/content/[id]/page.tsx
+msgctxt "content.wFyz_e"
+msgid "All content"
+msgstr "All content"
+
 #: src/app/[locale]/(app)/content/page.tsx
 msgctxt "content.Jq3FDz"
 msgid "Content"
@@ -8814,97 +8819,228 @@ msgctxt "compliance.tzMNF3"
 msgid "Status"
 msgstr "Status"
 
-#: src/features/content/components/content-list.tsx
-msgctxt "content.Jr2vxi"
-msgid "The content didn't load"
-msgstr "The content didn't load"
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.OjCXU3"
+msgid "The entry didn't load"
+msgstr "The entry didn't load"
 
-#: src/features/content/components/content-list.tsx
-msgctxt "content.162kF7"
-msgid "Try again in a moment."
-msgstr "Try again in a moment."
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.62nsdy"
-msgid "Retry"
-msgstr "Retry"
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.e8uOGJ"
-msgid "No entries yet"
-msgstr "No entries yet"
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.ZJb3qm"
-msgid "Pages and posts you write here are published to the public site when you say so."
-msgstr "Pages and posts you write here are published to the public site when you say so."
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.W6nwjo"
-msgid "Draft"
-msgstr "Draft"
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.cXAlMR"
-msgid "Scheduled"
-msgstr "Scheduled"
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.w7tf2z"
-msgid "Published"
-msgstr "Published"
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.0HT-Ib"
-msgid "Archived"
-msgstr "Archived"
-
-#: src/features/content/components/content-list.tsx
-#: src/features/content/components/create-entry-dialog.tsx
-msgctxt "content.9a9-ww"
-msgid "Title"
-msgstr "Title"
-
-#: src/features/content/components/content-list.tsx
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
 #: src/features/content/components/create-entry-dialog.tsx
 msgctxt "content.-U6ozc"
 msgid "Type"
 msgstr "Type"
 
-#: src/features/content/components/content-list.tsx
-msgctxt "content.tzMNF3"
-msgid "Status"
-msgstr "Status"
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.IoDlcd"
+msgid "Slug"
+msgstr "Slug"
 
-#: src/features/content/components/content-list.tsx
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.RcxFT1"
+msgid "Locale"
+msgstr "Locale"
+
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
 msgctxt "content.xrk6zg"
 msgid "Updated"
 msgstr "Updated"
 
-#: src/features/content/components/content-list.tsx
-msgctxt "content.wL7VAE"
-msgid "Actions"
-msgstr "Actions"
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.w7tf2z"
+msgid "Published"
+msgstr "Published"
 
-#: src/features/content/components/content-row-actions.tsx
-msgctxt "content.wqN6DE"
-msgid "Entry published"
-msgstr "Entry published"
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.NfIrYa"
+msgid "Scheduled for"
+msgstr "Scheduled for"
 
-#: src/features/content/components/content-row-actions.tsx
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.aFyu8N"
+msgid "Translations"
+msgstr "Translations"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.cXAlMR"
+msgid "Scheduled"
+msgstr "Scheduled"
+
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.L-LQwD"
+msgid "Publish with a version"
+msgstr "Publish with a version"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.7_bh3y"
+msgid "Keeps a version of the content, then publishes the entry."
+msgstr "Keeps a version of the content, then publishes the entry."
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.vQrzW-"
+msgid "Publish with version"
+msgstr "Publish with version"
+
+#: src/features/content/components/content-detail.tsx
 msgctxt "content.syEQFE"
 msgid "Publish"
 msgstr "Publish"
 
-#: src/features/content/components/content-row-actions.tsx
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.ks_Dcy"
+msgid "Entry published with a version"
+msgstr "Entry published with a version"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.ncz4nZ"
+msgid "Version label (optional)"
+msgstr "Version label (optional)"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.TgZlDM"
+msgid "Spring launch"
+msgstr "Spring launch"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.hrgo-E"
+msgid "Archive"
+msgstr "Archive"
+
+#: src/features/content/components/content-detail.tsx
 msgctxt "content.caQi4p"
 msgid "Entry archived"
 msgstr "Entry archived"
 
-#: src/features/content/components/content-row-actions.tsx
-msgctxt "content.hrgo-E"
-msgid "Archive"
-msgstr "Archive"
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.9uOFF3"
+msgid "Overview"
+msgstr "Overview"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.ZmlNQ3"
+msgid "Activity"
+msgstr "Activity"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.KQsZBW"
+msgid "Related"
+msgstr "Related"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.PgwNgt"
+msgid "Publishing"
+msgstr "Publishing"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.ORIkVt"
+msgid "The entry is live on the public site."
+msgstr "The entry is live on the public site."
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.NWy73e"
+msgid "Only published entries reach the public site."
+msgstr "Only published entries reach the public site."
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.j-h6mV"
+msgid "No publish request is open."
+msgstr "No publish request is open."
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.SrTyU4"
+msgid "Publish request: {status}"
+msgstr "Publish request: {status}"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.ixdKuS"
+msgid "The content figures didn't load"
+msgstr "The content figures didn't load"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.87ZCAe"
+msgid "Entries"
+msgstr "Entries"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.2atspc"
+msgid "Drafts"
+msgstr "Drafts"
+
+#: src/features/content/components/content-overview.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.9a9-ww"
+msgid "Title"
+msgstr "Title"
+
+#: src/features/content/components/content-overview.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.wFmAFC"
+msgid "Page"
+msgstr "Page"
+
+#: src/features/content/components/content-overview.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.eKv7yX"
+msgid "Post"
+msgstr "Post"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.ie_Tbp"
+msgid "Recently updated"
+msgstr "Recently updated"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.CL8DUR"
+msgid "Recently published"
+msgstr "Recently published"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.XUouRw"
+msgid "Search entries"
+msgstr "Search entries"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.Jr2vxi"
+msgid "The content didn't load"
+msgstr "The content didn't load"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.wBJckI"
+msgid "No entries found"
+msgstr "No entries found"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.ZJb3qm"
+msgid "Pages and posts you write here are published to the public site when you say so."
+msgstr "Pages and posts you write here are published to the public site when you say so."
 
 #: src/features/content/components/create-entry-dialog.tsx
 msgctxt "content.JLulyJ"
@@ -8920,21 +9056,6 @@ msgstr "New entry"
 msgctxt "content.sv-rWu"
 msgid "Entries start as drafts. Publish one when it is ready to go live."
 msgstr "Entries start as drafts. Publish one when it is ready to go live."
-
-#: src/features/content/components/create-entry-dialog.tsx
-msgctxt "content.wFmAFC"
-msgid "Page"
-msgstr "Page"
-
-#: src/features/content/components/create-entry-dialog.tsx
-msgctxt "content.eKv7yX"
-msgid "Post"
-msgstr "Post"
-
-#: src/features/content/components/create-entry-dialog.tsx
-msgctxt "content.IoDlcd"
-msgid "Slug"
-msgstr "Slug"
 
 #: src/features/content/components/create-entry-dialog.tsx
 msgctxt "content._Sb5Yq"

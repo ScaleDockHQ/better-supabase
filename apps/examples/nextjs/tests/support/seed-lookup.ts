@@ -28,6 +28,7 @@ const TABLE_OF_ROUTE = {
   "/warehouse/waves/[id]": "pick_waves",
   "/property/leases/[id]": "leases",
   "/risks/[id]": "risks",
+  "/content/[id]": "content_entries",
   "/incidents/[id]": "incidents",
   "/settings/option-sets/[id]": "option_sets",
   "/forms/[id]": "forms",

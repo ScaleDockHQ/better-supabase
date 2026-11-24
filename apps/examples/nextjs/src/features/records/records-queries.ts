@@ -195,6 +195,56 @@ async function relationOptions(
       );
     }
 
+    case "content_entry": {
+      return named(
+        (await db.content.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (entry) => ({ id: entry.id, name: entry.title }),
+        ),
+      );
+    }
+
+    case "meeting": {
+      return named(
+        (await db.meetings.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (meeting) => ({ id: meeting.id, name: meeting.title }),
+        ),
+      );
+    }
+
+    case "care_plan": {
+      return named(
+        (await db.carePlans.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (plan) => ({ id: plan.id, name: plan.title }),
+        ),
+      );
+    }
+
+    case "risk": {
+      return named(
+        (await db.risks.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (risk) => ({ id: risk.id, name: `${risk.number} ${risk.title}` }),
+        ),
+      );
+    }
+
+    case "vulnerability": {
+      return tenant
+        ? named(
+            (
+              await db.advisories
+                .pageVulnerabilities({
+                  organizationId: tenant,
+                  limit: OPTION_LIMIT,
+                })
+                .orThrow()
+            ).items.map((vulnerability) => ({
+              id: vulnerability.id,
+              name: vulnerability.vulnId,
+            })),
+          )
+        : [];
+    }
+
     default: {
       const unreachable: never = subject.type;
 

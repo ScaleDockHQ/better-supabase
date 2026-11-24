@@ -418,6 +418,11 @@ msgctxt "compliance.4zT1k6"
 msgid "What you are asked to read, how each framework's controls stand, the evidence that is due, the contracts coming up for renewal and what the organization asks consent for."
 msgstr "Wat je moet lezen, hoe de controls van elk framework ervoor staan, welk bewijs verschuldigd is, welke contracten binnenkort verlengd moeten worden en waarvoor de organisatie toestemming vraagt."
 
+#: src/app/[locale]/(app)/content/[id]/page.tsx
+msgctxt "content.wFyz_e"
+msgid "All content"
+msgstr "Alle inhoud"
+
 #: src/app/[locale]/(app)/content/page.tsx
 msgctxt "content.Jq3FDz"
 msgid "Content"
@@ -8814,97 +8819,228 @@ msgctxt "compliance.tzMNF3"
 msgid "Status"
 msgstr "Status"
 
-#: src/features/content/components/content-list.tsx
-msgctxt "content.Jr2vxi"
-msgid "The content didn't load"
-msgstr "De inhoud is niet geladen"
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.OjCXU3"
+msgid "The entry didn't load"
+msgstr "Het item is niet geladen"
 
-#: src/features/content/components/content-list.tsx
-msgctxt "content.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.e8uOGJ"
-msgid "No entries yet"
-msgstr "Nog geen items"
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.ZJb3qm"
-msgid "Pages and posts you write here are published to the public site when you say so."
-msgstr "Pagina's en berichten die je hier schrijft, worden pas op de openbare site gepubliceerd als jij dat aangeeft."
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.W6nwjo"
-msgid "Draft"
-msgstr "Concept"
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.cXAlMR"
-msgid "Scheduled"
-msgstr "Gepland"
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.w7tf2z"
-msgid "Published"
-msgstr "Gepubliceerd"
-
-#: src/features/content/components/content-list.tsx
-msgctxt "content.0HT-Ib"
-msgid "Archived"
-msgstr "Gearchiveerd"
-
-#: src/features/content/components/content-list.tsx
-#: src/features/content/components/create-entry-dialog.tsx
-msgctxt "content.9a9-ww"
-msgid "Title"
-msgstr "Titel"
-
-#: src/features/content/components/content-list.tsx
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
 #: src/features/content/components/create-entry-dialog.tsx
 msgctxt "content.-U6ozc"
 msgid "Type"
 msgstr "Type"
 
-#: src/features/content/components/content-list.tsx
-msgctxt "content.tzMNF3"
-msgid "Status"
-msgstr "Status"
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.IoDlcd"
+msgid "Slug"
+msgstr "Slug"
 
-#: src/features/content/components/content-list.tsx
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.RcxFT1"
+msgid "Locale"
+msgstr "Taal"
+
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
 msgctxt "content.xrk6zg"
 msgid "Updated"
 msgstr "Bijgewerkt"
 
-#: src/features/content/components/content-list.tsx
-msgctxt "content.wL7VAE"
-msgid "Actions"
-msgstr "Acties"
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.w7tf2z"
+msgid "Published"
+msgstr "Gepubliceerd"
 
-#: src/features/content/components/content-row-actions.tsx
-msgctxt "content.wqN6DE"
-msgid "Entry published"
-msgstr "Item gepubliceerd"
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.NfIrYa"
+msgid "Scheduled for"
+msgstr "Gepland voor"
 
-#: src/features/content/components/content-row-actions.tsx
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.aFyu8N"
+msgid "Translations"
+msgstr "Vertalingen"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.cXAlMR"
+msgid "Scheduled"
+msgstr "Gepland"
+
+#: src/features/content/components/content-detail.tsx
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.L-LQwD"
+msgid "Publish with a version"
+msgstr "Publiceren met een versie"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.7_bh3y"
+msgid "Keeps a version of the content, then publishes the entry."
+msgstr "Bewaart een versie van de inhoud en publiceert daarna het item."
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.vQrzW-"
+msgid "Publish with version"
+msgstr "Publiceren met versie"
+
+#: src/features/content/components/content-detail.tsx
 msgctxt "content.syEQFE"
 msgid "Publish"
 msgstr "Publiceren"
 
-#: src/features/content/components/content-row-actions.tsx
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.ks_Dcy"
+msgid "Entry published with a version"
+msgstr "Item gepubliceerd met een versie"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.ncz4nZ"
+msgid "Version label (optional)"
+msgstr "Versielabel (optioneel)"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.TgZlDM"
+msgid "Spring launch"
+msgstr "Lenteslancering"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.hrgo-E"
+msgid "Archive"
+msgstr "Archiveren"
+
+#: src/features/content/components/content-detail.tsx
 msgctxt "content.caQi4p"
 msgid "Entry archived"
 msgstr "Item gearchiveerd"
 
-#: src/features/content/components/content-row-actions.tsx
-msgctxt "content.hrgo-E"
-msgid "Archive"
-msgstr "Archiveren"
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.9uOFF3"
+msgid "Overview"
+msgstr "Overzicht"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.ZmlNQ3"
+msgid "Activity"
+msgstr "Activiteit"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.KQsZBW"
+msgid "Related"
+msgstr "Gerelateerd"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.PgwNgt"
+msgid "Publishing"
+msgstr "Publicatie"
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.ORIkVt"
+msgid "The entry is live on the public site."
+msgstr "Het item staat live op de openbare site."
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.NWy73e"
+msgid "Only published entries reach the public site."
+msgstr "Alleen gepubliceerde items bereiken de openbare site."
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.j-h6mV"
+msgid "No publish request is open."
+msgstr "Er is geen publicatieverzoek open."
+
+#: src/features/content/components/content-detail.tsx
+msgctxt "content.SrTyU4"
+msgid "Publish request: {status}"
+msgstr "Publicatieverzoek: {status}"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.ixdKuS"
+msgid "The content figures didn't load"
+msgstr "De cijfers van de inhoud zijn niet geladen"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.87ZCAe"
+msgid "Entries"
+msgstr "Items"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.2atspc"
+msgid "Drafts"
+msgstr "Concepten"
+
+#: src/features/content/components/content-overview.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.9a9-ww"
+msgid "Title"
+msgstr "Titel"
+
+#: src/features/content/components/content-overview.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.wFmAFC"
+msgid "Page"
+msgstr "Pagina"
+
+#: src/features/content/components/content-overview.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.eKv7yX"
+msgid "Post"
+msgstr "Bericht"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.ie_Tbp"
+msgid "Recently updated"
+msgstr "Recent bijgewerkt"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.CL8DUR"
+msgid "Recently published"
+msgstr "Recent gepubliceerd"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.XUouRw"
+msgid "Search entries"
+msgstr "Items zoeken"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.Jr2vxi"
+msgid "The content didn't load"
+msgstr "De inhoud is niet geladen"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.wBJckI"
+msgid "No entries found"
+msgstr "Geen items gevonden"
+
+#: src/features/content/components/content-overview.tsx
+msgctxt "content.ZJb3qm"
+msgid "Pages and posts you write here are published to the public site when you say so."
+msgstr "Pagina's en berichten die je hier schrijft, worden pas op de openbare site gepubliceerd als jij dat aangeeft."
 
 #: src/features/content/components/create-entry-dialog.tsx
 msgctxt "content.JLulyJ"
@@ -8920,21 +9056,6 @@ msgstr "Nieuw item"
 msgctxt "content.sv-rWu"
 msgid "Entries start as drafts. Publish one when it is ready to go live."
 msgstr "Items beginnen als concept. Publiceer een item wanneer het live kan."
-
-#: src/features/content/components/create-entry-dialog.tsx
-msgctxt "content.wFmAFC"
-msgid "Page"
-msgstr "Pagina"
-
-#: src/features/content/components/create-entry-dialog.tsx
-msgctxt "content.eKv7yX"
-msgid "Post"
-msgstr "Bericht"
-
-#: src/features/content/components/create-entry-dialog.tsx
-msgctxt "content.IoDlcd"
-msgid "Slug"
-msgstr "Slug"
 
 #: src/features/content/components/create-entry-dialog.tsx
 msgctxt "content._Sb5Yq"

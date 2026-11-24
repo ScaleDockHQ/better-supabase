@@ -126,6 +126,15 @@ export const ROUTES: readonly RouteEntry[] = [
     scale: false,
   },
   {
+    route: "/content/[id]",
+    archetype: "detail",
+    url: null,
+    maxCalls: 12,
+    maxWaves: 3,
+    instant: true,
+    scale: false,
+  },
+  {
     route: "/moderation/[type]/[id]",
     archetype: "detail",
     url: null,

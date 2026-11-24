@@ -8,6 +8,7 @@ import * as v from "valibot";
 
 import { API_KEYS_TAG } from "@/features/api-keys/api-keys-cache";
 import { CASES_TAG } from "@/features/cases/cases-cache";
+import { CONTENT_TAG } from "@/features/content/content-cache";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { driveOf } from "@/features/drive/drive-client";
@@ -18,6 +19,7 @@ import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
 import {
+  cmsOf,
   commerceOf,
   crmOf,
   filespaceOf,
@@ -571,5 +573,39 @@ export const discussCase = bsb.action(
     await refreshCaller(auth, [CASES_TAG, CRM_TAG, CUSTOMERS_TAG]);
 
     return ok({ caseId });
+  },
+);
+
+/**
+ * Keeps a version of an entry's content, then publishes it:
+ * `cms.publishWithVersion`. A retry adds no second version for unchanged
+ * content.
+ */
+export const publishEntryWithVersion = bsb.action(
+  {
+    input: v.object({
+      entryId: Id,
+      label: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(120))),
+    }),
+    requireTenant: true,
+    permission: "content.publish",
+  },
+  async ({ entryId, label }, { db, auth }) => {
+    const published = await cmsOf(db).publishWithVersion({
+      entryId,
+      subject: { type: "content_entry", id: entryId },
+      label: label === "" ? undefined : label,
+    });
+
+    if (!published.ok) {
+      return published;
+    }
+
+    await refreshCaller(auth, [CONTENT_TAG]);
+
+    return ok({
+      entryId: published.data.entry.id,
+      version: published.data.version.number,
+    });
   },
 );

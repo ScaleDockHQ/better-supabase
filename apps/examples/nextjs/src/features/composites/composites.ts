@@ -2,10 +2,13 @@ import "server-only";
 import type { Tasks } from "better-supabase/blocks/tasks";
 
 import { rpcTransport } from "better-supabase/blocks";
+import { createCare } from "better-supabase/blocks/care";
+import { createCms } from "better-supabase/blocks/cms";
 import { createCommerce } from "better-supabase/blocks/commerce";
 import { createCrm } from "better-supabase/blocks/crm";
 import { createFilespace } from "better-supabase/blocks/filespace";
 import { createFinance } from "better-supabase/blocks/finance";
+import { createGovernance } from "better-supabase/blocks/governance";
 import { createProjects } from "better-supabase/blocks/projects";
 import { createKeyRotator } from "better-supabase/blocks/saas";
 import { createSales } from "better-supabase/blocks/sales";
@@ -176,6 +179,82 @@ export function financeOf(db: AppDb) {
       tax: blocks.tax,
       banking: blocks.banking,
       invoices: blocks.invoices,
+    },
+  });
+}
+
+/**
+ * The `cms` composite's helper: `publishWithVersion` over the content,
+ * versions, approvals and attachments clients.
+ */
+export function cmsOf(db: AppDb) {
+  const { $blocks: blocks } = db;
+
+  return createCms({
+    transport: rpcTransport(db.$client),
+    parts: {
+      content: blocks.content,
+      versions: blocks.versions,
+      approvals: blocks.approvals,
+      attachments: blocks.attachments,
+    },
+  });
+}
+
+/**
+ * The `care` composite's helpers: `dossier` and `prescribeWithConsent` over the
+ * clinical, consent and funding clients.
+ */
+export function careOf(db: AppDb) {
+  const { $blocks: blocks } = db;
+
+  return createCare({
+    transport: rpcTransport(db.$client),
+    parts: {
+      contacts: blocks.contacts,
+      guests: blocks.guests,
+      "field-encryption": blocks.fieldEncryption,
+      "data-lifecycle": blocks.dataLifecycle,
+      consents: blocks.consents,
+      activities: blocks.activities,
+      "care-plans": blocks.carePlans,
+      observations: blocks.observations,
+      medications: blocks.medications,
+      forms: blocks.forms,
+      bookings: blocks.bookings,
+      calendar: blocks.calendar,
+      reminders: blocks.reminders,
+      "time-entries": blocks.timeEntries,
+      funding: blocks.funding,
+      shifts: blocks.shifts,
+      qualifications: blocks.qualifications,
+      courses: blocks.courses,
+      cases: blocks.cases,
+      acknowledgements: blocks.acknowledgements,
+      drive: blocks.drive,
+      attachments: blocks.attachments,
+      versions: blocks.versions,
+      approvals: blocks.approvals,
+      "state-machine": blocks.stateMachine,
+      numbering: blocks.numbering,
+      signatures: blocks.signatures,
+    },
+  });
+}
+
+/**
+ * The `governance` composite's helper: `exportSubject` over the audit, field
+ * history and data lifecycle clients.
+ */
+export function governanceOf(db: AppDb) {
+  const { $blocks: blocks } = db;
+
+  return createGovernance({
+    transport: rpcTransport(db.$client),
+    parts: {
+      audit: blocks.audit,
+      "field-history": blocks.fieldHistory,
+      "data-lifecycle": blocks.dataLifecycle,
     },
   });
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import type { ContentStatus } from "better-supabase/blocks/content";
 
+import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { bsb } from "@/lib/supabase/server";
@@ -38,4 +39,48 @@ export async function getContentEntries(): Promise<readonly ContentRow[]> {
     updatedAt: entry.updatedAt.toString(),
     publishedAt: entry.publishedAt?.toString() ?? null,
   }));
+}
+
+/** One entry for its page, with the dates as ISO text. */
+export interface ContentDetailRow extends ContentRow {
+  readonly publishAt: string | null;
+  readonly approvalStatus: string | null;
+  readonly translations: number;
+}
+
+/**
+ * The entry; `undefined` when it does not exist, `null` without an
+ * organization.
+ */
+export async function getContentEntry(
+  id: string,
+): Promise<ContentDetailRow | undefined | null> {
+  "use cache: private";
+  const { db, session } = await bsb.cached();
+  cacheTag(CONTENT_TAG);
+
+  if (!tenantOf(session)) {
+    return null;
+  }
+
+  const entry = await db.content.get(id).orThrow();
+
+  if (entry === null) {
+    return undefined;
+  }
+
+  return {
+    id: entry.id,
+    type: entry.type,
+    locale: entry.locale,
+    slug: entry.slug,
+    title: entry.title,
+    summary: entry.summary ?? null,
+    status: entry.status,
+    updatedAt: entry.updatedAt.toString(),
+    publishedAt: entry.publishedAt?.toString() ?? null,
+    publishAt: entry.publishAt?.toString() ?? null,
+    approvalStatus: entry.approvalStatus ?? null,
+    translations: entry.translations?.length ?? 0,
+  };
 }

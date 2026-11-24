@@ -62,4 +62,9 @@ export const recordPages = {
   shipment: bsbCore.record(sectionRecord("shipment")),
   // Support
   case: bsbCore.record(sectionRecord("case")),
+  content_entry: bsbCore.record(sectionRecord("content_entry")),
+  meeting: bsbCore.record(sectionRecord("meeting")),
+  care_plan: bsbCore.record(sectionRecord("care_plan")),
+  risk: bsbCore.record(sectionRecord("risk")),
+  vulnerability: bsbCore.record(sectionRecord("vulnerability")),
 } as const;

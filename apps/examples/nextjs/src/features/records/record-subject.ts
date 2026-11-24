@@ -14,6 +14,11 @@ export const RECORD_TYPES = [
   "shipment",
   // Support
   "case",
+  "content_entry",
+  "meeting",
+  "care_plan",
+  "risk",
+  "vulnerability",
 ] as const;
 
 export type RecordType = (typeof RECORD_TYPES)[number];

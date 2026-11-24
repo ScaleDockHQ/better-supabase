@@ -166,3 +166,45 @@ export const unlinkCaseRelations = recordPages.case.actions.relations.unlink;
 
 export const removeCaseAttachments =
   recordPages.case.actions.attachments.remove;
+
+export const linkContentEntryRelations =
+  recordPages.content_entry.actions.relations.link;
+
+export const unlinkContentEntryRelations =
+  recordPages.content_entry.actions.relations.unlink;
+
+export const removeContentEntryAttachments =
+  recordPages.content_entry.actions.attachments.remove;
+
+export const linkMeetingRelations = recordPages.meeting.actions.relations.link;
+
+export const unlinkMeetingRelations =
+  recordPages.meeting.actions.relations.unlink;
+
+export const removeMeetingAttachments =
+  recordPages.meeting.actions.attachments.remove;
+
+export const linkCarePlanRelations =
+  recordPages.care_plan.actions.relations.link;
+
+export const unlinkCarePlanRelations =
+  recordPages.care_plan.actions.relations.unlink;
+
+export const removeCarePlanAttachments =
+  recordPages.care_plan.actions.attachments.remove;
+
+export const linkRiskRelations = recordPages.risk.actions.relations.link;
+
+export const unlinkRiskRelations = recordPages.risk.actions.relations.unlink;
+
+export const removeRiskAttachments =
+  recordPages.risk.actions.attachments.remove;
+
+export const linkVulnerabilityRelations =
+  recordPages.vulnerability.actions.relations.link;
+
+export const unlinkVulnerabilityRelations =
+  recordPages.vulnerability.actions.relations.unlink;
+
+export const removeVulnerabilityAttachments =
+  recordPages.vulnerability.actions.attachments.remove;

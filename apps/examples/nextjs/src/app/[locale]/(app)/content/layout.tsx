@@ -9,7 +9,16 @@ export default function ContentLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "content"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "content",
+        "customers",
+        "recordDetail",
+        "recordList",
+        "records",
+        "sales",
+        "subjects",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

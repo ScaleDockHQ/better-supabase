@@ -23,6 +23,21 @@ import {
   unlinkPersonRelations,
   unlinkShipmentRelations,
   unlinkWorkOrderRelations,
+  linkContentEntryRelations,
+  removeContentEntryAttachments,
+  unlinkContentEntryRelations,
+  linkMeetingRelations,
+  removeMeetingAttachments,
+  unlinkMeetingRelations,
+  linkCarePlanRelations,
+  removeCarePlanAttachments,
+  unlinkCarePlanRelations,
+  linkRiskRelations,
+  removeRiskAttachments,
+  unlinkRiskRelations,
+  linkVulnerabilityRelations,
+  removeVulnerabilityAttachments,
+  unlinkVulnerabilityRelations,
 } from "./records-actions";
 
 /** The Server Actions of the shared sections, by record type. */
@@ -68,5 +83,30 @@ export const recordActions = {
     link: linkCaseRelations,
     unlink: unlinkCaseRelations,
     removeAttachment: removeCaseAttachments,
+  },
+  content_entry: {
+    link: linkContentEntryRelations,
+    unlink: unlinkContentEntryRelations,
+    removeAttachment: removeContentEntryAttachments,
+  },
+  meeting: {
+    link: linkMeetingRelations,
+    unlink: unlinkMeetingRelations,
+    removeAttachment: removeMeetingAttachments,
+  },
+  care_plan: {
+    link: linkCarePlanRelations,
+    unlink: unlinkCarePlanRelations,
+    removeAttachment: removeCarePlanAttachments,
+  },
+  risk: {
+    link: linkRiskRelations,
+    unlink: unlinkRiskRelations,
+    removeAttachment: removeRiskAttachments,
+  },
+  vulnerability: {
+    link: linkVulnerabilityRelations,
+    unlink: unlinkVulnerabilityRelations,
+    removeAttachment: removeVulnerabilityAttachments,
   },
 } as const;

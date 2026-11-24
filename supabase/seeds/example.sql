@@ -687,3 +687,11 @@ from (values
 where not exists (
   select 1 from better_supabase.time_entries t where t.subject_id = e.project and t.note = e.note
 );
+
+-- The content story: one live post, one scheduled page and a draft that
+-- the entry page publishes with a version.
+insert into better_supabase.content_entries (id, tenant_id, type, locale, slug, title, summary, body, status, publish_at, published_at, author_id, created_by) values
+  ('00000000-0000-4000-8000-0000000d0001', '00000000-0000-4000-8000-000000000001', 'post', 'en', 'spring-launch', 'Spring launch notes', 'What shipped this quarter.', '{"blocks": [{"type": "paragraph", "text": "Spring launch notes."}]}', 'published', null, now() - interval '3 days', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000d0002', '00000000-0000-4000-8000-000000000001', 'page', 'en', 'pricing', 'Pricing', 'Plans and what each one includes.', '{"blocks": [{"type": "paragraph", "text": "Pricing."}]}', 'scheduled', now() + interval '5 days', null, '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000d0003', '00000000-0000-4000-8000-000000000001', 'post', 'en', 'summer-roadmap', 'Summer roadmap', 'What comes next.', '{"blocks": [{"type": "paragraph", "text": "Summer roadmap."}]}', 'draft', null, null, '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1')
+on conflict do nothing;
