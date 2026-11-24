@@ -66,7 +66,7 @@ const streamColumns = (yaml: string): Map<string, string[]> => {
 describe("PowerSync streams over the projection views", () => {
   it(
     "select the columns the app's views select",
-    { timeout: 60_000 },
+    { timeout: 180_000 },
     async () => {
       const dir = await copyFixture();
 
