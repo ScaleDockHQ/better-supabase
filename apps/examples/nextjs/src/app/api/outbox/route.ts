@@ -19,6 +19,7 @@ import * as v from "valibot";
 import { env } from "@/env";
 import { driveTextOf } from "@/features/drive/drive-client";
 import { wakeParentOfRun } from "@/features/workflows/builder/wake-waiting-nodes";
+import { blockSinks } from "@/lib/block-sinks";
 import { blockConfig, blocks } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
@@ -134,6 +135,7 @@ export async function GET(request: Request): Promise<Response> {
   return admin.outbox.relayRoute({
     secret: env.CRON_SECRET,
     consumers: {
+      ...blockSinks(admin.$client),
       rules: sink,
       driveText: driveTextOf(admin).sink(),
       driveOffboarding: driveOffboardingSink(admin.$blocks.drive, {
