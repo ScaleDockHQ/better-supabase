@@ -44,6 +44,26 @@ Doctor never prints env values, only variable names and line numbers.
 
 Side effects: Reads the database, writes to the database with `--yes`, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
 
+## Without a database
+
+When no database runs and none is configured, doctor reads the schema from
+the saved snapshot instead: `source.snapshot` in the config, else
+`supabase/snapshot.json`, which `better-supabase gen --save-snapshot` writes.
+It says so on stderr, since the result is as current as the last save:
+
+```bash
+pnpm better-supabase gen --save-snapshot   # while the stack is up
+pnpm better-supabase doctor --only BS103,BS106,BS430
+```
+
+Some checks need the database itself: the advisors (BS100 and BS200) and the
+checks that read statistics, plans, settings or live rows (BS208, BS209,
+BS212, BS225, BS236, BS238, BS241, BS242, BS245, BS363, BS399, BS638 and
+BS639). When a run includes one of them and no database answers, doctor stops
+and names them, so you can leave them out with `--ignore` or `--only`. The
+flags `--stats`, `--explain`, `--explain-write`, `--as` and `--yes` always
+need the database.
+
 ## In CI
 
 `--format github` writes workflow annotations, so findings show up on the pull

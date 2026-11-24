@@ -252,6 +252,63 @@ describe("doctor command", () => {
     ]);
   });
 
+  describe("without a database", () => {
+    const offline = () => ({ SUPABASE_BIN: join(root, "missing") });
+
+    it("reads the saved snapshot when no check needs the database", async () => {
+      await write("supabase/snapshot.json", JSON.stringify(fixture));
+      const log = vi.fn();
+
+      const result = await doctor(
+        ["--only", "BS109,BS110", "--json"],
+        { log },
+        {},
+        offline(),
+      );
+
+      expect(result.data).toMatchObject({ findings: expect.any(Array) });
+      expect(log).toHaveBeenCalledWith(
+        "No database is running, so doctor read the schema from supabase/snapshot.json. It is as current as the last `better-supabase gen --save-snapshot`.",
+      );
+    });
+
+    it("names the checks that need a database", async () => {
+      await write("supabase/snapshot.json", JSON.stringify(fixture));
+
+      const error = await doctor(
+        ["--only", "BS109,BS208,BS100", "--json"],
+        {},
+        {},
+        offline(),
+      ).catch((cause: unknown) => cause);
+
+      expect(error).toMatchObject({
+        code: "not_found",
+        message: expect.stringMatching(
+          /^No database to connect to: .* These checks need a database: BS100, BS208\. The others read the schema from supabase\/snapshot\.json when no database runs/,
+        ),
+      });
+    });
+
+    it("says --stats reads the database itself", async () => {
+      await write("supabase/snapshot.json", JSON.stringify(fixture));
+
+      await expect(
+        doctor(["--only", "BS109", "--stats", "--json"], {}, {}, offline()),
+      ).rejects.toThrow(
+        /--stats, --explain, --explain-write, --as and --yes read the database itself\.$/,
+      );
+    });
+
+    it("says where to save the snapshot when there is none", async () => {
+      await expect(
+        doctor(["--only", "BS109", "--json"], {}, {}, offline()),
+      ).rejects.toThrow(
+        /None of these checks needs a database, but there is no supabase\/snapshot\.json to read the schema from\./,
+      );
+    });
+  });
+
   it("prints only the hook grant SQL with --fix-grants", async () => {
     expect(
       await doctor(["--fix-grants"], {

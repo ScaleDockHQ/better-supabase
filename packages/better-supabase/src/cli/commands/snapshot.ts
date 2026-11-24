@@ -26,6 +26,9 @@ import { pgFunctionHooks, readSupabaseConfig } from "../supabase-config.ts";
 const SNAPSHOT_SCHEMA_URL =
   "https://unpkg.com/better-supabase/schemas/snapshot-v3.json";
 
+/** Where `gen --save-snapshot` writes when `database.source.snapshot` is unset. */
+export const DEFAULT_SNAPSHOT_PATH = "supabase/snapshot.json";
+
 /** Schemas that are always read, for doctor checks on helper functions. */
 const EXTRA_SCHEMAS = ["better_supabase"];
 
