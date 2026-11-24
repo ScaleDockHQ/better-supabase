@@ -52,18 +52,17 @@ describe("BS706", async () => {
     ).toEqual(["blocks.leave.options.decider"]);
   });
 
-  it("reports approvals: false with standaloneApprovals", async () => {
+  it("accepts approvals: false with standaloneApprovals on expenses without reports", async () => {
     expect(
-      (
-        await run({
-          blocks: {
-            expenses: {
-              options: { approvals: false, standaloneApprovals: true },
-            },
+      await run({
+        blocks: {
+          expenses: {
+            tables: { reports: null, lines: null },
+            options: { approvals: false, standaloneApprovals: true },
           },
-        })
-      ).map((finding) => finding.target),
-    ).toEqual(["blocks.expenses.options.approvals"]);
+        },
+      }),
+    ).toEqual([]);
   });
 
   it("reports an app file that redefines a block function", async () => {
@@ -81,5 +80,16 @@ describe("BS706", async () => {
       (await run({}, [block, app])).map((finding) => finding.target),
     ).toEqual(["supabase/schemas/overrides.sql:chain_link"]);
     expect(await run({}, [block])).toEqual([]);
+    expect(
+      await run({}, [
+        block,
+        {
+          path: "supabase/schemas/own.sql",
+          text: 'create function "better_supabase"."app_helper"() returns int language sql as $$ select 1 $$;',
+        },
+        { path: "supabase/migrations/1_x.sql", text: app.text },
+        { path: "supabase/better-supabase-data/x.sql", text: app.text },
+      ]),
+    ).toEqual([]);
   });
 });

@@ -2495,8 +2495,10 @@ BS427 covers its checks.
 uses without it, so it is a second copy that goes stale. Doctor reports:
 
 - an identity mapping for an optional column, such as
-  `columns.<table>.<column>` set to the column's default name. Write
-  `{ column: "name", required: true }` when the table must have the column;
+  `columns.<table>.<column>` set to the column's default name, when a render
+  without it gives the same files. Write `{ column: "name", required: true }`
+  when the table must have the column. A mapping that turns on a column the
+  render would not find otherwise is not reported;
 - a `null` for a column the view lacks anyway;
 - an empty `columns`, `values` or `tables` map;
 - `columns.<table>.tenant` equal to `sql.tenantColumn`;
@@ -3087,7 +3089,7 @@ the key's index. Make the columns the same type.
 
 **Warning: a search source view reads a column `search.columns` leaves out.**
 A record type with `search.from` re-indexes when one of the columns in
-`search.columns` (or its id, tenant or archive column) changes, because the
+`search.columns` (or its id, tenant, `deletedAt` or `exclude` column) changes, because the
 generator cannot see what the view reads. Doctor reads
 `information_schema.view_column_usage` for each source view and reports every
 column of the record's own table that the view reads and the list leaves out.
@@ -3307,8 +3309,9 @@ something better-supabase already does. Doctor reports a seal trigger listed
 in `tooling.doctor.sealTriggers` while `field-encryption` is installed (mark
 the columns `@bsb encrypted` instead), a `decider` option on leave, expenses
 or time entries while the authorization provider has `functions.approverFor`,
-`approvals: false` next to `standaloneApprovals` on expenses, and an app
-schema file that redefines a `better_supabase` function a block creates.
+and an app schema file that redefines a `better_supabase` function a block
+creates. `approvals: false` next to `standaloneApprovals` on expenses is not a
+shim: `approvals` covers reports, and standalone approvals run without them.
 
 ### BS707
 

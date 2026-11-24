@@ -59,6 +59,36 @@ describe("probeRestated", () => {
   });
 });
 
+describe("probeRestated on sameTenant elements", () => {
+  it("reports a repeated sameTenant element by its index", async () => {
+    const entry = {
+      table: "tasks",
+      column: "project_id",
+      references: "projects",
+    };
+
+    const entries = await probeRestated(
+      resolveConfig(
+        {
+          blocks: { memberships: { options: { sameTenant: [entry, entry] } } },
+        },
+        "/project",
+      ),
+    );
+
+    expect(entries.map((each) => [each.path, each.reason])).toEqual([
+      [
+        "blocks.memberships.options.sameTenant[0]",
+        "equals the entry the block derives from the schema",
+      ],
+      [
+        "blocks.memberships.options.sameTenant[1]",
+        "equals the entry the block derives from the schema",
+      ],
+    ]);
+  });
+});
+
 describe("probeRestated by kind", () => {
   it.each([
     [
@@ -166,6 +196,29 @@ describe("mergeRestated", () => {
         [entry("a", "probed"), entry("b", "probed")],
       ),
     ).toEqual([entry("a", "structural"), entry("b", "probed")]);
+  });
+
+  it("keeps an identity mapping only when the probe renders the same files without it", () => {
+    const identity = (path: string) => ({
+      kind: "identity" as const,
+      path,
+      reason: "names the default column",
+      value: "last_used_at",
+    });
+
+    const column = (path: string) => ({
+      kind: "column" as const,
+      path,
+      reason: "names the table or column the catalog gives without it",
+      value: undefined,
+    });
+
+    const same = "blocks.memberships.columns.memberships.lastUsedAt";
+    const changes = "blocks.memberships.columns.memberships.disabledAt";
+
+    expect(
+      mergeRestated([identity(same), identity(changes)], [column(same)]),
+    ).toEqual([identity(same)]);
   });
 
   it("writes hook paths under callbacks, the key the config file uses", async () => {

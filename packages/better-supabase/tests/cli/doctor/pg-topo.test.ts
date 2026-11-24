@@ -62,6 +62,22 @@ create function public.g() returns void language plpgsql as $$ begin perform pub
     expect(found).toEqual([]);
   });
 
+  it("accepts extension types, serial types and temporary tables", async () => {
+    const found = await run("BS721", {
+      "a.sql": `create extension if not exists citext schema extensions;
+create extension if not exists vector schema extensions;
+create table public.t (id bigserial primary key, n smallserial, email citext, e halfvec(3), v vector(3), s sparsevec(3));
+create function public.f() returns void language plpgsql as $$
+begin
+  create temp table scratch (id int) on commit drop;
+  insert into pg_temp.scratch values (1);
+end $$;
+create function public.g() returns bigint language sql as 'select count(*) from pg_temp.scratch';`,
+    });
+
+    expect(found.map((finding) => finding.message)).toEqual([]);
+  });
+
   it("reports a table no file creates, but not the platform's", async () => {
     const found = await run("BS721", {
       "a.sql": `create table app.t (u uuid references auth.users (id), o int references app.orders (id));`,
@@ -102,5 +118,99 @@ create table app.t (o int references app.orders (id));`,
     });
 
     expect(found).toHaveLength(1);
+  });
+
+  it("reports statements that depend on each other in a cycle", async () => {
+    const found = await run("BS723", {
+      "a.sql": `create schema app;
+create view app.a as select * from app.b;
+create view app.b as select * from app.a;`,
+    });
+
+    expect(found.length).toBeGreaterThan(0);
+    expect(found[0]?.message).toContain("dependency cycle");
+  });
+
+  it("leaves the library's module files and files outside the schema folder alone", async () => {
+    expect(
+      await run("BS721", {
+        "_better_supabase/900_better_supabase_001_x.sql":
+          "create table app.t (o int references app.orders (id));",
+      }),
+    ).toEqual([]);
+
+    const rule = RULES.find((candidate) => candidate.code === "BS721")!;
+
+    const context = {
+      config: resolveConfig({}, "/p"),
+      configToml: undefined,
+      sqlFiles: [
+        {
+          path: "supabase/migrations/1_x.sql",
+          text: "create table app.t (o int references app.orders (id));",
+        },
+      ],
+    };
+
+    // SAFETY: the pg-topo rules read only `sqlFiles` and `configToml`.
+    expect(await rule.check(context as unknown as DoctorContext)).toEqual([]);
+  });
+
+  it("accepts a call to a function a schema file creates under another signature", async () => {
+    const found = await run("BS721", {
+      "a.sql": `create schema app;
+create function app.f(a text, b text default null) returns int language sql as 'select 1';
+create view app.v as select app.f('x') as n;`,
+    });
+
+    expect(found).toEqual([]);
+  });
+
+  it("leaves repeated idempotent schema statements alone", async () => {
+    expect(
+      await run("BS722", {
+        "a.sql": "create schema if not exists app;",
+        "b.sql": "create schema if not exists app;",
+      }),
+    ).toEqual([]);
+  });
+
+  it("reads the folder config.toml names for pg-delta", async () => {
+    const rule = RULES.find((candidate) => candidate.code === "BS720")!;
+
+    const context = {
+      config: resolveConfig({}, "/p"),
+      configToml: {
+        dir: "supabase",
+        document: {
+          experimental: { pgdelta: { declarative_schema_path: "./db/" } },
+        },
+      },
+      sqlFiles: [
+        { path: "supabase/db/a.sql", text: "create tabel nope (" },
+        { path: "supabase/schemas/b.sql", text: "create tabel nope (" },
+      ],
+    };
+
+    // SAFETY: the pg-topo rules read only `sqlFiles` and `configToml`.
+    const found = await rule.check(context as unknown as DoctorContext);
+
+    expect(found.map((finding) => finding.target)).toEqual([
+      "supabase/db/a.sql",
+    ]);
+  });
+
+  it("reports a type and a function of an app schema that no file creates", async () => {
+    const found = await run("BS721", {
+      "a.sql": `create schema app;
+create table app.t (m app.money_t, c public.custom_t);
+create view app.v as select app.missing_fn(1) as n;`,
+    });
+
+    const text = found.map((finding) => finding.message).join("\n");
+
+    expect(text).toContain("type app.money_t");
+    expect(text).toContain("type public.custom_t");
+    expect(text).toContain("app.missing_fn");
   });
 });
