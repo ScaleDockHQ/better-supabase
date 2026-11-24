@@ -119,6 +119,14 @@ export function CustomerRecordList({
         { value: "newest", label: t("Newest first") },
       ]}
       searchLabel={t("Search customers")}
+      savedViewsScope="customers"
+      exportName="customers"
+      exportColumns={[
+        { header: t("Name"), value: (row) => row.name },
+        { header: t("Status"), value: (row) => row.status },
+        { header: t("Notes"), value: (row) => row.notes },
+        { header: t("Last note"), value: (row) => row.lastNoteAt },
+      ]}
       emptyIcon={<UsersIcon />}
       emptyTitle={t("No customers found")}
       emptyDescription={

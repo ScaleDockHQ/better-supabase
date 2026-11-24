@@ -1,11 +1,12 @@
-import { ChevronRightIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { AfterNavigation } from "@/components/record-detail/after-navigation";
+import { RecordBoundSections } from "@/components/record-detail/record-bound-sections";
 import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
 import { RecordDetailTabs } from "@/components/record-detail/record-detail-tabs";
+import { StageStepper } from "@/components/record-detail/stage-stepper";
 import { Badge } from "@/components/reui/badge";
 import {
   Card,
@@ -26,16 +27,6 @@ import {
 import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { moveDeal } from "@/features/crm/crm-actions";
 import { settle } from "@/features/crm/crm-queries";
-import {
-  RecordDiscussion,
-  RecordDiscussionSkeleton,
-  RecordFiles,
-  RecordFilesSkeleton,
-  RecordHistory,
-  RecordHistorySkeleton,
-  RecordRelations,
-  RecordRelationsSkeleton,
-} from "@/features/records/components/record-sections";
 
 import { loadDeal } from "../pipeline/pipeline-queries";
 import { reopenDeal, winDeal } from "../sales-actions";
@@ -96,7 +87,6 @@ export async function DealDetail({
   const { deal, stages, health } = detail;
   const subject = { type: "deal", id: deal.id } as const;
   const open = deal.category === "open";
-  const current = stages.findIndex((stage) => stage.id === deal.stageId);
 
   const facts = [
     { label: t("Amount"), value: fmtMoney(deal.amount) },
@@ -198,18 +188,10 @@ export async function DealDetail({
           </AfterNavigation>
         </Suspense>
       ) : tab === "related" ? (
-        <>
-          <Suspense fallback={<RecordFilesSkeleton />}>
-            <AfterNavigation>
-              <RecordFiles subject={subject} />
-            </AfterNavigation>
-          </Suspense>
-          <Suspense fallback={<RecordRelationsSkeleton />}>
-            <AfterNavigation>
-              <RecordRelations subject={subject} />
-            </AfterNavigation>
-          </Suspense>
-        </>
+        <RecordBoundSections
+          subject={subject}
+          sections={["files", "relations"]}
+        />
       ) : tab === "activity" ? (
         <>
           <Suspense fallback={<ActivityTimelineSkeleton />}>
@@ -222,16 +204,10 @@ export async function DealDetail({
               <FieldHistoryTable type="deal" id={deal.id} />
             </AfterNavigation>
           </Suspense>
-          <Suspense fallback={<RecordDiscussionSkeleton />}>
-            <AfterNavigation>
-              <RecordDiscussion subject={subject} />
-            </AfterNavigation>
-          </Suspense>
-          <Suspense fallback={<RecordHistorySkeleton />}>
-            <AfterNavigation>
-              <RecordHistory subject={subject} />
-            </AfterNavigation>
-          </Suspense>
+          <RecordBoundSections
+            subject={subject}
+            sections={["discussion", "history"]}
+          />
         </>
       ) : (
         <>
@@ -245,27 +221,11 @@ export async function DealDetail({
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <ol className="flex flex-wrap items-center gap-2">
-                {stages.map((stage, index) => (
-                  <li key={stage.id} className="flex items-center gap-2">
-                    {index > 0 ? (
-                      <ChevronRightIcon className="size-4 text-muted-foreground" />
-                    ) : null}
-                    <Badge
-                      variant={
-                        index === current
-                          ? "primary-light"
-                          : index < current
-                            ? "secondary"
-                            : "outline"
-                      }
-                      aria-current={index === current ? "step" : undefined}
-                    >
-                      {stage.name}
-                    </Badge>
-                  </li>
-                ))}
-              </ol>
+              <StageStepper
+                stages={stages}
+                currentId={deal.stageId}
+                label={t("Deal stage")}
+              />
               {open && canWrite ? (
                 <div className="flex flex-wrap gap-2">
                   {stages

@@ -499,26 +499,6 @@ msgctxt "sales._sIyOI"
 msgid "Your pipeline by stage, and how the targets are going."
 msgstr "Your pipeline by stage, and how the targets are going."
 
-#: src/app/[locale]/(app)/crm/deals/page.tsx
-msgctxt "sales.IeBejt"
-msgid "Table"
-msgstr "Table"
-
-#: src/app/[locale]/(app)/crm/deals/page.tsx
-msgctxt "sales.5hUPMv"
-msgid "Board"
-msgstr "Board"
-
-#: src/app/[locale]/(app)/crm/deals/page.tsx
-msgctxt "sales.Coy6SH"
-msgid "Calendar"
-msgstr "Calendar"
-
-#: src/app/[locale]/(app)/crm/deals/page.tsx
-msgctxt "sales.zWkvNO"
-msgid "Timeline"
-msgstr "Timeline"
-
 #: src/app/[locale]/(app)/crm/forecasts/[id]/page.tsx
 msgctxt "sales.1Gamq4"
 msgid "All forecasts"
@@ -2217,6 +2197,26 @@ msgctxt "recordList.rBj9Ib"
 msgid "Next page"
 msgstr "Next page"
 
+#: src/components/record-list/record-bulk-bar.tsx
+msgctxt "recordList.wtIWaL"
+msgid "Bulk actions"
+msgstr "Bulk actions"
+
+#: src/components/record-list/record-bulk-bar.tsx
+msgctxt "recordList.NKPfmm"
+msgid "{count} selected"
+msgstr "{count} selected"
+
+#: src/components/record-list/record-bulk-bar.tsx
+msgctxt "recordList._GCoTA"
+msgid "Clear"
+msgstr "Clear"
+
+#: src/components/record-list/record-export-button.tsx
+msgctxt "recordList.TE51b7"
+msgid "Export CSV"
+msgstr "Export CSV"
+
 #: src/components/record-list/record-list-facets.tsx
 msgctxt "recordList.4w8gkk"
 msgid "is any of"
@@ -2246,6 +2246,67 @@ msgstr "Shift-click adds this column to the sort"
 msgctxt "recordList.hDI-JM"
 msgid "Sort by"
 msgstr "Sort by"
+
+#: src/components/record-list/record-select-column.tsx
+msgctxt "recordList.8BaLs0"
+msgid "Select all rows"
+msgstr "Select all rows"
+
+#: src/components/record-list/record-select-column.tsx
+msgctxt "recordList.4pJVaS"
+msgid "Select row"
+msgstr "Select row"
+
+#: src/components/record-list/record-view-switch.tsx
+msgctxt "recordList.IeBejt"
+msgid "Table"
+msgstr "Table"
+
+#: src/components/record-list/record-view-switch.tsx
+msgctxt "recordList.5hUPMv"
+msgid "Board"
+msgstr "Board"
+
+#: src/components/record-list/record-view-switch.tsx
+msgctxt "recordList.Coy6SH"
+msgid "Calendar"
+msgstr "Calendar"
+
+#: src/components/record-list/record-view-switch.tsx
+msgctxt "recordList.zWkvNO"
+msgid "Timeline"
+msgstr "Timeline"
+
+#: src/components/record-list/record-view-switch.tsx
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.akF0Ly"
+msgid "Views"
+msgstr "Views"
+
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.49m_TX"
+msgid "Saved views"
+msgstr "Saved views"
+
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.WN5lTD"
+msgid "Nothing saved yet."
+msgstr "Nothing saved yet."
+
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.ZA91bs"
+msgid "Delete view {name}"
+msgstr "Delete view {name}"
+
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.H3_bR6"
+msgid "Name this view"
+msgstr "Name this view"
+
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.jvo0vs"
+msgid "Save"
+msgstr "Save"
 
 #: src/features/access-requests/components/access-request-controls.tsx
 msgctxt "accessRequests.d7eaHV"
@@ -25973,6 +26034,11 @@ msgstr "Move the deal to another stage."
 msgctxt "sales.sCpDxj"
 msgid "The deal is closed."
 msgstr "The deal is closed."
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.gnCVVZ"
+msgid "Deal stage"
+msgstr "Deal stage"
 
 #: src/features/sales/components/deal-detail.tsx
 msgctxt "sales.cnsH-C"

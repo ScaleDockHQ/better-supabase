@@ -499,26 +499,6 @@ msgctxt "sales._sIyOI"
 msgid "Your pipeline by stage, and how the targets are going."
 msgstr "Je pipeline per fase en hoe de doelen ervoor staan."
 
-#: src/app/[locale]/(app)/crm/deals/page.tsx
-msgctxt "sales.IeBejt"
-msgid "Table"
-msgstr "Tabel"
-
-#: src/app/[locale]/(app)/crm/deals/page.tsx
-msgctxt "sales.5hUPMv"
-msgid "Board"
-msgstr "Bord"
-
-#: src/app/[locale]/(app)/crm/deals/page.tsx
-msgctxt "sales.Coy6SH"
-msgid "Calendar"
-msgstr "Kalender"
-
-#: src/app/[locale]/(app)/crm/deals/page.tsx
-msgctxt "sales.zWkvNO"
-msgid "Timeline"
-msgstr "Tijdlijn"
-
 #: src/app/[locale]/(app)/crm/forecasts/[id]/page.tsx
 msgctxt "sales.1Gamq4"
 msgid "All forecasts"
@@ -678,7 +658,7 @@ msgstr "Iedereen met wie je organisatie werkt."
 #: src/app/[locale]/(app)/dam/page.tsx
 msgctxt "dam.34jmEB"
 msgid "Digital assets"
-msgstr ""
+msgstr "Digitale assets"
 
 #: src/app/[locale]/(app)/dam/page.tsx
 msgctxt "dam.NZSq_3"
@@ -1063,12 +1043,12 @@ msgstr "De vergaderingen van de organisatie, met de agenda, besluiten en actiepu
 #: src/app/[locale]/(app)/members/invitations/page.tsx
 msgctxt "organization.HyiDcy"
 msgid "Invitations"
-msgstr ""
+msgstr "Uitnodigingen"
 
 #: src/app/[locale]/(app)/members/invitations/page.tsx
 msgctxt "organization.8RvpQc"
 msgid "The invitations that are still open, and when they expire."
-msgstr ""
+msgstr "De uitnodigingen die nog openstaan en wanneer ze verlopen."
 
 #: src/app/[locale]/(app)/metrics/[key]/page.tsx
 msgctxt "metrics.0_D7JO"
@@ -1402,7 +1382,7 @@ msgstr "Instellingen"
 #: src/app/[locale]/(app)/settings/marketplace/[resource]/page.tsx
 msgctxt "marketplace.ad8AiS"
 msgid "All resources"
-msgstr ""
+msgstr "Alle resources"
 
 #: src/app/[locale]/(app)/settings/marketplace/page.tsx
 msgctxt "marketplace.Gn23tM"
@@ -1412,7 +1392,7 @@ msgstr "Vercel Marketplace"
 #: src/app/[locale]/(app)/settings/marketplace/page.tsx
 msgctxt "marketplace.RgBH4G"
 msgid "The installation of this app from the Vercel Marketplace that is linked to this organization, with the resources Vercel provisioned."
-msgstr ""
+msgstr "De installatie van deze app uit de Vercel Marketplace die aan deze organisatie is gekoppeld, met de resources die Vercel heeft aangemaakt."
 
 #: src/app/[locale]/(app)/settings/members/[userId]/page.tsx
 msgctxt "members.sKwqTt"
@@ -2217,6 +2197,26 @@ msgctxt "recordList.rBj9Ib"
 msgid "Next page"
 msgstr "Volgende pagina"
 
+#: src/components/record-list/record-bulk-bar.tsx
+msgctxt "recordList.wtIWaL"
+msgid "Bulk actions"
+msgstr "Bulkacties"
+
+#: src/components/record-list/record-bulk-bar.tsx
+msgctxt "recordList.NKPfmm"
+msgid "{count} selected"
+msgstr "{count} geselecteerd"
+
+#: src/components/record-list/record-bulk-bar.tsx
+msgctxt "recordList._GCoTA"
+msgid "Clear"
+msgstr "Wissen"
+
+#: src/components/record-list/record-export-button.tsx
+msgctxt "recordList.TE51b7"
+msgid "Export CSV"
+msgstr "CSV exporteren"
+
 #: src/components/record-list/record-list-facets.tsx
 msgctxt "recordList.4w8gkk"
 msgid "is any of"
@@ -2240,12 +2240,73 @@ msgstr "Opnieuw proberen"
 #: src/components/record-list/record-list-sort-header.tsx
 msgctxt "recordList.HNlOoj"
 msgid "Shift-click adds this column to the sort"
-msgstr ""
+msgstr "Shift-klik voegt deze kolom toe aan de sortering"
 
 #: src/components/record-list/record-list-toolbar.tsx
 msgctxt "recordList.hDI-JM"
 msgid "Sort by"
 msgstr "Sorteren op"
+
+#: src/components/record-list/record-select-column.tsx
+msgctxt "recordList.8BaLs0"
+msgid "Select all rows"
+msgstr "Alle rijen selecteren"
+
+#: src/components/record-list/record-select-column.tsx
+msgctxt "recordList.4pJVaS"
+msgid "Select row"
+msgstr "Rij selecteren"
+
+#: src/components/record-list/record-view-switch.tsx
+msgctxt "recordList.IeBejt"
+msgid "Table"
+msgstr "Tabel"
+
+#: src/components/record-list/record-view-switch.tsx
+msgctxt "recordList.5hUPMv"
+msgid "Board"
+msgstr "Bord"
+
+#: src/components/record-list/record-view-switch.tsx
+msgctxt "recordList.Coy6SH"
+msgid "Calendar"
+msgstr "Kalender"
+
+#: src/components/record-list/record-view-switch.tsx
+msgctxt "recordList.zWkvNO"
+msgid "Timeline"
+msgstr "Tijdlijn"
+
+#: src/components/record-list/record-view-switch.tsx
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.akF0Ly"
+msgid "Views"
+msgstr "Weergaven"
+
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.49m_TX"
+msgid "Saved views"
+msgstr "Opgeslagen weergaven"
+
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.WN5lTD"
+msgid "Nothing saved yet."
+msgstr "Nog niets opgeslagen."
+
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.ZA91bs"
+msgid "Delete view {name}"
+msgstr "Weergave {name} verwijderen"
+
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.H3_bR6"
+msgid "Name this view"
+msgstr "Geef deze weergave een naam"
+
+#: src/components/record-list/saved-views.tsx
+msgctxt "recordList.jvo0vs"
+msgid "Save"
+msgstr "Opslaan"
 
 #: src/features/access-requests/components/access-request-controls.tsx
 msgctxt "accessRequests.d7eaHV"
@@ -3848,17 +3909,17 @@ msgstr "Mislukte runs"
 #: src/features/ai-usage/components/usage-overview.tsx
 msgctxt "aiUsage.vhQqLj"
 msgid "Range"
-msgstr ""
+msgstr "Bereik"
 
 #: src/features/ai-usage/components/usage-overview.tsx
 msgctxt "aiUsage.lPyu8U"
 msgid "All runs"
-msgstr ""
+msgstr "Alle runs"
 
 #: src/features/ai-usage/components/usage-overview.tsx
 msgctxt "aiUsage.kGgl2m"
 msgid "Last {days, number} days"
-msgstr ""
+msgstr "Laatste {days, number} dagen"
 
 #: src/features/ai-usage/components/usage-overview.tsx
 msgctxt "aiUsage.790BsN"
@@ -5702,7 +5763,7 @@ msgstr "Geen"
 #: src/features/billing/components/billing-overview.tsx
 msgctxt "billing.eBMj51"
 msgid "Plan changes go through Stripe Checkout. The webhook route stores Stripe's events and the process route hands them to the billing block."
-msgstr ""
+msgstr "Planwijzigingen lopen via Stripe Checkout. De webhookroute slaat de events van Stripe op en de verwerkroute geeft ze door aan het billingblok."
 
 #: src/features/billing/components/feature-gate.tsx
 msgctxt "billing.BE3P0M"
@@ -12175,12 +12236,12 @@ msgstr "Voer de dataset uit op een promptversie en vergelijk het slagingspercent
 #: src/features/evals/components/eval-workspace.tsx
 msgctxt "evals.pigFsJ"
 msgid "Scripted runs"
-msgstr ""
+msgstr "Gescripte runs"
 
 #: src/features/evals/components/eval-workspace.tsx
 msgctxt "evals.4GjTZU"
 msgid "No AI Gateway key is set, so a run answers from a script and is recorded as scripted. The pass rate measures the script, not a model."
-msgstr ""
+msgstr "Er is geen AI Gateway-sleutel ingesteld, dus een run antwoordt uit een script en wordt als gescript vastgelegd. Het slagingspercentage meet het script, niet een model."
 
 #: src/features/evals/components/pass-rate-chart.tsx
 msgctxt "evals.8NFplr"
@@ -14329,7 +14390,7 @@ msgstr "Nog geen toekenningen"
 #: src/features/funding/components/award-usage.tsx
 msgctxt "funding.RVmYge"
 msgid "Add a funding product with its rate, then record the units a funder awards a customer. An award lists only for people who can read its subject, so an award on a customer you can't read stays out of this list."
-msgstr ""
+msgstr "Voeg een financieringsproduct met tarief toe en leg vervolgens de eenheden vast die een financier aan een klant toekent. Een toekenning is alleen zichtbaar voor wie het onderwerp mag lezen, dus een toekenning op een klant die je niet mag lezen staat niet in deze lijst."
 
 #: src/features/funding/components/award-usage.tsx
 msgctxt "funding.-4qGDl"
@@ -14424,22 +14485,22 @@ msgstr "Toegestaan"
 #: src/features/guardrails/components/decision-table.tsx
 msgctxt "guardrails.odQZ5w"
 msgid "Rule: prompt injection"
-msgstr ""
+msgstr "Regel: prompt-injectie"
 
 #: src/features/guardrails/components/decision-table.tsx
 msgctxt "guardrails.7NxllJ"
 msgid "Rule: personal data"
-msgstr ""
+msgstr "Regel: persoonsgegevens"
 
 #: src/features/guardrails/components/decision-table.tsx
 msgctxt "guardrails.AulYOL"
 msgid "Rule: denied topic"
-msgstr ""
+msgstr "Regel: geweigerd onderwerp"
 
 #: src/features/guardrails/components/decision-table.tsx
 msgctxt "guardrails._Ov0Hc"
 msgid "Rule: tool depth"
-msgstr ""
+msgstr "Regel: tooldiepte"
 
 #: src/features/guardrails/components/decision-table.tsx
 msgctxt "guardrails.MeKajs"
@@ -18695,12 +18756,12 @@ msgstr "Lees de productiegids"
 #: src/features/marketplace/components/connect-installation.tsx
 msgctxt "marketplace.bne1MS"
 msgid "Connect an installation"
-msgstr ""
+msgstr "Een installatie koppelen"
 
 #: src/features/marketplace/components/connect-installation.tsx
 msgctxt "marketplace.2xL7NP"
 msgid "Enter the configuration id Vercel shows for the installation. The organization is linked to it, and its resources are listed on this page."
-msgstr ""
+msgstr "Voer het configuratie-id in dat Vercel voor de installatie toont. De organisatie wordt eraan gekoppeld en de resources staan op deze pagina."
 
 #: src/features/marketplace/components/connect-installation.tsx
 msgctxt "marketplace.loBc8J"
@@ -18715,17 +18776,17 @@ msgstr "Koppelen"
 #: src/features/marketplace/components/marketplace-overview.tsx
 msgctxt "marketplace.hjLslG"
 msgid "The installation didn't load"
-msgstr ""
+msgstr "De installatie is niet geladen"
 
 #: src/features/marketplace/components/marketplace-overview.tsx
 msgctxt "marketplace.162kF7"
 msgid "Try again in a moment."
-msgstr ""
+msgstr "Probeer het zo opnieuw."
 
 #: src/features/marketplace/components/marketplace-overview.tsx
 msgctxt "marketplace.62nsdy"
 msgid "Retry"
-msgstr ""
+msgstr "Opnieuw proberen"
 
 #: src/features/marketplace/components/marketplace-overview.tsx
 msgctxt "marketplace.6q_8YI"
@@ -18735,7 +18796,7 @@ msgstr "Geen installatie gekoppeld"
 #: src/features/marketplace/components/marketplace-overview.tsx
 msgctxt "marketplace._mUUQa"
 msgid "Install the app from the Vercel Marketplace, then connect its configuration below."
-msgstr ""
+msgstr "Installeer de app vanuit de Vercel Marketplace en koppel daarna hieronder de configuratie."
 
 #: src/features/marketplace/components/marketplace-overview.tsx
 msgctxt "marketplace.SWAD6r"
@@ -18762,7 +18823,7 @@ msgstr "Status"
 #: src/features/marketplace/components/resource-detail.tsx
 msgctxt "marketplace.8T2Fuq"
 msgid "What Vercel provisioned for this installation."
-msgstr ""
+msgstr "Wat Vercel voor deze installatie heeft aangemaakt."
 
 #: src/features/marketplace/components/resource-detail.tsx
 msgctxt "marketplace.47svuN"
@@ -18772,7 +18833,7 @@ msgstr "Installatie"
 #: src/features/marketplace/components/resource-detail.tsx
 msgctxt "marketplace.bUTVzE"
 msgid "Vercel team"
-msgstr ""
+msgstr "Vercel-team"
 
 #: src/features/medications/components/medication-chart.tsx
 msgctxt "medications.Ydnmc6"
@@ -19055,7 +19116,7 @@ msgstr "Uitnodiging ingetrokken"
 #: src/features/members/components/invitation-list.tsx
 msgctxt "organization.HsCLGj"
 msgid "Invitation sent again"
-msgstr ""
+msgstr "Uitnodiging opnieuw verstuurd"
 
 #: src/features/members/components/invitation-list.tsx
 msgctxt "organization.HAhXzK"
@@ -19070,7 +19131,7 @@ msgstr "Verloopt op {date}"
 #: src/features/members/components/invitation-list.tsx
 msgctxt "organization.d6goN8"
 msgid "Resend invitation to {email}"
-msgstr ""
+msgstr "Uitnodiging opnieuw sturen naar {email}"
 
 #: src/features/members/components/invitation-list.tsx
 msgctxt "organization.Hvn8PP"
@@ -20068,7 +20129,7 @@ msgstr "Vergaderingen"
 #: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.34jmEB"
 msgid "Digital assets"
-msgstr ""
+msgstr "Digitale assets"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
@@ -20851,7 +20912,7 @@ msgstr "Nieuwste"
 #: src/features/onboarding/components/onboarding-record-list.tsx
 msgctxt "people.aLAF_5"
 msgid "Recently changed"
-msgstr ""
+msgstr "Recent gewijzigd"
 
 #: src/features/onboarding/components/onboarding-record-list.tsx
 msgctxt "people.SejFmF"
@@ -21135,22 +21196,22 @@ msgstr "Uitnodiging accepteren"
 #: src/features/organization/components/invitations-grid.tsx
 msgctxt "organization.xhQMeQ"
 msgid "Expires"
-msgstr ""
+msgstr "Verloopt"
 
 #: src/features/organization/components/invitations-grid.tsx
 msgctxt "organization.nS4TcP"
 msgid "No open invitations"
-msgstr ""
+msgstr "Geen openstaande uitnodigingen"
 
 #: src/features/organization/components/invitations-grid.tsx
 msgctxt "organization.vs8BNr"
 msgid "Invite people from the members page."
-msgstr ""
+msgstr "Nodig mensen uit via de ledenpagina."
 
 #: src/features/organization/components/invitations-grid.tsx
 msgctxt "organization.1U0YVb"
 msgid "Open members"
-msgstr ""
+msgstr "Leden openen"
 
 #: src/features/organization/components/leave-organization-button.tsx
 #: src/features/organization/components/organization-general.tsx
@@ -25840,7 +25901,7 @@ msgstr "Nog geen gesprek"
 #: src/features/sales/components/deal-conversation.tsx
 msgctxt "sales.7i-sSx"
 msgid "A thread shows here once a person linked to this deal writes to the inbox."
-msgstr ""
+msgstr "Een gesprek verschijnt hier zodra een aan deze deal gekoppelde persoon naar de inbox schrijft."
 
 #: src/features/sales/components/deal-conversation.tsx
 msgctxt "sales.1udzha"
@@ -25973,6 +26034,11 @@ msgstr "Verplaats de deal naar een andere fase."
 msgctxt "sales.sCpDxj"
 msgid "The deal is closed."
 msgstr "De deal is gesloten."
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.gnCVVZ"
+msgid "Deal stage"
+msgstr "Dealfase"
 
 #: src/features/sales/components/deal-detail.tsx
 msgctxt "sales.cnsH-C"
@@ -29929,7 +29995,7 @@ msgstr "Sessie beëindigen"
 #: src/features/support/components/exit-support-button.tsx
 msgctxt "support.m6fRpP"
 msgid "Exit session"
-msgstr ""
+msgstr "Sessie verlaten"
 
 #: src/features/support/components/request-support-dialog.tsx
 #: src/features/support/components/view-as-member-button.tsx
@@ -30028,22 +30094,22 @@ msgstr "Beëindigd"
 #: src/features/support/components/view-as-member-button.tsx
 msgctxt "support.vjYD36"
 msgid "View as {name}"
-msgstr ""
+msgstr "Bekijken als {name}"
 
 #: src/features/support/components/view-as-member-button.tsx
 msgctxt "support.x03dKs"
 msgid "Viewing as {name}"
-msgstr ""
+msgstr "Je bekijkt als {name}"
 
 #: src/features/support/components/view-as-member-button.tsx
 msgctxt "support.ZJEsOx"
 msgid "The session is read-only, expires on its own and is recorded in the audit log. A second platform admin approves it first."
-msgstr ""
+msgstr "De sessie is alleen-lezen, verloopt vanzelf en wordt vastgelegd in het auditlogboek. Eerst keurt een tweede platformbeheerder haar goed."
 
 #: src/features/support/components/view-as-member-button.tsx
 msgctxt "support.mrHAYh"
 msgid "View as member"
-msgstr ""
+msgstr "Bekijken als lid"
 
 #: src/features/teams/components/team-detail.tsx
 #: src/features/teams/components/teams-grid.tsx
@@ -31851,52 +31917,52 @@ msgstr "Een regel stuurt binnenkomende voorraad van een variant naar een bak, he
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.tynqPT"
 msgid "Goods receipts"
-msgstr ""
+msgstr "Goederenontvangsten"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.yP_fmN"
 msgid "Where the stock of the latest receipt, {order}, goes."
-msgstr ""
+msgstr "Waar de voorraad van de laatste ontvangst, {order}, naartoe gaat."
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.yGHqc5"
 msgid "Receive a purchase order to get bins suggested."
-msgstr ""
+msgstr "Ontvang een inkooporder om bakken voorgesteld te krijgen."
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.qVGRIE"
 msgid "Quantity"
-msgstr ""
+msgstr "Aantal"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.sWXgz0"
 msgid "Suggested bins"
-msgstr ""
+msgstr "Voorgestelde bakken"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.Gclk-s"
 msgid "No bin has room"
-msgstr ""
+msgstr "Geen enkele bak heeft ruimte"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.luOIxL"
 msgid "{bins}, {left} without a bin"
-msgstr ""
+msgstr "{bins}, {left} zonder bak"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.LcpaXh"
 msgid "No goods receipts yet"
-msgstr ""
+msgstr "Nog geen goederenontvangsten"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.epKp5E"
 msgid "Receiving a purchase order writes a goods receipt, and its putaway shows here."
-msgstr ""
+msgstr "Het ontvangen van een inkooporder schrijft een goederenontvangst weg en de opslag daarvan staat hier."
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.AuLAmB"
 msgid "Recent receipts"
-msgstr ""
+msgstr "Recente ontvangsten"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.XPruqs"
@@ -31906,7 +31972,7 @@ msgstr "Bestelling"
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.z_wUXE"
 msgid "Received"
-msgstr ""
+msgstr "Ontvangen"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.l_mTcL"
@@ -32041,77 +32107,77 @@ msgstr "Verschilgrens (procent)"
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.YSeUhP"
 msgid "Allocate stock"
-msgstr ""
+msgstr "Voorraad toewijzen"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.k0ODYP"
 msgid "Holds stock of a variant for a document line. What isn't available waits on backorder."
-msgstr ""
+msgstr "Reserveert voorraad van een variant voor een documentregel. Wat niet beschikbaar is, wacht op nalevering."
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.8sQ5PM"
 msgid "Allocate"
-msgstr ""
+msgstr "Toewijzen"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.7tz77k"
 msgid "Stock allocated"
-msgstr ""
+msgstr "Voorraad toegewezen"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.so2_17"
 msgid "Document type"
-msgstr ""
+msgstr "Documenttype"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.aKfSoz"
 msgid "New pick list"
-msgstr ""
+msgstr "Nieuwe picklijst"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.28PrXm"
 msgid "A pick list is made from the open allocations of one document at one location."
-msgstr ""
+msgstr "Een picklijst wordt gemaakt van de openstaande toewijzingen van één document op één locatie."
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.tV3Kfj"
 msgid "Create pick list"
-msgstr ""
+msgstr "Picklijst maken"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.0tX0AH"
 msgid "Pick list created"
-msgstr ""
+msgstr "Picklijst gemaakt"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.-JrMhw"
 msgid "Receive a purchase order"
-msgstr ""
+msgstr "Een inkooporder ontvangen"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.xriBQf"
 msgid "Receives every unit the order still owes into one goods receipt."
-msgstr ""
+msgstr "Ontvangt elke eenheid die de order nog te leveren heeft in één goederenontvangst."
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.BSkoeq"
 msgid "Receive order"
-msgstr ""
+msgstr "Order ontvangen"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.ULXFfP"
 msgid "Receive"
-msgstr ""
+msgstr "Ontvangen"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.aLpNkM"
 msgid "Order received"
-msgstr ""
+msgstr "Order ontvangen"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.TE-SaB"
 msgid "Purchase order"
-msgstr ""
+msgstr "Inkooporder"
 
 #: src/features/warranty/components/claim-actions-bar.tsx
 #: src/features/warranty/components/decide-claim-dialog.tsx
@@ -32900,7 +32966,7 @@ msgstr "ID"
 #: src/features/work/components/work-item-grid.tsx
 msgctxt "work.uYAYib"
 msgid "Stage"
-msgstr ""
+msgstr "Fase"
 
 #: src/features/work/components/work-item-grid.tsx
 msgctxt "work.vx8bv3"
@@ -32915,7 +32981,7 @@ msgstr "{identifier} selecteren"
 #: src/features/work/components/work-item-grid.tsx
 msgctxt "work.AmWodP"
 msgid "Stage of {identifier}"
-msgstr ""
+msgstr "Fase van {identifier}"
 
 #: src/features/work/components/work-item-grid.tsx
 msgctxt "work.AlwLGP"
@@ -33218,7 +33284,7 @@ msgstr "De node is mislukt"
 #: src/features/workflows/builder/components/node-inspector.tsx
 msgctxt "workflows.it6Lig"
 msgid "Input"
-msgstr ""
+msgstr "Invoer"
 
 #: src/features/workflows/builder/components/node-inspector.tsx
 #: src/features/workflows/components/workflow-run-detail.tsx
@@ -33243,7 +33309,7 @@ msgstr "Afwijzen"
 #: src/features/workflows/builder/components/node-inspector.tsx
 msgctxt "workflows.tQpQon"
 msgid "Mark done"
-msgstr ""
+msgstr "Markeren als klaar"
 
 #: src/features/workflows/builder/components/node-inspector.tsx
 #: src/features/workflows/builder/components/node-panel.tsx
@@ -33509,7 +33575,7 @@ msgstr "Schema"
 #: src/features/workflows/builder/components/trigger-sheet.tsx
 msgctxt "workflows.m1czzY"
 msgid "Event"
-msgstr ""
+msgstr "Gebeurtenis"
 
 #: src/features/workflows/builder/components/trigger-sheet.tsx
 msgctxt "workflows.M59JhX"
@@ -33807,7 +33873,7 @@ msgstr "Versie"
 #: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.1BrFfC"
 msgid "v{version} (hidden test snapshot)"
-msgstr ""
+msgstr "v{version} (verborgen testsnapshot)"
 
 #: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.4hC_e1"
