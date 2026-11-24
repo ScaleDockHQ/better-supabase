@@ -30,11 +30,13 @@ job on a larger runner (`vars.UNIT_RUNNER`). That runner was never created, so t
   The longest file takes about 2.3 minutes, so more shards would not shorten the slowest one.
 - The `coverage` job merges the blob reports and checks the same thresholds on the same scope, so
   a pull request fails on coverage before it merges. A shard checks none.
-- The same job fails when a file runs 50% and 5 seconds over its baseline, or a test runs past
-  half its own timeout. The tests already past it are listed in `scripts/unit-slow-tests.json`
-  and fail only when they grow the same way. It writes the 20 slowest files to the step summary.
-  `scripts/unit-durations.ts` is both the reporter that records the times during the merge and
-  the check; `docs/agents/tooling.md` says how to refresh the baselines.
+- The same job fails when a file runs 50% and 5 seconds over its time in
+  `scripts/unit-time-budget.json`, or a test runs past half its own timeout and the budget does
+  not list it. It writes the 20 slowest files to the step summary. `scripts/unit-durations.ts`
+  is both the Vitest reporter that records the times, import time included, during the merge and
+  the check. A file's time swings by up to 1.8 times with its shard neighbours, so the budget
+  keeps the slowest run and stays apart from the packing file; `docs/agents/tooling.md` says how
+  to refresh both.
 - `main` reuses a pull request's shards through the Turbo Remote Cache when the merge commit has
   the same inputs as the pull request's merge ref, which holds when `main` did not move between
   the last CI run and the merge.

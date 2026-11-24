@@ -291,7 +291,7 @@ jobs:
           node scripts/unit-durations.ts --check packages/better-supabase/unit-times.json \
             | tee -a "$GITHUB_STEP_SUMMARY"
 
-      # `node scripts/unit-durations.ts --write` refreshes both baselines from this file.
+      # `node scripts/unit-durations.ts --write` (budget) and `--pack` (shards) read this file.
       - name: Upload the unit times
         if: ${{ !cancelled() && hashFiles('packages/better-supabase/unit-times.json') != '' }}
         uses: actions/upload-artifact@v7

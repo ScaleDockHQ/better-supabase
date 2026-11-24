@@ -15,13 +15,20 @@ const durations = readDurations(
 const fileOf = (spec: TestSpecification, root: string): string =>
   relative(root, spec.moduleId).replaceAll("\\", "/");
 
-/** Packs `--shard` by the measured file durations instead of by path hash. */
+const unitOnly = (files: readonly TestSpecification[]): boolean =>
+  files.every((spec) => spec.project.name === "unit");
+
+/**
+ * Packs the unit project's `--shard` by the measured file durations instead of
+ * by path hash, and runs the longest file first. Integration files share one
+ * database, so they keep Vitest's order.
+ */
 class DurationSequencer extends BaseSequencer {
   override shard(files: TestSpecification[]): Promise<TestSpecification[]> {
     const shard = this.ctx.config.shard;
 
-    if (shard === undefined) {
-      return Promise.resolve(files);
+    if (shard === undefined || !unitOnly(files)) {
+      return super.shard(files);
     }
 
     return Promise.resolve(
@@ -35,8 +42,11 @@ class DurationSequencer extends BaseSequencer {
     );
   }
 
-  // Longest first, so the slowest file does not start last.
   override sort(files: TestSpecification[]): Promise<TestSpecification[]> {
+    if (!unitOnly(files)) {
+      return BaseSequencer.prototype.sort.call(this, files);
+    }
+
     return Promise.resolve(
       assignShard(
         files,
@@ -79,8 +89,7 @@ export default mergeConfig(
       // On a laptop, one worker per core is slower: the workers starve each other and the
       // other Turbo tasks. CI runners have few cores and nothing else running.
       maxWorkers: env.CI ? undefined : "50%",
-      // Vitest reads the sequencer from the root config only. An integration file has no measured
-      // duration, so its shards split by count.
+      // Vitest reads the sequencer from the root config only.
       sequence: { sequencer: DurationSequencer },
       projects: [
         {

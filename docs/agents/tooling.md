@@ -62,15 +62,16 @@ bump is one commit series:
   the `coverage` job merges the blob reports and checks the thresholds below
   (ADR 1230). A red `main` opens the `main-red` issue.
 - The `coverage` job also fails when a test file runs 50% and 5 seconds over
-  its baseline in `unit-durations.json`, or a test runs past half its timeout
-  and is not in `scripts/unit-slow-tests.json` (or grew 50% and 5 seconds past
-  it there). It lists the 20 slowest files in the step summary. After a
-  deliberate change, or to shrink the slow list, refresh both baselines from
-  two or more green runs, because a file's time swings by up to 1.8 times
-  with its shard neighbours and the baselines keep the slowest run:
-  `gh run download <run id> -n unit-times -D <dir>` for each run, then
-  `node scripts/unit-durations.ts --write <dir>/unit-times.json ...`, and
-  commit them with the reason.
+  its time in `scripts/unit-time-budget.json`, or a test runs past half its
+  timeout and the budget does not list it (or it grew the same way). It lists
+  the 20 slowest files in the step summary. A file's time swings by up to 1.8
+  times with its shard neighbours, so the budget keeps the slowest of the runs
+  it is written from, and the shard packing (`unit-durations.json`) is a
+  separate file. After a deliberate change, run
+  `gh run download <run id> -n unit-times -D <dir>` for one or more green runs,
+  then `node scripts/unit-durations.ts --write <dir>/unit-times.json ...`.
+  `--pack` rewrites the packing the same way, which moves files between shards,
+  so refresh the budget from a run after it. Commit either with the reason.
 - Coverage counts every file in `packages/better-supabase/src` (except
   `src/cli/bin.ts`), from unit tests only, with a separate threshold set for
   `src/cli/**`. Code that needs a database or the

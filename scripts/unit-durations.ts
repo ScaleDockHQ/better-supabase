@@ -1,17 +1,21 @@
 // The unit time budget (ADR 1230). As a Vitest reporter on the coverage job's merge, it writes
 // each file's time and every test past half its timeout to `unit-times.json` in the
-// working directory. As a script, it checks that file against the baselines or writes them.
+// working directory. As a script, it checks that file against the budget, or writes the budget
+// or the shard packing from one or more runs.
 //
 //   node scripts/unit-durations.ts --check unit-times.json
 //   node scripts/unit-durations.ts --write unit-times.json [more-unit-times.json ...]
+//   node scripts/unit-durations.ts --pack unit-times.json [more-unit-times.json ...]
 import type { Reporter, TestModule } from "vitest/node";
 
 import { readFileSync, writeFileSync } from "node:fs";
 import * as v from "valibot";
 
-// The shards pack on this file; the slow tests file lists the tests already past half their timeout.
+// The shards pack on DURATIONS. BUDGET holds each file's time and the tests already past half
+// their timeout. They are separate files: a file's time depends on its shard neighbours, so a
+// budget refresh must not repack the shards.
 export const DURATIONS = "packages/better-supabase/tests/unit-durations.json";
-export const SLOW_TESTS = "scripts/unit-slow-tests.json";
+export const BUDGET = "scripts/unit-time-budget.json";
 
 const SLOWEST = 20;
 
@@ -33,7 +37,10 @@ const timesSchema = v.object({
   ),
 });
 
-const baselineSchema = v.record(v.string(), v.number());
+const budgetSchema = v.object({
+  files: v.record(v.string(), v.number()),
+  slowTests: v.record(v.string(), v.number()),
+});
 
 export type UnitTimes = v.InferOutput<typeof timesSchema>;
 
@@ -161,25 +168,17 @@ export function slowestFilesSummary(
       return `| \`${file}\` | ${seconds(ms)} | ${before === undefined ? "new" : seconds(before)} |`;
     }),
     "",
-    `${times.slowTests.length} tests ran past half their timeout; \`${SLOW_TESTS}\` lists the known ones.`,
+    `${times.slowTests.length} tests ran past half their timeout; \`${BUDGET}\` lists the known ones.`,
     "",
   ].join("\n");
 }
 
-function readMap(path: string): Map<string, number> {
-  return new Map(
-    Object.entries(
-      v.parse(baselineSchema, JSON.parse(readFileSync(path, "utf-8"))),
-    ),
+function sortedRecord(
+  map: ReadonlyMap<string, number>,
+): Record<string, number> {
+  return Object.fromEntries(
+    [...map].toSorted((a, b) => a[0].localeCompare(b[0])),
   );
-}
-
-function sortedJson(entries: [string, number][]): string {
-  return `${JSON.stringify(
-    Object.fromEntries(entries.toSorted((a, b) => a[0].localeCompare(b[0]))),
-    null,
-    2,
-  )}\n`;
 }
 
 function readTimes(path: string): UnitTimes {
@@ -190,26 +189,50 @@ function main(): number {
   const [flag, ...paths] = process.argv.slice(2);
   const [timesPath] = paths;
 
-  if (timesPath === undefined || (flag !== "--check" && flag !== "--write")) {
+  if (
+    timesPath === undefined ||
+    (flag !== "--check" && flag !== "--write" && flag !== "--pack")
+  ) {
     process.stderr.write(
-      "usage: unit-durations --check <unit-times.json> | --write <unit-times.json>...\n",
+      "usage: unit-durations --check <unit-times.json> | --write|--pack <unit-times.json>...\n",
     );
 
     return 1;
   }
 
-  if (flag === "--write") {
+  if (flag !== "--check") {
     const { files, slowTests } = slowestOf(paths.map(readTimes));
 
-    writeFileSync(DURATIONS, sortedJson([...files]));
-    writeFileSync(SLOW_TESTS, sortedJson([...slowTests]));
+    if (flag === "--pack") {
+      writeFileSync(
+        DURATIONS,
+        `${JSON.stringify(sortedRecord(files), null, 2)}\n`,
+      );
+    } else {
+      const budget = {
+        files: sortedRecord(files),
+        slowTests: sortedRecord(slowTests),
+      };
+
+      writeFileSync(BUDGET, `${JSON.stringify(budget, null, 2)}\n`);
+    }
 
     return 0;
   }
 
+  const budget = v.parse(
+    budgetSchema,
+    JSON.parse(readFileSync(BUDGET, "utf-8")),
+  );
+
   const times = readTimes(timesPath);
-  const durations = readMap(DURATIONS);
-  const found = findings(times, durations, readMap(SLOW_TESTS));
+  const durations = new Map(Object.entries(budget.files));
+
+  const found = findings(
+    times,
+    durations,
+    new Map(Object.entries(budget.slowTests)),
+  );
 
   process.stdout.write(slowestFilesSummary(times, durations));
 
