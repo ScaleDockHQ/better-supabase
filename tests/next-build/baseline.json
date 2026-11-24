@@ -434,6 +434,11 @@
     "gzip": 456531,
     "brotli": 398755
   },
+  "/[locale]/(app)/deadlines/[id]/page": {
+    "raw": 1286188,
+    "gzip": 409994,
+    "brotli": 358229
+  },
   "/[locale]/(app)/deadlines/page": {
     "raw": 1592771,
     "gzip": 509611,
@@ -723,6 +728,11 @@
     "raw": 1277369,
     "gzip": 406533,
     "brotli": 355235
+  },
+  "/[locale]/(app)/meetings/[id]/page": {
+    "raw": 1302945,
+    "gzip": 414262,
+    "brotli": 361925
   },
   "/[locale]/(app)/meetings/page": {
     "raw": 1456842,

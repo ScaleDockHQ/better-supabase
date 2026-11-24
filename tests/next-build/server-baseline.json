@@ -272,6 +272,9 @@
   "/[locale]/(app)/dam/page": {
     "raw": 3810978
   },
+  "/[locale]/(app)/deadlines/[id]/page": {
+    "raw": 3824962
+  },
   "/[locale]/(app)/deadlines/page": {
     "raw": 3819952
   },
@@ -445,6 +448,9 @@
   },
   "/[locale]/(app)/medications/page": {
     "raw": 3818648
+  },
+  "/[locale]/(app)/meetings/[id]/page": {
+    "raw": 3813775
   },
   "/[locale]/(app)/meetings/page": {
     "raw": 3814615

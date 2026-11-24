@@ -36,6 +36,7 @@ export async function MeetingMinutesSection({
 }
 
 /** The meeting of `/meetings/[id]`, with its agenda, decisions and action items. */
+// skeleton: the page's Suspense fallback is MeetingMinutesSectionSkeleton
 export async function MeetingDetail({ id }: { id: string }) {
   const [permissions] = await Promise.all([getPermissions(), io()]);
   const parsed = v.safeParse(MeetingParam, id);
