@@ -11726,6 +11726,16 @@ msgctxt "dam.FnQZ7R"
 msgid "Revoke the next active right"
 msgstr "Revoke the next active right"
 
+#: src/features/dashboard/components/areas-card.tsx
+msgctxt "dashboard.L_QYEd"
+msgid "Areas"
+msgstr "Areas"
+
+#: src/features/dashboard/components/areas-card.tsx
+msgctxt "dashboard.f4lN3a"
+msgid "Open the hub of an area to walk its flow."
+msgstr "Open the hub of an area to walk its flow."
+
 #: src/features/dashboard/components/customers-card.tsx
 msgctxt "dashboard.2PTEWU"
 msgid "Leads"
