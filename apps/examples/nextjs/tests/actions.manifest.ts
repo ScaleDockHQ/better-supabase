@@ -35,6 +35,10 @@ const write = (
 
 const SALES = "features/sales/sales-actions.ts";
 
+const CARE_PLANS = "features/care-plans/care-plans-actions.ts";
+
+const E_PRESCRIBING = "features/e-prescribing/e-prescribing-actions.ts";
+
 const COMPOSITES = "features/composites/composites-actions.ts";
 
 const AGENTS = "features/agents/agents-actions.ts";
@@ -90,6 +94,27 @@ export const ACTIONS: readonly ActionCase[] = [
   ]),
   write(COMPOSITES, "publishEntryWithVersion", "/content", async () => [
     { entryId: await firstRowId("content_entries") },
+  ]),
+  write(COMPOSITES, "prescribeMedicationWithConsent", "/care", async () => [
+    {
+      clientId: await firstRowId("customers"),
+      medicationId: await firstRowId("medications"),
+      purposeKey: "medication",
+      dose: "500",
+      times: "08:00",
+    },
+  ]),
+  write(CARE_PLANS, "publishCarePlan", "/care-plans", async () => [
+    { planId: await firstRowId("care_plans") },
+  ]),
+  write(CARE_PLANS, "archiveCarePlan", "/care-plans", async () => [
+    { planId: await firstRowId("care_plans") },
+  ]),
+  write(E_PRESCRIBING, "signPrescription", "/prescriptions", async () => [
+    { prescriptionId: await firstRowId("prescriptions") },
+  ]),
+  write(E_PRESCRIBING, "cancelPrescription", "/prescriptions", async () => [
+    { prescriptionId: await firstRowId("prescriptions") },
   ]),
   write(COMPOSITES, "reconcileAccount", "/banking/accounts", async () => [
     { accountId: await firstRowId("bank_accounts") },

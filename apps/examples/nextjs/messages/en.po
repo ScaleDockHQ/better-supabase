@@ -312,15 +312,20 @@ msgctxt "care-alerts.X4g2aN"
 msgid "Dose range, duplicate therapy and interaction alerts on medication orders."
 msgstr "Dose range, duplicate therapy and interaction alerts on medication orders."
 
+#: src/app/[locale]/(app)/care-plans/[id]/page.tsx
+msgctxt "care-plans.4Tcys-"
+msgid "All care plans"
+msgstr "All care plans"
+
 #: src/app/[locale]/(app)/care-plans/page.tsx
 msgctxt "care-plans.y10hgk"
 msgid "Care plans"
 msgstr "Care plans"
 
 #: src/app/[locale]/(app)/care-plans/page.tsx
-msgctxt "care-plans.rTFlYI"
-msgid "A client's problems, goals and actions in the active plan, and what each goal evaluation found."
-msgstr "A client's problems, goals and actions in the active plan, and what each goal evaluation found."
+msgctxt "care-plans.SUuUXO"
+msgid "A client's problems, goals and actions, from draft to the plan in use."
+msgstr "A client's problems, goals and actions, from draft to the plan in use."
 
 #: src/app/[locale]/(app)/care/[clientId]/page.tsx
 msgctxt "care.yp16Oy"
@@ -1259,8 +1264,13 @@ msgctxt "people.eYLQ7a"
 msgid "Log your hours for the week and send them for approval."
 msgstr "Log your hours for the week and send them for approval."
 
+#: src/app/[locale]/(app)/prescriptions/[id]/page.tsx
+msgctxt "prescriptions.p73fuc"
+msgid "All prescriptions"
+msgstr "All prescriptions"
+
 #: src/app/[locale]/(app)/prescriptions/page.tsx
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.a5UKX3"
 msgid "Prescriptions"
 msgstr "Prescriptions"
@@ -6970,20 +6980,109 @@ msgctxt "calendar.jvo0vs"
 msgid "Save"
 msgstr "Save"
 
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.Vt3Qe_"
+msgid "The plan didn't load"
+msgstr "The plan didn't load"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.I3b4hn"
+msgid "Version"
+msgstr "Version"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.nwnCWi"
+msgid "Starts on"
+msgstr "Starts on"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.Nm4kPA"
+msgid "Review on"
+msgstr "Review on"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.w7tf2z"
+msgid "Published"
+msgstr "Published"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.BEhUlN"
+msgid "Agreed"
+msgstr "Agreed"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
 #: src/features/care-plans/components/care-plan-editor.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
 msgctxt "care-plans.W6nwjo"
 msgid "Draft"
 msgstr "Draft"
 
+#: src/features/care-plans/components/care-plan-detail.tsx
 #: src/features/care-plans/components/care-plan-editor.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
 msgctxt "care-plans.3a5wL8"
 msgid "Active"
 msgstr "Active"
 
+#: src/features/care-plans/components/care-plan-detail.tsx
 #: src/features/care-plans/components/care-plan-editor.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
 msgctxt "care-plans.0HT-Ib"
 msgid "Archived"
 msgstr "Archived"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.0Jz6eP"
+msgid "Open dossier"
+msgstr "Open dossier"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.syEQFE"
+msgid "Publish"
+msgstr "Publish"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.A0u-st"
+msgid "Plan published"
+msgstr "Plan published"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.hrgo-E"
+msgid "Archive"
+msgstr "Archive"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.gVTWLO"
+msgid "Plan archived"
+msgstr "Plan archived"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.9uOFF3"
+msgid "Overview"
+msgstr "Overview"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.etWStg"
+msgid "Evaluations"
+msgstr "Evaluations"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.ZmlNQ3"
+msgid "Activity"
+msgstr "Activity"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.KQsZBW"
+msgid "Related"
+msgstr "Related"
 
 #: src/features/care-plans/components/care-plan-editor.tsx
 msgctxt "care-plans.kp0NPF"
@@ -7128,6 +7227,7 @@ msgid "Goal"
 msgstr "Goal"
 
 #: src/features/care-plans/components/care-plan-evaluations.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
 msgctxt "care-plans.tzMNF3"
 msgid "Status"
 msgstr "Status"
@@ -7136,11 +7236,6 @@ msgstr "Status"
 msgctxt "care-plans.iaHymw"
 msgid "Outcome"
 msgstr "Outcome"
-
-#: src/features/care-plans/components/care-plan-evaluations.tsx
-msgctxt "care-plans.etWStg"
-msgid "Evaluations"
-msgstr "Evaluations"
 
 #: src/features/care-plans/components/care-plan-evaluations.tsx
 msgctxt "care-plans.QI37us"
@@ -7166,6 +7261,66 @@ msgstr "Evaluate a goal of the active plan to record what it reached."
 msgctxt "care-plans.2ncFXE"
 msgid "Read about evaluations"
 msgstr "Read about evaluations"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.wX1U3M"
+msgid "The plan figures didn't load"
+msgstr "The plan figures didn't load"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.Q5CLtp"
+msgid "Plans"
+msgstr "Plans"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.2atspc"
+msgid "Drafts"
+msgstr "Drafts"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.fz0z4c"
+msgid "Plan"
+msgstr "Plan"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.JX0502"
+msgid "Client"
+msgstr "Client"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.fwIt1X"
+msgid "Newest"
+msgstr "Newest"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.khVfqL"
+msgid "Review date"
+msgstr "Review date"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.9a9-ww"
+msgid "Title"
+msgstr "Title"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.kzefVV"
+msgid "Search plans"
+msgstr "Search plans"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.32UjFX"
+msgid "The plans didn't load"
+msgstr "The plans didn't load"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.jCxF10"
+msgid "No plans found"
+msgstr "No plans found"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.5XU6fX"
+msgid "A plan holds a client's problems, goals and actions. Create one from the client's dossier."
+msgstr "A plan holds a client's problems, goals and actions. Create one from the client's dossier."
 
 #: src/features/care/components/care-grids.tsx
 msgctxt "care.JX0502"
@@ -7278,6 +7433,7 @@ msgid "This client could not be loaded"
 msgstr "This client could not be loaded"
 
 #: src/features/care/components/care-sections.tsx
+#: src/features/care/components/client-dossier-summary.tsx
 #: src/features/care/components/client-dossier.tsx
 msgctxt "care.HIBQqX"
 msgid "Consents"
@@ -7339,6 +7495,32 @@ msgctxt "care.Q3wtNe"
 msgid "Back to clients"
 msgstr "Back to clients"
 
+#: src/features/care/components/client-dossier-summary.tsx
+msgctxt "care.rtjYR1"
+msgid "The dossier summary didn't load"
+msgstr "The dossier summary didn't load"
+
+#: src/features/care/components/client-dossier-summary.tsx
+msgctxt "care.y10hgk"
+msgid "Care plans"
+msgstr "Care plans"
+
+#: src/features/care/components/client-dossier-summary.tsx
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.M_xDHn"
+msgid "Observations"
+msgstr "Observations"
+
+#: src/features/care/components/client-dossier-summary.tsx
+msgctxt "care.v_hSPl"
+msgid "Active medication"
+msgstr "Active medication"
+
+#: src/features/care/components/client-dossier-summary.tsx
+msgctxt "care.hn8Gnl"
+msgid "Funding awards"
+msgstr "Funding awards"
+
 #: src/features/care/components/client-dossier.tsx
 msgctxt "care.7-Domh"
 msgid "Notes"
@@ -7350,14 +7532,45 @@ msgid "Care plan"
 msgstr "Care plan"
 
 #: src/features/care/components/client-dossier.tsx
-msgctxt "care.M_xDHn"
-msgid "Observations"
-msgstr "Observations"
-
-#: src/features/care/components/client-dossier.tsx
+#: src/features/care/components/prescribe-dialog.tsx
 msgctxt "care.venWl7"
 msgid "Medication"
 msgstr "Medication"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.g48cQe"
+msgid "Prescribe medication"
+msgstr "Prescribe medication"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.1y6KMs"
+msgid "Prescribes only while the client's consent for the purpose is active."
+msgstr "Prescribes only while the client's consent for the purpose is active."
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.5-GhK7"
+msgid "Prescribe"
+msgstr "Prescribe"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.qNOsCB"
+msgid "Medication prescribed"
+msgstr "Medication prescribed"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.rzSkHr"
+msgid "Dose"
+msgstr "Dose"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.hYQQ-s"
+msgid "Times of day"
+msgstr "Times of day"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care._R2mhh"
+msgid "Consent purpose"
+msgstr "Consent purpose"
 
 #: src/features/cases/components/case-board.tsx
 msgctxt "cases.Z3SH1K"
@@ -12482,100 +12695,164 @@ msgctxt "drive.qxg3uo"
 msgid "Access"
 msgstr "Access"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.JNXKgf"
+msgid "The prescription didn't load"
+msgstr "The prescription didn't load"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.W6nwjo"
 msgid "Draft"
 msgstr "Draft"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.oW2jG6"
 msgid "Signed"
 msgstr "Signed"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.gcuDcH"
 msgid "Sent"
 msgstr "Sent"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.8yizHP"
 msgid "Dispensed"
 msgstr "Dispensed"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.3wsVWF"
 msgid "Cancelled"
 msgstr "Cancelled"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.HsKQIf"
-msgid "Not signed yet"
-msgstr "Not signed yet"
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.JX0502"
+msgid "Client"
+msgstr "Client"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.Y0Ivb4"
+msgid "Prescriber"
+msgstr "Prescriber"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.rzSkHr"
+msgid "Dose"
+msgstr "Dose"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.0fR-fE"
+msgid "Route"
+msgstr "Route"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.Y02OER"
+msgid "Draft prescription"
+msgstr "Draft prescription"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.0Jz6eP"
+msgid "Open dossier"
+msgstr "Open dossier"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
 msgctxt "prescriptions.gDXziV"
 msgid "Sign"
 msgstr "Sign"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.47FYwb"
-msgid "Cancel"
-msgstr "Cancel"
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.XYHEnE"
+msgid "Prescription signed"
+msgstr "Prescription signed"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.vGF_zB"
+msgid "Cancel prescription"
+msgstr "Cancel prescription"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.lLtcHI"
+msgid "Prescription cancelled"
+msgstr "Prescription cancelled"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.tzMNF3"
 msgid "Status"
 msgstr "Status"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.venWl7"
-msgid "Medication"
-msgstr "Medication"
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.2p7Yum"
+msgid "Only the prescriber signs a draft."
+msgstr "Only the prescriber signs a draft."
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.7Y6Yvq"
-msgid "Record"
-msgstr "Record"
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.PvB0a2"
+msgid "The signed order is frozen."
+msgstr "The signed order is frozen."
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.iQpcFb"
-msgid "Only the prescriber signs a draft. A signed prescription freezes the order."
-msgstr "Only the prescriber signs a draft. A signed prescription freezes the order."
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.ORwGzI"
+msgid "Cancelled: {reason}"
+msgstr "Cancelled: {reason}"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.s2Iaa_"
+msgid "Delivery failed"
+msgstr "Delivery failed"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.ZZEVFq"
+msgid "The prescription figures didn't load"
+msgstr "The prescription figures didn't load"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.wnPz9B"
+msgid "To sign"
+msgstr "To sign"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.H-xNy4"
+msgid "Prescription"
+msgstr "Prescription"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.fwIt1X"
+msgid "Newest"
+msgstr "Newest"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.YCDASG"
+msgid "Recently signed"
+msgstr "Recently signed"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.kbuBjj"
 msgid "The prescriptions didn't load"
 msgstr "The prescriptions didn't load"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.162kF7"
-msgid "Try again in a moment."
-msgstr "Try again in a moment."
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.WXr9SM"
+msgid "No prescriptions found"
+msgstr "No prescriptions found"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.62nsdy"
-msgid "Retry"
-msgstr "Retry"
-
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.nnyot-"
-msgid "No prescriptions"
-msgstr "No prescriptions"
-
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.3UeTGC"
-msgid "Draft a prescription from an active medication order, then sign it."
-msgstr "Draft a prescription from an active medication order, then sign it."
-
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.1A8Z_l"
-msgid "Check again"
-msgstr "Check again"
-
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.BYSae4"
-msgid "Read the e-prescribing guide"
-msgstr "Read the e-prescribing guide"
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.4hali2"
+msgid "A prescriber signs a draft, then a gateway sends it to the pharmacy. Prescribe from a client's medication tab."
+msgstr "A prescriber signs a draft, then a gateway sends it to the pharmacy. Prescribe from a client's medication tab."
 
 #: src/features/encryption/components/encrypted-fields.tsx
 msgctxt "encryption.ewQ6Ty"

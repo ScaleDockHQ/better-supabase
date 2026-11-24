@@ -19,6 +19,7 @@ import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
 import {
+  careOf,
   cmsOf,
   commerceOf,
   crmOf,
@@ -607,5 +608,61 @@ export const publishEntryWithVersion = bsb.action(
       entryId: published.data.entry.id,
       version: published.data.version.number,
     });
+  },
+);
+
+const Time = v.pipe(v.string(), v.regex(/^([01]\d|2[0-3]):[0-5]\d$/));
+
+/**
+ * Prescribes a medication only while the client's consent for the purpose is
+ * active: `care.prescribeWithConsent`. Without the consent it returns the
+ * consent error and prescribes nothing.
+ */
+export const prescribeMedicationWithConsent = bsb.action(
+  {
+    input: v.object({
+      clientId: Id,
+      medicationId: Id,
+      purposeKey: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
+      dose: v.pipe(
+        v.string(),
+        v.transform(Number),
+        v.number(),
+        v.minValue(0.001),
+      ),
+      times: v.pipe(
+        v.string(),
+        v.transform((value) =>
+          value
+            .split(",")
+            .map((time) => time.trim())
+            .filter((time) => time !== ""),
+        ),
+        v.array(Time),
+        v.minLength(1),
+      ),
+    }),
+    requireTenant: true,
+    permission: "medications.prescribe",
+  },
+  async (
+    { clientId, medicationId, purposeKey, dose, times },
+    { db, auth, tenant },
+  ) => {
+    const prescribed = await careOf(db).prescribeWithConsent({
+      organizationId: tenant,
+      subject: { type: "customer", id: clientId },
+      purposeKey,
+      medicationId,
+      order: { dose, schedule: { times } },
+    });
+
+    if (!prescribed.ok) {
+      return prescribed;
+    }
+
+    await refreshCaller(auth, [CUSTOMERS_TAG]);
+
+    return ok({ orderId: prescribed.data.id });
   },
 );

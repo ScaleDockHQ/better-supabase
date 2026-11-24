@@ -4,6 +4,7 @@ import type { ContentStatus } from "better-supabase/blocks/content";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { orMissing } from "@/lib/or-missing";
 import { bsb } from "@/lib/supabase/server";
 
 import { CONTENT_TAG } from "./content-cache";
@@ -63,9 +64,9 @@ export async function getContentEntry(
     return null;
   }
 
-  const entry = await db.content.get(id).orThrow();
+  const entry = orMissing(await db.content.get(id));
 
-  if (entry === null) {
+  if (entry === undefined || entry === null) {
     return undefined;
   }
 

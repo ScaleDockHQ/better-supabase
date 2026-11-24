@@ -312,15 +312,20 @@ msgctxt "care-alerts.X4g2aN"
 msgid "Dose range, duplicate therapy and interaction alerts on medication orders."
 msgstr "Meldingen over doseerbereik, dubbele therapie en interacties bij medicatieopdrachten."
 
+#: src/app/[locale]/(app)/care-plans/[id]/page.tsx
+msgctxt "care-plans.4Tcys-"
+msgid "All care plans"
+msgstr "Alle zorgplannen"
+
 #: src/app/[locale]/(app)/care-plans/page.tsx
 msgctxt "care-plans.y10hgk"
 msgid "Care plans"
 msgstr "Zorgplannen"
 
 #: src/app/[locale]/(app)/care-plans/page.tsx
-msgctxt "care-plans.rTFlYI"
-msgid "A client's problems, goals and actions in the active plan, and what each goal evaluation found."
-msgstr "De problemen, doelen en acties van een cliënt in het actieve plan, en wat elke doelevaluatie vond."
+msgctxt "care-plans.SUuUXO"
+msgid "A client's problems, goals and actions, from draft to the plan in use."
+msgstr "De problemen, doelen en acties van een cliënt, van concept tot plan in gebruik."
 
 #: src/app/[locale]/(app)/care/[clientId]/page.tsx
 msgctxt "care.yp16Oy"
@@ -1259,8 +1264,13 @@ msgctxt "people.eYLQ7a"
 msgid "Log your hours for the week and send them for approval."
 msgstr "Registreer je uren voor de week en stuur ze ter goedkeuring in."
 
+#: src/app/[locale]/(app)/prescriptions/[id]/page.tsx
+msgctxt "prescriptions.p73fuc"
+msgid "All prescriptions"
+msgstr "Alle recepten"
+
 #: src/app/[locale]/(app)/prescriptions/page.tsx
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.a5UKX3"
 msgid "Prescriptions"
 msgstr "Recepten"
@@ -6970,20 +6980,109 @@ msgctxt "calendar.jvo0vs"
 msgid "Save"
 msgstr "Opslaan"
 
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.Vt3Qe_"
+msgid "The plan didn't load"
+msgstr "Het plan is niet geladen"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.I3b4hn"
+msgid "Version"
+msgstr "Versie"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.nwnCWi"
+msgid "Starts on"
+msgstr "Begint op"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.Nm4kPA"
+msgid "Review on"
+msgstr "Evaluatie op"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.w7tf2z"
+msgid "Published"
+msgstr "Gepubliceerd"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.BEhUlN"
+msgid "Agreed"
+msgstr "Overeengekomen"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
 #: src/features/care-plans/components/care-plan-editor.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
 msgctxt "care-plans.W6nwjo"
 msgid "Draft"
 msgstr "Concept"
 
+#: src/features/care-plans/components/care-plan-detail.tsx
 #: src/features/care-plans/components/care-plan-editor.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
 msgctxt "care-plans.3a5wL8"
 msgid "Active"
 msgstr "Actief"
 
+#: src/features/care-plans/components/care-plan-detail.tsx
 #: src/features/care-plans/components/care-plan-editor.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
 msgctxt "care-plans.0HT-Ib"
 msgid "Archived"
 msgstr "Gearchiveerd"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.0Jz6eP"
+msgid "Open dossier"
+msgstr "Dossier openen"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.syEQFE"
+msgid "Publish"
+msgstr "Publiceren"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.A0u-st"
+msgid "Plan published"
+msgstr "Plan gepubliceerd"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.hrgo-E"
+msgid "Archive"
+msgstr "Archiveren"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.gVTWLO"
+msgid "Plan archived"
+msgstr "Plan gearchiveerd"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.9uOFF3"
+msgid "Overview"
+msgstr "Overzicht"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.etWStg"
+msgid "Evaluations"
+msgstr "Evaluaties"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.ZmlNQ3"
+msgid "Activity"
+msgstr "Activiteit"
+
+#: src/features/care-plans/components/care-plan-detail.tsx
+msgctxt "care-plans.KQsZBW"
+msgid "Related"
+msgstr "Gerelateerd"
 
 #: src/features/care-plans/components/care-plan-editor.tsx
 msgctxt "care-plans.kp0NPF"
@@ -7128,6 +7227,7 @@ msgid "Goal"
 msgstr "Doel"
 
 #: src/features/care-plans/components/care-plan-evaluations.tsx
+#: src/features/care-plans/components/care-plan-overview.tsx
 msgctxt "care-plans.tzMNF3"
 msgid "Status"
 msgstr "Status"
@@ -7136,11 +7236,6 @@ msgstr "Status"
 msgctxt "care-plans.iaHymw"
 msgid "Outcome"
 msgstr "Uitkomst"
-
-#: src/features/care-plans/components/care-plan-evaluations.tsx
-msgctxt "care-plans.etWStg"
-msgid "Evaluations"
-msgstr "Evaluaties"
 
 #: src/features/care-plans/components/care-plan-evaluations.tsx
 msgctxt "care-plans.QI37us"
@@ -7166,6 +7261,66 @@ msgstr "Evalueer een doel van het actieve plan om vast te leggen wat het bereikt
 msgctxt "care-plans.2ncFXE"
 msgid "Read about evaluations"
 msgstr "Lees over evaluaties"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.wX1U3M"
+msgid "The plan figures didn't load"
+msgstr "De plancijfers zijn niet geladen"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.Q5CLtp"
+msgid "Plans"
+msgstr "Plannen"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.2atspc"
+msgid "Drafts"
+msgstr "Concepten"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.fz0z4c"
+msgid "Plan"
+msgstr "Plan"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.JX0502"
+msgid "Client"
+msgstr "Cliënt"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.fwIt1X"
+msgid "Newest"
+msgstr "Nieuwste"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.khVfqL"
+msgid "Review date"
+msgstr "Evaluatiedatum"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.9a9-ww"
+msgid "Title"
+msgstr "Titel"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.kzefVV"
+msgid "Search plans"
+msgstr "Plannen zoeken"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.32UjFX"
+msgid "The plans didn't load"
+msgstr "De plannen zijn niet geladen"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.jCxF10"
+msgid "No plans found"
+msgstr "Geen plannen gevonden"
+
+#: src/features/care-plans/components/care-plan-overview.tsx
+msgctxt "care-plans.5XU6fX"
+msgid "A plan holds a client's problems, goals and actions. Create one from the client's dossier."
+msgstr "Een plan bevat de problemen, doelen en acties van een cliënt. Maak er een vanuit het dossier van de cliënt."
 
 #: src/features/care/components/care-grids.tsx
 msgctxt "care.JX0502"
@@ -7278,6 +7433,7 @@ msgid "This client could not be loaded"
 msgstr "Deze cliënt kon niet worden geladen"
 
 #: src/features/care/components/care-sections.tsx
+#: src/features/care/components/client-dossier-summary.tsx
 #: src/features/care/components/client-dossier.tsx
 msgctxt "care.HIBQqX"
 msgid "Consents"
@@ -7339,6 +7495,32 @@ msgctxt "care.Q3wtNe"
 msgid "Back to clients"
 msgstr "Terug naar cliënten"
 
+#: src/features/care/components/client-dossier-summary.tsx
+msgctxt "care.rtjYR1"
+msgid "The dossier summary didn't load"
+msgstr "De dossiersamenvatting is niet geladen"
+
+#: src/features/care/components/client-dossier-summary.tsx
+msgctxt "care.y10hgk"
+msgid "Care plans"
+msgstr "Zorgplannen"
+
+#: src/features/care/components/client-dossier-summary.tsx
+#: src/features/care/components/client-dossier.tsx
+msgctxt "care.M_xDHn"
+msgid "Observations"
+msgstr "Observaties"
+
+#: src/features/care/components/client-dossier-summary.tsx
+msgctxt "care.v_hSPl"
+msgid "Active medication"
+msgstr "Actieve medicatie"
+
+#: src/features/care/components/client-dossier-summary.tsx
+msgctxt "care.hn8Gnl"
+msgid "Funding awards"
+msgstr "Financieringstoekenningen"
+
 #: src/features/care/components/client-dossier.tsx
 msgctxt "care.7-Domh"
 msgid "Notes"
@@ -7350,14 +7532,45 @@ msgid "Care plan"
 msgstr "Zorgplan"
 
 #: src/features/care/components/client-dossier.tsx
-msgctxt "care.M_xDHn"
-msgid "Observations"
-msgstr "Observaties"
-
-#: src/features/care/components/client-dossier.tsx
+#: src/features/care/components/prescribe-dialog.tsx
 msgctxt "care.venWl7"
 msgid "Medication"
 msgstr "Medicatie"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.g48cQe"
+msgid "Prescribe medication"
+msgstr "Medicatie voorschrijven"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.1y6KMs"
+msgid "Prescribes only while the client's consent for the purpose is active."
+msgstr "Schrijft alleen voor zolang de toestemming van de cliënt voor het doel actief is."
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.5-GhK7"
+msgid "Prescribe"
+msgstr "Voorschrijven"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.qNOsCB"
+msgid "Medication prescribed"
+msgstr "Medicatie voorgeschreven"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.rzSkHr"
+msgid "Dose"
+msgstr "Dosis"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care.hYQQ-s"
+msgid "Times of day"
+msgstr "Tijden van de dag"
+
+#: src/features/care/components/prescribe-dialog.tsx
+msgctxt "care._R2mhh"
+msgid "Consent purpose"
+msgstr "Doel van de toestemming"
 
 #: src/features/cases/components/case-board.tsx
 msgctxt "cases.Z3SH1K"
@@ -12482,100 +12695,164 @@ msgctxt "drive.qxg3uo"
 msgid "Access"
 msgstr "Toegang"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.JNXKgf"
+msgid "The prescription didn't load"
+msgstr "Het recept is niet geladen"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.W6nwjo"
 msgid "Draft"
 msgstr "Concept"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.oW2jG6"
 msgid "Signed"
 msgstr "Ondertekend"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.gcuDcH"
 msgid "Sent"
 msgstr "Verzonden"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.8yizHP"
 msgid "Dispensed"
 msgstr "Afgeleverd"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.3wsVWF"
 msgid "Cancelled"
 msgstr "Geannuleerd"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.HsKQIf"
-msgid "Not signed yet"
-msgstr "Nog niet ondertekend"
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.JX0502"
+msgid "Client"
+msgstr "Cliënt"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.Y0Ivb4"
+msgid "Prescriber"
+msgstr "Voorschrijver"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.rzSkHr"
+msgid "Dose"
+msgstr "Dosis"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.0fR-fE"
+msgid "Route"
+msgstr "Toedieningsroute"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.Y02OER"
+msgid "Draft prescription"
+msgstr "Conceptrecept"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.0Jz6eP"
+msgid "Open dossier"
+msgstr "Dossier openen"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
 msgctxt "prescriptions.gDXziV"
 msgid "Sign"
 msgstr "Ondertekenen"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.47FYwb"
-msgid "Cancel"
-msgstr "Annuleren"
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.XYHEnE"
+msgid "Prescription signed"
+msgstr "Recept ondertekend"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.vGF_zB"
+msgid "Cancel prescription"
+msgstr "Recept annuleren"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.lLtcHI"
+msgid "Prescription cancelled"
+msgstr "Recept geannuleerd"
+
+#: src/features/e-prescribing/components/prescription-detail.tsx
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.tzMNF3"
 msgid "Status"
 msgstr "Status"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.venWl7"
-msgid "Medication"
-msgstr "Medicatie"
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.2p7Yum"
+msgid "Only the prescriber signs a draft."
+msgstr "Alleen de voorschrijver ondertekent een concept."
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.7Y6Yvq"
-msgid "Record"
-msgstr "Dossier"
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.PvB0a2"
+msgid "The signed order is frozen."
+msgstr "De ondertekende order ligt vast."
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.iQpcFb"
-msgid "Only the prescriber signs a draft. A signed prescription freezes the order."
-msgstr "Alleen de voorschrijver ondertekent een concept. Een ondertekend recept legt de order vast."
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.ORwGzI"
+msgid "Cancelled: {reason}"
+msgstr "Geannuleerd: {reason}"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
+#: src/features/e-prescribing/components/prescription-detail.tsx
+msgctxt "prescriptions.s2Iaa_"
+msgid "Delivery failed"
+msgstr "Levering mislukt"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.ZZEVFq"
+msgid "The prescription figures didn't load"
+msgstr "De receptcijfers zijn niet geladen"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.wnPz9B"
+msgid "To sign"
+msgstr "Te ondertekenen"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.H-xNy4"
+msgid "Prescription"
+msgstr "Recept"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.fwIt1X"
+msgid "Newest"
+msgstr "Nieuwste"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.YCDASG"
+msgid "Recently signed"
+msgstr "Recent ondertekend"
+
+#: src/features/e-prescribing/components/prescription-overview.tsx
 msgctxt "prescriptions.kbuBjj"
 msgid "The prescriptions didn't load"
 msgstr "De recepten zijn niet geladen"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.WXr9SM"
+msgid "No prescriptions found"
+msgstr "Geen recepten gevonden"
 
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.nnyot-"
-msgid "No prescriptions"
-msgstr "Geen recepten"
-
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.3UeTGC"
-msgid "Draft a prescription from an active medication order, then sign it."
-msgstr "Maak een concept van een actieve medicatieorder en onderteken het."
-
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.1A8Z_l"
-msgid "Check again"
-msgstr "Opnieuw controleren"
-
-#: src/features/e-prescribing/components/prescriptions.tsx
-msgctxt "prescriptions.BYSae4"
-msgid "Read the e-prescribing guide"
-msgstr "Lees de gids voor e-voorschrijven"
+#: src/features/e-prescribing/components/prescription-overview.tsx
+msgctxt "prescriptions.4hali2"
+msgid "A prescriber signs a draft, then a gateway sends it to the pharmacy. Prescribe from a client's medication tab."
+msgstr "Een voorschrijver ondertekent een concept, daarna stuurt een gateway het naar de apotheek. Schrijf voor via het tabblad Medicatie van een cliënt."
 
 #: src/features/encryption/components/encrypted-fields.tsx
 msgctxt "encryption.ewQ6Ty"

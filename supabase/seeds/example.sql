@@ -695,3 +695,40 @@ insert into better_supabase.content_entries (id, tenant_id, type, locale, slug, 
   ('00000000-0000-4000-8000-0000000d0002', '00000000-0000-4000-8000-000000000001', 'page', 'en', 'pricing', 'Pricing', 'Plans and what each one includes.', '{"blocks": [{"type": "paragraph", "text": "Pricing."}]}', 'scheduled', now() + interval '5 days', null, '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1'),
   ('00000000-0000-4000-8000-0000000d0003', '00000000-0000-4000-8000-000000000001', 'post', 'en', 'summer-roadmap', 'Summer roadmap', 'What comes next.', '{"blocks": [{"type": "paragraph", "text": "Summer roadmap."}]}', 'draft', null, null, '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1')
 on conflict do nothing;
+
+-- The care story: two clients, a medication consent for the first only, a published
+-- care plan with a problem and a goal, and a prescribed medication with a draft prescription.
+select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a1"}', false);
+
+insert into public.customers (id, organization_id, name, status) values
+  ('00000000-0000-4000-8000-0000000ca001', '00000000-0000-4000-8000-000000000001', 'Noor Haddad', 'active'),
+  ('00000000-0000-4000-8000-0000000ca002', '00000000-0000-4000-8000-000000000001', 'Jan de Vries', 'active')
+on conflict do nothing;
+
+select better_supabase.save_consent_purpose('00000000-0000-4000-8000-000000000001', 'medication', 'Medication records', '1', 'Records and shares the medication chart of the client.', 'consent');
+select better_supabase.record_consent('customer', '00000000-0000-4000-8000-0000000ca001', 'medication', 'granted');
+
+select better_supabase.save_medication('00000000-0000-4000-8000-000000000001', 'Paracetamol', 'mg', 'custom', null, 'tablet', '500 mg');
+select better_supabase.save_medication('00000000-0000-4000-8000-000000000001', 'Ibuprofen', 'mg', 'custom', null, 'tablet', '400 mg');
+
+with plan as (
+  select better_supabase.create_care_plan('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+    'subjectType', 'customer', 'subjectId', '00000000-0000-4000-8000-0000000ca001',
+    'title', 'Mobility and pain plan', 'startsOn', current_date::text, 'reviewOn', (current_date + 42)::text)) as row
+), problem as (
+  select better_supabase.add_care_plan_problem((plan.row ->> 'id')::uuid, jsonb_build_object('title', 'Pain when walking', 'codeSystem', 'custom')) as row, plan.row as plan_row from plan
+), goal as (
+  select better_supabase.add_care_plan_goal((problem.row ->> 'id')::uuid, jsonb_build_object('title', 'Walk to the garden without pain')) as row, problem.plan_row from problem
+)
+select better_supabase.publish_care_plan((goal.plan_row ->> 'id')::uuid) from goal;
+
+with med as (
+  select id from better_supabase.medications where tenant_id = '00000000-0000-4000-8000-000000000001' and name = 'Paracetamol' limit 1
+), ordered as (
+  select better_supabase.prescribe_medication('00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-0000000ca001', med.id,
+    jsonb_build_object('dose', 500, 'route', 'oral', 'schedule', jsonb_build_object('times', jsonb_build_array('08:00', '20:00')))) as row from med
+)
+select better_supabase.create_prescription('00000000-0000-4000-8000-000000000001', (ordered.row ->> 'id')::uuid, jsonb_build_object('prescriberId', '00000000-0000-4000-8000-0000000000a1', 'prescriberName', 'Dr Kim'))
+from ordered;
+
+select set_config('request.jwt.claims', '', false);

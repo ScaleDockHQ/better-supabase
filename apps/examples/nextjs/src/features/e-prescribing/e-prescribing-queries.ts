@@ -1,61 +1,80 @@
 import "server-only";
-import { tenantOf } from "better-supabase/next";
-import { unstable_rethrow } from "next/navigation";
+import type { PrescriptionStatus } from "better-supabase/blocks/e-prescribing";
 
+import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
+
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { orMissing } from "@/lib/or-missing";
 import { bsb } from "@/lib/supabase/server";
 
-export type Loaded<T> =
-  | { readonly kind: "ok"; readonly data: T }
-  | { readonly kind: "error" }
-  | { readonly kind: "no-organization" };
+import { PRESCRIPTIONS_TAG } from "./e-prescribing-cache";
+
+/** One prescription for its page, serializable. */
+export interface PrescriptionDetail {
+  readonly id: string;
+  readonly status: PrescriptionStatus;
+  readonly clientId: string | null;
+  readonly clientName: string | null;
+  readonly medication: string | null;
+  readonly dose: string | null;
+  readonly route: string | null;
+  readonly prescriber: string | null;
+  readonly signedAt: string | null;
+  readonly sentAt: string | null;
+  readonly dispensedAt: string | null;
+  readonly cancelReason: string | null;
+  readonly deliveryError: string | null;
+}
 
 /**
- * A failed read becomes `{ kind: "error" }` and is never cached, so Retry reads
- * again.
+ * The prescription; `undefined` when it does not exist, `null` without an
+ * organization.
  */
-async function settle<T>(load: () => Promise<T | null>): Promise<Loaded<T>> {
-  try {
-    const data = await load();
-
-    return data === null ? { kind: "no-organization" } : { kind: "ok", data };
-  } catch (error) {
-    unstable_rethrow(error);
-
-    return { kind: "error" };
-  }
-}
-
-/** A prescription as the list shows it, serializable. */
-export interface PrescriptionRow {
-  readonly id: string;
-  readonly subject: string;
-  readonly medication: string | null;
-  readonly status: "draft" | "signed" | "sent" | "dispensed" | "cancelled";
-  readonly prescriberId: string;
-}
-
-async function loadPrescriptions(): Promise<readonly PrescriptionRow[] | null> {
+export async function loadPrescription(
+  id: string,
+): Promise<PrescriptionDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(PRESCRIPTIONS_TAG, CUSTOMERS_TAG);
 
   if (!tenantOf(session)) {
     return null;
   }
 
-  const prescriptions = await db.ePrescribing.list({ limit: 100 }).orThrow();
+  const prescription = orMissing(await db.ePrescribing.get(id));
 
-  return prescriptions.map((prescription) => ({
+  if (prescription === undefined) {
+    return undefined;
+  }
+
+  const isClient = prescription.subject.type === "customer";
+
+  const [client] = isClient
+    ? await db.customers
+        .list({
+          select: ["id", "name"],
+          where: { id: prescription.subject.id },
+          limit: 1,
+        })
+        .orThrow()
+    : [];
+
+  const { order } = prescription;
+
+  return {
     id: prescription.id,
-    subject: `${prescription.subject.type} ${prescription.subject.id.slice(0, 8)}`,
-    medication: prescription.order?.medicationName ?? null,
     status: prescription.status,
-    prescriberId: prescription.prescriberId,
-  }));
-}
-
-/** The organization's prescriptions, newest first. */
-export function getPrescriptions(): Promise<
-  Loaded<readonly PrescriptionRow[]>
-> {
-  return settle(loadPrescriptions);
+    clientId: isClient ? prescription.subject.id : null,
+    clientName: client?.name ?? null,
+    medication: order?.medicationName ?? null,
+    dose: order ? `${order.dose} ${order.doseUnit}` : null,
+    route: order?.route ?? null,
+    prescriber: prescription.prescriberName ?? null,
+    signedAt: prescription.signedAt?.toString() ?? null,
+    sentAt: prescription.sentAt?.toString() ?? null,
+    dispensedAt: prescription.dispensedAt?.toString() ?? null,
+    cancelReason: prescription.cancelReason ?? null,
+    deliveryError: prescription.deliveryError ?? null,
+  };
 }
