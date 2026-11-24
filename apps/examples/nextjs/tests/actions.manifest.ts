@@ -128,6 +128,18 @@ export const ACTIONS: readonly ActionCase[] = [
   write(COMPOSITES, "exportRecordSubject", "/risks", async () => [
     { subjectType: "risk", subjectId: await firstRowId("risks") },
   ]),
+  write(
+    COMPOSITES,
+    "approveAndInvoiceTimesheet",
+    "/projects/portfolio",
+    async () => [{ timesheetId: MISSING_ID }],
+  ),
+  write(COMPOSITES, "shareDriveWithRoles", "/drive", async () => [
+    { id: MISSING_ID, roles: ["member"], role: "viewer" },
+  ]),
+  write(COMPOSITES, "createPublicLink", "/drive", async () => [
+    { id: MISSING_ID, days: 7 },
+  ]),
   write(COMPOSITES, "reconcileAccount", "/banking/accounts", async () => [
     { accountId: await firstRowId("bank_accounts") },
   ]),

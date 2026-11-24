@@ -130,7 +130,7 @@ export const AREAS: readonly Area[] = [
       { label: "Approvals", route: "/approvals" },
       { label: "Billing", route: "/finance" },
     ],
-    actions: [],
+    actions: ["approveAndInvoiceTimesheet"],
   },
   {
     id: "people",
@@ -162,7 +162,7 @@ export const AREAS: readonly Area[] = [
       { label: "Drive", route: "/drive" },
       { label: "Meetings", route: "/meetings" },
     ],
-    actions: [],
+    actions: ["shareDriveWithRoles", "createPublicLink"],
   },
   {
     id: "care",

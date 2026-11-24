@@ -19,7 +19,12 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { requirePermission } from "@/features/sales/components/overview-support";
+import { approveAndInvoiceTimesheet } from "@/features/composites/composites-actions";
+import { ActionButton } from "@/features/sales/components/action-button";
+import {
+  holds,
+  requirePermission,
+} from "@/features/sales/components/overview-support";
 
 import { loadPortfolio } from "../projects-finance";
 import { ProjectLoadError } from "./project-load-error";
@@ -57,6 +62,7 @@ export async function ProjectPortfolio() {
   }
 
   const { portfolio } = loaded;
+  const canApprove = await holds("time_entries.approve");
 
   if (portfolio === null) {
     return null;
@@ -130,6 +136,44 @@ export async function ProjectPortfolio() {
                     {" · "}
                     {formatMoney(row.budget, locale)}
                   </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Time awaiting approval")}</CardTitle>
+          <CardDescription>
+            {t(
+              "Approve a submitted week and invoice the unbilled time in one step.",
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {portfolio.awaiting.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t("No submitted week is waiting for approval.")}
+            </p>
+          ) : (
+            <ul className="flex flex-col divide-y">
+              {portfolio.awaiting.map((sheet) => (
+                <li
+                  key={sheet.id}
+                  className="flex items-center justify-between gap-3 py-2"
+                >
+                  <span className="text-sm">
+                    {t("Week of {week}", { week: sheet.week })}
+                  </span>
+                  {canApprove ? (
+                    <ActionButton
+                      action={approveAndInvoiceTimesheet}
+                      input={{ timesheetId: sheet.id }}
+                      label={t("Approve and invoice")}
+                      successMessage={t("Week approved and invoiced")}
+                    />
+                  ) : null}
                 </li>
               ))}
             </ul>

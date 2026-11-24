@@ -16,7 +16,9 @@ import { CASES_TAG } from "@/features/cases/cases-cache";
 import { COURSES_TAG } from "@/features/courses/courses-cache";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { driveOf } from "@/features/drive/drive-client";
+import { DRIVE_ROLES } from "@/features/drive/drive-roles";
 import { FIELD_TAG } from "@/features/field/field-cache";
 import { FINANCE_RECORDS_TAG } from "@/features/finance-records/finance-records-cache";
 import { MAINTENANCE_TAG } from "@/features/maintenance/maintenance-cache";
@@ -27,6 +29,7 @@ import { PROJECTS_TAG } from "@/features/projects/projects-cache";
 import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { present } from "@/lib/present";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { blockSet } from "@/lib/supabase";
 import { bsb } from "@/lib/supabase/server";
 
 import {
@@ -100,6 +103,46 @@ export const createPublicLink = bsb.action(
     }
 
     return ok({ token: link.data.token });
+  },
+);
+
+/**
+ * Shares a drive item with each of the given membership roles and reports per
+ * role: `filespace.bulkShare`. A refused role lands in `failed` and the others
+ * still run.
+ */
+export const shareDriveWithRoles = bsb.action(
+  {
+    input: v.object({
+      id: Id,
+      roles: v.pipe(
+        v.array(v.pipe(v.string(), v.minLength(1))),
+        v.minLength(1),
+      ),
+      role: v.picklist(DRIVE_ROLES),
+    }),
+    requireTenant: true,
+    permission: "drive.read",
+  },
+  async ({ id, roles, role }, { db, auth }) => {
+    const report = await filespaceOf(db, driveOf(db)).bulkShare({
+      id,
+      principals: roles.map((each) => ({
+        principal: { type: "role", id: each },
+        role,
+      })),
+    });
+
+    if (!report.ok) {
+      return report;
+    }
+
+    await refreshCaller(auth, [DRIVE_TAG]);
+
+    return ok({
+      shared: report.data.succeeded.length,
+      failed: report.data.failed.length,
+    });
   },
 );
 
@@ -210,7 +253,13 @@ export const inviteWithinSeats = bsb.action(
       return err(dbError("invalid_request", "The plan has no seat left"));
     }
 
-    const sent = await db.$blocks.organizations.invite({
+    // `metering` applies the `seats` limit the organizations manifest declares
+    // for `invite` (the `meter` port): a used-up quota returns `quota_exceeded`.
+    const organizations = blockSet.client(db, "organizations", {
+      metering: true,
+    });
+
+    const sent = await organizations.invite({
       organizationId: tenant,
       email,
       role,
@@ -322,6 +371,38 @@ export const weekUtilization = bsb.action(
         billableUtilization: member.billableUtilization,
       })),
     );
+  },
+);
+
+/**
+ * Approves a submitted week and invoices the unbilled time:
+ * `projects.approveAndInvoice`. A refused approval invoices nothing.
+ */
+export const approveAndInvoiceTimesheet = bsb.action(
+  {
+    input: v.object({
+      timesheetId: Id,
+      title: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(120))),
+    }),
+    requireTenant: true,
+    permission: "time_entries.approve",
+  },
+  async ({ timesheetId, title }, { db, auth }) => {
+    const done = await projectsOf(db).approveAndInvoice({
+      timesheetId,
+      invoice: title === undefined || title === "" ? undefined : { title },
+    });
+
+    if (!done.ok) {
+      return done;
+    }
+
+    await refreshCaller(auth, [PROJECTS_TAG, FINANCE_RECORDS_TAG]);
+
+    return ok({
+      timesheetId: done.data.timesheet.id ?? timesheetId,
+      invoiceId: done.data.invoice.invoiceId,
+    });
   },
 );
 
