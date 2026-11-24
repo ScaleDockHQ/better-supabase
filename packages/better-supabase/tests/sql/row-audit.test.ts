@@ -47,6 +47,18 @@ describe("row audit of block tables", () => {
     );
   });
 
+  it("leaves the tables of a module with audit false alone", () => {
+    const sql = renderBlocks(["audit", "tasks"], {
+      modules: { tasks: { audit: false } },
+    })
+      .filter((file) => file.module === "tasks")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).not.toContain("trigger bsb_audit");
+    expect(sql).not.toContain("better_supabase.audit(");
+  });
+
   it("leaves a table the app already has to the app's own triggers", () => {
     const sql = renderBlocks(["audit", "tags"], {
       appTables: { tags: {} },

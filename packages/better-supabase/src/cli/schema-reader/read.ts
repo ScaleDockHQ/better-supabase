@@ -28,7 +28,7 @@ import type {
 import type { Source } from "./source.ts";
 
 import { bodyOf, list, obj, str, strings, unwrap } from "./ast.ts";
-import { auditCalls, auditTrigger } from "./audit-facts.ts";
+import { auditCalls, auditTrigger, doBlockDrops } from "./audit-facts.ts";
 import { commentOf } from "./comment-facts.ts";
 import { parenthesized, topLevelParts } from "./source.ts";
 import { TRIGGER_EVENTS, callsOf, hasBit, timingOf } from "./trigger-facts.ts";
@@ -899,11 +899,17 @@ export function factsFrom(
         drops.push(...dropped);
 
         audits.push(
-          ...dropped.flatMap((drop): AuditFact[] =>
-            drop.kind === "table"
-              ? [{ kind: "drop", target: drop.name, index }]
-              : [],
-          ),
+          ...dropped.flatMap((drop): AuditFact[] => {
+            if (drop.kind === "table") {
+              return [{ kind: "drop", target: drop.name, index }];
+            }
+
+            const trigger = /^(.+)\.(?:bsb_audit|bs_audit)$/.exec(drop.name);
+
+            return drop.kind === "trigger" && trigger !== null
+              ? [{ kind: "unregister", target: trigger[1]!, index }]
+              : [];
+          }),
         );
 
         break;
@@ -1116,6 +1122,8 @@ export function factsFrom(
         if (DO_CREATES.test(code.join(" "))) {
           doCreates.push(line);
         }
+
+        audits.push(...doBlockDrops(code.join("\n"), context.schema, index));
 
         break;
       }

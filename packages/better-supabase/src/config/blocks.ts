@@ -307,8 +307,9 @@ export interface BlockConfig<
    */
   readonly events?: boolean | { readonly payload?: EventPayloadColumns };
   /**
-   * Whether the module writes its actions to the audit log (`audit_event`) when
-   * the `audit` module is installed. Defaults to true.
+   * Whether the module writes its actions to the audit log (`audit_event`) and
+   * gets row audit triggers on its tables when the `audit` module is installed.
+   * Defaults to true.
    */
   readonly audit?: boolean;
   /**
