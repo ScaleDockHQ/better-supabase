@@ -169,7 +169,7 @@ export function createNext<
   } = proxyRuntime(betterSupabase, options);
 
   const recording = requestRecording(collector);
-  const { statsForId, statsForHandle, recordOn } = recording;
+  const { statsForId, statsForHandle, recordOn, missed } = recording;
 
   const statsFor = (request: Request): ContextOptions =>
     statsForId(collector && requestIdOf(request.headers));
@@ -580,6 +580,7 @@ export function createNext<
     tenant: string | undefined,
     entry: CachedOptions,
   ): void => {
+    missed(scope, entry);
     applyCacheEntry({
       ctx,
       view,

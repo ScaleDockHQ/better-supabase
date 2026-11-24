@@ -31,9 +31,17 @@ export interface DbStats {
  * instance ran; `fillMs` is the time the fill took on a miss.
  */
 export interface CacheEntryStat {
-  /** The kept function's `name`, or the remote function's name. */
+  /**
+   * The kept function's `name`, the remote function's name, or for a private or
+   * public entry its first table or tag.
+   */
   readonly id: string;
-  readonly kind: "remote" | "kept";
+  /**
+   * `private` and `public` entries (`bsb.cached()` and `bsb.public()`) record
+   * only a miss, when the wrapped body runs; a hit never runs it, so the
+   * harness counts hits as visits minus misses.
+   */
+  readonly kind: "remote" | "kept" | "private" | "public";
   readonly outcome: "hit" | "miss" | "stale" | "wait";
   readonly fillMs?: number;
 }
