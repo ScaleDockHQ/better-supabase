@@ -757,6 +757,11 @@ msgctxt "dam.NZSq_3"
 msgid "Who may use your files, where, and until when."
 msgstr "Wie uw bestanden mag gebruiken, waar en tot wanneer."
 
+#: src/app/[locale]/(app)/deadlines/[id]/page.tsx
+msgctxt "work.FPdA2f"
+msgid "All deadlines"
+msgstr "Alle deadlines"
+
 #: src/app/[locale]/(app)/deadlines/page.tsx
 msgctxt "work.SxEfhc"
 msgid "Deadlines"
@@ -774,6 +779,7 @@ msgid "All documents"
 msgstr "Alle documenten"
 
 #: src/app/[locale]/(app)/documents/page.tsx
+#: src/features/documents/components/documents-overview.tsx
 msgctxt "documents.vBlT6y"
 msgid "Documents"
 msgstr "Documenten"
@@ -1161,6 +1167,11 @@ msgstr "Medicatie"
 msgctxt "medications.ydg6xP"
 msgid "Today's medication chart: what each order gives and which doses are given, refused or missed."
 msgstr "Het medicatieoverzicht van vandaag: wat elk voorschrift geeft en welke doses gegeven, geweigerd of gemist zijn."
+
+#: src/app/[locale]/(app)/meetings/[id]/page.tsx
+msgctxt "meetings.eIYVw5"
+msgid "All meetings"
+msgstr "Alle vergaderingen"
 
 #: src/app/[locale]/(app)/meetings/page.tsx
 #: src/features/meetings/components/meeting-agenda.tsx
@@ -11859,6 +11870,7 @@ msgid "Done"
 msgstr "Klaar"
 
 #: src/features/deadlines/components/deadline-badges.tsx
+#: src/features/deadlines/components/deadline-detail.tsx
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.g9pEhE"
 msgid "Due"
@@ -11869,15 +11881,73 @@ msgctxt "work.5jeq8P"
 msgid "Unknown"
 msgstr "Onbekend"
 
-#: src/features/deadlines/components/deadline-overview.tsx
-msgctxt "work.BsCAMY"
-msgid "Deadlines didn't load"
-msgstr "De deadlines zijn niet geladen"
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.ZnUPBp"
+msgid "{group} in {jurisdiction}"
+msgstr "{group} in {jurisdiction}"
 
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/deadlines/components/deadline-detail.tsx
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.065UXh"
 msgid "No date"
 msgstr "Geen datum"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.ZpQ6us"
+msgid "Result"
+msgstr "Resultaat"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.RGfEbk"
+msgid "Evaluated on"
+msgstr "Beoordeeld op"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.XTdAcD"
+msgid "Rule"
+msgstr "Regel"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.7Y6Yvq"
+msgid "Record"
+msgstr "Dossier"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.wxw8HK"
+msgid "Citation"
+msgstr "Bronvermelding"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.7_uozC"
+msgid "Open questions"
+msgstr "Openstaande vragen"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.B0H4HM"
+msgid "A missing answer could still change this date."
+msgstr "Een ontbrekend antwoord kan deze datum nog wijzigen."
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.u841Br"
+msgid "Nothing can change this date."
+msgstr "Niets kan deze datum nog wijzigen."
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.J2U3Ow"
+msgid "Every fact the rule asks is known."
+msgstr "Alle gegevens die de regel vraagt zijn bekend."
+
+#: src/features/deadlines/components/deadline-overview.tsx
+msgctxt "work.BsCAMY"
+msgid "Deadlines didn't load"
+msgstr "De deadlines zijn niet geladen"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.9BRK8k"
@@ -11885,11 +11955,13 @@ msgid "provisional"
 msgstr "voorlopig"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
+#: src/features/deadlines/components/mark-deadline-done.tsx
 msgctxt "work.yjcwJc"
 msgid "Deadline marked done"
 msgstr "Deadline als afgerond gemarkeerd"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
+#: src/features/deadlines/components/mark-deadline-done.tsx
 msgctxt "work.tQpQon"
 msgid "Mark done"
 msgstr "Afronden"
@@ -11903,16 +11975,6 @@ msgstr "Deadline"
 msgctxt "work.HpoDwk"
 msgid "Group"
 msgstr "Groep"
-
-#: src/features/deadlines/components/deadline-record-list.tsx
-msgctxt "work.7Y6Yvq"
-msgid "Record"
-msgstr "Dossier"
-
-#: src/features/deadlines/components/deadline-record-list.tsx
-msgctxt "work.ZpQ6us"
-msgid "Result"
-msgstr "Resultaat"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
 #: src/features/work/components/work-item-grid.tsx
@@ -12371,6 +12433,31 @@ msgstr "Naar klanten"
 msgctxt "documents.PeEood"
 msgid "Customer updated"
 msgstr "Klant bijgewerkt"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.bhKIeh"
+msgid "One notes document per customer"
+msgstr "Eén notitiedocument per klant"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.I3JeAb"
+msgid "Edited in the last week"
+msgstr "Bewerkt in de afgelopen week"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.0a-4L_"
+msgid "Counted back from the latest edit"
+msgstr "Geteld vanaf de laatste bewerking"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.U7YmWe"
+msgid "Latest edit"
+msgstr "Laatste bewerking"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.FFUSSK"
+msgid "Of any document"
+msgstr "Van alle documenten"
 
 #: src/features/domains/components/domain-controls.tsx
 msgctxt "domains.NBobyu"
@@ -12884,6 +12971,16 @@ msgid "Downloads of {name} are allowed"
 msgstr "Downloads van {name} zijn toegestaan"
 
 #: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.N5riU8"
+msgid "Public link for {name} copied (valid for 7 days)"
+msgstr "Openbare link voor {name} gekopieerd (7 dagen geldig)"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.PySD5Q"
+msgid "Shared {name} with {shared} roles, {failed} refused"
+msgstr "{name} gedeeld met {shared} rollen, {failed} geweigerd"
+
+#: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.icI5MO"
 msgid "Actions for {name}"
 msgstr "Acties voor {name}"
@@ -12928,6 +13025,16 @@ msgstr "Naam wijzigen"
 msgctxt "drive.OKhRC6"
 msgid "Share"
 msgstr "Delen"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.nl3NW_"
+msgid "Share with members and admins"
+msgstr "Delen met leden en beheerders"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.kDdfK_"
+msgid "Copy public link"
+msgstr "Openbare link kopiëren"
 
 #: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.7uRmpM"
@@ -25172,6 +25279,36 @@ msgctxt "projects.dxuPgK"
 msgid "{hours} h tracked, {billable} h billable"
 msgstr "{hours} u geregistreerd, {billable} u factureerbaar"
 
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.5NRfCE"
+msgid "Time awaiting approval"
+msgstr "Uren die op goedkeuring wachten"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.Pb0ZlE"
+msgid "Approve a submitted week and invoice the unbilled time in one step."
+msgstr "Keur een ingediende week goed en factureer de nog niet gefactureerde uren in één stap."
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.y67OJt"
+msgid "No submitted week is waiting for approval."
+msgstr "Er wacht geen ingediende week op goedkeuring."
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.097bWr"
+msgid "Week of {week}"
+msgstr "Week van {week}"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.PuMdgs"
+msgid "Approve and invoice"
+msgstr "Goedkeuren en factureren"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.Rg9Z_g"
+msgid "Week approved and invoiced"
+msgstr "Week goedgekeurd en gefactureerd"
+
 #: src/features/projects/components/project-time-card.tsx
 msgctxt "projects.CeHomx"
 msgid "Time and budget"
@@ -26214,17 +26351,17 @@ msgstr "Annuleren"
 #: src/features/records/components/record-conversations.tsx
 msgctxt "records.1udzha"
 msgid "Conversations"
-msgstr ""
+msgstr "Gesprekken"
 
 #: src/features/records/components/record-conversations.tsx
 msgctxt "records.SKoJhi"
 msgid "Threads of the people linked to this record."
-msgstr ""
+msgstr "Gesprekken van de mensen die aan dit dossier gekoppeld zijn."
 
 #: src/features/records/components/record-conversations.tsx
 msgctxt "records.K3msCw"
 msgid "No conversation yet."
-msgstr ""
+msgstr "Nog geen gesprek."
 
 #: src/features/records/components/record-sections.tsx
 msgctxt "records.wCgTu5"
@@ -26309,17 +26446,17 @@ msgstr "{minutes} min ervoor"
 #: src/features/records/components/record-tasks.tsx
 msgctxt "records.yhU1et"
 msgid "Tasks"
-msgstr ""
+msgstr "Taken"
 
 #: src/features/records/components/record-tasks.tsx
 msgctxt "records.kXx2XK"
 msgid "Work linked to this record."
-msgstr ""
+msgstr "Werk dat aan dit dossier gekoppeld is."
 
 #: src/features/records/components/record-tasks.tsx
 msgctxt "records.rNMhN-"
 msgid "No task is linked to this record."
-msgstr ""
+msgstr "Er is geen taak aan dit dossier gekoppeld."
 
 #: src/features/records/components/record-timeline.tsx
 msgctxt "records.LgbKvU"
@@ -26374,17 +26511,17 @@ msgstr "Iemand"
 #: src/features/records/components/record-workflows.tsx
 msgctxt "records.qq5vr2"
 msgid "Workflow progress"
-msgstr ""
+msgstr "Voortgang van workflows"
 
 #: src/features/records/components/record-workflows.tsx
 msgctxt "records.X6V2eS"
 msgid "Runs started for this record."
-msgstr ""
+msgstr "Runs die voor dit dossier gestart zijn."
 
 #: src/features/records/components/record-workflows.tsx
 msgctxt "records.SbfMf4"
 msgid "No workflow has run for this record."
-msgstr ""
+msgstr "Er is geen workflow voor dit dossier uitgevoerd."
 
 #: src/features/records/components/related-items-panel.tsx
 msgctxt "records.ec6yww"

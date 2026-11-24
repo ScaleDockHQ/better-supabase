@@ -757,6 +757,11 @@ msgctxt "dam.NZSq_3"
 msgid "Who may use your files, where, and until when."
 msgstr "Who may use your files, where, and until when."
 
+#: src/app/[locale]/(app)/deadlines/[id]/page.tsx
+msgctxt "work.FPdA2f"
+msgid "All deadlines"
+msgstr "All deadlines"
+
 #: src/app/[locale]/(app)/deadlines/page.tsx
 msgctxt "work.SxEfhc"
 msgid "Deadlines"
@@ -774,6 +779,7 @@ msgid "All documents"
 msgstr "All documents"
 
 #: src/app/[locale]/(app)/documents/page.tsx
+#: src/features/documents/components/documents-overview.tsx
 msgctxt "documents.vBlT6y"
 msgid "Documents"
 msgstr "Documents"
@@ -1161,6 +1167,11 @@ msgstr "Medications"
 msgctxt "medications.ydg6xP"
 msgid "Today's medication chart: what each order gives and which doses are given, refused or missed."
 msgstr "Today's medication chart: what each order gives and which doses are given, refused or missed."
+
+#: src/app/[locale]/(app)/meetings/[id]/page.tsx
+msgctxt "meetings.eIYVw5"
+msgid "All meetings"
+msgstr "All meetings"
 
 #: src/app/[locale]/(app)/meetings/page.tsx
 #: src/features/meetings/components/meeting-agenda.tsx
@@ -11859,6 +11870,7 @@ msgid "Done"
 msgstr "Done"
 
 #: src/features/deadlines/components/deadline-badges.tsx
+#: src/features/deadlines/components/deadline-detail.tsx
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.g9pEhE"
 msgid "Due"
@@ -11869,15 +11881,73 @@ msgctxt "work.5jeq8P"
 msgid "Unknown"
 msgstr "Unknown"
 
-#: src/features/deadlines/components/deadline-overview.tsx
-msgctxt "work.BsCAMY"
-msgid "Deadlines didn't load"
-msgstr "Deadlines didn't load"
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.ZnUPBp"
+msgid "{group} in {jurisdiction}"
+msgstr "{group} in {jurisdiction}"
 
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/deadlines/components/deadline-detail.tsx
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.065UXh"
 msgid "No date"
 msgstr "No date"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.ZpQ6us"
+msgid "Result"
+msgstr "Result"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.RGfEbk"
+msgid "Evaluated on"
+msgstr "Evaluated on"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.XTdAcD"
+msgid "Rule"
+msgstr "Rule"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.7Y6Yvq"
+msgid "Record"
+msgstr "Record"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.wxw8HK"
+msgid "Citation"
+msgstr "Citation"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.7_uozC"
+msgid "Open questions"
+msgstr "Open questions"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.B0H4HM"
+msgid "A missing answer could still change this date."
+msgstr "A missing answer could still change this date."
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.u841Br"
+msgid "Nothing can change this date."
+msgstr "Nothing can change this date."
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.J2U3Ow"
+msgid "Every fact the rule asks is known."
+msgstr "Every fact the rule asks is known."
+
+#: src/features/deadlines/components/deadline-overview.tsx
+msgctxt "work.BsCAMY"
+msgid "Deadlines didn't load"
+msgstr "Deadlines didn't load"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.9BRK8k"
@@ -11885,11 +11955,13 @@ msgid "provisional"
 msgstr "provisional"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
+#: src/features/deadlines/components/mark-deadline-done.tsx
 msgctxt "work.yjcwJc"
 msgid "Deadline marked done"
 msgstr "Deadline marked done"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
+#: src/features/deadlines/components/mark-deadline-done.tsx
 msgctxt "work.tQpQon"
 msgid "Mark done"
 msgstr "Mark done"
@@ -11903,16 +11975,6 @@ msgstr "Deadline"
 msgctxt "work.HpoDwk"
 msgid "Group"
 msgstr "Group"
-
-#: src/features/deadlines/components/deadline-record-list.tsx
-msgctxt "work.7Y6Yvq"
-msgid "Record"
-msgstr "Record"
-
-#: src/features/deadlines/components/deadline-record-list.tsx
-msgctxt "work.ZpQ6us"
-msgid "Result"
-msgstr "Result"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
 #: src/features/work/components/work-item-grid.tsx
@@ -12371,6 +12433,31 @@ msgstr "Go to customers"
 msgctxt "documents.PeEood"
 msgid "Customer updated"
 msgstr "Customer updated"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.bhKIeh"
+msgid "One notes document per customer"
+msgstr "One notes document per customer"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.I3JeAb"
+msgid "Edited in the last week"
+msgstr "Edited in the last week"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.0a-4L_"
+msgid "Counted back from the latest edit"
+msgstr "Counted back from the latest edit"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.U7YmWe"
+msgid "Latest edit"
+msgstr "Latest edit"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.FFUSSK"
+msgid "Of any document"
+msgstr "Of any document"
 
 #: src/features/domains/components/domain-controls.tsx
 msgctxt "domains.NBobyu"
@@ -12884,6 +12971,16 @@ msgid "Downloads of {name} are allowed"
 msgstr "Downloads of {name} are allowed"
 
 #: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.N5riU8"
+msgid "Public link for {name} copied (valid for 7 days)"
+msgstr "Public link for {name} copied (valid for 7 days)"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.PySD5Q"
+msgid "Shared {name} with {shared} roles, {failed} refused"
+msgstr "Shared {name} with {shared} roles, {failed} refused"
+
+#: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.icI5MO"
 msgid "Actions for {name}"
 msgstr "Actions for {name}"
@@ -12928,6 +13025,16 @@ msgstr "Rename"
 msgctxt "drive.OKhRC6"
 msgid "Share"
 msgstr "Share"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.nl3NW_"
+msgid "Share with members and admins"
+msgstr "Share with members and admins"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.kDdfK_"
+msgid "Copy public link"
+msgstr "Copy public link"
 
 #: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.7uRmpM"
@@ -25171,6 +25278,36 @@ msgstr "Create one from the task views."
 msgctxt "projects.dxuPgK"
 msgid "{hours} h tracked, {billable} h billable"
 msgstr "{hours} h tracked, {billable} h billable"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.5NRfCE"
+msgid "Time awaiting approval"
+msgstr "Time awaiting approval"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.Pb0ZlE"
+msgid "Approve a submitted week and invoice the unbilled time in one step."
+msgstr "Approve a submitted week and invoice the unbilled time in one step."
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.y67OJt"
+msgid "No submitted week is waiting for approval."
+msgstr "No submitted week is waiting for approval."
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.097bWr"
+msgid "Week of {week}"
+msgstr "Week of {week}"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.PuMdgs"
+msgid "Approve and invoice"
+msgstr "Approve and invoice"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.Rg9Z_g"
+msgid "Week approved and invoiced"
+msgstr "Week approved and invoiced"
 
 #: src/features/projects/components/project-time-card.tsx
 msgctxt "projects.CeHomx"
