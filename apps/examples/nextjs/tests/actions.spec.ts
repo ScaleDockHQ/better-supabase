@@ -1,11 +1,11 @@
+import type { DbStats } from "better-supabase";
+
 /* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
    come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
 /* oxlint-disable vitest/prefer-each -- Playwright has no test.each; the loop
    generates one case per action of the manifest (1 finding). */
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
-
-import type { DbStats } from "../../../../packages/better-supabase/src/core/stats.ts";
 
 import { ACTIONS } from "./actions.manifest";
 import { perfUser, recordPerf, signIn } from "./support/example-session";

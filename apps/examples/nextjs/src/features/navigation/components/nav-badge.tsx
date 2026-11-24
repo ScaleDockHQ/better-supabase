@@ -28,6 +28,7 @@ async function pendingApprovals(): Promise<number> {
  * The count badge of the approvals entry. Render it inside `<Suspense>` with no
  * fallback: the entry is stable chrome and the number is the only value.
  */
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function ApprovalsNavBadge() {
   const count = await pendingApprovals();
 

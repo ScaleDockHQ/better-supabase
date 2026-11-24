@@ -5,7 +5,7 @@ import { cacheTag } from "next/cache";
 import { getMembers } from "@/features/organization/organization-queries";
 import { bsb } from "@/lib/supabase/server";
 
-import { COURSES_TAG } from "./courses-cache";
+import { COURSES_TAG } from "../courses-cache";
 
 export interface LearnerRow {
   readonly userId: string;

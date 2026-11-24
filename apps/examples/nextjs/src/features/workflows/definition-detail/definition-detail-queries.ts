@@ -11,7 +11,7 @@ import "server-only";
 
 import { bsbCore } from "@/lib/supabase/server-core";
 
-import { builderFor, findDefinition } from "./builder/builder-server";
+import { builderFor, findDefinition } from "../builder/builder-server";
 
 export interface DefinitionVersionRow {
   readonly version: number;

@@ -33,7 +33,7 @@ export default function AgentPage({
       </Link>
       <Suspense fallback={<AgentDetailSkeleton />}>
         {params.then(({ id }) => (
-          <AgentDetail id={id} searchParams={searchParams} />
+          <AgentDetail id={id} query={searchParams} />
         ))}
       </Suspense>
     </>

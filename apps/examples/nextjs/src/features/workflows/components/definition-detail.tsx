@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
 
-import { loadDefinitionDetail } from "../definition-detail-queries";
+import { loadDefinitionDetail } from "../definition-detail/definition-detail-queries";
 import { formatDuration, statusBadge } from "../workflow-labels";
 
 /**

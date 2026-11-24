@@ -23,7 +23,7 @@ import {
 } from "@/features/sales/components/overview-support";
 import { Link } from "@/i18n/navigation";
 
-import { loadOnboardingPrograms } from "../employee-desk-queries";
+import { loadOnboardingPrograms } from "../employee-desk/employee-desk-queries";
 import { loadRoster, settle } from "../people-queries";
 import { PeopleLoadError } from "./people-load-error";
 

@@ -13,7 +13,16 @@ export default function ManufacturingLayout({
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "manufacturing"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "crm",
+        "customers",
+        "recordDetail",
+        "records",
+        "sales",
+        "subjects",
+        "manufacturing",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

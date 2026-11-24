@@ -23,6 +23,7 @@ import { recordPages } from "../record-pages";
 import { RecordLoadError } from "./record-card-states";
 
 /** The tags on a record, as chips. Renders nothing without `tags.read`. */
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function RecordTags({ subject }: { subject: RecordSubject }) {
   const [t, permissions] = await Promise.all([
     getExtracted("records"),
@@ -79,6 +80,7 @@ const display = (field: FieldValue): string => {
  * The custom field values of a record. Renders nothing without
  * `custom-fields.read`.
  */
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function RecordFields({ subject }: { subject: RecordSubject }) {
   const [t, permissions] = await Promise.all([
     getExtracted("records"),
@@ -135,6 +137,7 @@ export async function RecordFields({ subject }: { subject: RecordSubject }) {
  * The approval requests filed on a record. Renders nothing without
  * `approvals.read`.
  */
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function RecordApprovals({ subject }: { subject: RecordSubject }) {
   const [t, permissions, { db }, session] = await Promise.all([
     getExtracted("records"),
@@ -185,6 +188,7 @@ export async function RecordApprovals({ subject }: { subject: RecordSubject }) {
 }
 
 /** The caller's reminders on a record. Renders nothing without `reminders.read`. */
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function RecordReminders({ subject }: { subject: RecordSubject }) {
   const [t, permissions, { db }, session] = await Promise.all([
     getExtracted("records"),

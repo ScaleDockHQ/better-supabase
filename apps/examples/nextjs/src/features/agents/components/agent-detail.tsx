@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
-import { getAgentActivity } from "../agent-activity-queries";
+import { getAgentActivity } from "../agent-activity/agent-activity-queries";
 import { getAgent } from "../agents-queries";
 import {
   AgentApprovals,
@@ -67,18 +67,16 @@ async function AgentTabBody({
 /** Render inside `<Suspense>`: reads the `id` param, the tab and the agent. */
 export async function AgentDetail({
   id,
-  searchParams,
+  query,
 }: {
   id: string;
-  searchParams: Promise<
-    Readonly<Record<string, string | string[] | undefined>>
-  >;
+  query: Promise<Readonly<Record<string, string | string[] | undefined>>>;
 }) {
   const [agent, permissions, t, raw] = await Promise.all([
     getAgent(id),
     getPermissions(),
     getExtracted("agents"),
-    searchParams,
+    query,
   ]);
 
   const tab = activeTab(raw, TABS);

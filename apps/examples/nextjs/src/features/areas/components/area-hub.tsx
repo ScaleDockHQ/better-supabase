@@ -16,6 +16,7 @@ import { areaKpis } from "../area-kpis";
 import { AREAS, PRESET_AREA } from "../areas";
 
 /** The figures of one area: how many records each list of its flow holds. */
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function AreaKpis({ id }: { id: string }) {
   const area = AREAS.find((candidate) => candidate.id === id);
 
@@ -27,6 +28,7 @@ export async function AreaKpis({ id }: { id: string }) {
 }
 
 /** The flow, the presets and the composite actions of one area. */
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function AreaFlow({ id }: { id: string }) {
   const area = AREAS.find((candidate) => candidate.id === id);
 

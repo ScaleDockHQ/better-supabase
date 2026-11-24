@@ -6,7 +6,7 @@ import { LEAVE_TAG } from "@/features/leave/leave-cache";
 import { ONBOARDING_TAG } from "@/features/onboarding/onboarding-cache";
 import { bsb } from "@/lib/supabase/server";
 
-import { PEOPLE_TAG } from "./people-cache";
+import { PEOPLE_TAG } from "../people-cache";
 
 export interface OnboardingStepRow {
   readonly id: string;

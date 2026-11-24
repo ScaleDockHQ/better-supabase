@@ -9,6 +9,7 @@ import { bsb } from "@/lib/supabase/server";
  * exports the SEPA file in one action: `procurement.payDueBills`. Render it
  * inside `<Suspense>` behind the permission that manages banking.
  */
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function PayDueBillsButton() {
   const [t, { db }] = await Promise.all([
     getExtracted("finance"),

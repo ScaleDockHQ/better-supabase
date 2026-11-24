@@ -6,7 +6,7 @@ import { getDecisionPage } from "@/features/guardrails/guardrails-queries";
 import { getSession } from "@/features/user/user-queries";
 import { bsbCore } from "@/lib/supabase/server-core";
 
-import type { PendingApprovalRow, RunRow } from "./agents-queries";
+import type { PendingApprovalRow, RunRow } from "../agents-queries";
 
 const CHAT_WINDOW = 100;
 

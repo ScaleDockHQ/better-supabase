@@ -26,7 +26,7 @@ import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 import { initials } from "@/lib/initials";
 
-import { loadSeatsLeft } from "../seats-queries";
+import { loadSeatsLeft } from "../seats/seats-queries";
 
 /**
  * Render inside `<Suspense>`: one member of the active organization with their

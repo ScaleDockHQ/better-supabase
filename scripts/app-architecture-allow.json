@@ -15,7 +15,11 @@
     "features/projects/components/task-board-lazy.tsx": "the kanban code loads only for the board view, and a skeleton of the board's height holds the space",
     "features/assistant/components/assistant-tour-lazy.tsx": "the tour chat's code loads after a click, behind a skeleton of the chat's height",
     "features/evals/components/pass-rate-chart-lazy.tsx": "the chart's code (recharts) loads after the first paint behind a skeleton of the same height",
-    "features/ai-usage/components/spend-chart-lazy.tsx": "the chart's code (recharts) loads after the first paint behind a skeleton of the same height"
+    "features/ai-usage/components/spend-chart-lazy.tsx": "the chart's code (recharts) loads after the first paint behind a skeleton of the same height",
+    "features/agents/components/agent-detail.tsx": "the KPI band streams under the agent header, and the tab body is its own sibling boundary",
+    "features/members/components/members-section.tsx": "the seat figures stream beside the member list without holding the list back",
+    "features/navigation/components/side-nav.tsx": "the approvals badge reads the session and streams in next to the static link",
+    "features/projects/components/project-page.tsx": "the time card streams under the project fields, which paint first"
   },
   "connection": {},
   "findings": [

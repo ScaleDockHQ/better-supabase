@@ -5,8 +5,8 @@ import * as v from "valibot";
 
 import { bsbCore } from "@/lib/supabase/server-core";
 
-import { getModels } from "./assistant-queries";
-import { durableAvailable } from "./assistant-server";
+import { getModels } from "../assistant-queries";
+import { durableAvailable } from "../assistant-server";
 
 /**
  * What the shell's assistant panel needs when it opens: the models the caller

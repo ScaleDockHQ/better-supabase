@@ -19,7 +19,7 @@ import { usePathname } from "@/i18n/navigation";
 
 import type { ModelOption } from "../assistant-queries";
 
-import { loadAssistantSlot } from "../assistant-slot-actions";
+import { loadAssistantSlot } from "../assistant-slot/assistant-slot-actions";
 import { pageContextOf } from "../page-context";
 import { AssistantChatLazy } from "./assistant-chat-lazy";
 

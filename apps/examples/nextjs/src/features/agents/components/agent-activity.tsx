@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
 
-import type { AgentActivity } from "../agent-activity-queries";
+import type { AgentActivity } from "../agent-activity/agent-activity-queries";
 
 import { AgentApprovalButtons } from "./agent-approval-buttons";
 
@@ -28,6 +28,7 @@ const dateTime = new Intl.DateTimeFormat("en", {
 });
 
 /** The agent's counts, as the KPI band of every tab. */
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function AgentKpis({ activity }: { activity: AgentActivity }) {
   const t = await getExtracted("agents");
   const failed = activity.runs.filter((run) => run.status === "failed").length;
@@ -62,6 +63,7 @@ function EmptyCard({ title, hint }: { title: string; hint: string }) {
   );
 }
 
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function AgentRuns({ activity }: { activity: AgentActivity }) {
   const t = await getExtracted("agents");
 
@@ -121,6 +123,7 @@ export async function AgentRuns({ activity }: { activity: AgentActivity }) {
   );
 }
 
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function AgentApprovals({
   activity,
   canDecide,
@@ -178,6 +181,7 @@ export async function AgentApprovals({
   );
 }
 
+// skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function AgentGuardrails({
   activity,
 }: {

@@ -28,7 +28,7 @@ import {
   requirePermission,
 } from "@/features/sales/components/overview-support";
 
-import { loadCourseLearners } from "../course-learners-queries";
+import { loadCourseLearners } from "../course-learners/course-learners-queries";
 
 export function CourseLearnersSkeleton() {
   return <Skeleton className="h-64 rounded-xl" aria-busy="true" />;
