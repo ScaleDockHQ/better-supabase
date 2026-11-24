@@ -6,6 +6,7 @@
     "build": {
       "env": [
         "BSB_BUILD_SCOPE",
+        "BSB_DURABLE_USE_CACHE",
         "BSB_REMOTE_CACHE_DIR",
         "BSB_REMOTE_CACHE_STORE",
         "BSB_TAG_PROBE_SECRET",

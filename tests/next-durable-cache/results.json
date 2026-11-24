@@ -1,0 +1,53 @@
+{
+  "rows": [
+    {
+      "scenario": "fill",
+      "buildMs": 57635,
+      "codeHash": "d5d58ee24b6f1e6d391c9b1af993683b",
+      "public": false,
+      "remote": false,
+      "probeMs": 1561
+    },
+    {
+      "scenario": "rebuild, no change",
+      "buildMs": 18465,
+      "codeHash": "d5d58ee24b6f1e6d391c9b1af993683b",
+      "public": true,
+      "remote": true,
+      "probeMs": 1069
+    },
+    {
+      "scenario": "migration and gen (a new enum value)",
+      "buildMs": 15996,
+      "codeHash": "c393803e51daba3d392d13bacb137553",
+      "public": false,
+      "remote": false,
+      "probeMs": 1160
+    },
+    {
+      "scenario": "better-supabase code change",
+      "buildMs": 17239,
+      "codeHash": "6db217c372a2ff8cb7986302f05484ab",
+      "public": false,
+      "remote": false,
+      "probeMs": 1150
+    },
+    {
+      "scenario": "restart, a listed env var changed",
+      "buildMs": null,
+      "codeHash": "6db217c372a2ff8cb7986302f05484ab",
+      "public": false,
+      "remote": false,
+      "probeMs": 1225
+    },
+    {
+      "scenario": "restart, per-deployment Vercel vars changed",
+      "buildMs": null,
+      "codeHash": "6db217c372a2ff8cb7986302f05484ab",
+      "public": true,
+      "remote": true,
+      "probeMs": 1253
+    }
+  ],
+  "envVarsInKey": 36
+}

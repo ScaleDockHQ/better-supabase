@@ -211,6 +211,8 @@ const config: KnipConfig = {
         "workflow",
       ],
     },
+    // The suite runs `next` inside apps/examples/nextjs, which declares it.
+    "tests/next-durable-cache": { ignoreBinaries: ["next"] },
     "tests/types/shared": { entry: ["*.ts"] },
     "tests/types/ts-*": {
       ignoreDependencies: ["@better-supabase/types-shared"],

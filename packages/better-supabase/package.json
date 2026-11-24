@@ -53,7 +53,9 @@
     "README.md"
   ],
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/cold-start-mark-*.js"
+  ],
   "exports": {
     ".": {
       "@better-supabase/source": "./src/index.ts",

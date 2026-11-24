@@ -244,8 +244,15 @@ export const customerList = bsb.kept(
 A page that loads in one RPC lists the function in `functions` instead. The
 provider declares it in `sharedFunctions` with the tables it reads, which
 join the entry's tables and tags, and inside the fill `$rpc` passes only the
-listed functions (doctor BS430 checks that the function is security invoker
-and reads only those tables):
+listed functions. Doctor [BS430](/docs/cli/doctor#bs430) checks that the
+function is security invoker, `language sql` and not volatile, reads only
+those tables and no caller, and calls only functions it admits: another
+listed function, a `better_supabase` helper that passes on its own, or one of
+the provider's
+[`permissionFilters`](/docs/extending/authorization-providers#permissionfilters)
+with a literal key the entry's `permissions` lists.
+`better-supabase config functions --shareable 'api.*_payload'` runs the check
+on candidates before you list them:
 
 ```ts
 export const customerPage = bsb.kept(

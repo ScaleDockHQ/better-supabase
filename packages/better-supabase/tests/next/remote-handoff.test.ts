@@ -18,6 +18,8 @@ const key = (parts: Partial<RemoteCacheKey> = {}): RemoteCacheKey => ({
   authzVersion: 3,
   shared: null,
   support: null,
+  schema: null,
+  library: "source",
   ...parts,
 });
 

@@ -320,6 +320,9 @@ const src = resolve(import.meta.dirname, "src");
 const USE_CLIENT_MODULE =
   /src\/(react\/(index|hooks|session)|next\/auth-gate\/user)\.ts$/;
 
+/** Marks the start of the `next` entry's evaluation for `debug.coldStart`. */
+const COLD_START_MARK = "src/next/cold-start-mark.ts";
+
 /**
  * The subpath of a library entry (`src/sql/index.ts` is `sql`), or undefined
  * for any other file. Declaration builds ask for `.d.ts` and `.js` names too.
@@ -349,9 +352,24 @@ const library = defineConfig({
   exports: false,
   // Library modules only declare; the "use client" React modules keep theirs
   // so their directive survives in the entry chunks.
+  // The mark gets a chunk of its own: inside the entry chunk it would run
+  // after the chunks the entry imports.
+  outputOptions: {
+    codeSplitting: {
+      groups: [
+        {
+          name: "cold-start-mark",
+          test: (id: string) => id.endsWith(COLD_START_MARK),
+          includeDependenciesRecursively: false,
+        },
+      ],
+    },
+  },
   treeshake: {
     moduleSideEffects: (id) =>
-      USE_CLIENT_MODULE.test(id) || !id.startsWith(src),
+      USE_CLIENT_MODULE.test(id) ||
+      id.endsWith(COLD_START_MARK) ||
+      !id.startsWith(src),
   },
   plugins: [
     {

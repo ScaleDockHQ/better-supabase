@@ -205,4 +205,11 @@ no preview, as a baseline.
 | Read on another instance             | pending maintainer run | same process         |
 | Entry from the previous deployment   | pending maintainer run | not applicable       |
 | Set, hit and miss p50 / p95          | pending maintainer run | under 0.05 ms each   |
-| 250 `expireTags` calls in one second | pending maintainer run | 250 accepted, 1.23 s |
+| 250 `expireTags` calls in one second | pending maintainer run | 250 accepted, 1.13 s |
+
+The `--local` column is a `memoryKeptStore()` run on an Apple M5 Max in
+November 2026; it shows the probe's own cost, not Vercel's.
+
+A kept read after a deploy is untested on Vercel. Until the "Entry from the
+previous deployment" row has a result, plan for a cold kept tier after every
+deploy: the first read of each entry fills it again, under the caller's RLS.

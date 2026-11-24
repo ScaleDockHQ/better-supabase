@@ -197,12 +197,21 @@ join pg_language l on l.oid = p.prolang
 where n.nspname || '.' || p.proname = any(${names})
 order by 1, 2, 3`;
 
-// The bodies of the functions behind `sessions` bootstrap entries, every overload.
-const FUNCTION_SOURCES = (names: string) => `
+// The bodies of the functions behind `sessions` bootstrap entries, every overload,
+// and with `shareable` those of every function in it a shared fill could call
+// (BS430 only reads language sql, security invoker, non-volatile bodies).
+const FUNCTION_SOURCES = (names: string, shareable: string | undefined) => `
 select n.nspname as schema, p.proname as name, p.prosrc as source, 1 as function_source
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
-where n.nspname || '.' || p.proname = any(${names})
+join pg_language l on l.oid = p.prolang
+where n.nspname || '.' || p.proname = any(${names})${
+  shareable === undefined
+    ? ""
+    : `
+  or (n.nspname = any(${shareable}) and l.lanname = 'sql'
+    and not p.prosecdef and p.provolatile <> 'v')`
+}
 order by 1, 2, p.oid`;
 
 const TRIGGERS = (schemas: string) => `
@@ -549,6 +558,7 @@ export async function readExtras(
   schemas: readonly string[],
   hooks: readonly HookTarget[] = [],
   functionNames: readonly string[] = [],
+  shareable = false,
 ): Promise<SnapshotExtras> {
   const list = literalArray(schemas);
 
@@ -601,10 +611,13 @@ export async function readExtras(
       base_schema: string;
       not_null: boolean;
     }>(db, FUNCTION_DOMAINS(list)),
-    functionNames.length > 0
+    functionNames.length > 0 || shareable
       ? rows<{ schema: string; name: string; source: string }>(
           db,
-          FUNCTION_SOURCES(literalArray(functionNames)),
+          FUNCTION_SOURCES(
+            literalArray(functionNames),
+            shareable ? list : undefined,
+          ),
         )
       : [],
     readFunctionInventory(db, schemas),

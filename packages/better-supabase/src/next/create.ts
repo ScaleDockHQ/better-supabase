@@ -43,6 +43,7 @@ import { isSessionSnapshot, snapshotOf } from "../auth/snapshot.ts";
 import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
 import { claimsOf } from "../core/claims.ts";
+import { coldRecord, recordCold } from "../core/cold-start.ts";
 import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
 import { isReadSet, readSetTables } from "../core/read-set.ts";
@@ -91,7 +92,8 @@ import {
   tableTags,
   tagCallCollectors,
 } from "./cache.ts";
-import { logActionStats, requestIdOf, formatStats } from "./collector.ts";
+import { timeFirst } from "./cold-start.ts";
+import { logActionStats, requestIdOf } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
 import { applyCacheEntry, awaitStage } from "./entry.ts";
 import { incomingRequest } from "./incoming-request.ts";
@@ -110,6 +112,8 @@ import { authFlows } from "./sign-in.ts";
 import { taintObject, taintResolution, taintedAdmin } from "./taint.ts";
 import { gateUserOf } from "./user.ts";
 import { withContextFactory } from "./with-context.ts";
+
+coldRecord().timings.evalEnd ??= performance.now();
 
 /**
  * The Next.js adapter: proxy, Server Components, route handlers, server actions
@@ -136,6 +140,8 @@ export function createNext<
     readonly versions?: V;
   } = {},
 ): BetterNext<M, F, E, C, P, PermissionRef<A>, B, V, D> {
+  const createStarted = performance.now();
+
   // SAFETY: a shared server was built from the same BetterSupabase, so its type parameters match.
   const base =
     (options.server as BetterServer<M, F, E, C, P, B, V> | undefined) ??
@@ -155,6 +161,7 @@ export function createNext<
   const {
     collector,
     statsHeader,
+    statsValue,
     statsRoute,
     development,
     waitUntil,
@@ -282,8 +289,10 @@ export function createNext<
     incomingAt(box().generation);
 
   const getClaimsAt = cache(
-    async (generation: number): Promise<SessionSnapshot<C> | null> =>
-      snapshotOf((await incomingAt(generation)).resolution.auth),
+    (generation: number): Promise<SessionSnapshot<C> | null> =>
+      timeFirst("claims", async () =>
+        snapshotOf((await incomingAt(generation)).resolution.auth),
+      ),
   );
 
   const getClaims = (): Promise<SessionSnapshot<C> | null> =>
@@ -679,12 +688,13 @@ export function createNext<
       // can't rebuild from a handle: it reads the request's own.
       const snapshot = ctx.support ? null : snapshotOf(ctx.auth);
 
-      const handle = cacheKeyOf({
+      const handle = await cacheKeyOf({
         userId: view.kind === "user" ? view.user.id : null,
         tenant: tenantFor(ctx, view),
         support: ctx.support?.session.id ?? null,
         snapshot,
         share: "session",
+        meta: betterSupabase.meta,
       });
 
       parkUntilResponseEnds(
@@ -843,6 +853,7 @@ export function createNext<
       logger: betterSupabase.events.logger,
       collector,
       statsHeader,
+      statsValue,
       statsRoute,
       flushAfter,
     }),
@@ -897,7 +908,7 @@ export function createNext<
 
         if (collector && stats) {
           try {
-            response.headers.set(statsHeader, formatStats(stats()));
+            response.headers.set(statsHeader, statsValue(stats()));
           } catch {
             // A handler returned a Response with immutable headers.
           }
@@ -967,7 +978,7 @@ export function createNext<
         return Promise.resolve(
           Response.json(stats, {
             headers: {
-              [statsHeader]: formatStats(stats),
+              [statsHeader]: statsValue(stats),
               "cache-control": "no-store",
             },
           }),
@@ -1256,6 +1267,8 @@ export function createNext<
 
     recordAt: (type, id) => recordAtServer(next, type, id),
   });
+
+  recordCold("create", performance.now() - createStarted);
 
   // SAFETY: the contexts differ only in `supabase`, which the server builds as SupabaseClient<D>
   // from the same BetterSupabase<…, D>; its untyped default is the same client.

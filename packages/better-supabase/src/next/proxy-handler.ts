@@ -4,6 +4,7 @@ import { NextResponse } from "next/server.js";
 
 import type { ResolvePhase } from "../auth/resolve.ts";
 import type { Logger } from "../core/logger.ts";
+import type { DbStats } from "../core/stats.ts";
 import type { BetterServer } from "../server/server-types.ts";
 import type { CollectorView } from "./collector.ts";
 import type { ProxyOptions } from "./types.ts";
@@ -42,6 +43,7 @@ export interface ProxyHandlerInput<C, P> {
   readonly logger: Logger;
   readonly collector: CollectorView | undefined;
   readonly statsHeader: string;
+  readonly statsValue: (stats: DbStats) => string;
   readonly statsRoute: string;
   readonly flushAfter: () => void;
 }
@@ -53,8 +55,15 @@ export function proxyHandler<C, P>(
   request: NextRequest,
   proxyOptions?: ProxyOptions<C, P>,
 ) => Promise<Response> {
-  const { base, logger, collector, statsHeader, statsRoute, flushAfter } =
-    input;
+  const {
+    base,
+    logger,
+    collector,
+    statsHeader,
+    statsValue,
+    statsRoute,
+    flushAfter,
+  } = input;
 
   return async (request, proxyOptions = {}) => {
     const started = performance.now();
@@ -186,7 +195,7 @@ export function proxyHandler<C, P>(
 
       // Headers leave before the render runs, so this carries the proxy's own
       // verification; the render's totals come from the stats route.
-      stampStats(response.headers, statsHeader, proxyRecorder);
+      stampStats(response.headers, statsHeader, proxyRecorder, statsValue);
     }
 
     if (proxyOptions.after) {

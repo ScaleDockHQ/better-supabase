@@ -1,3 +1,6 @@
+// oxlint-disable-next-line import/no-unassigned-import -- the mark records when module evaluation starts, so it must run before the other imports
+import "./cold-start-mark.ts";
+
 export { createNext } from "./create.ts";
 
 export type { GateUser } from "./user.ts";
