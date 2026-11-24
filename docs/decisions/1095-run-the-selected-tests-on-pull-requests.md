@@ -1,6 +1,6 @@
 # 1095: Run the selected tests on pull requests and the whole suite on main
 
-- Status: accepted
+- Status: superseded by [1229](1229-shard-the-unit-suite-with-coverage-on-pull-requests.md) for the unit tests
 - Date: 2026-11-20
 
 Supersedes the sharding parts of [0638](0638-shard-unit-tests-and-skip-unchanged-ci.md), the pull
