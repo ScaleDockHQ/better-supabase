@@ -1033,6 +1033,7 @@ over the provider's.
 | `seed.tenant` (`AuthzSubjectSeed`)                                                                   | the tenant a seeded subject belongs to, so `accessOf` and `testAuthorizer` keep it out of other tenants                                                 | 0.58    |
 | `tables`                                                                                             | `share: "tenant"` or `"row"` per table, with the permissions its reads check, for shared cache entries                                                  | 0.85    |
 | `context.enforcement` on the authorizer's request                                                    | `rls` or `definer`, so the adapter can skip its live version read for a write RLS checks again ([Enforcement](/docs/extending/authorizers#enforcement)) | 0.85    |
+| `sharedFunctions`                                                                                    | the functions a `share: "tenant"` fill may call, with the tables each reads and the permissions they check                                              | 0.85    |
 
 Doctor reports a config value equal to the provider's (BS427).
 
@@ -1042,6 +1043,30 @@ reads alike. `share: "tenant"` lets `bsb.kept` and `bsb.remote` with
 entry) keeps one per user. The hooks' `shareKey` names the caller's grant, and
 `permissionsShareKey()` reads it from the permissions claim. Doctor BS428
 fails a `tenant` table whose select policies filter by the caller.
+
+`sharedFunctions` does the same for a database function: a page that loads in
+one RPC can keep one entry per grant when the function reads only tables the
+provider shares per tenant. Name the function by `schema.name` (`public` when
+the schema is left out) and list the tables it reads and the permissions
+those reads check:
+
+```ts
+sharedFunctions: {
+  "api.customer_payload": {
+    tables: ["customers", "customer_contacts"],
+    permissions: ["crm.read"],
+  },
+},
+```
+
+The entry then lists it in `functions` instead of `tables`:
+`bsb.kept(fn, { name, functions: ["customer_payload"], share: "tenant" })`.
+Inside the fill `$rpc` passes only the listed functions. Doctor BS430 fails a
+function that is security definer, isn't `language sql`, is volatile, reads
+the caller (`auth.uid()`, `current_setting('request.jwt.claims')`,
+`current_user`) or reads a table its entry doesn't list. A payload function
+that also returns the caller's own rows doesn't qualify; split it into a
+tenant function you share and a per-user read you keep with `share: "user"`.
 
 ```ts
 import type { AuthorizationProvider } from "better-supabase/config";

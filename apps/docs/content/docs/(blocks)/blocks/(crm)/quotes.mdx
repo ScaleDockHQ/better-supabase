@@ -112,6 +112,14 @@ A cursor belongs to the sort it came from, so start again from the first page wh
 | `expired`              | its valid-until date passed (`expire_quotes`, or an answer after the date)  |
 | `withdrawn`            | `withdraw` of a sent or expired quote; it isn't answered until sent again   |
 
+The block's `expire` timer (daily at 03:00) runs `expire()`, which marks the sent quotes past their
+valid-until date `expired`: schedule it with the other [block timers](/docs/blocks/queue#block-timers)
+and run it with the service role's client.
+
+```ts title="src/lib/jobs.ts"
+const run = blockTickHandler({ "quotes.expire": () => quotes.expire() });
+```
+
 `create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [numbering](/docs/blocks/numbering)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.recordTypes` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
 
 An imported quote without a title gets `options.titleTemplate` (default `Quote {number}`; `{number}` is the quote's number), so a Dutch tenant sets `Offerte {number}`.

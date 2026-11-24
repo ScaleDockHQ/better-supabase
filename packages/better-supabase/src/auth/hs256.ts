@@ -156,7 +156,11 @@ export async function verifyHs256(
 
   const { exp, nbf, sub } = payload;
 
-  if (typeof exp === "number" && exp <= options.now) {
+  if (typeof exp !== "number") {
+    return fail("The token has no numeric exp claim");
+  }
+
+  if (exp <= options.now) {
     return fail("The token has expired");
   }
 

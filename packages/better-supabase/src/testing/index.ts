@@ -49,6 +49,10 @@ export type {
 
 export { expectTenantIsolation } from "./isolation.ts";
 
+export { inTenantFill } from "./tenant-fill.ts";
+
+export type { TenantFillResult } from "./tenant-fill.ts";
+
 export type {
   IsolationTable,
   IsolationTables,

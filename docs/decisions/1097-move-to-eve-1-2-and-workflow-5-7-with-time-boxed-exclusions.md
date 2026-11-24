@@ -114,3 +114,7 @@ Until then the lockfile holds releases that are younger than the policy
 allows. Every one is exact, so any other too-young release still fails the
 install. Apps apply the `workflow-sdk` migrations (versions 6 to 8, ADR 1100) before they
 deploy `workflow` 5.7.
+
+## Closure
+
+The time box ended on 2026-11-21. The `minimumReleaseAgeExclude` entries were removed on 2026-11-24 and every release passes `minimumReleaseAge` on its own.

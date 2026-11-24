@@ -27,7 +27,6 @@ import type {
   ContextOptions,
   ServerContext,
 } from "../server/server-types.ts";
-import type { TenantShare } from "../server/tenant-share.ts";
 import type {
   Bootstrap,
   BootstrapOptions,
@@ -73,8 +72,9 @@ import { guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import {
   shareRefusalLogger,
+  sharedFunctionsOf,
   sharedReader,
-  tenantShareOf,
+  tenantShareFor,
 } from "../server/tenant-share.ts";
 import {
   blockActionOf,
@@ -100,6 +100,7 @@ import { proxyHandler } from "./proxy-handler.ts";
 import { proxyRuntime } from "./proxy-runtime.ts";
 import { recordAtServer, recordServer } from "./record.ts";
 import { handOff, noteFill, takeHandoff } from "./remote-handoff.ts";
+import { remoteKeyOf } from "./remote-key.ts";
 import { requestRecording } from "./request-recording.ts";
 import { adminForRequest, verifyOption } from "./request-stats.ts";
 import { resourceRoutes } from "./resources.ts";
@@ -544,7 +545,13 @@ export function createNext<
         );
 
     return {
-      ctx: key.tables ? sharedReader(ctx, key.tables).ctx : ctx,
+      ctx: key.tables
+        ? sharedReader(
+            ctx,
+            key.tables,
+            sharedFunctionsOf(betterSupabase.meta, key.functions),
+          ).ctx
+        : ctx,
       view: toSession(ctx.auth),
       scope: "remote",
       tenant,
@@ -582,23 +589,12 @@ export function createNext<
   /** The bootstrap calls of one request, by session key, schema, rpc and args. */
   const bootstrapCalls = cache(() => new Map<string, Promise<BootstrapRow>>());
 
-  const tenantShare = (
-    ctx: ServerContext<M, F, E, C, P, B>,
-    tables: readonly string[],
-    tenant: string | undefined,
-  ): Promise<TenantShare> =>
-    tenantShareOf({
-      meta: betterSupabase.meta,
-      tables,
-      tenant,
-      hooks: base.authorization,
-      authorizer: base.authorizer,
-      context: ctx.db.$context,
-      runtime: {
-        ...(base.versions ? { versions: base.versions } : {}),
-        ...(ctx.memo ? { memo: ctx.memo } : {}),
-      },
-    });
+  const tenantShare = tenantShareFor({
+    meta: betterSupabase.meta,
+    hooks: base.authorization,
+    authorizer: base.authorizer,
+    ...(base.versions ? { versions: base.versions } : {}),
+  });
 
   const warnRefusedShare = shareRefusalLogger(betterSupabase.events.logger);
 
@@ -621,6 +617,16 @@ export function createNext<
         ...(source ? { session: source } : {}),
         ...(tenant === undefined ? {} : { tenant }),
       }),
+    publicScope: () => {
+      const ctx = base.contextFor({ kind: "none", reason: "none" }, {});
+
+      return {
+        ctx,
+        view: toSession(ctx.auth),
+        scope: "remote",
+        tenant: undefined,
+      };
+    },
     userTags,
     waitUntil,
   });
@@ -698,37 +704,18 @@ export function createNext<
         // scope can't rebuild: its calls get no token.
         const snapshot = ctx.support ? null : snapshotOf(ctx.auth);
 
-        const tenant = tenantFor(ctx, view);
-        const asked = remoteOptions.share ?? "session";
-        const tables = remoteOptions.tables ?? [];
-
-        const decided =
-          asked === "tenant" && !ctx.support
-            ? await tenantShare(ctx, tables, tenant)
-            : undefined;
-
-        const shared = decided?.kind === "shared" ? decided.key : undefined;
-
-        if (decided?.kind === "refused") {
-          warnRefusedShare("bsb.remote()", decided.error);
-        }
-
-        const parts = cacheKeyOf({
-          userId: view.kind === "user" ? view.user.id : null,
-          tenant,
-          support: ctx.support?.session.id ?? null,
+        const key = await remoteKeyOf({
+          ctx,
+          view,
           snapshot,
-          share:
-            shared === undefined
-              ? asked === "tenant"
-                ? ctx.support
-                  ? "session"
-                  : "user"
-                : asked
-              : { key: () => `tenant:${shared}` },
+          tenant: tenantFor(ctx, view),
+          options: remoteOptions,
+          meta: betterSupabase.meta,
+          tenantShare,
+          onRefused: (error) => {
+            warnRefusedShare("bsb.remote()", error);
+          },
         });
-
-        const key = shared === undefined ? parts : { ...parts, tables };
 
         const requestId = collector
           ? requestIdOf((await incoming()).request.headers)

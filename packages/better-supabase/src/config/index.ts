@@ -187,6 +187,7 @@ export type {
   AuthorizationActionKeys,
   AuthorizationApproval,
   AuthorizationFixtureRole,
+  AuthorizationFunctionShare,
   AuthorizationFunctions,
   AuthorizationMembership,
   AuthorizationOperation,

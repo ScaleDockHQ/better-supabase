@@ -75,4 +75,9 @@ Imports stay at the top of the module. The exceptions are optional
     `src/cli/introspect/typegen.ts`, Ajv and the vendored official schemas
     that only `spec validate` needs (`src/cli/spec/render.ts` and
     `src/cli/spec/schemas.ts`), and `jsonpath-rfc9535` for spec overlay
-    files in `src/cli/spec/render.ts`.
+    files in `src/cli/spec/render.ts`. One runtime entry module also loads
+    on first use: `src/next/record.ts` imports `./record-blocks.ts` (the
+    block clients, the subjects and trash manifests and `copyBindings`) on
+    the first `bsb.record()` or `bsb.recordAt()` call, so a page without a
+    record doesn't evaluate them (a failed load rejects that call and the
+    next one retries; ADR 1228).

@@ -1526,3 +1526,184 @@ describe("BS428", () => {
     expect(missing?.message).toContain("the database has no such table");
   });
 });
+
+describe("BS430", () => {
+  const PINNED =
+    "organization_id in (select authz.ids_organization('customer.read'))";
+
+  const withFunction = (
+    fn: Partial<CatalogFunction> & { readonly source: string },
+  ): { snapshot: Snapshot; table: string } => {
+    const { source, ...rest } = fn;
+
+    const copy = structuredClone(toCatalog(base)) as {
+      -readonly [K in keyof Catalog]: Catalog[K];
+    };
+
+    const [first] = copy.tables;
+    copy.tables = [
+      {
+        ...first!,
+        rls: true,
+        policies: [
+          {
+            name: "members read",
+            command: "select",
+            roles: ["authenticated"],
+            permissive: true,
+            using: PINNED,
+            check: null,
+          },
+        ],
+      },
+      ...copy.tables.slice(1),
+    ];
+    copy.functions = [
+      ...copy.functions,
+      {
+        schema: "public",
+        name: "customer_payload",
+        signature: "",
+        args: [],
+        returnsTable: null,
+        returns: "jsonb",
+        returnsRelation: null,
+        returnsSet: false,
+        volatility: "stable",
+        securityDefiner: false,
+        language: "sql",
+        searchPath: null,
+        ...rest,
+      },
+    ];
+
+    const snapshot = fromCatalog(copy);
+
+    return {
+      snapshot: {
+        ...snapshot,
+        extras: {
+          ...snapshot.extras,
+          functionSources: { "public.customer_payload": source },
+        },
+      },
+      table: first!.name,
+    };
+  };
+
+  const run = async (
+    fn: Partial<CatalogFunction> & { readonly source: string },
+    tables?: (table: string) => string[],
+  ) => {
+    const { snapshot, table } = withFunction(fn);
+
+    return findings(
+      "BS430",
+      {
+        auth: {
+          authorization: withProvider({
+            tables: {
+              [table]: { share: "tenant", permissions: ["customer.read"] },
+            },
+            sharedFunctions: {
+              customer_payload: {
+                tables: tables?.(table) ?? [table],
+                permissions: ["customer.read"],
+              },
+            },
+          }),
+        },
+        blocks: ["memberships", "permissions"],
+      },
+      { snapshot },
+    );
+  };
+
+  const schemaOf = (table: string): string =>
+    toCatalog(base).tables.find((entry) => entry.name === table)!.schema;
+
+  const reads = (table: string): string =>
+    `select coalesce(jsonb_agg(c), '[]') from ${schemaOf(table)}.${table} c`;
+
+  it("is silent for a stable security invoker sql function over its tables", async () => {
+    const { table } = withFunction({ source: "" });
+
+    expect(await run({ source: reads(table) })).toEqual([]);
+  });
+
+  it("reports security definer, plpgsql and volatile functions", async () => {
+    const { table } = withFunction({ source: "" });
+
+    const [definer] = await run({
+      source: reads(table),
+      securityDefiner: true,
+    });
+
+    const [plpgsql] = await run({ source: "begin end", language: "plpgsql" });
+
+    const [volatile] = await run({
+      source: reads(table),
+      volatility: "volatile",
+    });
+
+    expect(definer?.severity).toBe("error");
+    expect(definer?.message).toContain("security definer");
+    expect(plpgsql?.message).toContain("plpgsql");
+    expect(volatile?.message).toContain("volatile");
+  });
+
+  it("reports a body that reads the caller or a table it doesn't list", async () => {
+    const { table } = withFunction({ source: "" });
+
+    const [caller] = await run({
+      source: `${reads(table)} where c.owner_id = auth.uid()`,
+    });
+
+    const [role] = await run({
+      source: `select current_user::text from ${schemaOf(table)}.${table}`,
+    });
+
+    const [outside] = await run({
+      source: `${reads(table)} join public.unlisted u on true`,
+    });
+
+    expect(caller?.message).toContain("auth.uid");
+    expect(role?.message).toContain("current_user");
+    expect(outside?.message).toContain("public.unlisted");
+  });
+
+  it("allows current_date and a CTE", async () => {
+    const { table } = withFunction({ source: "" });
+
+    expect(
+      await run({
+        source: `with recent as (select * from ${schemaOf(table)}.${table}) select count(*) from recent where current_date > '2000-01-01'`,
+      }),
+    ).toEqual([]);
+  });
+
+  it("reports a table the provider doesn't share per tenant and a missing function", async () => {
+    const { table } = withFunction({ source: "" });
+
+    const listed = await run({ source: reads(table) }, () => [
+      table,
+      "no_such_table",
+    ]);
+
+    expect(listed.map((finding) => finding.message)).toEqual([
+      expect.stringContaining("no such table"),
+      expect.stringContaining("don't share per tenant"),
+    ]);
+
+    const missing = await findings("BS430", {
+      auth: {
+        authorization: withProvider({
+          sharedFunctions: { "api.gone": { tables: [], permissions: [] } },
+        }),
+      },
+      blocks: ["memberships", "permissions"],
+    });
+
+    expect(missing[0]?.message).toContain("no such function");
+  });
+});

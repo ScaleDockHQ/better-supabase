@@ -648,6 +648,12 @@ export function createMcp<
     readonly versions?: V;
   },
 ): BetterMcp<M, F, E, C, P, PermissionRef<A>, B, V> {
+  if (options.cookies === true && !options.allowedOrigins?.length) {
+    throw new Error(
+      "createMcp: `cookies: true` needs `allowedOrigins`. A cookie would let any page the user visits call the tools.",
+    );
+  }
+
   const server = createServer(betterSupabase, options);
   const { expose } = adapterBase(server, options);
 

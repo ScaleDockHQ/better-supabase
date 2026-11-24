@@ -416,6 +416,7 @@ export { KEPT_LIMITS, memoryKeptStore } from "../core/kept-cache.ts";
 
 export type {
   KeptEnvelope,
+  KeptLease,
   KeptSetOptions,
   KeptSkip,
   KeptSkipReason,
@@ -423,6 +424,8 @@ export type {
 } from "../core/kept-cache.ts";
 
 export { sessionIdTag, sessionTag, tableTags } from "./cache-tags.ts";
+
+export { shareGuard } from "./tenant-share.ts";
 
 export type {
   Access,

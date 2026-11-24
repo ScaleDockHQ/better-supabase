@@ -29,15 +29,15 @@ import type {
 
 import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../config/index.ts";
 import { toCamel } from "../../index.ts";
-import { resolveBlock, resolveProviderSql } from "../../sql/index.ts";
+import { resolveProviderSql } from "../../sql/index.ts";
 import { claimMarkerOverrides } from "../authorization.ts";
 import { CliError } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import { toCatalog } from "../introspect/catalog.ts";
 import { restrictSchemas, tsTypeOf } from "../introspect/typegen.ts";
 import { moduleRefOf } from "../module-schemas.ts";
-import { bootstrapTables } from "./bootstrap-tables.ts";
 import { commentMeta } from "./comment.ts";
+import { bootstrapMeta, functionSharesMeta } from "./function-meta.ts";
 import { buildFunctions } from "./model-functions.ts";
 import {
   buildRelations,
@@ -993,53 +993,10 @@ function assembleMeta(
       ? { claims: claimOverrides }
       : {}),
     ...bootstrapMeta(config, functionSources, tableModels),
+    ...functionSharesMeta(config, tableModels),
   };
 
   return meta;
-}
-
-/**
- * The schema the sessions block's `bootstrap_<name>` wrappers are callable in:
- * the API schema, unless its `functions` list leaves them out, else the module
- * schema. Omitted when that is `better_supabase`, the runtime default, unless
- * entries read tables: those are recorded with the schema.
- */
-function bootstrapMeta(
-  config: ResolvedConfig,
-  sources: Readonly<Record<string, string>> | undefined,
-  tableModels: readonly TableModel[],
-): Pick<SchemaMeta, "bootstrap"> {
-  const sessions = config.blocks["sessions"];
-
-  if (sessions?.options?.["bootstrap"] === undefined) {
-    return {};
-  }
-
-  const block = resolveBlock(sessions);
-  const api = block.api;
-
-  const wrapped =
-    api !== undefined &&
-    (api.functions === undefined ||
-      api.functions.some((name) => name.startsWith("bootstrap_")));
-
-  const schema = wrapped ? api.schema : block.schema;
-
-  const tables = bootstrapTables(
-    config,
-    sources,
-    tableModels.map((table) => ({
-      key: table.key,
-      schema: table.snapshot.schema,
-      name: table.snapshot.name,
-    })),
-  );
-
-  const recorded = Object.keys(tables).length > 0 ? { tables } : {};
-
-  return schema === "better_supabase" && !("tables" in recorded)
-    ? {}
-    : { bootstrap: { schema, ...recorded } };
 }
 
 /** Builds the codegen model from a snapshot and config. */

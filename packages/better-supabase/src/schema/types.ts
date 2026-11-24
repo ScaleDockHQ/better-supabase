@@ -228,6 +228,20 @@ export interface SchemaMeta {
    * its own `schema`.
    */
   readonly bootstrap?: BootstrapMeta;
+  /**
+   * The functions a `share: "tenant"` fill may call, by database name, from the
+   * authorization provider's `sharedFunctions`. It stays on the startup
+   * metadata so a share decision never waits for `loadFunctions`.
+   */
+  readonly functionShares?: Readonly<Record<string, FunctionShare>>;
+}
+
+/** `SchemaMeta.functionShares`. */
+export interface FunctionShare {
+  readonly schema: string;
+  /** App keys of the tables the function reads. */
+  readonly tables: readonly string[];
+  readonly permissions: readonly string[];
 }
 
 /** `SchemaMeta.bootstrap`: the schema `bsb.bootstrap()` calls by default. */

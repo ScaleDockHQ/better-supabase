@@ -34,13 +34,32 @@ async function loadReadSets(config: ResolvedConfig): Promise<ReadSet[]> {
   return sets;
 }
 
+/**
+ * Compiled read sets by config object. One run asks for them from `gen`, the
+ * layout and the read-set module, and each import is a fresh copy of the user's
+ * modules; a reload makes a new config object, so watch mode reads them again.
+ */
+const COMPILED = new WeakMap<ResolvedConfig, Promise<CompiledReadSet[]>>();
+
 /** The compiled functions for `config.readSets`; empty when none are configured. */
-export async function compiledReadSets(
+export function compiledReadSets(
   config: ResolvedConfig,
 ): Promise<CompiledReadSet[]> {
   if (config.readSets.length === 0) {
-    return [];
+    return Promise.resolve([]);
   }
 
-  return compileReadSets(await loadReadSets(config));
+  const held = COMPILED.get(config);
+
+  if (held !== undefined) {
+    return held;
+  }
+
+  const compiled = loadReadSets(config).then((sets) => compileReadSets(sets));
+  COMPILED.set(config, compiled);
+
+  // A failed load is not kept, so the next call reports it again.
+  compiled.catch(() => COMPILED.delete(config));
+
+  return compiled;
 }

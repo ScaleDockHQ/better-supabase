@@ -43,6 +43,15 @@ export interface KeptStore {
   release?(key: string, holder: string): Promise<void>;
 }
 
+/**
+ * The fill lease of a store, on its own: `postgresKeptLease()` gives
+ * `vercelRuntimeCacheAdapter` a lease Postgres takes in one statement.
+ */
+export interface KeptLease {
+  lease(key: string, holder: string, ttlMs: number): Promise<boolean>;
+  release(key: string, holder: string): Promise<void>;
+}
+
 /** The limits of the Vercel Runtime Cache, applied to every store. */
 export const KEPT_LIMITS: {
   readonly bytes: number;

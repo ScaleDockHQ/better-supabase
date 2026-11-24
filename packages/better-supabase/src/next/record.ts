@@ -30,14 +30,11 @@ import type {
 import type { Timeline } from "../records/timeline.ts";
 import type { RecordRef } from "../schema/types.ts";
 import type { ActionResult } from "../server/kit.ts";
+import type * as RecordBlocks from "./record-blocks.ts";
 
-import { createBlockClient } from "../blocks/create-blocks.ts";
-import { subjectsBlock } from "../blocks/subjects/manifest.ts";
-import { trashBlock } from "../blocks/trash/manifest.ts";
 import { dbError } from "../core/errors.ts";
 import { err } from "../core/result.ts";
 import { loadBindings } from "../records/bindings.ts";
-import { copyBindings } from "../records/copy.ts";
 import {
   bindingWrites,
   findBindingWrite,
@@ -51,6 +48,18 @@ import {
 import { loadTimeline } from "../records/timeline.ts";
 import { isStorageApi } from "../storage/storage-api.ts";
 import { invalidateBinding, recordTag, bindingTag } from "./records.ts";
+
+let recordBlocks: Promise<typeof RecordBlocks> | undefined;
+
+// The block clients load on the first record call, so a page without a record
+// doesn't evaluate them; they are a seventh of the ./next closure (ADR 1228).
+// A failed load rejects that call, and the next call tries again.
+const blocksOf = (): Promise<typeof RecordBlocks> =>
+  (recordBlocks ??= import("./record-blocks.ts").catch((cause: unknown) => {
+    recordBlocks = undefined;
+
+    throw cause;
+  }));
 
 /**
  * The context `recordServer` reads: the caller's `Db`, and its supabase-js
@@ -173,11 +182,12 @@ function clientOptions(
   };
 }
 
-function clientsOf(
+async function clientsOf(
   feature: Pick<RecordType, "blocks" | "config">,
   ctx: RecordServerContext,
-): Clients {
+): Promise<Clients> {
   const options = clientOptions(feature, ctx);
+  const { createBlockClient } = await blocksOf();
 
   return Object.fromEntries(
     Object.entries(feature.blocks).map(([key, block]) => [
@@ -203,6 +213,8 @@ async function permissionsOf(
   if (feature.access === undefined || keys.length === 0) {
     return { set: undefined };
   }
+
+  const { createBlockClient } = await blocksOf();
 
   const access = createBlockClient(
     db,
@@ -259,6 +271,7 @@ export function recordServer<
       { input: recordWriteInput(found.write.input), requireTenant: true },
       async ({ id, input }, ctx): Promise<Result<unknown>> => {
         const subject = recordSubject(feature, id);
+        const { createBlockClient } = await blocksOf();
 
         const result = await runBindingWrite(
           feature,
@@ -310,7 +323,7 @@ export function recordServer<
       const names = (options.bindings ?? feature.bindings) as readonly N[];
 
       const loaded = await loadBindings(
-        { blocks: feature.blocks, clients: clientsOf(feature, ctx) },
+        { blocks: feature.blocks, clients: await clientsOf(feature, ctx) },
         subject,
         names,
         {
@@ -340,7 +353,7 @@ export function recordServer<
       const readable = readableSections(recordCan(feature, permissions.set));
 
       const timeline = await loadTimeline(
-        { blocks: feature.blocks, clients: clientsOf(feature, ctx) },
+        { blocks: feature.blocks, clients: await clientsOf(feature, ctx) },
         recordSubject(feature, id),
         { ...options, can: ({ binding }) => readable.get(binding) ?? true },
       );
@@ -410,7 +423,10 @@ export function recordAtServer<
   return {
     subject,
     async can(actions = ["read", "write", "delete"]) {
-      const ctx = await bsb.context();
+      const [ctx, { createBlockClient, subjectsBlock }] = await Promise.all([
+        bsb.context(),
+        blocksOf(),
+      ]);
 
       return createBlockClient(
         ctx.db,
@@ -419,17 +435,21 @@ export function recordAtServer<
       ).can({ subject, actions });
     },
     async copyTo(toId, options = {}) {
-      const ctx = await bsb.context();
+      const [ctx, { copyBindings }] = await Promise.all([
+        bsb.context(),
+        blocksOf(),
+      ]);
 
       return copyBindings(
-        { blocks: feature.blocks, clients: clientsOf(feature, ctx) },
+        { blocks: feature.blocks, clients: await clientsOf(feature, ctx) },
         subject,
         recordSubject(feature, toId),
         options.bindings,
       );
     },
     async trash() {
-      const [ctx, tenant] = await Promise.all([bsb.context(), tenantOf()]);
+      const [ctx, tenant, { createBlockClient, trashBlock }] =
+        await Promise.all([bsb.context(), tenantOf(), blocksOf()]);
 
       if (tenant === undefined) {
         return noTenant;
@@ -446,7 +466,10 @@ export function recordAtServer<
       });
     },
     async restore(itemId) {
-      const ctx = await bsb.context();
+      const [ctx, { createBlockClient, trashBlock }] = await Promise.all([
+        bsb.context(),
+        blocksOf(),
+      ]);
 
       return createBlockClient(
         ctx.db,
@@ -524,7 +547,7 @@ export function recordListServer<
       const result = await recordList.load(
         {
           db: ctx.db,
-          clients: clientsOf(feature, ctx),
+          clients: await clientsOf(feature, ctx),
           ...(permissions.set === undefined
             ? {}
             : { permissions: permissions.set }),

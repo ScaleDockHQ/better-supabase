@@ -1,4 +1,5 @@
 import type { CacheAdapter } from "./cache.ts";
+import type { KeptLease } from "./kept-cache.ts";
 
 import { cacheTagsOf } from "./tags.ts";
 
@@ -69,6 +70,13 @@ export interface VercelRuntimeCacheTags {
 export interface VercelRuntimeCacheAdapterOptions {
   /** The cache namespace the entries go in. Default: `better-supabase-data`. */
   readonly namespace?: string;
+  /**
+   * Who fills a missing `bsb.kept()` entry. Without it the lease is a lock
+   * entry in the Runtime Cache, which two instances can both take;
+   * `postgresKeptLease({ client })` takes it in one Postgres statement, so one
+   * instance fills.
+   */
+  readonly lease?: KeptLease;
 }
 
 /** What `set` takes: `tags` are `bsb:` tags from `tagFor`, not yet encoded. */
@@ -95,9 +103,9 @@ export interface VercelRuntimeCacheAdapter extends CacheAdapter {
   /** Expires `bsb:` tags, encoded, in calls of 16 tags. */
   expireTags(tags: readonly string[]): Promise<void>;
   /**
-   * A lock entry under `lease:<key>`. The Runtime Cache has no set-if-absent,
-   * so two instances that read at the same moment can both win: it only narrows
-   * a stampede.
+   * The `lease` option's lease, or a lock entry under `lease:<key>`. The
+   * Runtime Cache has no set-if-absent, so with the lock entry two instances
+   * that read at the same moment can both win: it only narrows a stampede.
    */
   lease(key: string, holder: string, ttlMs: number): Promise<boolean>;
   /** Removes the lock entry when `holder` still holds it. */
@@ -154,6 +162,10 @@ export function vercelRuntimeCacheAdapter(
       );
     },
     lease: async (key, holder, ttlMs) => {
+      if (options.lease) {
+        return options.lease.lease(key, holder, ttlMs);
+      }
+
       const lock = `lease:${key}`;
       const current = await open().get(lock);
 
@@ -168,6 +180,12 @@ export function vercelRuntimeCacheAdapter(
       return (await open().get(lock)) === holder;
     },
     release: async (key, holder) => {
+      if (options.lease) {
+        await options.lease.release(key, holder);
+
+        return;
+      }
+
       const lock = `lease:${key}`;
 
       if ((await open().get(lock)) === holder) {
