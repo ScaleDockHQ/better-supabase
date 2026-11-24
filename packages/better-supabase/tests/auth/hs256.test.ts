@@ -70,7 +70,8 @@ describe("verifyHs256", () => {
     ],
     [
       "a token before nbf",
-      () => hmac({ alg: "HS256" }, { sub: "u1", nbf: NOW + 60 }),
+      () =>
+        hmac({ alg: "HS256" }, { sub: "u1", nbf: NOW + 60, exp: NOW + 3600 }),
       {},
       "not valid yet",
     ],
@@ -81,14 +82,20 @@ describe("verifyHs256", () => {
       "audience",
     ],
     [
+      "a token without exp",
+      () => hmac({ alg: "HS256" }, { sub: "u1" }),
+      {},
+      "no numeric exp",
+    ],
+    [
       "another issuer",
-      () => hmac({ alg: "HS256" }, { sub: "u1", iss: "a" }),
+      () => hmac({ alg: "HS256" }, { sub: "u1", iss: "a", exp: NOW + 3600 }),
       { issuer: "b" },
       "issuer",
     ],
     [
       "a token without sub",
-      () => hmac({ alg: "HS256" }, { role: "anon" }),
+      () => hmac({ alg: "HS256" }, { role: "anon", exp: NOW + 3600 }),
       {},
       "no sub claim",
     ],
@@ -125,7 +132,12 @@ describe("verifyHs256", () => {
   it("accepts a matching issuer and an audience list", async () => {
     const token = await hmac(
       { alg: "HS256" },
-      { sub: "u1", iss: "lite", aud: ["authenticated", "api"] },
+      {
+        sub: "u1",
+        iss: "lite",
+        aud: ["authenticated", "api"],
+        exp: NOW + 3600,
+      },
     );
 
     const result = await verifyHs256(token, SECRET, {
