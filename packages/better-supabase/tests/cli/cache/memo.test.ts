@@ -11,6 +11,7 @@ import { installMemo } from "../../../src/cli/cache/memo-backend.ts";
 import { cacheRoot, setCacheEnabled } from "../../../src/cli/cache/store.ts";
 import {
   clearMemo,
+  isMemoized,
   memoStats,
   memoized,
   setMemoBackend,
@@ -89,6 +90,25 @@ describe("memoized", () => {
     setCacheEnabled(false);
     await installMemo(root);
     expect(memoized("demo", ["a"], isNumber, () => 3)).toBe(3);
+  });
+
+  it("tells whether a result is held, in memory or in the file, without computing it", async () => {
+    await installMemo(root);
+    expect(isMemoized("peek", ["a"], isNumber)).toBe(false);
+    memoized("peek", ["a"], isNumber, () => 1);
+    expect(isMemoized("peek", ["a"], isNumber)).toBe(true);
+
+    await installMemo(root);
+    expect(isMemoized("peek", ["a"], isNumber)).toBe(true);
+    expect(
+      isMemoized(
+        "peek",
+        ["a"],
+        (value): value is string => typeof value === "string",
+      ),
+    ).toBe(false);
+    expect(isMemoized("peek", [() => 1], isNumber)).toBe(false);
+    expect(memoStats.computed).toBe(1);
   });
 
   it("keeps the file small: only the newest results of a name stay", async () => {

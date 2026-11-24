@@ -64,7 +64,7 @@ const seeded = async (
   return doctor(dir);
 };
 
-const TIMEOUT = 180_000;
+const TIMEOUT = 60_000;
 
 describe("doctor on the declarative fixture", () => {
   it(

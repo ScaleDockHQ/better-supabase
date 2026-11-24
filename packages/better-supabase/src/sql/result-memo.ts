@@ -97,3 +97,27 @@ export function memoized<T>(
 
   return value;
 }
+
+/**
+ * Whether `memoized(namespace, parts, accept, ...)` would answer without
+ * computing, so a caller can skip the async reads its `compute` needs.
+ */
+export function isMemoized<T>(
+  namespace: string,
+  parts: unknown,
+  accept: (value: unknown) => value is T,
+): boolean {
+  const key = stableKey([namespace, state.backend?.salt ?? "", parts]);
+
+  if (key === undefined) {
+    return false;
+  }
+
+  if (state.held.has(`${namespace}:${key}`)) {
+    return true;
+  }
+
+  const stored = state.backend?.get(namespace, key);
+
+  return stored !== undefined && accept(stored);
+}

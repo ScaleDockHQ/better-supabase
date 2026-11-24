@@ -112,7 +112,7 @@ export async function readFileFacts(
     });
   }
 
-  const scanned = await unwrapScanResult(parser.scan(text));
+  const scanned = await scanSql(text, options);
 
   // SAFETY: `stmts` is the parser's list of `{ stmt, stmt_location, stmt_len }`,
   // which is the shape of `RawStatement`.
@@ -192,6 +192,11 @@ export function factsOf(text: string): FileFacts {
   return known;
 }
 
+const scans = new Map<
+  SupportedVersion,
+  Map<string, Promise<readonly ScanToken[]>>
+>();
+
 /**
  * The tokens of a SQL text, comments included, with byte offsets. A codemod
  * rewrites names through them, so a string or a comment never matches.
@@ -204,7 +209,22 @@ export async function scanSql(
   text: string,
   options: { majorVersion?: number } = {},
 ): Promise<readonly ScanToken[]> {
-  return unwrapScanResult(parserFor(options.majorVersion).scan(text));
+  const version = grammarFor(options.majorVersion);
+  let byText = scans.get(version);
+
+  if (byText === undefined) {
+    byText = new Map();
+    scans.set(version, byText);
+  }
+
+  let tokens = byText.get(text);
+
+  if (tokens === undefined) {
+    tokens = unwrapScanResult(parserFor(version).scan(text));
+    byText.set(text, tokens);
+  }
+
+  return tokens;
 }
 
 /** One statement of a parsed file, with its byte range in the text. */

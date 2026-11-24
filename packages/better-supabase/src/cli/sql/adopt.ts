@@ -24,7 +24,7 @@ import {
 import {
   adoptedColumnProblems,
   moduleWritesText,
-  primeAdoption,
+  primeModuleDefaults,
 } from "../adopted-columns.ts";
 
 /** The part of an introspected table a proposal reads. */
@@ -328,7 +328,7 @@ export async function proposeAdoption(
   options: ProposeOptions = {},
 ): Promise<AdoptProposal> {
   // The default module texts `moduleWritesText` reads.
-  await primeAdoption({});
+  await primeModuleDefaults([block]);
 
   const module = SQL_MODULES[block];
 

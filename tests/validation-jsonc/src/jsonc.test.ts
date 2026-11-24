@@ -15,7 +15,7 @@ afterEach(async () => {
 
 // The first command loads the CLI from source, which takes about 5 s on a CI
 // runner.
-const TIMEOUT = 180_000;
+const TIMEOUT = 60_000;
 
 describe("a project with only config.jsonc", () => {
   it(

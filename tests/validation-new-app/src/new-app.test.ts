@@ -98,7 +98,7 @@ const APPS: readonly (NewApp & {
 
 // The first command loads the CLI from source, which takes about 5 s on a CI
 // runner, and each case runs tsc.
-const TIMEOUT = 180_000;
+const TIMEOUT = 120_000;
 
 describe.each(APPS)("init --yes in a new $name app", (app) => {
   it(

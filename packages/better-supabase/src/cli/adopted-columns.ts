@@ -2,6 +2,7 @@ import type { AnyBlocksConfig } from "../config/index.ts";
 import type { BlockSqlContext, BlockSqlLayout } from "../sql/index.ts";
 
 import {
+  isMemoized,
   memoized,
   moduleBody,
   moduleContext,
@@ -10,6 +11,7 @@ import {
 import { qualified } from "../sql/text-edit.ts";
 import { hasValueEntry } from "../sql/value-maps.ts";
 import { computedWrites } from "./plpgsql-text-writes.ts";
+import { primeStatements } from "./schema-reader/index.ts";
 import {
   declaredColumnTypes,
   declaredEnums,
@@ -65,9 +67,12 @@ const writesOf = (
 ): ReadonlyMap<string, ReadonlySet<string>> =>
   new Map(entries.map(([key, members]) => [key, new Set(members)]));
 
-/** The default render of every module, the text the managed columns come from. */
-const defaultTexts = (): string[] =>
-  Object.values(SQL_MODULES).map((module) => rendered(() => module.sql));
+/** The default render of a module, the text its managed columns come from. */
+const defaultText = (name: string): string =>
+  rendered(() => SQL_MODULES[name]?.sql);
+
+/** The default render of every module, the text the default writes come from. */
+const defaultTexts = (): string[] => Object.keys(SQL_MODULES).map(defaultText);
 
 /** Every configured module's body, the text the writes on app tables come from. */
 const configuredTexts = (
@@ -99,10 +104,38 @@ export async function primeAdoption(
   ownTables?: Readonly<Record<string, string>>,
   subjects?: BlockSqlLayout["subjects"],
 ): Promise<void> {
-  await primeSchemaTexts([
-    ...defaultTexts(),
-    ...configuredTexts(modules, ownTables, subjects),
-  ]);
+  await primeModuleDefaults(Object.keys(modules));
+  await primeSchemaTexts(configuredTexts(modules, ownTables, subjects));
+}
+
+/**
+ * Reads the default module SQL that `moduleWritesText` and `adoptedTables` look
+ * at for `names`, only where their results are not memoized yet.
+ *
+ * @param names - The modules that will be asked about.
+ */
+export async function primeModuleDefaults(
+  names: readonly string[],
+): Promise<void> {
+  const missing = names.filter(
+    (name) =>
+      SQL_MODULES[name]?.names !== undefined &&
+      !managedText.has(name) &&
+      !isMemoized("managed-text", [name], isTextEntries),
+  );
+
+  if (missing.length === 0) {
+    return;
+  }
+
+  if (
+    defaults === undefined &&
+    !isMemoized("default-writes", [], isWriteEntries)
+  ) {
+    await primeStatements(defaultTexts());
+  }
+
+  await primeSchemaTexts(missing.map(defaultText));
 }
 
 let defaults: ReadonlyMap<string, ReadonlySet<string>> | undefined;
