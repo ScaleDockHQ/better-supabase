@@ -1,3 +1,5 @@
+import { recordCold } from "../core/cold-start.ts";
+
 /**
  * A Postgres pool `warm()` runs `select 1` on, typed structurally so the entry
  * imports neither `pg` nor `postgres` (invariant 6). `pg`'s `Pool` and a
@@ -159,6 +161,8 @@ export async function warmUp(
   }
 
   const done = await Promise.all(steps);
+
+  recordCold("warm", performance.now() - started);
 
   return { ms: roundMs(performance.now() - started), steps: done };
 }

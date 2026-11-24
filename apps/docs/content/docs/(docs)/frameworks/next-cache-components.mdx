@@ -904,6 +904,41 @@ render waits on more sequential waves than that. The warning names
 in one `Promise.all`. The OpenTelemetry plugin sets `better_supabase.db.round_trips` on each
 database span.
 
+### The first request of a process
+
+A cold function pays for module evaluation, the first `warm()`, the first
+token check and the first database connection before it answers. To see which
+part of that is better-supabase's, set `debug.coldStart`:
+
+```ts title="src/lib/supabase/server.ts"
+export const bsb = createNext(betterSupabase, { debug: { coldStart: true } });
+```
+
+The stats header then carries a `cold=` field while the process records a
+step for the first time, and the first query logs one line:
+
+```txt
+x-bsb-db-calls: 0;0;0;1;0;0;0;0;0;cold=eval:96.4,ready:1310.2,create:1.8
+bsb.cold eval:96.4,ready:1310.2,create:1.8,warm:212.5,claims:38.1,query:84.7
+```
+
+| Field    | What it measures                                                                                    |
+| -------- | --------------------------------------------------------------------------------------------------- |
+| `eval`   | Milliseconds `better-supabase/next` took to evaluate, its own modules and the shared ones it loaded |
+| `ready`  | Milliseconds from the start of the process to the end of that evaluation                            |
+| `create` | The first `createNext`                                                                              |
+| `warm`   | The first `warm()`, its steps run in parallel                                                       |
+| `claims` | The first `bsb.getClaims()`, which includes reading the request and verifying the token             |
+| `query`  | The first repository call's round trip, connection set-up included                                  |
+
+The fields count once per process, so a warm instance reports nothing. Modules
+that `better-supabase/server` loaded before the `next` entry count in `ready`,
+not in `eval`. The option collects the request stats outside development too,
+the same as `debug.enabled`, and uses only `performance.now()`, so it runs on
+every runtime. Pages stream, so their numbers arrive on the `bsb.debugRoute()`
+response or in the log line; the proxy's document response carries the steps
+that ran before it.
+
 ### What each stage costs
 
 A customer page that reads the customer list, its notes and tags behind

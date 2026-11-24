@@ -131,6 +131,13 @@ export interface NextDebugOptions {
   readonly budget?: DbBudget;
   /** Where `bsb.debugRoute()` is mounted. Defaults to `/api/bsb-stats`. */
   readonly route?: string;
+  /**
+   * Reports the process's first request: the time `better-supabase/next` took
+   * to evaluate, when it was ready, and the first `createNext`, `warm()`,
+   * `getClaims` and query. The stats header gets a `cold=` field while a step
+   * is new, and the first query logs one `bsb.cold` line.
+   */
+  readonly coldStart?: boolean;
 }
 
 export interface ProxyOptions<C = unknown, P = unknown> {
