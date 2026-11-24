@@ -51,6 +51,7 @@ export function authzVersionOf(claims: Claims): number | null {
 const branded = new WeakSet<object>();
 
 const sources = new WeakMap<object, AuthState>();
+const built = new WeakMap<object, SessionSnapshot>();
 
 /**
  * Whether `value` is a snapshot this process built from a verified token. A
@@ -68,6 +69,14 @@ export function snapshotOf<C, P>(
     return null;
   }
 
+  // SAFETY: the memo only holds snapshots snapshotOf built from this same
+  // AuthState<C, P>, so the claims type matches.
+  const known = built.get(auth) as SessionSnapshot<C> | undefined;
+
+  if (known !== undefined) {
+    return known;
+  }
+
   const sessionId = auth.claims["session_id"];
 
   const snapshot: SessionSnapshot<C> = Object.freeze({
@@ -82,6 +91,7 @@ export function snapshotOf<C, P>(
 
   branded.add(snapshot);
   sources.set(snapshot, auth);
+  built.set(auth, snapshot);
 
   return snapshot;
 }
