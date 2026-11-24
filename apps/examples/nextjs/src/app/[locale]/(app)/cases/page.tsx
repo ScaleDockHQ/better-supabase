@@ -42,28 +42,30 @@ export default function CasesPage({
           "Nonconformities, complaints, incidents and the other cases of the organization, from report to a verified close.",
         )}
         actions={
-          <PermissionGate permission="tasks.write">
-            <ActionDialog
-              action={openTicket}
-              title={t("Open a ticket")}
-              description={t(
-                "Creates the ticket as a task and starts its response clocks.",
-              )}
-              trigger={t("Open ticket")}
-              submitLabel={t("Open ticket")}
-              successMessage={t("Ticket opened")}
-              variant="outline"
-              fields={[
-                {
-                  name: "title",
-                  label: t("Title"),
-                  kind: "text",
-                  required: true,
-                },
-                { name: "body", label: t("Details"), kind: "textarea" },
-              ]}
-            />
-          </PermissionGate>
+          <Suspense fallback={null}>
+            <PermissionGate permission="tasks.write">
+              <ActionDialog
+                action={openTicket}
+                title={t("Open a ticket")}
+                description={t(
+                  "Creates the ticket as a task and starts its response clocks.",
+                )}
+                trigger={t("Open ticket")}
+                submitLabel={t("Open ticket")}
+                successMessage={t("Ticket opened")}
+                variant="outline"
+                fields={[
+                  {
+                    name: "title",
+                    label: t("Title"),
+                    kind: "text",
+                    required: true,
+                  },
+                  { name: "body", label: t("Details"), kind: "textarea" },
+                ]}
+              />
+            </PermissionGate>
+          </Suspense>
         }
       />
       <Suspense fallback={<CaseBoardSectionSkeleton />}>

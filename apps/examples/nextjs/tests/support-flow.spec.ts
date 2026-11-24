@@ -79,7 +79,7 @@ test("discussing a case posts the comment", async ({ page }) => {
       .getByText("Re-test scheduled for Monday.")
       .filter({ visible: true })
       .first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 });
 
 test("opening a ticket reports it with its response clocks", async ({

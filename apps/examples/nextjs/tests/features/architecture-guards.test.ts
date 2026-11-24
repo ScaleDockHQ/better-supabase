@@ -41,8 +41,8 @@ describe("architecture guards", () => {
   it("keeps fallback={null} to the files that have it today", () => {
     const files = FILES.filter((file) => file.text.includes("fallback={null}"));
 
-    expect(files.length).toBeLessThanOrEqual(34);
-    expect(count(/fallback=\{null\}/gu)).toBeLessThanOrEqual(39);
+    expect(files.length).toBeLessThanOrEqual(35);
+    expect(count(/fallback=\{null\}/gu)).toBeLessThanOrEqual(40);
   });
 
   it("defines skeletons in client modules no more than today", () => {

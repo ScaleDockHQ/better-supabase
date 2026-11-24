@@ -20,7 +20,7 @@
     "lint": "next typegen && oxlint",
     "start": "next start -p 3100",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=chromium && playwright test --project=counters --no-deps --workers=1",
     "typecheck": "next typegen && tsc --noEmit --incremental false"
   },
   "dependencies": {

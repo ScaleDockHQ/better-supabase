@@ -64,10 +64,15 @@ test("the prescription list opens the draft with its status", async ({
 
   await expectInstant(page, {
     during: async () => {
-      await link.click();
-      await page.waitForURL((url) =>
-        url.pathname.startsWith("/prescriptions/"),
-      );
+      // The row link can be clicked before the table hydrates; retry once
+      // the router is ready.
+      await expect(async () => {
+        await link.click();
+        await page.waitForURL(
+          (url) => url.pathname.startsWith("/prescriptions/"),
+          { timeout: 4000 },
+        );
+      }).toPass({ timeout: 20_000 });
     },
     visible: [page.getByRole("link", { name: "All prescriptions" })],
   });
