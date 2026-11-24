@@ -26211,6 +26211,21 @@ msgctxt "records.47FYwb"
 msgid "Cancel"
 msgstr "Annuleren"
 
+#: src/features/records/components/record-conversations.tsx
+msgctxt "records.1udzha"
+msgid "Conversations"
+msgstr ""
+
+#: src/features/records/components/record-conversations.tsx
+msgctxt "records.SKoJhi"
+msgid "Threads of the people linked to this record."
+msgstr ""
+
+#: src/features/records/components/record-conversations.tsx
+msgctxt "records.K3msCw"
+msgid "No conversation yet."
+msgstr ""
+
 #: src/features/records/components/record-sections.tsx
 msgctxt "records.wCgTu5"
 msgid "Comments"
@@ -26340,6 +26355,21 @@ msgstr "Schrijf een opmerking"
 msgctxt "records.XDWEZM"
 msgid "Someone"
 msgstr "Iemand"
+
+#: src/features/records/components/record-workflows.tsx
+msgctxt "records.qq5vr2"
+msgid "Workflow progress"
+msgstr ""
+
+#: src/features/records/components/record-workflows.tsx
+msgctxt "records.X6V2eS"
+msgid "Runs started for this record."
+msgstr ""
+
+#: src/features/records/components/record-workflows.tsx
+msgctxt "records.SbfMf4"
+msgid "No workflow has run for this record."
+msgstr ""
 
 #: src/features/records/components/related-items-panel.tsx
 msgctxt "records.ec6yww"

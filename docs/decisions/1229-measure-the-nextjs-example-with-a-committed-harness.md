@@ -81,3 +81,7 @@ about 0.6 MB raw (3.2 MB to 3.8 MB) because the config now carries the descripto
 13 areas, and the first-load JavaScript of the finance and banking record pages grew by up
 to 9 percent. A follow-up should split those descriptors per area so a route loads only
 its own.
+
+Later in the same change, the record sections for conversations and workflow
+progress and the live refresh on the timeline raised the first-load and server
+baselines again; both files were rewritten from the final build.
