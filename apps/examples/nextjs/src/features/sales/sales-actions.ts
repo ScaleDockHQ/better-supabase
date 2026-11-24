@@ -71,26 +71,6 @@ export const winDeal = bsb.action(
   },
 );
 
-/** Closes a deal as lost, with an optional reason. */
-export const loseDeal = bsb.action(
-  {
-    input: v.object({ dealId: Id, reason: Optional }),
-    requireTenant: true,
-    permission: "deals.write",
-  },
-  async ({ dealId, reason }, { db, auth }) => {
-    const lost = await db.deals.lose({ dealId, reason });
-
-    if (!lost.ok) {
-      return lost;
-    }
-
-    await refreshCaller(auth, TAGS);
-
-    return ok(true);
-  },
-);
-
 /** Opens a closed deal again in the first open stage. */
 export const reopenDeal = bsb.action(
   {

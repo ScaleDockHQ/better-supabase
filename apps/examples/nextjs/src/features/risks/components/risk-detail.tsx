@@ -1,7 +1,9 @@
 import { getExtracted, getFormatter } from "next-intl/server";
 import { notFound } from "next/navigation";
 
+import { RecordBoundSections } from "@/components/record-detail/record-bound-sections";
 import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
+import { RecordDetailTabs } from "@/components/record-detail/record-detail-tabs";
 import { RecordSectionSkeleton } from "@/components/record-detail/record-section-states";
 import { Badge } from "@/components/reui/badge";
 import {
@@ -12,6 +14,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { exportRecordSubject } from "@/features/composites/composites-actions";
+import { ActionButton } from "@/features/sales/components/action-button";
+import { holds } from "@/features/sales/components/overview-support";
 
 import type {
   RiskDetailData,
@@ -77,11 +82,14 @@ function Links({
   );
 }
 
-async function Body({ data }: { data: RiskDetailData }) {
-  const [t, format] = await Promise.all([
+async function Body({ data, tab }: { data: RiskDetailData; tab: string }) {
+  const [t, format, canExport] = await Promise.all([
     getExtracted("risks"),
     getFormatter(),
+    holds("data_lifecycle.export"),
   ]);
+
+  const subject = { type: "risk", id: data.row.id } as const;
 
   const date = (value: string) =>
     format.dateTime(new Date(value), { dateStyle: "medium", timeZone: "UTC" });
@@ -91,8 +99,30 @@ async function Body({ data }: { data: RiskDetailData }) {
       title={data.row.title}
       description={`${data.row.number} · ${data.row.category}`}
       status={<RiskStatusBadge status={data.row.status} />}
+      actions={
+        canExport ? (
+          <ActionButton
+            action={exportRecordSubject}
+            input={{ subjectType: "risk", subjectId: data.row.id }}
+            label={t("Export record")}
+            successMessage={t("Export requested")}
+          />
+        ) : null
+      }
       aside={
         <>
+          <RecordBoundSections
+            subject={subject}
+            sections={[
+              "tags",
+              "fields",
+              "approvals",
+              "reminders",
+              "conversations",
+              "tasks",
+              "workflows",
+            ]}
+          />
           <Card size="sm">
             <CardHeader>
               <CardTitle>{t("Rating")}</CardTitle>
@@ -140,51 +170,74 @@ async function Body({ data }: { data: RiskDetailData }) {
         </>
       }
     >
-      <TextSection title={t("Description")} body={data.description} />
-      <TextSection title={t("Cause")} body={data.cause} />
-      <TextSection title={t("Consequence")} body={data.consequence} />
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>{t("Assessments")}</CardTitle>
-          <CardDescription>
-            {t("Each assessment freezes the risk's version, newest first.")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 text-sm">
-          {data.assessments.length === 0 ? (
-            <p className="text-muted-foreground">
-              {t(
-                "Not assessed yet. Score the likelihood and impact before and after controls.",
+      <RecordDetailTabs
+        base={`/risks/${data.row.id}`}
+        active={tab}
+        tabs={[
+          { value: "overview", label: t("Overview") },
+          { value: "activity", label: t("Activity") },
+          { value: "related", label: t("Related") },
+        ]}
+      />
+      {tab === "related" ? (
+        <RecordBoundSections
+          subject={subject}
+          sections={["files", "relations"]}
+        />
+      ) : tab === "activity" ? (
+        <RecordBoundSections
+          subject={subject}
+          sections={["discussion", "history"]}
+        />
+      ) : (
+        <>
+          <TextSection title={t("Description")} body={data.description} />
+          <TextSection title={t("Cause")} body={data.cause} />
+          <TextSection title={t("Consequence")} body={data.consequence} />
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>{t("Assessments")}</CardTitle>
+              <CardDescription>
+                {t("Each assessment freezes the risk's version, newest first.")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 text-sm">
+              {data.assessments.length === 0 ? (
+                <p className="text-muted-foreground">
+                  {t(
+                    "Not assessed yet. Score the likelihood and impact before and after controls.",
+                  )}
+                </p>
+              ) : (
+                data.assessments.map((assessment) => (
+                  <div
+                    key={assessment.id}
+                    className="flex flex-col gap-1 border-b pb-3 last:border-b-0 last:pb-0"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-muted-foreground tabular-nums">
+                        {date(assessment.assessedAt)}
+                      </span>
+                      <Rating rating={assessment.inherent} />
+                      <span className="text-muted-foreground">{t("then")}</span>
+                      <Rating rating={assessment.residual} />
+                    </div>
+                    {assessment.rationale === null ? null : (
+                      <p>{assessment.rationale}</p>
+                    )}
+                  </div>
+                ))
               )}
-            </p>
-          ) : (
-            data.assessments.map((assessment) => (
-              <div
-                key={assessment.id}
-                className="flex flex-col gap-1 border-b pb-3 last:border-b-0 last:pb-0"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-muted-foreground tabular-nums">
-                    {date(assessment.assessedAt)}
-                  </span>
-                  <Rating rating={assessment.inherent} />
-                  <span className="text-muted-foreground">{t("then")}</span>
-                  <Rating rating={assessment.residual} />
-                </div>
-                {assessment.rationale === null ? null : (
-                  <p>{assessment.rationale}</p>
-                )}
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </RecordDetailFrame>
   );
 }
 
 /** Render inside `<Suspense>`; the fallback is `RiskDetailSkeleton`. */
-export async function RiskDetail({ id }: { id: string }) {
+export async function RiskDetail({ id, tab }: { id: string; tab: string }) {
   const state = await getRisk(id);
 
   if (state.kind === "error") {
@@ -195,7 +248,7 @@ export async function RiskDetail({ id }: { id: string }) {
     notFound();
   }
 
-  return <Body data={state.data} />;
+  return <Body data={state.data} tab={tab} />;
 }
 
 export function RiskDetailSkeleton() {

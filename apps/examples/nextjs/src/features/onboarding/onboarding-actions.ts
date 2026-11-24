@@ -3,6 +3,7 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
+import { PEOPLE_TAG } from "@/features/people/people-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -80,5 +81,28 @@ export const enrollEmployee = bsb.action(
     await refreshCaller(auth, [ONBOARDING_TAG]);
 
     return ok({ id: enrolled.data.id });
+  },
+);
+
+/** Marks one step of an employee's onboarding done. */
+export const completeOnboardingStep = bsb.action(
+  {
+    input: v.object({
+      enrollmentId: Id,
+      step: v.pipe(v.string(), v.minLength(1)),
+    }),
+    requireTenant: true,
+    permission: "enrollments.enroll",
+  },
+  async ({ enrollmentId, step }, { db, auth }) => {
+    const done = await db.enrollments.complete({ enrollmentId, step });
+
+    if (!done.ok) {
+      return done;
+    }
+
+    await refreshCaller(auth, [ONBOARDING_TAG, PEOPLE_TAG]);
+
+    return ok({ id: done.data.id });
   },
 );

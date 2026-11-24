@@ -11,6 +11,10 @@ export default function FundingLayout({ children }: { children: ReactNode }) {
     <NextIntlClientProvider
       messages={pick(messages, [
         ...APP_NAMESPACES,
+        "customers",
+        "records",
+        "sales",
+        "subjects",
         "finance",
         "recordDetail",
         "recordList",

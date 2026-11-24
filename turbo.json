@@ -252,9 +252,19 @@
         "scripts/entity-routes.ts",
         "apps/examples/nextjs/src/lib/supabase/pages/routes.manifest.ts",
         "apps/examples/nextjs/coverage/**",
+        "apps/examples/nextjs/src/features/areas/areas.ts",
         "apps/examples/nextjs/src/app/**/page.tsx",
         "packages/better-supabase/src/preset/catalog.generated.ts",
         "packages/better-supabase/src/preset/presets.ts"
+      ]
+    },
+    "//#check:example-generated": {
+      "inputs": [
+        "scripts/check-example-generated.ts",
+        "apps/examples/nextjs/perf/generated-coverage.json",
+        "apps/examples/nextjs/src/**",
+        "apps/examples/nextjs/tests/**",
+        "apps/examples/nextjs/coverage/**"
       ]
     },
     "//#check:naming": {
@@ -292,6 +302,8 @@
         "supabase/seed.sql",
         "supabase/seeds/example.sql",
         "supabase/seeds/finance-demo.sql",
+        "supabase/seeds/areas-12-13.sql",
+        "supabase/seeds/area-stories.sql",
         "supabase/tests/**",
         "tests/**"
       ]

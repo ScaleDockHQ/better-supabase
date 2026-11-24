@@ -1,4 +1,4 @@
-import { bsbCore } from "@/lib/supabase/server-core";
+import { bsb } from "@/lib/supabase/server";
 
 import { AuthzRefresh } from "./authz-refresh";
 
@@ -9,5 +9,5 @@ import { AuthzRefresh } from "./authz-refresh";
  * the live authorization version on the next page load (EX-906).
  */
 export function SessionAuthzRefresh() {
-  return <AuthzRefresh session={bsbCore.claims()} />;
+  return <AuthzRefresh session={bsb.claims()} />;
 }

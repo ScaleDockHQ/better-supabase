@@ -13,7 +13,16 @@ export default function InspectionsLayout({
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "inspections"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "crm",
+        "customers",
+        "recordDetail",
+        "records",
+        "sales",
+        "subjects",
+        "inspections",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

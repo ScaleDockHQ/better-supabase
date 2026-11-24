@@ -15,6 +15,10 @@ export async function getNavLabel(): Promise<(id: NavId) => string> {
         return t("My work");
       }
 
+      case "areas": {
+        return t("Product areas");
+      }
+
       case "customers": {
         return t("Customers");
       }

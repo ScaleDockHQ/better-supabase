@@ -8,6 +8,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { careOf } from "@/features/composites/composites";
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { bsb } from "@/lib/supabase/server";
 
@@ -187,7 +188,7 @@ export function getAccessLog(
 export async function prepareDossierRead(
   id: string,
 ): Promise<() => Promise<void>> {
-  const { db } = await bsb.cached();
+  const { db } = await bsb.context();
 
   return async () => {
     await db.subjects.reads.log({
@@ -195,4 +196,79 @@ export async function prepareDossierRead(
       purpose: "care",
     });
   };
+}
+
+/** What the dossier holds for a client, as counts. */
+export interface DossierSummary {
+  readonly plans: number;
+  readonly observations: number;
+  readonly orders: number;
+  readonly consents: number;
+  readonly funding: number;
+}
+
+async function loadDossierSummary(id: string): Promise<DossierSummary | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(CUSTOMERS_TAG);
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
+  const dossier = await careOf(db)
+    .dossier({ organizationId: tenant, subject: { type: "customer", id } })
+    .orThrow();
+
+  return {
+    plans: dossier.plans.length,
+    observations: Object.keys(dossier.latestObservations).length,
+    orders: dossier.orders.length,
+    consents: dossier.consents.length,
+    funding: dossier.funding.length,
+  };
+}
+
+/**
+ * The client's plans, latest observations, active orders, consents and funding
+ * awards, read together by `care.dossier`. Only counts leave the loader.
+ */
+export function getDossierSummary(id: string): Promise<Loaded<DossierSummary>> {
+  return settle(() => loadDossierSummary(id));
+}
+
+/** One medication of the list, to prescribe from. */
+export interface MedicationOption {
+  readonly id: string;
+  readonly name: string;
+}
+
+async function loadMedicationOptions(): Promise<
+  readonly MedicationOption[] | null
+> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(CUSTOMERS_TAG);
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
+  const medications = await db.$blocks.medications
+    .medications({ organizationId: tenant })
+    .orThrow();
+
+  return medications.map((medication) => ({
+    id: medication.id,
+    name: medication.name,
+  }));
+}
+
+/** The organization's medications by name. */
+export function getMedicationOptions(): Promise<
+  Loaded<readonly MedicationOption[]>
+> {
+  return settle(loadMedicationOptions);
 }

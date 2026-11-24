@@ -13,6 +13,7 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { orMissing } from "@/lib/or-missing";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -184,4 +185,55 @@ async function loadCarePlan(
  */
 export function getCarePlan(clientId?: string): Promise<Loaded<CarePlanState>> {
   return settle(() => loadCarePlan(clientId));
+}
+
+/** One plan for its page. */
+export interface CarePlanDetail {
+  readonly id: string;
+  readonly clientId: string;
+  readonly view: CarePlanView;
+  readonly startsOn: string | null;
+  readonly publishedAt: string | null;
+  readonly agreedAt: string | null;
+}
+
+async function loadCarePlanDetail(
+  id: string,
+): Promise<CarePlanDetail | undefined | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(CUSTOMERS_TAG);
+
+  if (!tenantOf(session)) {
+    return null;
+  }
+
+  const plan = orMissing(await db.carePlans.get(id));
+
+  if (plan === undefined) {
+    return undefined;
+  }
+
+  const [client] = await db.customers
+    .list({ select: ["id", "name"], where: { id: plan.subjectId }, limit: 1 })
+    .orThrow();
+
+  return {
+    id: plan.id,
+    clientId: plan.subjectId,
+    view: viewOf(client?.name ?? "", plan),
+    startsOn: plan.startsOn?.toString() ?? null,
+    publishedAt: plan.publishedAt?.toString() ?? null,
+    agreedAt: plan.agreedAt?.toString() ?? null,
+  };
+}
+
+/**
+ * One care plan; `undefined` when it does not exist or the caller cannot read
+ * it.
+ */
+export function getCarePlanDetail(
+  id: string,
+): Promise<Loaded<CarePlanDetail | undefined>> {
+  return settle(() => loadCarePlanDetail(id));
 }

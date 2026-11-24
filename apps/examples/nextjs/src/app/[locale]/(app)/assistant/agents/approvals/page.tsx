@@ -4,6 +4,10 @@ import { Suspense } from "react";
 import { loadOpsList } from "@/components/ops-list/ops-list-params";
 import { PageHeader } from "@/components/page-header";
 import {
+  AgentsKpiBand,
+  AgentsKpiBandSkeleton,
+} from "@/features/agents/components/agents-kpi-band";
+import {
   ApprovalInbox,
   ApprovalInboxSkeleton,
 } from "@/features/agents/components/approval-inbox";
@@ -24,6 +28,9 @@ export default function ApprovalsPage({
           "Tool calls that wait for a decision. Select several and decide them together.",
         )}
       />
+      <Suspense fallback={<AgentsKpiBandSkeleton />}>
+        <AgentsKpiBand kind="approvals" />
+      </Suspense>
       <Suspense fallback={<ApprovalInboxSkeleton />}>
         <ApprovalInbox query={loadOpsList(searchParams)} />
       </Suspense>

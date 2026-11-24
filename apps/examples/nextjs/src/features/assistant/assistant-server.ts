@@ -23,6 +23,8 @@ import { postgresStreamStore } from "better-supabase/streams";
 import { after } from "next/server";
 import * as v from "valibot";
 
+import type { PermissionSet } from "@/features/user/user-permissions";
+
 import { env } from "@/env";
 import { guardrailsBlock } from "@/features/guardrails/guardrails-server";
 import { knowledge, memory } from "@/features/knowledge/knowledge-server";
@@ -31,7 +33,10 @@ import { present } from "@/lib/present";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
+import type { PageContext } from "./page-context";
+
 import { ASSISTANT_AGENT, ASSISTANT_PROMPT } from "./assistant-ops";
+import { pageTools } from "./assistant-page-tools";
 import { codeSandbox, NO_CODE } from "./code-sandbox";
 import { demoModel } from "./demo-model";
 
@@ -277,6 +282,8 @@ export function assistantContext(
   supabase: UserClient,
   userId: string,
   organizationId: string,
+  page?: PageContext,
+  permissions: PermissionSet | null = null,
 ): AssistantContext {
   const context: AssistantContext = {
     chats: aiChat(supabase),
@@ -291,8 +298,16 @@ export function assistantContext(
     tools: {
       searchKnowledge: searchTool(knowledge(supabase), organizationId),
       memory: memoryTool(memories, organizationId),
+      ...pageTools(page, permissions),
     },
-    instructions: (base) => withMemory(base, memories, organizationId),
+    instructions: (base) =>
+      withMemory(
+        page === undefined
+          ? base
+          : `${base}\nThe user opened you from the page ${page.path}. Call readCurrentPage when the question is about it. You cannot change data: to propose a discount, file an approval request and say that an approver decides it.`,
+        memories,
+        organizationId,
+      ),
   });
 
   return context;

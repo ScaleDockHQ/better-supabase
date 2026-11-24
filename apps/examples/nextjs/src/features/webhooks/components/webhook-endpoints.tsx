@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/table";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
+import { Link } from "@/i18n/navigation";
 
 import type { WebhookEndpointRow, WebhookStatus } from "../webhook-types";
 import type { WebhooksOverview } from "../webhooks-queries";
@@ -74,15 +75,15 @@ async function retry() {
   refresh();
 }
 
-type DeliveryLabels = Readonly<Record<WebhookStatus, string>>;
+export type DeliveryLabels = Readonly<Record<WebhookStatus, string>>;
 
-interface EndpointLabels {
+export interface EndpointLabels {
   readonly off: string;
   readonly failing: string;
   readonly active: string;
 }
 
-function DeliveryStatusBadge({
+export function DeliveryStatusBadge({
   status,
   labels,
 }: {
@@ -122,7 +123,7 @@ function DeliveryStatusBadge({
   }
 }
 
-function EndpointStatusBadge({
+export function EndpointStatusBadge({
   endpoint,
   labels,
 }: {
@@ -252,9 +253,12 @@ export async function WebhookEndpoints() {
                   <TableRow key={endpoint.id}>
                     <TableCell>
                       <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium">
+                        <Link
+                          href={`/settings/webhooks/${endpoint.id}`}
+                          className="text-sm font-medium hover:underline"
+                        >
                           {endpoint.name}
-                        </span>
+                        </Link>
                         <span className="max-w-xs truncate font-mono text-xs text-muted-foreground">
                           {endpoint.url}
                         </span>

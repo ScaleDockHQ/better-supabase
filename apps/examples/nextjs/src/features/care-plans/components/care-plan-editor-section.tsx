@@ -1,11 +1,5 @@
 import { Frame, FrameHeader, FramePanel } from "@/components/reui/frame";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCarePlan } from "@/features/care-plans/care-plans-queries";
-import { CarePlanEditor } from "@/features/care-plans/components/care-plan-editor";
-
-export async function CarePlanEditorSection() {
-  return <CarePlanEditor state={await getCarePlan()} />;
-}
 
 export function CarePlanEditorSectionSkeleton() {
   return (

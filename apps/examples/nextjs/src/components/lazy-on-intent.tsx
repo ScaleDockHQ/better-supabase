@@ -8,6 +8,7 @@ type Intent = "none" | "hover" | "click";
 
 export interface IntentHandlers {
   readonly onPointerEnter: () => void;
+  readonly onPointerDown: () => void;
   readonly onFocus: () => void;
   readonly onClick: () => void;
 }
@@ -56,6 +57,10 @@ export function LazyOnIntent({
     };
   }, [shortcut, intent]);
 
+  const press = () => {
+    setIntent("click");
+  };
+
   const closed = renderTrigger({
     onPointerEnter: () => {
       setIntent(hovered);
@@ -63,9 +68,8 @@ export function LazyOnIntent({
     onFocus: () => {
       setIntent(hovered);
     },
-    onClick: () => {
-      setIntent("click");
-    },
+    onPointerDown: press,
+    onClick: press,
   });
 
   if (intent === "none") {

@@ -7,12 +7,13 @@ import { useAssistant } from "better-supabase/ai-sdk/react";
 import { useDurableAssistant } from "better-supabase/ai-sdk/workflow-react";
 import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { present } from "@/lib/present";
 
 import type { MessageBranch, ModelOption } from "../assistant-queries";
+import type { PageContext } from "../page-context";
 
 import { switchChatBranch } from "../assistant-actions";
 import { ChatView } from "./chat-view";
@@ -30,6 +31,7 @@ interface PanelProps {
   readonly model: string | undefined;
   readonly onModelChange: (model: string) => void;
   readonly branches: readonly MessageBranch[];
+  readonly pageContext: PageContext | undefined;
 }
 
 /**
@@ -43,13 +45,19 @@ function StandardPanel({
   model,
   onModelChange,
   branches,
+  pageContext,
 }: PanelProps) {
   const router = useRouter();
+
+  const body = useMemo(
+    () => (pageContext === undefined ? undefined : { pageContext }),
+    [pageContext],
+  );
 
   const chat = useAssistant({
     id,
     messages,
-    ...present({ model }),
+    ...present({ model, body }),
     onFinish: () => {
       router.refresh();
     },
@@ -117,6 +125,7 @@ export function AssistantChat({
   models = NO_MODELS,
   initialModel,
   branches = NO_BRANCHES,
+  pageContext,
 }: {
   id: string;
   messages: UIMessage[];
@@ -126,6 +135,8 @@ export function AssistantChat({
   models?: readonly ModelOption[];
   initialModel?: string | undefined;
   branches?: readonly MessageBranch[];
+  /** The page the assistant was opened from; sent with every message. */
+  pageContext?: PageContext | undefined;
 }) {
   const t = useExtracted("assistant");
 
@@ -151,6 +162,7 @@ export function AssistantChat({
     model,
     onModelChange: setModel,
     branches,
+    pageContext,
   };
 
   return (

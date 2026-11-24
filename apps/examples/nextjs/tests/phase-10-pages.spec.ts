@@ -25,8 +25,12 @@ test("a content draft is saved and published", async ({ page }) => {
   await expect(row).toBeVisible();
   await expect(row.getByText("Draft")).toBeVisible();
 
-  await row.getByRole("button", { name: "Publish" }).click();
-  await expect(row.getByText("Published")).toBeVisible();
+  await row.getByRole("link", { name: `Entry ${slug}` }).click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+
+  await expect(
+    page.getByRole("main").getByText("Published").first(),
+  ).toBeVisible();
 });
 
 test("an advisories product is added", async ({ page }) => {

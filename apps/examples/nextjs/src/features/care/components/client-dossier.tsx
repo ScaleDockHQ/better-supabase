@@ -30,6 +30,11 @@ import {
   ClientHeading,
   ClientHeadingSkeleton,
 } from "./care-sections";
+import {
+  ClientDossierSummary,
+  ClientDossierSummarySkeleton,
+} from "./client-dossier-summary";
+import { PrescribeDialog } from "./prescribe-dialog";
 
 async function PlanEditor({ clientId }: { clientId: string }) {
   await navigation();
@@ -54,6 +59,9 @@ export async function ClientDossier({ clientId }: { clientId: string }) {
     <div className="flex flex-col gap-6">
       <Suspense fallback={<ClientHeadingSkeleton />}>
         <ClientHeading clientId={clientId} />
+      </Suspense>
+      <Suspense fallback={<ClientDossierSummarySkeleton />}>
+        <ClientDossierSummary clientId={clientId} />
       </Suspense>
       <Tabs defaultValue="notes" className="gap-4">
         <div className="overflow-x-auto">
@@ -90,7 +98,10 @@ export async function ClientDossier({ clientId }: { clientId: string }) {
             </PermissionGate>
           </Suspense>
         </TabsContent>
-        <TabsContent value="medication">
+        <TabsContent value="medication" className="flex flex-col gap-4">
+          <Suspense>
+            <PrescribeDialog clientId={clientId} />
+          </Suspense>
           <Suspense fallback={<MedicationChartSkeleton />}>
             <PermissionGate permission="medications.read">
               <MedicationChart clientId={clientId} />

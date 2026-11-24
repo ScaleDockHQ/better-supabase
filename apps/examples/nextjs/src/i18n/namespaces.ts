@@ -3,6 +3,7 @@ import type { AbstractIntlMessages } from "next-intl";
 /** What the signed-in shell (sidebar, header, banners) reads on the client. */
 export const APP_NAMESPACES = [
   "announcements",
+  "assistant",
   "app",
   "dashboard",
   "errors",

@@ -16,6 +16,12 @@ for (const file of [
 
 const baseURL = "http://localhost:3100";
 
+const COUNTER_SPECS = [
+  "**/bench-scopes.spec.ts",
+  "**/islands.spec.ts",
+  "**/auth-cost.spec.ts",
+];
+
 // Both instances keep `"use cache: remote"` entries here; tests/islands.spec.ts
 // reads one instance's entry from the other on port 3101.
 const remoteCacheDir = path.join(tmpdir(), "bsb-example-remote-cache");
@@ -31,7 +37,21 @@ export default defineConfig({
   fullyParallel: false,
   retries: process.env["CI"] === undefined ? 0 : 1,
   use: { baseURL, trace: "retain-on-failure" },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      testIgnore: COUNTER_SPECS,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    // These read the server's global verification counters, so any other
+    // spec's request would count; they run alone, after the rest.
+    {
+      name: "counters",
+      testMatch: COUNTER_SPECS,
+      dependencies: ["chromium"],
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
   webServer: {
     command: "next build && { next start -p 3101 & next start -p 3100; }",
     url: `${baseURL}/login`,

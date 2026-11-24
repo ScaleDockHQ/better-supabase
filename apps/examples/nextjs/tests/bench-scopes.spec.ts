@@ -52,6 +52,12 @@ async function load(page: Page, variant: "plain" | "session") {
 
 test.beforeEach(async ({ page }) => {
   await signIn(page);
+  // A server's first render of the page verifies the key set and compiles its
+  // routes, which is a cost of starting, not of the scopes.
+  await page.goto("/bench/scopes?variant=plain");
+  await expect(
+    page.getByRole("list").getByTestId(`scope-${SCOPES - 1}`),
+  ).toBeVisible();
 });
 
 test("twelve private scopes verify at most once", async ({ page }) => {

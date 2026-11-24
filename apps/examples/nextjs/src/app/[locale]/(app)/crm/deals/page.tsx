@@ -2,11 +2,11 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { searchValue } from "@/components/record-detail/record-detail-tabs";
 import {
-  activeTab,
-  searchValue,
-  RecordDetailTabs,
-} from "@/components/record-detail/record-detail-tabs";
+  activeView,
+  RecordViewSwitch,
+} from "@/components/record-list/record-view-switch";
 import {
   DealBoard,
   DealBoardSkeleton,
@@ -50,25 +50,12 @@ export default function DealsPage({
       </Suspense>
       <Suspense fallback={<DealOverviewSkeleton />}>
         {searchParams.then((raw) => {
-          const view = activeTab(raw, [
-            "table",
-            "board",
-            "calendar",
-            "timeline",
-          ]);
+          const views = ["table", "board", "calendar", "timeline"] as const;
+          const view = activeView(raw, views);
 
           return (
             <>
-              <RecordDetailTabs
-                base="/crm/deals"
-                active={view}
-                tabs={[
-                  { value: "table", label: t("Table") },
-                  { value: "board", label: t("Board") },
-                  { value: "calendar", label: t("Calendar") },
-                  { value: "timeline", label: t("Timeline") },
-                ]}
-              />
+              <RecordViewSwitch base="/crm/deals" active={view} views={views} />
               {view === "board" ? (
                 <Suspense fallback={<DealBoardSkeleton />}>
                   <DealBoard />

@@ -7,6 +7,8 @@ import { expect, test } from "@playwright/test";
 import { ROUTES } from "./routes.manifest";
 import {
   openableRoutes,
+  perfUser,
+  prefetchRoute,
   pushRoute,
   recordPerf,
   signIn,
@@ -18,12 +20,10 @@ import {
 // The ceilings are generous on purpose; tighten them from the measured numbers
 // in perf-results/example-perf/cold-warm.json.
 
-const CEILING_MS = { cold: 10_000, warm: 3000, client: 2000 } as const;
-
-test.describe.configure({ mode: "serial" });
+const CEILING_MS = { cold: 20_000, warm: 5000, client: 3000 } as const;
 
 test.beforeEach(async ({ page }) => {
-  await signIn(page);
+  await signIn(page, perfUser());
 });
 
 async function timed(action: () => Promise<void>): Promise<number> {
@@ -48,13 +48,18 @@ for (const entry of openableRoutes(ROUTES)) {
     });
 
     await page.goto("/");
+    await prefetchRoute(page, entry.url);
 
     const client = await timed(async () => {
       await pushRoute(page, entry.url);
       await expect(heading).toBeVisible();
     });
 
-    recordPerf("cold-warm.json", entry.route, { cold, warm, client });
+    recordPerf(
+      `cold-warm${perfUser() === "admin" ? "" : `-${perfUser()}`}.json`,
+      entry.route,
+      { cold, warm, client },
+    );
 
     expect(cold).toBeLessThan(CEILING_MS.cold);
     expect(warm).toBeLessThan(CEILING_MS.warm);

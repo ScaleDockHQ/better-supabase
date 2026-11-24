@@ -84,6 +84,7 @@ export function RecordListToolbar({
   sort,
   sorts,
   filters,
+  extras,
   onSearch,
   onSort,
 }: {
@@ -93,6 +94,8 @@ export function RecordListToolbar({
   sort: string;
   sorts: readonly RecordListSort[];
   filters: React.ReactNode;
+  /** Saved views, export and other buttons that sit before the sort. */
+  extras?: React.ReactNode;
   onSearch: (value: string) => void;
   onSort: (value: string) => void;
 }) {
@@ -104,6 +107,7 @@ export function RecordListToolbar({
         <SearchInput value={q} label={searchLabel} onSearch={onSearch} />
       )}
       {filters}
+      {extras}
       {sorts.length > 1 ? (
         <Select
           value={sort}

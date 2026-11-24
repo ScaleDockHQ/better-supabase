@@ -10,6 +10,7 @@ import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 
 import { Button } from "@/components/ui/button";
+import { payAndFulfilOrder } from "@/features/composites/composites-actions";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
 
@@ -91,6 +92,11 @@ export function OrderTransitions({
     onError,
   });
 
+  const payAndShip = useAction(payAndFulfilOrder, {
+    onSuccess: done(t("Paid and fulfilled")),
+    onError,
+  });
+
   const cancel = useAction(cancelOrder, {
     onSuccess: done(t("Order cancelled")),
     onError,
@@ -143,6 +149,7 @@ export function OrderTransitions({
   const pending =
     kitchen.pending ||
     pay.pending ||
+    payAndShip.pending ||
     cancel.pending ||
     confirmDraft.pending ||
     hold.pending ||
@@ -213,6 +220,15 @@ export function OrderTransitions({
             }}
           >
             {t("Mark as paid")}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              void payAndShip.run({ orderId });
+            }}
+          >
+            {t("Pay and fulfil")}
           </Button>
           <Button
             variant="outline"

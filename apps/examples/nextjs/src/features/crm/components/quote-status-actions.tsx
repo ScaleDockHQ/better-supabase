@@ -4,6 +4,7 @@ import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 
 import { Button } from "@/components/ui/button";
+import { acceptQuote } from "@/features/composites/composites-actions";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
 
@@ -51,7 +52,20 @@ export function QuoteStatusActions({
     onError,
   });
 
-  const pending = send.pending || decide.pending || revise.pending;
+  const accept = useAction(acceptQuote, {
+    onSuccess: ({ orderId }) => {
+      toast.success(t("Quote accepted and order created"));
+
+      if (orderId !== null) {
+        router.push(`/shop/orders/${orderId}`);
+      }
+    },
+    onError,
+  });
+
+  const pending =
+    send.pending || decide.pending || revise.pending || accept.pending;
+
   const awaiting = status === "sent" || status === "viewed";
   const revisable = awaiting || status === "rejected" || status === "expired";
 
@@ -84,6 +98,17 @@ export function QuoteStatusActions({
             }}
           >
             {t("Mark accepted")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              void accept.run({ quoteId, followUp: "order" });
+            }}
+          >
+            {t("Accept and order")}
           </Button>
           <Button
             type="button"

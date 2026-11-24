@@ -9,7 +9,16 @@ export default function RisksLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "risks", "recordList"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "customers",
+        "recordDetail",
+        "recordList",
+        "records",
+        "risks",
+        "sales",
+        "subjects",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

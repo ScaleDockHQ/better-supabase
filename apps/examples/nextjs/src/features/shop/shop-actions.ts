@@ -613,3 +613,26 @@ export const setLineState = bsb.action(
     return ok(line.data.state);
   },
 );
+
+/** Moves a product between draft, active and archived. */
+export const setProductStatus = bsb.action(
+  {
+    input: v.object({
+      productId: Id,
+      status: v.picklist(["draft", "active", "archived"]),
+    }),
+    requireTenant: true,
+    permission: "catalog.manage",
+  },
+  async ({ productId, status }, { db, auth }) => {
+    const changed = await db.catalog.setProductStatus({ productId, status });
+
+    if (!changed.ok) {
+      return changed;
+    }
+
+    await refreshCaller(auth, [SHOP_TAG]);
+
+    return ok({ id: productId, status });
+  },
+);

@@ -4,6 +4,7 @@ import { ShieldAlertIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
 import { Badge } from "@/components/reui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -29,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PermissionGate } from "@/features/user/components/permission-gate";
+import { Link } from "@/i18n/navigation";
 
 import {
   getAdvisories,
@@ -200,7 +202,13 @@ export async function VulnerabilityList() {
         <CardDescription>
           {t("Enriched hourly from OSV, EPSS and the CISA KEV catalog.")}
         </CardDescription>
-        <CardAction>
+        <CardAction className="flex gap-2">
+          <Link
+            href="/advisories/vulnerabilities"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            {t("View all")}
+          </Link>
           <PermissionGate permission="advisories.write">
             <TrackVulnerabilityDialog />
           </PermissionGate>
@@ -226,7 +234,12 @@ export async function VulnerabilityList() {
               {result.data.map((vulnerability) => (
                 <TableRow key={vulnerability.id}>
                   <TableCell className="font-medium">
-                    {vulnerability.vulnId}
+                    <Link
+                      href={`/advisories/vulnerabilities/${vulnerability.id}`}
+                      className="hover:underline"
+                    >
+                      {vulnerability.vulnId}
+                    </Link>
                     {vulnerability.summary ? (
                       <span className="block text-xs text-muted-foreground">
                         {vulnerability.summary}

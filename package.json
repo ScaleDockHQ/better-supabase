@@ -20,6 +20,7 @@
     "check:app-architecture": "node scripts/check-app-architecture.ts",
     "check:empty-translations": "node scripts/check-empty-translations.ts",
     "check:example-coverage": "node scripts/check-example-coverage.ts",
+    "check:example-generated": "node scripts/check-example-generated.ts",
     "check:format": "ultracite check",
     "check:migration-order": "node scripts/check-migration-order.ts",
     "check:naming": "node scripts/check-naming.ts",
@@ -78,7 +79,7 @@
     "typecheck:matrix": "turbo run typecheck:matrix",
     "typecheck:perf": "turbo run typecheck:perf",
     "typecheck:tooling": "tsc --noEmit -p tsconfig.json",
-    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:skills check:test-budget check:adrs check:agent-docs check:app-architecture check:empty-translations check:example-coverage check:migration-order check:naming check:no-permdock recipes:check skill-references:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix --output-logs=errors-only && turbo run typecheck:perf --output-logs=errors-only && turbo boundaries",
+    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:skills check:test-budget check:adrs check:agent-docs check:app-architecture check:empty-translations check:example-coverage check:example-generated check:migration-order check:naming check:no-permdock recipes:check skill-references:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix --output-logs=errors-only && turbo run typecheck:perf --output-logs=errors-only && turbo boundaries",
     "version-packages": "node scripts/root-changelog.ts && changeset version && node scripts/sync-versions.ts && pnpm run registry:build && pnpm run format"
   },
   "devDependencies": {

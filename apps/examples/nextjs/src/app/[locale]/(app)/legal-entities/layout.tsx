@@ -15,6 +15,10 @@ export default function LegalEntitiesLayout({
     <NextIntlClientProvider
       messages={pick(messages, [
         ...APP_NAMESPACES,
+        "customers",
+        "records",
+        "sales",
+        "subjects",
         "finance",
         "recordDetail",
         "recordList",

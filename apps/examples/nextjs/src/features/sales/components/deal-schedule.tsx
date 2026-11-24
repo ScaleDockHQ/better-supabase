@@ -106,7 +106,7 @@ export async function DealCalendar({
   );
 
   const link = (target: Temporal.PlainYearMonth) =>
-    `/crm/deals?tab=calendar&month=${target.toString()}` as const;
+    `/crm/deals?view=calendar&month=${target.toString()}` as const;
 
   const weekdays = days
     .slice(0, 7)

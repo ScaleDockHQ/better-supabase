@@ -6,9 +6,17 @@ import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
+import type { ConversationRow } from "@/features/inbox/inbox-types";
+
 import { customerPage } from "@/features/customers/customer-record";
+import { toConversationRow } from "@/features/inbox/inbox-types";
 import { getMembers } from "@/features/organization/organization-queries";
+import {
+  loadDirectory,
+  loadHiringBoard,
+} from "@/features/people/people-queries";
 import { loadDeals } from "@/features/sales/pipeline/pipeline-queries";
+import { getOrders, getProducts } from "@/features/shop/shop-queries";
 import { getSession } from "@/features/user/user-queries";
 import { bsb } from "@/lib/supabase/server";
 
@@ -151,6 +159,202 @@ async function relationOptions(
       return named(deals?.deals ?? []);
     }
 
+    case "contract": {
+      return tenant
+        ? named(
+            (
+              await db.contracts
+                .page({ organizationId: tenant, limit: OPTION_LIMIT })
+                .orThrow()
+            ).items.map((contract) => ({
+              id: contract.id,
+              name: contract.title,
+            })),
+          )
+        : [];
+    }
+
+    // Service and logistics
+    case "work_order": {
+      return named(
+        (await db.dispatch.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (order) => ({ id: order.id, name: order.title }),
+        ),
+      );
+    }
+
+    case "shipment": {
+      return named(
+        (
+          await db.shipments.shipmentPage({ limit: OPTION_LIMIT }).orThrow()
+        ).items.map((shipment) => ({
+          id: shipment.id,
+          name: shipment.reference,
+        })),
+      );
+    }
+
+    // Support
+    case "case": {
+      return named(
+        (await db.cases.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (item) => ({ id: item.id, name: `${item.number} ${item.title}` }),
+        ),
+      );
+    }
+
+    case "content_entry": {
+      return named(
+        (await db.content.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (entry) => ({ id: entry.id, name: entry.title }),
+        ),
+      );
+    }
+
+    case "meeting": {
+      return named(
+        (await db.meetings.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (meeting) => ({ id: meeting.id, name: meeting.title }),
+        ),
+      );
+    }
+
+    case "care_plan": {
+      return named(
+        (await db.carePlans.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (plan) => ({ id: plan.id, name: plan.title }),
+        ),
+      );
+    }
+
+    case "risk": {
+      return named(
+        (await db.risks.page({ limit: OPTION_LIMIT }).orThrow()).items.map(
+          (risk) => ({ id: risk.id, name: `${risk.number} ${risk.title}` }),
+        ),
+      );
+    }
+
+    case "vulnerability": {
+      return tenant
+        ? named(
+            (
+              await db.advisories
+                .pageVulnerabilities({
+                  organizationId: tenant,
+                  limit: OPTION_LIMIT,
+                })
+                .orThrow()
+            ).items.map((vulnerability) => ({
+              id: vulnerability.id,
+              name: vulnerability.vulnId,
+            })),
+          )
+        : [];
+    }
+
+    // People
+    case "employee": {
+      const directory = await loadDirectory();
+
+      return named(
+        (directory?.managers ?? []).map((manager) => ({
+          id: manager.value,
+          name: manager.label,
+        })),
+      );
+    }
+
+    case "application": {
+      const board = await loadHiringBoard();
+
+      return named(board?.cards ?? []);
+    }
+
+    case "course": {
+      return named(
+        (await db.courses.list({ limit: OPTION_LIMIT }).orThrow()).map(
+          (course) => ({ id: course.id, name: course.title }),
+        ),
+      );
+    }
+
+    case "order": {
+      const orders = await getOrders();
+
+      return orders.kind === "ok"
+        ? named(
+            orders.data.orders.map((order) => ({
+              id: order.id,
+              name: order.number,
+            })),
+          )
+        : [];
+    }
+
+    case "invoice": {
+      return tenant
+        ? named(
+            (
+              await db.invoices
+                .page({ organizationId: tenant, limit: OPTION_LIMIT })
+                .orThrow()
+            ).items.map((invoice) => ({
+              id: invoice.id,
+              name: String(invoice.number ?? invoice.id),
+            })),
+          )
+        : [];
+    }
+
+    case "production_order": {
+      return tenant
+        ? named(
+            (
+              await db.manufacturing
+                .orderPage({ limit: OPTION_LIMIT })
+                .orThrow()
+            ).items.map((order) => ({ id: order.id, name: order.number })),
+          )
+        : [];
+    }
+
+    case "inspection": {
+      return tenant
+        ? named(
+            (
+              await db.inspections.page({ limit: OPTION_LIMIT }).orThrow()
+            ).items.map((inspection) => ({
+              id: inspection.id,
+              name: inspection.title,
+            })),
+          )
+        : [];
+    }
+
+    case "product": {
+      const products = await getProducts();
+
+      return products.kind === "ok"
+        ? named(
+            products.data.map((product) => ({
+              id: product.id,
+              name: product.title,
+            })),
+          )
+        : [];
+    }
+
+    case "till": {
+      return tenant
+        ? named(
+            (
+              await db.tills.tillPage({ limit: OPTION_LIMIT }).orThrow()
+            ).items.map((till) => ({ id: till.id, name: till.name })),
+          )
+        : [];
+    }
+
     default: {
       const unreachable: never = subject.type;
 
@@ -254,4 +458,111 @@ export async function getAuthors(): Promise<Readonly<Record<string, string>>> {
       return name ? [[member.userId, name]] : [];
     }),
   );
+}
+
+/** The newest conversations the lookup reads, across every status. */
+const CONVERSATION_WINDOW = 50;
+
+/**
+ * The inbox conversations of the people on the record: the record itself when
+ * it is a person, otherwise the people on its relations binding. The inbox
+ * lists by tenant, so the newest ones are filtered to those people.
+ */
+export async function getRecordConversations(
+  subject: RecordSubject,
+): Promise<readonly ConversationRow[]> {
+  const [{ db }, session] = await Promise.all([bsb.context(), getSession()]);
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return [];
+  }
+
+  const people = new Set<string>(subject.type === "person" ? [subject.id] : []);
+
+  if (subject.type !== "person") {
+    const { bindings } = await recordPages[subject.type].load(subject.id, {
+      bindings: ["relations"],
+    });
+
+    if (bindings.relations.kind === "ok") {
+      for (const link of bindings.relations.data) {
+        if (link.subject.type === "person") {
+          people.add(link.subject.id);
+        }
+      }
+    }
+  }
+
+  if (people.size === 0) {
+    return [];
+  }
+
+  const { items } = await db.inbox.conversations
+    .page({
+      organizationId: tenant,
+      filters: { status: ["all"] },
+      limit: CONVERSATION_WINDOW,
+    })
+    .orThrow();
+
+  return items
+    .filter((conversation) => people.has(conversation.contactId))
+    .map(toConversationRow);
+}
+
+/** The newest workflow runs started for one record. */
+export async function getRecordRuns(subject: RecordSubject) {
+  const [{ db }, session] = await Promise.all([bsb.context(), getSession()]);
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return [];
+  }
+
+  return db.workflows.runs
+    .list({ tenant, subject, mode: "all", limit: 10 })
+    .orThrow();
+}
+
+export interface RecordTaskRow {
+  readonly id: string;
+  readonly title: string;
+  readonly status: "todo" | "doing" | "done";
+  /** `YYYY-MM-DD`, or null when unscheduled. */
+  readonly dueOn: string | null;
+}
+
+const RECORD_TASK_LIMIT = 10;
+
+/** The tasks linked to the record through its relations, in rank order. */
+export async function getRecordTasks(
+  subject: RecordSubject,
+): Promise<readonly RecordTaskRow[]> {
+  const [{ db }, relations] = await Promise.all([
+    bsb.context(),
+    getRelations(subject),
+  ]);
+
+  if (relations.kind !== "ok") {
+    return [];
+  }
+
+  const ids = relations.data.links
+    .filter((link) => link.subjectType === "task")
+    .map((link) => link.subjectId)
+    .slice(0, RECORD_TASK_LIMIT);
+
+  if (ids.length === 0) {
+    return [];
+  }
+
+  return db.tasks
+    .list({
+      select: ["id", "title", "status", "dueOn"],
+      where: { id: { in: ids } },
+      orderBy: { rank: "asc" },
+      limit: RECORD_TASK_LIMIT,
+    })
+    .orThrow();
 }

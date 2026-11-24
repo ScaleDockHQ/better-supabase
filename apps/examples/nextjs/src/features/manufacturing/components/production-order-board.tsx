@@ -5,6 +5,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useState } from "react";
 import * as v from "valibot";
 
+import { IntentLink } from "@/components/intent-link";
 import { Badge } from "@/components/reui/badge";
 import {
   Kanban,
@@ -16,6 +17,7 @@ import {
   KanbanOverlay,
 } from "@/components/reui/kanban";
 import { Card, CardContent } from "@/components/ui/card";
+import { toAppHref } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
 
 import type { ProductionOrderCard } from "../manufacturing-queries";
@@ -88,9 +90,12 @@ function OrderItem({ card }: { card: ProductionOrderCard }) {
   return (
     <Card size="sm">
       <CardContent className="flex flex-col gap-1">
-        <span className="font-mono text-xs text-muted-foreground">
+        <IntentLink
+          href={toAppHref(`/manufacturing/orders/${card.id}`)}
+          className="w-fit font-mono text-xs text-muted-foreground underline-offset-4 hover:underline"
+        >
           {card.number}
-        </span>
+        </IntentLink>
         <span className="text-sm font-medium">
           {card.product ?? t("Unknown product")}
         </span>
