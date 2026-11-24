@@ -316,6 +316,32 @@ From code, `listFunctions(snapshot.extras.functionInventory)` in
 
 Side effects: Reads the database, calls the Supabase Management API with --project-ref.
 
+### Check functions before you share them
+
+```bash
+pnpm better-supabase config functions --shareable 'public.*_payload'
+```
+
+`--shareable <glob>` runs doctor's [BS430](/docs/cli/doctor#bs430) check on
+every function whose `schema.name` matches the glob (`*` matches any run of
+characters; a name without a schema means `public`), whether or not the
+provider's `sharedFunctions` lists it yet. It prints every reason a function
+fails, then the functions it calls, checked the same way:
+
+```text
+public.order_payload: shareable once sharedFunctions lists it (reads public.orders, public.order_lines)
+public.page_payload: can't be shared (reads public.pages)
+  - it reads public.page_views, which the provider's tables don't share per tenant
+  public.visible_pages: shareable once sharedFunctions lists it (reads public.pages; filters by page.read)
+
+1 of 2 can be shared.
+```
+
+Each JSON entry has `name`, `listed`, `reasons`, `reads`, `outside` (the reads
+that the entry or the provider doesn't allow), `permissions` (the literal keys
+passed to the provider's `permissionFilters`) and `calls`. It needs an
+`authorization` provider and changes nothing.
+
 ## Custom generators
 
 A generator is a plugin at `apiVersion: 2`. Build it with `defineGenerator` from

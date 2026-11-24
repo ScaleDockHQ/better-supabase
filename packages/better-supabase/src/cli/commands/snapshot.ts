@@ -179,6 +179,7 @@ export async function loadSnapshot(
   const db = opened.value;
   const hooks = toml ? pgFunctionHooks(toml.document) : [];
   const functions = bootstrapFunctionNames(config);
+  const shareable = config.authorization !== undefined;
 
   const schemas = [
     ...config.schemas,
@@ -188,10 +189,15 @@ export async function loadSnapshot(
 
   try {
     const read = (): Promise<Snapshot> =>
-      introspect(db.queryable, schemas, { hooks, functions });
+      introspect(db.queryable, schemas, { hooks, functions, shareable });
 
     return await (source.cache
-      ? cachedIntrospect(config.root, db, [schemas, hooks, functions], read)
+      ? cachedIntrospect(
+          config.root,
+          db,
+          [schemas, hooks, functions, shareable],
+          read,
+        )
       : read());
   } finally {
     if (!shared) {

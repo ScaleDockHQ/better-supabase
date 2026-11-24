@@ -1034,6 +1034,7 @@ over the provider's.
 | `tables`                                                                                             | `share: "tenant"` or `"row"` per table, with the permissions its reads check, for shared cache entries                                                  | 0.85    |
 | `context.enforcement` on the authorizer's request                                                    | `rls` or `definer`, so the adapter can skip its live version read for a write RLS checks again ([Enforcement](/docs/extending/authorizers#enforcement)) | 0.85    |
 | `sharedFunctions`                                                                                    | the functions a `share: "tenant"` fill may call, with the tables each reads and the permissions they check                                              | 0.85    |
+| `permissionFilters`                                                                                  | helpers that return the ids a literal permission key grants, which a `sharedFunctions` function may call                                                | 0.86    |
 
 Doctor reports a config value equal to the provider's (BS427).
 
@@ -1061,12 +1062,40 @@ sharedFunctions: {
 
 The entry then lists it in `functions` instead of `tables`:
 `bsb.kept(fn, { name, functions: ["customer_payload"], share: "tenant" })`.
-Inside the fill `$rpc` passes only the listed functions. Doctor BS430 fails a
-function that is security definer, isn't `language sql`, is volatile, reads
-the caller (`auth.uid()`, `current_setting('request.jwt.claims')`,
-`current_user`) or reads a table its entry doesn't list. A payload function
-that also returns the caller's own rows doesn't qualify; split it into a
-tenant function you share and a per-user read you keep with `share: "user"`.
+Inside the fill `$rpc` passes only the listed functions. Doctor
+[BS430](/docs/cli/doctor#bs430) fails a function that is security definer,
+isn't `language sql`, is volatile, reads the caller (`auth.uid()`,
+`current_setting('request.jwt.claims')`, `current_user`), reads a table its
+entry doesn't list, or calls a function it doesn't admit, and lists every
+reason. A payload function that also returns the caller's own rows doesn't
+qualify; split it into a tenant function you share and a per-user read you
+keep with `share: "user"`. Run
+`better-supabase config functions --shareable 'public.*_payload'` to see which
+of your functions pass before you list them.
+
+### permissionFilters
+
+A payload function often narrows its rows with a provider helper, such as
+`app_auth.allowed_org_ids('crm.read')`, which returns the ids the caller holds
+a permission on. The helper reads the caller, so BS430 refuses the call unless
+the provider lists the helper in `permissionFilters`, by `schema.name`, with
+the position of the argument that holds the permission key:
+
+```ts
+permissionFilters: {
+  "app_auth.allowed_org_ids": { keyArgument: 0 },
+},
+```
+
+BS430 then admits a call whose key is a string literal that the entry's
+`permissions` lists. Two callers with the same share key hold the same grants
+for those keys in the tenant, so the helper returns them the same ids, and the
+function returns them the same rows. A key built at run time, or one the entry
+leaves out, fails the check, because the share key would not cover it. List a
+helper here only when its result depends on nothing but the caller's grants
+for that key in the current tenant: no user id, no row-level grant, no time.
+[ADR 1228](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1228-shared-cache-tier-for-apps-with-their-own-services.md)
+has the argument.
 
 ```ts
 import type { AuthorizationProvider } from "better-supabase/config";

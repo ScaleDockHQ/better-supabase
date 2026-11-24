@@ -1531,8 +1531,31 @@ describe("BS430", () => {
   const PINNED =
     "organization_id in (select authz.ids_organization('customer.read'))";
 
+  type Fixture = Partial<CatalogFunction> & { readonly source: string };
+
+  const fnOf = (fixture: Fixture): CatalogFunction => {
+    const { source: _source, ...rest } = fixture;
+
+    return {
+      schema: "public",
+      name: "customer_payload",
+      signature: "",
+      args: [],
+      returnsTable: null,
+      returns: "jsonb",
+      returnsRelation: null,
+      returnsSet: false,
+      volatility: "stable",
+      securityDefiner: false,
+      language: "sql",
+      searchPath: null,
+      ...rest,
+    };
+  };
+
   const withFunction = (
-    fn: Partial<CatalogFunction> & { readonly source: string },
+    fn: Fixture,
+    helpers: readonly Fixture[] = [],
   ): { snapshot: Snapshot; table: string } => {
     const { source, ...rest } = fn;
 
@@ -1560,21 +1583,8 @@ describe("BS430", () => {
     ];
     copy.functions = [
       ...copy.functions,
-      {
-        schema: "public",
-        name: "customer_payload",
-        signature: "",
-        args: [],
-        returnsTable: null,
-        returns: "jsonb",
-        returnsRelation: null,
-        returnsSet: false,
-        volatility: "stable",
-        securityDefiner: false,
-        language: "sql",
-        searchPath: null,
-        ...rest,
-      },
+      fnOf({ source, ...rest }),
+      ...helpers.map(fnOf),
     ];
 
     const snapshot = fromCatalog(copy);
@@ -1584,7 +1594,13 @@ describe("BS430", () => {
         ...snapshot,
         extras: {
           ...snapshot.extras,
-          functionSources: { "public.customer_payload": source },
+          functionSources: Object.fromEntries([
+            ["public.customer_payload", source],
+            ...helpers.map((helper) => [
+              `${helper.schema ?? "public"}.${helper.name ?? ""}`,
+              helper.source,
+            ]),
+          ]),
         },
       },
       table: first!.name,
@@ -1592,10 +1608,19 @@ describe("BS430", () => {
   };
 
   const run = async (
-    fn: Partial<CatalogFunction> & { readonly source: string },
+    fn: Fixture,
     tables?: (table: string) => string[],
+    {
+      helpers = [],
+      provider = {},
+      permissions = ["customer.read"],
+    }: {
+      readonly helpers?: readonly Fixture[];
+      readonly provider?: Partial<AuthorizationProvider>;
+      readonly permissions?: readonly string[];
+    } = {},
   ) => {
-    const { snapshot, table } = withFunction(fn);
+    const { snapshot, table } = withFunction(fn, helpers);
 
     return findings(
       "BS430",
@@ -1605,11 +1630,13 @@ describe("BS430", () => {
             tables: {
               [table]: { share: "tenant", permissions: ["customer.read"] },
             },
+            ...provider,
             sharedFunctions: {
               customer_payload: {
                 tables: tables?.(table) ?? [table],
-                permissions: ["customer.read"],
+                permissions: [...permissions],
               },
+              ...provider.sharedFunctions,
             },
           }),
         },
@@ -1705,5 +1732,146 @@ describe("BS430", () => {
     });
 
     expect(missing[0]?.message).toContain("no such function");
+  });
+
+  it("reports every reason in one finding", async () => {
+    const { table } = withFunction({ source: "" });
+
+    const all = await run({
+      source: `${reads(table)} where current_setting('request.jwt.claims', true) is not null`,
+      securityDefiner: true,
+      volatility: "volatile",
+    });
+
+    expect(all).toHaveLength(1);
+    expect(all[0]?.message).toContain("(1) it is security definer");
+    expect(all[0]?.message).toContain("(2) it is volatile");
+    expect(all[0]?.message).toContain(
+      "(3) it calls current_setting, which reads the caller's settings and claims",
+    );
+  });
+
+  it("matches a called function on its schema, not its bare name", async () => {
+    const { table } = withFunction({ source: "" });
+
+    const helper = { schema: "private", name: "helper", source: "select 1" };
+
+    const [found] = await run(
+      { source: `${reads(table)} where private.helper() = 1` },
+      undefined,
+      {
+        helpers: [helper, { ...helper, schema: "public" }],
+        provider: {
+          sharedFunctions: {
+            "public.helper": { tables: [table], permissions: [] },
+          },
+        },
+      },
+    );
+
+    expect(found?.message).toContain(
+      "it calls private.helper, which sharedFunctions doesn't list (it passes on its own, so listing it is enough)",
+    );
+  });
+
+  it("names the reasons of a called function that can't be shared", async () => {
+    const { table } = withFunction({ source: "" });
+
+    const [found] = await run(
+      { source: `${reads(table)} where public.flags() is not null` },
+      undefined,
+      {
+        helpers: [{ name: "flags", source: "begin end", language: "plpgsql" }],
+      },
+    );
+
+    expect(found?.message).toContain(
+      "it calls public.flags, which sharedFunctions doesn't list and which can't be shared either: it is written in plpgsql",
+    );
+  });
+
+  it("accepts a permission filter with a literal key that its permissions list", async () => {
+    const { table } = withFunction({ source: "" });
+
+    const filtered = `${reads(table)} where c.id in (select app_auth.allowed_ids('customer.export'))`;
+
+    const provider = {
+      permissionFilters: { "app_auth.allowed_ids": { keyArgument: 0 } },
+    };
+
+    expect(
+      await run({ source: filtered }, undefined, {
+        provider,
+        permissions: ["customer.read", "customer.export"],
+      }),
+    ).toEqual([]);
+
+    const [unlisted] = await run({ source: filtered }, undefined, { provider });
+
+    expect(unlisted?.message).toContain(
+      "it filters by the permission customer.export, which its permissions don't list",
+    );
+
+    const [computed] = await run(
+      {
+        source: `${reads(table)} where c.id in (select app_auth.allowed_ids(c.kind))`,
+      },
+      undefined,
+      { provider },
+    );
+
+    expect(computed?.message).toContain("isn't a string literal");
+  });
+
+  it("refuses a call into a schema doctor didn't read", async () => {
+    const { table } = withFunction({ source: "" });
+
+    const [found] = await run({
+      source: `${reads(table)} where c.id in (select other.allowed_ids('customer.read'))`,
+    });
+
+    expect(found?.message).toContain(
+      "it calls other.allowed_ids, which isn't in the schemas doctor read",
+    );
+  });
+
+  it("admits a better_supabase helper that passes and names one that doesn't", async () => {
+    const { table } = withFunction({ source: "" });
+
+    const pure = {
+      schema: "better_supabase",
+      name: "pure_helper",
+      source: "select $1",
+    };
+
+    const caller = {
+      schema: "better_supabase",
+      name: "caller_helper",
+      source: "select better_supabase.is_service_role()",
+    };
+
+    const role = {
+      schema: "better_supabase",
+      name: "is_service_role",
+      source: "select current_setting('role') = 'service_role'",
+    };
+
+    expect(
+      await run(
+        { source: `${reads(table)} where better_supabase.pure_helper(1) = 1` },
+        undefined,
+        { helpers: [pure] },
+      ),
+    ).toEqual([]);
+
+    const [found] = await run(
+      { source: `${reads(table)} where better_supabase.caller_helper()` },
+      undefined,
+      { helpers: [caller, role] },
+    );
+
+    expect(found?.message).toContain(
+      "it calls better_supabase.caller_helper, which a shared function can't call",
+    );
   });
 });
