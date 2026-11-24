@@ -19,6 +19,10 @@ export const RECORD_TYPES = [
   "care_plan",
   "risk",
   "vulnerability",
+  // People
+  "employee",
+  "application",
+  "course",
 ] as const;
 
 export type RecordType = (typeof RECORD_TYPES)[number];

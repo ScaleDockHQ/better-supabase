@@ -760,3 +760,67 @@ select better_supabase.save_vulnerability('00000000-0000-4000-8000-000000000001'
 select better_supabase.save_vulnerability('00000000-0000-4000-8000-000000000001', 'CVE-2026-31002', 'Open redirect in the login callback', null, null, null, '3.1', 5.4, null);
 
 select set_config('request.jwt.claims', '', false);
+
+-- People story (/people/hiring, /courses): two open jobs and a draft, four
+-- applications on different stages of the hiring pipeline, and a published course with one required lesson that
+-- two employees are enrolled in. The onboarding program, leave and shifts above
+-- complete the story. Run as the Acme owner, with the service role where a
+-- function asks for it.
+select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a1"}', false);
+
+do $$
+declare
+  v_tenant uuid := '00000000-0000-4000-8000-000000000001';
+  v_support uuid;
+  v_sales uuid;
+  v_customers uuid[];
+  v_course uuid;
+  v_module uuid;
+begin
+  if exists (select 1 from better_supabase.job_openings j where j.tenant_id = v_tenant and j.title = 'Support agent') then
+    return;
+  end if;
+
+  v_support := (better_supabase.save_job(v_tenant, null, jsonb_build_object(
+    'title', 'Support agent', 'location', 'Amsterdam', 'employmentType', 'full_time',
+    'description', 'Answer customers in the shared inbox and the helpdesk.', 'status', 'open')) ->> 'id')::uuid;
+  v_sales := (better_supabase.save_job(v_tenant, null, jsonb_build_object(
+    'title', 'Account executive', 'location', 'Remote', 'employmentType', 'full_time',
+    'description', 'Own deals from first call to signed contract.', 'status', 'open')) ->> 'id')::uuid;
+  perform better_supabase.save_job(v_tenant, null, jsonb_build_object(
+    'title', 'Warehouse planner', 'location', 'Rotterdam', 'status', 'draft'));
+
+  select array_agg(c.id order by c.name) into v_customers
+  from (select id, name from public.customers where organization_id = v_tenant order by name limit 4) c;
+
+  if coalesce(array_length(v_customers, 1), 0) >= 4 then
+    perform better_supabase.apply_to_job(v_support, jsonb_build_object('type', 'customer', 'id', v_customers[1]), 'referral', null);
+    perform better_supabase.apply_to_job(v_support, jsonb_build_object('type', 'customer', 'id', v_customers[2]), 'careers page', null);
+    perform better_supabase.apply_to_job(v_sales, jsonb_build_object('type', 'customer', 'id', v_customers[3]), 'linkedin', null);
+    perform better_supabase.apply_to_job(v_sales, jsonb_build_object('type', 'customer', 'id', v_customers[4]), 'careers page', null);
+
+    update better_supabase.applications a set stage_id = ranked.id
+    from (
+      select s.id, s.pipeline_id, row_number() over (partition by s.pipeline_id order by s.rank collate "C") - 1 as n
+      from better_supabase.pipeline_stages s
+      where s.outcome = 'open' and s.archived_at is null
+    ) ranked,
+    (values (v_customers[1]::text, 2), (v_customers[2]::text, 1), (v_customers[3]::text, 3)) as v_pos(candidate, n)
+    where a.tenant_id = v_tenant and a.candidate_id = v_pos.candidate
+      and ranked.pipeline_id = a.pipeline_id and ranked.n = v_pos.n;
+  end if;
+
+  v_course := (better_supabase.save_course(v_tenant, jsonb_build_object(
+    'key', 'security-basics', 'title', 'Security basics', 'summary', 'Passwords, phishing and how to report an incident.',
+    'status', 'published', 'certificate', true)) ->> 'id')::uuid;
+  v_module := (better_supabase.save_course_module(v_course, jsonb_build_object('title', 'Start here')) ->> 'id')::uuid;
+  perform better_supabase.save_course_lesson(v_course, jsonb_build_object(
+    'moduleId', v_module, 'title', 'Spot a phishing mail', 'kind', 'content', 'required', true, 'minutes', 10));
+  perform better_supabase.save_course_lesson(v_course, jsonb_build_object(
+    'moduleId', v_module, 'title', 'Report an incident', 'kind', 'content', 'required', true, 'minutes', 5));
+  perform better_supabase.enroll_in_course(v_course, '00000000-0000-4000-8000-0000000000a2');
+  perform better_supabase.enroll_in_course(v_course, '00000000-0000-4000-8000-0000000000a1');
+end
+$$;
+
+select set_config('request.jwt.claims', '', false);

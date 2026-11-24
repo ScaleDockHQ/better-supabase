@@ -9,9 +9,13 @@ import { createCrm } from "better-supabase/blocks/crm";
 import { createFilespace } from "better-supabase/blocks/filespace";
 import { createFinance } from "better-supabase/blocks/finance";
 import { createGovernance } from "better-supabase/blocks/governance";
+import { createLearning } from "better-supabase/blocks/learning";
+import { createPeople } from "better-supabase/blocks/people";
 import { createProjects } from "better-supabase/blocks/projects";
+import { createRecruiting } from "better-supabase/blocks/recruiting";
 import { createKeyRotator } from "better-supabase/blocks/saas";
 import { createSales } from "better-supabase/blocks/sales";
+import { createScheduling } from "better-supabase/blocks/scheduling";
 import { createSupport } from "better-supabase/blocks/support";
 
 import type { driveOf } from "@/features/drive/drive-client";
@@ -255,6 +259,70 @@ export function governanceOf(db: AppDb) {
       audit: blocks.audit,
       "field-history": blocks.fieldHistory,
       "data-lifecycle": blocks.dataLifecycle,
+    },
+  });
+}
+
+/**
+ * The `recruiting` composite's `hire`: marks an application hired, then makes
+ * the employee from it.
+ */
+export function recruitingOf(db: AppDb) {
+  const { $blocks: blocks } = db;
+
+  return createRecruiting({
+    transport: rpcTransport(db.$client),
+    parts: {
+      hiring: blocks.hiring,
+      employees: blocks.employees,
+      calendar: blocks.calendar,
+    },
+  });
+}
+
+/**
+ * The `people` composite's `onboard` and `offboard` over the employees, leave,
+ * shifts, payroll export, qualifications and enrollments clients.
+ */
+export function peopleOf(db: AppDb) {
+  const { $blocks: blocks } = db;
+
+  return createPeople({
+    transport: rpcTransport(db.$client),
+    parts: {
+      employees: blocks.employees,
+      leave: blocks.leave,
+      shifts: blocks.shifts,
+      "payroll-export": blocks.payrollExport,
+      qualifications: blocks.qualifications,
+      enrollments: blocks.enrollments,
+    },
+  });
+}
+
+/** The `learning` composite's `assign` over the courses and enrollments clients. */
+export function learningOf(db: AppDb) {
+  const { $blocks: blocks } = db;
+
+  return createLearning({
+    transport: rpcTransport(db.$client),
+    parts: { courses: blocks.courses, enrollments: blocks.enrollments },
+  });
+}
+
+/**
+ * The `scheduling` composite's `bookWithReminder` over the bookings, calendar
+ * and reminders clients.
+ */
+export function schedulingOf(db: AppDb) {
+  const { $blocks: blocks } = db;
+
+  return createScheduling({
+    transport: rpcTransport(db.$client),
+    parts: {
+      bookings: blocks.bookings,
+      calendar: blocks.calendar,
+      reminders: blocks.reminders,
     },
   });
 }

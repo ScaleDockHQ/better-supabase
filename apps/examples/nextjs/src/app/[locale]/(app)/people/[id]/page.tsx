@@ -2,6 +2,7 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import { activeTab } from "@/components/record-detail/record-detail-tabs";
 import { buttonVariants } from "@/components/ui/button";
 import {
   EmployeeDetail,
@@ -14,6 +15,7 @@ export const instant = true;
 
 export default function EmployeePage({
   params,
+  searchParams,
 }: PageProps<"/[locale]/people/[id]">) {
   const t = useExtracted("people");
 
@@ -31,8 +33,16 @@ export default function EmployeePage({
         {t("All people")}
       </Link>
       <Suspense fallback={<EmployeeDetailSkeleton />}>
-        {params.then(({ id }) => (
-          <EmployeeDetail id={id} />
+        {Promise.all([params, searchParams]).then(([{ id }, raw]) => (
+          <EmployeeDetail
+            id={id}
+            tab={activeTab(raw, [
+              "overview",
+              "onboarding",
+              "activity",
+              "related",
+            ])}
+          />
         ))}
       </Suspense>
     </>

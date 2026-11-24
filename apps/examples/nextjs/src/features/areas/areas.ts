@@ -141,7 +141,13 @@ export const AREAS: readonly Area[] = [
       { label: "Courses", route: "/courses" },
       { label: "Payroll", route: "/payroll" },
     ],
-    actions: [],
+    actions: [
+      "hireApplication",
+      "onboardEmployee",
+      "offboardEmployee",
+      "assignCourse",
+      "bookWithReminder",
+    ],
   },
   {
     id: "content",

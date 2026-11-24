@@ -466,7 +466,24 @@ msgctxt "courses.m0TXM9"
 msgid "All courses"
 msgstr "Alle cursussen"
 
+#: src/app/[locale]/(app)/courses/[courseId]/page.tsx
+msgctxt "courses.aEhjYg"
+msgid "Outline"
+msgstr "Overzicht"
+
+#: src/app/[locale]/(app)/courses/[courseId]/page.tsx
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.TYlQ6K"
+msgid "Enrollments"
+msgstr "Inschrijvingen"
+
+#: src/app/[locale]/(app)/courses/[courseId]/page.tsx
+msgctxt "courses.ZmlNQ3"
+msgid "Activity"
+msgstr "Activiteit"
+
 #: src/app/[locale]/(app)/courses/page.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.R85gsW"
 msgid "Courses"
 msgstr "Cursussen"
@@ -1230,6 +1247,11 @@ msgctxt "encryption.hZe4HU"
 msgid "Which fields are encrypted at rest, and the key that seals them."
 msgstr "Welke velden versleuteld zijn opgeslagen en de sleutel die ze afsluit."
 
+#: src/app/[locale]/(app)/people/hiring/[id]/page.tsx
+msgctxt "people.Tx3dBv"
+msgid "All applications"
+msgstr "Alle sollicitaties"
+
 #: src/app/[locale]/(app)/people/hiring/page.tsx
 #: src/features/people/components/hiring-board.tsx
 msgctxt "people.XuEwXv"
@@ -1257,6 +1279,7 @@ msgid "Time off by type, requests approved by a manager, and your balances."
 msgstr "Verlof per soort, aanvragen die een manager goedkeurt en je saldo."
 
 #: src/app/[locale]/(app)/people/onboarding/page.tsx
+#: src/features/people/components/employee-detail.tsx
 msgctxt "people.GjrgLY"
 msgid "Onboarding"
 msgstr "Onboarding"
@@ -1267,6 +1290,7 @@ msgid "New hires and the steps they finish in their first weeks."
 msgstr "Nieuwe medewerkers en de stappen die ze in de eerste weken afronden."
 
 #: src/app/[locale]/(app)/people/page.tsx
+#: src/features/people/components/employee-overviews.tsx
 msgctxt "people.Tpy00S"
 msgid "People"
 msgstr "Mensen"
@@ -1558,6 +1582,7 @@ msgid "All shifts"
 msgstr "Alle diensten"
 
 #: src/app/[locale]/(app)/shifts/page.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.poLbhw"
 msgid "Shifts"
 msgstr "Diensten"
@@ -9604,7 +9629,68 @@ msgctxt "courses.3WD3Jo"
 msgid "Create a sample course"
 msgstr "Voorbeeldcursus maken"
 
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.n9SrhB"
+msgid "The enrollments didn't load"
+msgstr "De inschrijvingen zijn niet geladen"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.q1WWIr"
+msgid "In progress"
+msgstr "Bezig"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.95stPq"
+msgid "Completed"
+msgstr "Afgerond"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.3wsVWF"
+msgid "Cancelled"
+msgstr "Geannuleerd"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.XG7Ed8"
+msgid "Who takes this course and how far they are."
+msgstr "Wie deze cursus volgt en hoe ver ze zijn."
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.Mjr5Mi"
+msgid "Assign this course"
+msgstr "Deze cursus toewijzen"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.KMwFsf"
+msgid "Enrolls a member and notifies them."
+msgstr "Schrijft een lid in en stuurt een melding."
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.guunZt"
+msgid "Assign"
+msgstr "Toewijzen"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.wpXwdk"
+msgid "Course assigned"
+msgstr "Cursus toegewezen"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.7L86Z5"
+msgid "Member"
+msgstr "Lid"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.xTEEy3"
+msgid "No learners yet"
+msgstr "Nog geen cursisten"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.vzeF52"
+msgid "Assign the course to a member to start."
+msgstr "Wijs de cursus toe aan een lid om te beginnen."
+
 #: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.zV57h1"
 msgid "The courses didn't load"
 msgstr "De cursussen zijn niet geladen"
@@ -9624,6 +9710,7 @@ msgid "Retry"
 msgstr "Opnieuw proberen"
 
 #: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.BDHWkf"
 msgid "No courses yet"
 msgstr "Nog geen cursussen"
@@ -9645,18 +9732,21 @@ msgstr "Terug naar het dashboard"
 
 #: src/features/courses/components/course-list.tsx
 #: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.W6nwjo"
 msgid "Draft"
 msgstr "Concept"
 
 #: src/features/courses/components/course-list.tsx
 #: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.w7tf2z"
 msgid "Published"
 msgstr "Gepubliceerd"
 
 #: src/features/courses/components/course-list.tsx
 #: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.0HT-Ib"
 msgid "Archived"
 msgstr "Gearchiveerd"
@@ -9744,6 +9834,41 @@ msgstr "{done, number} van {total, number} lessen klaar"
 msgctxt "courses.FMhPQ6"
 msgid "Certificate"
 msgstr "Certificaat"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.xS6k0n"
+msgid "Open for enrollment"
+msgstr "Open voor inschrijving"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.2atspc"
+msgid "Drafts"
+msgstr "Concepten"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.miQtaX"
+msgid "Not published yet"
+msgstr "Nog niet gepubliceerd"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.onDfe_"
+msgid "Course"
+msgstr "Cursus"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.RrCui3"
+msgid "Summary"
+msgstr "Samenvatting"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.oea3Uh"
+msgid "Published courses appear here."
+msgstr "Gepubliceerde cursussen verschijnen hier."
 
 #: src/features/courses/components/lesson-player.tsx
 msgctxt "courses.rEPdIs"
@@ -19012,6 +19137,7 @@ msgid "Approve"
 msgstr "Goedkeuren"
 
 #: src/features/leave/components/leave-decision.tsx
+#: src/features/people/components/application-detail.tsx
 msgctxt "people.VzIOKf"
 msgid "Reject"
 msgstr "Afwijzen"
@@ -19069,10 +19195,38 @@ msgctxt "people.Xypua0"
 msgid "Nothing is booked until the request is approved."
 msgstr "Er wordt niets geboekt tot de aanvraag is goedgekeurd."
 
+#: src/features/leave/components/leave-kpis.tsx
 #: src/features/leave/components/leave-overview.tsx
 msgctxt "people.-eTI8w"
 msgid "Leave didn't load"
 msgstr "Het verlof is niet geladen"
+
+#: src/features/leave/components/leave-kpis.tsx
+#: src/features/leave/components/leave-status.tsx
+msgctxt "people.eKEL_g"
+msgid "Pending"
+msgstr "In afwachting"
+
+#: src/features/leave/components/leave-kpis.tsx
+msgctxt "people.kjUNOW"
+msgid "Waiting for approval"
+msgstr "Wacht op goedkeuring"
+
+#: src/features/leave/components/leave-kpis.tsx
+#: src/features/leave/components/leave-status.tsx
+#: src/features/people/components/timesheet.tsx
+msgctxt "people.6XFO_C"
+msgid "Approved"
+msgstr "Goedgekeurd"
+
+#: src/features/leave/components/leave-kpis.tsx
+#: src/features/leave/components/leave-status.tsx
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+#: src/features/people/components/timesheet.tsx
+msgctxt "people.5qaD7s"
+msgid "Rejected"
+msgstr "Afgewezen"
 
 #: src/features/leave/components/leave-record-list.tsx
 msgctxt "people.rCrCme"
@@ -19120,6 +19274,7 @@ msgstr "Laatste einde"
 
 #: src/features/leave/components/leave-record-list.tsx
 #: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/employee-overviews.tsx
 #: src/features/people/components/employee-record-list.tsx
 msgctxt "people.HAlOn1"
 msgid "Name"
@@ -19139,23 +19294,6 @@ msgstr "Geen verlof gevonden"
 msgctxt "people._MTwuH"
 msgid "Request leave, or change the filters."
 msgstr "Vraag verlof aan of pas de filters aan."
-
-#: src/features/leave/components/leave-status.tsx
-msgctxt "people.eKEL_g"
-msgid "Pending"
-msgstr "In afwachting"
-
-#: src/features/leave/components/leave-status.tsx
-#: src/features/people/components/timesheet.tsx
-msgctxt "people.6XFO_C"
-msgid "Approved"
-msgstr "Goedgekeurd"
-
-#: src/features/leave/components/leave-status.tsx
-#: src/features/people/components/timesheet.tsx
-msgctxt "people.5qaD7s"
-msgid "Rejected"
-msgstr "Afgewezen"
 
 #: src/features/leave/components/leave-status.tsx
 #: src/features/onboarding/components/onboarding-status.tsx
@@ -22534,6 +22672,7 @@ msgstr "Medewerker ingeschreven"
 
 #: src/features/onboarding/components/enroll-employee-form.tsx
 #: src/features/onboarding/components/onboarding-record-list.tsx
+#: src/features/people/components/employee-overviews.tsx
 msgctxt "people.7ScoLI"
 msgid "Program"
 msgstr "Programma"
@@ -23355,6 +23494,7 @@ msgid "They start in the first stage of this opening."
 msgstr "Ze beginnen in de eerste fase van deze vacature."
 
 #: src/features/people/components/add-candidate-dialog.tsx
+#: src/features/people/components/hiring-overviews.tsx
 msgctxt "people.3qW1f_"
 msgid "Candidate"
 msgstr "Kandidaat"
@@ -23401,6 +23541,9 @@ msgid "Work email"
 msgstr "Werkmail"
 
 #: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-detail.tsx
+#: src/features/people/components/employee-overviews.tsx
 #: src/features/people/components/employee-record-list.tsx
 msgctxt "people.HsQ3BK"
 msgid "Job title"
@@ -23412,6 +23555,8 @@ msgid "Manager"
 msgstr "Manager"
 
 #: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-overviews.tsx
 msgctxt "people.n5QvJy"
 msgid "Start date"
 msgstr "Startdatum"
@@ -23432,6 +23577,164 @@ msgstr "Privé: alleen mensen die gevoelige velden mogen zien, lezen dit."
 msgctxt "people.Wlp3oI"
 msgid "Personal email"
 msgstr "Privémail"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.wgfvEI"
+msgid "The application didn't load"
+msgstr "De sollicitatie is niet geladen"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-overviews.tsx
+#: src/features/people/components/employee-status.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.an5Yad"
+msgid "Hired"
+msgstr "Aangenomen"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.GH4LtS"
+msgid "Withdrawn"
+msgstr "Ingetrokken"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.d0Gd72"
+msgid "Opening"
+msgstr "Vacature"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.uYAYib"
+msgid "Stage"
+msgstr "Fase"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.aH4De2"
+msgid "Source"
+msgstr "Bron"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.7TUyZ1"
+msgid "Applied"
+msgstr "Gesolliciteerd"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.W-CT7Y"
+msgid "Hired on"
+msgstr "Aangenomen op"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.kMWUiy"
+msgid "Hire this candidate"
+msgstr "Deze kandidaat aannemen"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.wCnt0A"
+msgid "Marks the application hired and creates the employee record."
+msgstr "Markeert de sollicitatie als aangenomen en maakt het medewerkersdossier aan."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.8F-w8B"
+msgid "Hire"
+msgstr "Aannemen"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.kIGckQ"
+msgid "Candidate hired"
+msgstr "Kandidaat aangenomen"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.ZgiUTh"
+msgid "Application rejected"
+msgstr "Sollicitatie afgewezen"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.9uOFF3"
+msgid "Overview"
+msgstr "Overzicht"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.ZmlNQ3"
+msgid "Activity"
+msgstr "Activiteit"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.KQsZBW"
+msgid "Related"
+msgstr "Gerelateerd"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.4VbBEW"
+msgid "Pipeline"
+msgstr "Pijplijn"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.VUYfCx"
+msgid "Where the candidate stands in the hiring process."
+msgstr "Waar de kandidaat staat in het wervingsproces."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.7bwrV8"
+msgid "Application stage"
+msgstr "Fase van de sollicitatie"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.dPr0ak"
+msgid "Interviews"
+msgstr "Gesprekken"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.h69WhT"
+msgid "No interviews scheduled yet."
+msgstr "Nog geen gesprekken gepland."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.UIoMPD"
+msgid "Scheduled conversations with the candidate."
+msgstr "Geplande gesprekken met de kandidaat."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.kn1WXB"
+msgid "Interview"
+msgstr "Gesprek"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.6F8r-W"
+msgid "Scorecards"
+msgstr "Beoordelingen"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.TCDZv0"
+msgid "No scorecards submitted yet."
+msgstr "Nog geen beoordelingen ingediend."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.h3dSS7"
+msgid "Ratings from 1 to 4 by the interviewers."
+msgstr "Scores van 1 tot 4 door de interviewers."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.t4KJaZ"
+msgid "No notes"
+msgstr "Geen notities"
 
 #: src/features/people/components/create-opening-dialog.tsx
 msgctxt "people.c2gvol"
@@ -23479,14 +23782,10 @@ msgid "This employee didn't load"
 msgstr "Deze medewerker is niet geladen"
 
 #: src/features/people/components/employee-detail.tsx
-msgctxt "people.GPMLWt"
-msgid "Private details"
-msgstr "Privégegevens"
-
-#: src/features/people/components/employee-detail.tsx
-msgctxt "people.1ZgrhW"
-msgid "Role"
-msgstr "Functie"
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
 
 #: src/features/people/components/employee-detail.tsx
 msgctxt "people.rPDUOM"
@@ -23509,6 +23808,131 @@ msgstr "Gestart"
 msgctxt "people.p5LNtB"
 msgid "Not set"
 msgstr "Niet ingesteld"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.GPMLWt"
+msgid "Private details"
+msgstr "Privégegevens"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.v6Lr6t"
+msgid "Book a welcome meeting"
+msgstr "Welkomstgesprek boeken"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.8uPwnG"
+msgid "Books a slot on your booking page and sets a reminder an hour before it."
+msgstr "Boekt een tijdslot op je boekingspagina en zet een herinnering een uur ervoor."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.qOXENr"
+msgid "Book a meeting"
+msgstr "Gesprek boeken"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.bv2X6I"
+msgid "Book"
+msgstr "Boeken"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.oVHVJP"
+msgid "Meeting booked"
+msgstr "Gesprek geboekt"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.zF7Cth"
+msgid "Guest"
+msgstr "Gast"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.Q4TEcV"
+msgid "Guest email"
+msgstr "E-mail van de gast"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.P7PLVj"
+msgid "Date"
+msgstr "Datum"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people._zFP1_"
+msgid "Start time"
+msgstr "Starttijd"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.2MhzIf"
+msgid "Offboard {name}"
+msgstr "{name} uit dienst melden"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.zKPP6b"
+msgid "Ends the employment, cancels onboarding runs and releases open shifts."
+msgstr "Beëindigt het dienstverband, annuleert onboarding en geeft open diensten vrij."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.1yXELg"
+msgid "Offboard"
+msgstr "Uit dienst melden"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.DelLCI"
+msgid "Employee offboarded"
+msgstr "Medewerker uit dienst gemeld"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.boa1qH"
+msgid "Last day"
+msgstr "Laatste dag"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.AkCxS_"
+msgid "Reason"
+msgstr "Reden"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.SV9BhB"
+msgid "No onboarding program has been started for this person."
+msgstr "Voor deze persoon is geen onboardingprogramma gestart."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.KMv7SG"
+msgid "{done} of {total} steps done"
+msgstr "{done} van {total} stappen klaar"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.tQpQon"
+msgid "Mark done"
+msgstr "Markeer als klaar"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.bAbW3A"
+msgid "Step done"
+msgstr "Stap klaar"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.y7XZ8m"
+msgid "Leave balance"
+msgstr "Verlofsaldo"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.6joKvd"
+msgid "No leave balances you can read."
+msgstr "Geen verlofsaldo's die je kunt inzien."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.KoI2jJ"
+msgid "What is left of each leave type this period."
+msgstr "Wat er over is van elk verloftype in deze periode."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.I4AV7R"
+msgid "{available} left, {taken} taken"
+msgstr "{available} over, {taken} opgenomen"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.1ZgrhW"
+msgid "Role"
+msgstr "Functie"
 
 #: src/features/people/components/employee-detail.tsx
 msgctxt "people.bNMeN_"
@@ -23536,9 +23960,57 @@ msgid "{hours} h a week"
 msgstr "{hours} uur per week"
 
 #: src/features/people/components/employee-overview.tsx
+#: src/features/people/components/employee-overviews.tsx
 msgctxt "people.9FS_rO"
 msgid "The directory didn't load"
 msgstr "De personeelsgids is niet geladen"
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.PCki4I"
+msgid "Not offboarded"
+msgstr "Niet uit dienst"
+
+#: src/features/people/components/employee-overviews.tsx
+#: src/features/people/components/employee-status.tsx
+msgctxt "people.c83exo"
+msgid "Preboarding"
+msgstr "Preboarding"
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.tq3C3b"
+msgid "Hired, not started yet"
+msgstr "Aangenomen, nog niet gestart"
+
+#: src/features/people/components/employee-overviews.tsx
+#: src/features/people/components/employee-status.tsx
+msgctxt "people.cnG-nl"
+msgid "On leave"
+msgstr "Met verlof"
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.g0vmQs"
+msgid "No one here."
+msgstr "Niemand hier."
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.pQWS3J"
+msgid "Onboard a new hire"
+msgstr "Nieuwe medewerker onboarden"
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.aqkUkp"
+msgid "Creates the employee and starts them on an onboarding program."
+msgstr "Maakt de medewerker aan en start een onboardingprogramma."
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.4r8OM2"
+msgid "Onboard"
+msgstr "Onboarden"
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.oTtBNv"
+msgid "Onboarding started"
+msgstr "Onboarding gestart"
 
 #: src/features/people/components/employee-private-details.tsx
 msgctxt "people.xwok6-"
@@ -23577,21 +24049,6 @@ msgid "Try another name, title or email."
 msgstr "Probeer een andere naam, functie of e-mail."
 
 #: src/features/people/components/employee-status.tsx
-msgctxt "people.3a5wL8"
-msgid "Active"
-msgstr "Actief"
-
-#: src/features/people/components/employee-status.tsx
-msgctxt "people.c83exo"
-msgid "Preboarding"
-msgstr "Preboarding"
-
-#: src/features/people/components/employee-status.tsx
-msgctxt "people.cnG-nl"
-msgid "On leave"
-msgstr "Met verlof"
-
-#: src/features/people/components/employee-status.tsx
 msgctxt "people.Icti08"
 msgid "Offboarded"
 msgstr "Uit dienst"
@@ -23622,6 +24079,7 @@ msgid "Ask a hiring manager to create an opening."
 msgstr "Vraag een hiring manager om een vacature aan te maken."
 
 #: src/features/people/components/hiring-board.tsx
+#: src/features/people/components/hiring-overviews.tsx
 msgctxt "people.bebrjI"
 msgid "Openings"
 msgstr "Vacatures"
@@ -23650,6 +24108,46 @@ msgstr "Kandidaten beginnen in de eerste fase van de pijplijn."
 msgctxt "people.Nu6i_8"
 msgid "A candidate can't be moved to that stage here."
 msgstr "Een kandidaat kan hier niet naar die fase worden verplaatst."
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.njcjoO"
+msgid "The applications didn't load"
+msgstr "De sollicitaties zijn niet geladen"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.OXocSj"
+msgid "Open applications"
+msgstr "Open sollicitaties"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.0DVLMu"
+msgid "Still moving through the pipeline"
+msgstr "Nog in de pijplijn"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.DUCXI5"
+msgid "With at least one application"
+msgstr "Met minstens één sollicitatie"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.ku-mDU"
+msgid "State"
+msgstr "Staat"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.9tSPp-"
+msgid "No applications yet"
+msgstr "Nog geen sollicitaties"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.JATn9P"
+msgid "Add a candidate to an opening on the board."
+msgstr "Voeg een kandidaat toe aan een vacature op het bord."
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.VbwkY1"
+msgid "Applications appear here as candidates apply."
+msgstr "Sollicitaties verschijnen hier zodra kandidaten solliciteren."
 
 #: src/features/people/components/log-time-dialog.tsx
 msgctxt "people.tF0N6C"
@@ -30259,6 +30757,7 @@ msgid "AI providers"
 msgstr "AI-providers"
 
 #: src/features/shifts/components/roster-board.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.LHKgIm"
 msgid "The roster didn't load"
 msgstr "Het rooster is niet geladen"
@@ -30274,6 +30773,7 @@ msgid "Retry"
 msgstr "Opnieuw proberen"
 
 #: src/features/shifts/components/roster-board.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.7aB5fd"
 msgid "No shifts this week"
 msgstr "Geen diensten deze week"
@@ -30290,18 +30790,21 @@ msgstr "Lees de handleiding voor diensten"
 
 #: src/features/shifts/components/roster-board.tsx
 #: src/features/shifts/components/shift-detail.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.W6nwjo"
 msgid "Draft"
 msgstr "Concept"
 
 #: src/features/shifts/components/roster-board.tsx
 #: src/features/shifts/components/shift-detail.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.w7tf2z"
 msgid "Published"
 msgstr "Gepubliceerd"
 
 #: src/features/shifts/components/roster-board.tsx
 #: src/features/shifts/components/shift-detail.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.PFtMy9"
 msgid "Canceled"
 msgstr "Geannuleerd"
@@ -30375,6 +30878,46 @@ msgstr "Ingedeeld"
 msgctxt "shifts.jDG_zH"
 msgid "Requested"
 msgstr "Aangevraagd"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.PtxhIN"
+msgid "This week"
+msgstr "Deze week"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.zRmqZK"
+msgid "Places filled"
+msgstr "Ingevulde plekken"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.HVb2x5"
+msgid "Open places"
+msgstr "Open plekken"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.MNFqIW"
+msgid "Requests"
+msgstr "Aanvragen"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.WAAYg7"
+msgid "Waiting for a planner"
+msgstr "Wacht op een planner"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.7pXrnq"
+msgid "Day"
+msgstr "Dag"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.y0BmVt"
+msgid "Generate the week's shifts from a template."
+msgstr "Genereer de diensten van de week uit een sjabloon."
 
 #: src/features/shop/components/adjust-stock-dialog.tsx
 msgctxt "shop.ddW5zC"

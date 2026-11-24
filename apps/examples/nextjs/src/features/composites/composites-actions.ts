@@ -7,15 +7,22 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { API_KEYS_TAG } from "@/features/api-keys/api-keys-cache";
+import { BOOKINGS_TAG } from "@/features/bookings/bookings-cache";
+import { findBookingPage } from "@/features/bookings/bookings-queries";
+import { CALENDAR_TAG } from "@/features/calendar/calendar-cache";
 import { CASES_TAG } from "@/features/cases/cases-cache";
 import { CONTENT_TAG } from "@/features/content/content-cache";
+import { COURSES_TAG } from "@/features/courses/courses-cache";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { driveOf } from "@/features/drive/drive-client";
 import { FIELD_TAG } from "@/features/field/field-cache";
 import { MAINTENANCE_TAG } from "@/features/maintenance/maintenance-cache";
+import { ONBOARDING_TAG } from "@/features/onboarding/onboarding-cache";
+import { PEOPLE_TAG } from "@/features/people/people-cache";
 import { PRIVACY_TAG } from "@/features/privacy/privacy-cache";
 import { PROJECTS_TAG } from "@/features/projects/projects-cache";
+import { present } from "@/lib/present";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -28,8 +35,12 @@ import {
   governanceOf,
   keyRotationOf,
   financeOf,
+  learningOf,
+  peopleOf,
   projectsOf,
+  recruitingOf,
   salesOf,
+  schedulingOf,
   supportOf,
 } from "./composites";
 
@@ -704,5 +715,263 @@ export const exportRecordSubject = bsb.action(
       exportId: exported.data.export.id,
       auditId: exported.data.auditId,
     });
+  },
+);
+
+// People
+
+const PlainDate = v.pipe(
+  v.optional(v.string(), ""),
+  v.trim(),
+  v.transform((value) => (value === "" ? undefined : value)),
+  v.check(
+    (value) => value === undefined || /^\d{4}-\d{2}-\d{2}$/u.test(value),
+    "Enter a date",
+  ),
+);
+
+/**
+ * Hires an application and makes the employee from it: `recruiting.hire`. The
+ * application is marked hired first and the employee is created once, so a
+ * retry finishes a hire that stopped in the middle.
+ */
+export const hireApplication = bsb.action(
+  {
+    input: v.object({
+      applicationId: Id,
+      jobTitle: Blank,
+      startDate: PlainDate,
+    }),
+    requireTenant: true,
+    permission: "hiring.manage",
+  },
+  async ({ applicationId, jobTitle, startDate }, { db, auth }) => {
+    const hired = await recruitingOf(db).hire({
+      applicationId,
+      overrides: present({
+        jobTitle,
+        startDate:
+          startDate === undefined
+            ? undefined
+            : Temporal.PlainDate.from(startDate),
+      }),
+    });
+
+    if (!hired.ok) {
+      return hired;
+    }
+
+    await refreshCaller(auth, [PEOPLE_TAG, ONBOARDING_TAG, CUSTOMERS_TAG]);
+
+    return ok({ id: hired.data.employee.id });
+  },
+);
+
+/**
+ * Creates an employee and starts them on an onboarding program:
+ * `people.onboard`. A failed enrollment leaves the employee created and returns
+ * its error.
+ */
+export const onboardEmployee = bsb.action(
+  {
+    input: v.object({
+      name: Text,
+      email: Blank,
+      jobTitle: Blank,
+      program: v.pipe(v.string(), v.minLength(1)),
+      startDate: PlainDate,
+    }),
+    requireTenant: true,
+    permission: "employees.write",
+  },
+  async (
+    { name, email, jobTitle, program, startDate },
+    { db, auth, tenant },
+  ) => {
+    const onboarded = await peopleOf(db).onboard({
+      organizationId: tenant,
+      program,
+      employee: {
+        name,
+        ...present({
+          email,
+          jobTitle,
+          startDate:
+            startDate === undefined
+              ? undefined
+              : Temporal.PlainDate.from(startDate),
+        }),
+      },
+      ...present({
+        dates:
+          startDate === undefined
+            ? undefined
+            : {
+                startsAt: Temporal.PlainDate.from(startDate)
+                  .toZonedDateTime("UTC")
+                  .toInstant(),
+              },
+      }),
+    });
+
+    if (!onboarded.ok) {
+      return onboarded;
+    }
+
+    await refreshCaller(auth, [PEOPLE_TAG, ONBOARDING_TAG]);
+
+    return ok({ id: onboarded.data.employee.id });
+  },
+);
+
+/**
+ * Ends an employment: `people.offboard` sets the end date, then cancels the
+ * employee's active onboarding runs and releases their open shifts of the next
+ * month.
+ */
+export const offboardEmployee = bsb.action(
+  {
+    input: v.object({ employeeId: Id, endDate: PlainDate, reason: Blank }),
+    requireTenant: true,
+    permission: "employees.write",
+  },
+  async ({ employeeId, endDate, reason }, { db, auth, tenant }) => {
+    const employee = await db.employees.get(employeeId);
+
+    if (!employee.ok) {
+      return employee;
+    }
+
+    const today = Temporal.Now.plainDateISO();
+
+    const [runs, roster] = await Promise.all([
+      db.enrollments.enrollmentPage({
+        filters: { subjectType: ["employee"], subjectId: [employeeId] },
+        limit: 50,
+      }),
+      db.shifts.roster({
+        organizationId: tenant,
+        from: today,
+        until: today.add({ days: 30 }),
+      }),
+    ]);
+
+    if (!runs.ok) {
+      return runs;
+    }
+
+    if (!roster.ok) {
+      return roster;
+    }
+
+    const userId = employee.data.userId;
+
+    const offboarded = await peopleOf(db).offboard({
+      employeeId,
+      ...present({
+        endDate:
+          endDate === undefined ? undefined : Temporal.PlainDate.from(endDate),
+        reason,
+      }),
+      enrollmentIds: runs.data.items
+        .filter((run) => run.status === "active")
+        .map((run) => run.id),
+      assignmentIds:
+        userId === undefined
+          ? []
+          : roster.data.flatMap((shift) =>
+              shift.assignments
+                .filter(
+                  (assignment) =>
+                    assignment.userId === userId &&
+                    (assignment.status === "assigned" ||
+                      assignment.status === "requested"),
+                )
+                .map((assignment) => assignment.id),
+            ),
+    });
+
+    if (!offboarded.ok) {
+      return offboarded;
+    }
+
+    await refreshCaller(auth, [PEOPLE_TAG, ONBOARDING_TAG]);
+
+    return ok({ id: employeeId });
+  },
+);
+
+/** Puts a member in a course: `learning.assign`. */
+export const assignCourse = bsb.action(
+  {
+    input: v.object({ courseId: Id, userId: Id }),
+    requireTenant: true,
+    permission: "courses.enroll",
+  },
+  async ({ courseId, userId }, { db, auth }) => {
+    const assigned = await learningOf(db).assign({ courseId, userId });
+
+    if (!assigned.ok) {
+      return assigned;
+    }
+
+    await refreshCaller(auth, [COURSES_TAG]);
+
+    return ok({ id: assigned.data.learner.enrollmentId });
+  },
+);
+
+const Hour = v.picklist(["09", "10", "11", "13", "14", "15", "16"]);
+
+/**
+ * Books a welcome meeting for a new hire on the caller's booking page and sets
+ * the caller's reminder an hour before it: `scheduling.bookWithReminder`.
+ */
+export const bookWithReminder = bsb.action(
+  {
+    input: v.object({
+      name: Text,
+      email: Blank,
+      date: v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/u)),
+      hour: Hour,
+    }),
+    requireTenant: true,
+    permission: "bookings.manage",
+  },
+  async ({ name, email, date, hour }, { db, auth, tenant, session }) => {
+    if (session.kind !== "user") {
+      return err(
+        dbError("forbidden", "Sign in to book on your own booking page."),
+      );
+    }
+
+    const page = await findBookingPage(db, tenant, session.user.id);
+
+    if (!page) {
+      return err(
+        dbError(
+          "not_found",
+          "Set up your booking page under Availability first.",
+        ),
+      );
+    }
+
+    const booked = await schedulingOf(db).bookWithReminder({
+      serviceId: page.serviceId,
+      resourceId: page.resourceId,
+      startsAt: Temporal.PlainDateTime.from(`${date}T${hour}:00`)
+        .toZonedDateTime(page.tz)
+        .toInstant(),
+      customer: { name, ...present({ email }) },
+      reminder: 60,
+    });
+
+    if (!booked.ok) {
+      return booked;
+    }
+
+    await refreshCaller(auth, [BOOKINGS_TAG, CALENDAR_TAG]);
+
+    return ok({ id: booked.data.booking.id });
   },
 );

@@ -2,6 +2,8 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { KpiBandSkeleton } from "@/components/record-list/kpi-band";
+import { LeaveKpis } from "@/features/leave/components/leave-kpis";
 import {
   LeaveOverview,
   LeaveOverviewSkeleton,
@@ -25,6 +27,9 @@ export default function LeavePage() {
           "Time off by type, requests approved by a manager, and your balances.",
         )}
       />
+      <Suspense fallback={<KpiBandSkeleton />}>
+        <LeaveKpis />
+      </Suspense>
       <Suspense fallback={<LeaveOverviewSkeleton />}>
         <LeaveOverview />
       </Suspense>

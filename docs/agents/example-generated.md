@@ -180,6 +180,7 @@ Written by `node scripts/check-example-generated.ts --write`; do not edit by han
 | records/warranty-claim              | 0         |
 | records/work-center                 | 0         |
 | server                              | 253       |
+| server                              | 254       |
 | server-api                          | 3         |
 | server-core                         | 83        |
 | server-shell                        | 45        |

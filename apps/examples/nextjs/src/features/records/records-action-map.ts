@@ -1,4 +1,13 @@
 import {
+  linkApplicationRelations,
+  linkCourseRelations,
+  linkEmployeeRelations,
+  removeApplicationAttachments,
+  removeCourseAttachments,
+  removeEmployeeAttachments,
+  unlinkApplicationRelations,
+  unlinkCourseRelations,
+  unlinkEmployeeRelations,
   linkCaseRelations,
   removeCaseAttachments,
   unlinkCaseRelations,
@@ -108,5 +117,21 @@ export const recordActions = {
     link: linkVulnerabilityRelations,
     unlink: unlinkVulnerabilityRelations,
     removeAttachment: removeVulnerabilityAttachments,
+  },
+  // People
+  employee: {
+    link: linkEmployeeRelations,
+    unlink: unlinkEmployeeRelations,
+    removeAttachment: removeEmployeeAttachments,
+  },
+  application: {
+    link: linkApplicationRelations,
+    unlink: unlinkApplicationRelations,
+    removeAttachment: removeApplicationAttachments,
+  },
+  course: {
+    link: linkCourseRelations,
+    unlink: unlinkCourseRelations,
+    removeAttachment: removeCourseAttachments,
   },
 } as const;

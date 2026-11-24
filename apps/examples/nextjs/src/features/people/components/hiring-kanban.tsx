@@ -15,6 +15,7 @@ import {
   KanbanOverlay,
 } from "@/components/reui/kanban";
 import { Card, CardContent } from "@/components/ui/card";
+import { Link } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
 
 import type { HiringCard, HiringStage } from "../people-queries";
@@ -42,7 +43,12 @@ function CandidateCard({ card }: { card: HiringCard }) {
   return (
     <Card size="sm">
       <CardContent>
-        <span className="text-sm font-medium">{card.name}</span>
+        <Link
+          href={`/people/hiring/${card.id}`}
+          className="text-sm font-medium hover:underline"
+        >
+          {card.name}
+        </Link>
       </CardContent>
     </Card>
   );

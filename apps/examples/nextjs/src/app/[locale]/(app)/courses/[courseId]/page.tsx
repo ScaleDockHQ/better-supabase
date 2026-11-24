@@ -2,7 +2,16 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import { RecordBoundSections } from "@/components/record-detail/record-bound-sections";
+import {
+  activeTab,
+  RecordDetailTabs,
+} from "@/components/record-detail/record-detail-tabs";
 import { buttonVariants } from "@/components/ui/button";
+import {
+  CourseLearners,
+  CourseLearnersSkeleton,
+} from "@/features/courses/components/course-learners";
 import {
   CourseOutline,
   CourseOutlineSkeleton,
@@ -17,6 +26,7 @@ export const instant = true;
 
 export default function CoursePage({
   params,
+  searchParams,
 }: PageProps<"/[locale]/courses/[courseId]">) {
   const t = useExtracted("courses");
 
@@ -34,11 +44,38 @@ export default function CoursePage({
         {t("All courses")}
       </Link>
       <Suspense fallback={<CourseOutlineSkeleton />}>
-        <PermissionGate permission="courses.read">
-          {params.then(({ courseId }) => (
-            <CourseOutline courseId={courseId} />
-          ))}
-        </PermissionGate>
+        {Promise.all([params, searchParams]).then(([{ courseId }, raw]) => {
+          const tab = activeTab(raw, ["outline", "enrollments", "activity"]);
+          const subject = { type: "course", id: courseId } as const;
+
+          return (
+            <>
+              <RecordDetailTabs
+                base={`/courses/${courseId}`}
+                active={tab}
+                tabs={[
+                  { value: "outline", label: t("Outline") },
+                  { value: "enrollments", label: t("Enrollments") },
+                  { value: "activity", label: t("Activity") },
+                ]}
+              />
+              <PermissionGate permission="courses.read">
+                {tab === "enrollments" ? (
+                  <Suspense fallback={<CourseLearnersSkeleton />}>
+                    <CourseLearners courseId={courseId} />
+                  </Suspense>
+                ) : tab === "activity" ? (
+                  <RecordBoundSections
+                    subject={subject}
+                    sections={["discussion", "history", "files"]}
+                  />
+                ) : (
+                  <CourseOutline courseId={courseId} />
+                )}
+              </PermissionGate>
+            </>
+          );
+        })}
       </Suspense>
     </>
   );

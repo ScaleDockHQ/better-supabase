@@ -466,7 +466,24 @@ msgctxt "courses.m0TXM9"
 msgid "All courses"
 msgstr "All courses"
 
+#: src/app/[locale]/(app)/courses/[courseId]/page.tsx
+msgctxt "courses.aEhjYg"
+msgid "Outline"
+msgstr "Outline"
+
+#: src/app/[locale]/(app)/courses/[courseId]/page.tsx
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.TYlQ6K"
+msgid "Enrollments"
+msgstr "Enrollments"
+
+#: src/app/[locale]/(app)/courses/[courseId]/page.tsx
+msgctxt "courses.ZmlNQ3"
+msgid "Activity"
+msgstr "Activity"
+
 #: src/app/[locale]/(app)/courses/page.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.R85gsW"
 msgid "Courses"
 msgstr "Courses"
@@ -1230,6 +1247,11 @@ msgctxt "encryption.hZe4HU"
 msgid "Which fields are encrypted at rest, and the key that seals them."
 msgstr "Which fields are encrypted at rest, and the key that seals them."
 
+#: src/app/[locale]/(app)/people/hiring/[id]/page.tsx
+msgctxt "people.Tx3dBv"
+msgid "All applications"
+msgstr "All applications"
+
 #: src/app/[locale]/(app)/people/hiring/page.tsx
 #: src/features/people/components/hiring-board.tsx
 msgctxt "people.XuEwXv"
@@ -1257,6 +1279,7 @@ msgid "Time off by type, requests approved by a manager, and your balances."
 msgstr "Time off by type, requests approved by a manager, and your balances."
 
 #: src/app/[locale]/(app)/people/onboarding/page.tsx
+#: src/features/people/components/employee-detail.tsx
 msgctxt "people.GjrgLY"
 msgid "Onboarding"
 msgstr "Onboarding"
@@ -1267,6 +1290,7 @@ msgid "New hires and the steps they finish in their first weeks."
 msgstr "New hires and the steps they finish in their first weeks."
 
 #: src/app/[locale]/(app)/people/page.tsx
+#: src/features/people/components/employee-overviews.tsx
 msgctxt "people.Tpy00S"
 msgid "People"
 msgstr "People"
@@ -1558,6 +1582,7 @@ msgid "All shifts"
 msgstr "All shifts"
 
 #: src/app/[locale]/(app)/shifts/page.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.poLbhw"
 msgid "Shifts"
 msgstr "Shifts"
@@ -9604,7 +9629,68 @@ msgctxt "courses.3WD3Jo"
 msgid "Create a sample course"
 msgstr "Create a sample course"
 
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.n9SrhB"
+msgid "The enrollments didn't load"
+msgstr "The enrollments didn't load"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.q1WWIr"
+msgid "In progress"
+msgstr "In progress"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.95stPq"
+msgid "Completed"
+msgstr "Completed"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.3wsVWF"
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.XG7Ed8"
+msgid "Who takes this course and how far they are."
+msgstr "Who takes this course and how far they are."
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.Mjr5Mi"
+msgid "Assign this course"
+msgstr "Assign this course"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.KMwFsf"
+msgid "Enrolls a member and notifies them."
+msgstr "Enrolls a member and notifies them."
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.guunZt"
+msgid "Assign"
+msgstr "Assign"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.wpXwdk"
+msgid "Course assigned"
+msgstr "Course assigned"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.7L86Z5"
+msgid "Member"
+msgstr "Member"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.xTEEy3"
+msgid "No learners yet"
+msgstr "No learners yet"
+
+#: src/features/courses/components/course-learners.tsx
+msgctxt "courses.vzeF52"
+msgid "Assign the course to a member to start."
+msgstr "Assign the course to a member to start."
+
 #: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.zV57h1"
 msgid "The courses didn't load"
 msgstr "The courses didn't load"
@@ -9624,6 +9710,7 @@ msgid "Retry"
 msgstr "Retry"
 
 #: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.BDHWkf"
 msgid "No courses yet"
 msgstr "No courses yet"
@@ -9645,18 +9732,21 @@ msgstr "Back to the dashboard"
 
 #: src/features/courses/components/course-list.tsx
 #: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.W6nwjo"
 msgid "Draft"
 msgstr "Draft"
 
 #: src/features/courses/components/course-list.tsx
 #: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.w7tf2z"
 msgid "Published"
 msgstr "Published"
 
 #: src/features/courses/components/course-list.tsx
 #: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/course-overviews.tsx
 msgctxt "courses.0HT-Ib"
 msgid "Archived"
 msgstr "Archived"
@@ -9744,6 +9834,41 @@ msgstr "{done, number} of {total, number} lessons done"
 msgctxt "courses.FMhPQ6"
 msgid "Certificate"
 msgstr "Certificate"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.xS6k0n"
+msgid "Open for enrollment"
+msgstr "Open for enrollment"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.2atspc"
+msgid "Drafts"
+msgstr "Drafts"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.miQtaX"
+msgid "Not published yet"
+msgstr "Not published yet"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.onDfe_"
+msgid "Course"
+msgstr "Course"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.RrCui3"
+msgid "Summary"
+msgstr "Summary"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/courses/components/course-overviews.tsx
+msgctxt "courses.oea3Uh"
+msgid "Published courses appear here."
+msgstr "Published courses appear here."
 
 #: src/features/courses/components/lesson-player.tsx
 msgctxt "courses.rEPdIs"
@@ -19012,6 +19137,7 @@ msgid "Approve"
 msgstr "Approve"
 
 #: src/features/leave/components/leave-decision.tsx
+#: src/features/people/components/application-detail.tsx
 msgctxt "people.VzIOKf"
 msgid "Reject"
 msgstr "Reject"
@@ -19069,10 +19195,38 @@ msgctxt "people.Xypua0"
 msgid "Nothing is booked until the request is approved."
 msgstr "Nothing is booked until the request is approved."
 
+#: src/features/leave/components/leave-kpis.tsx
 #: src/features/leave/components/leave-overview.tsx
 msgctxt "people.-eTI8w"
 msgid "Leave didn't load"
 msgstr "Leave didn't load"
+
+#: src/features/leave/components/leave-kpis.tsx
+#: src/features/leave/components/leave-status.tsx
+msgctxt "people.eKEL_g"
+msgid "Pending"
+msgstr "Pending"
+
+#: src/features/leave/components/leave-kpis.tsx
+msgctxt "people.kjUNOW"
+msgid "Waiting for approval"
+msgstr "Waiting for approval"
+
+#: src/features/leave/components/leave-kpis.tsx
+#: src/features/leave/components/leave-status.tsx
+#: src/features/people/components/timesheet.tsx
+msgctxt "people.6XFO_C"
+msgid "Approved"
+msgstr "Approved"
+
+#: src/features/leave/components/leave-kpis.tsx
+#: src/features/leave/components/leave-status.tsx
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+#: src/features/people/components/timesheet.tsx
+msgctxt "people.5qaD7s"
+msgid "Rejected"
+msgstr "Rejected"
 
 #: src/features/leave/components/leave-record-list.tsx
 msgctxt "people.rCrCme"
@@ -19120,6 +19274,7 @@ msgstr "Latest end"
 
 #: src/features/leave/components/leave-record-list.tsx
 #: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/employee-overviews.tsx
 #: src/features/people/components/employee-record-list.tsx
 msgctxt "people.HAlOn1"
 msgid "Name"
@@ -19139,23 +19294,6 @@ msgstr "No leave found"
 msgctxt "people._MTwuH"
 msgid "Request leave, or change the filters."
 msgstr "Request leave, or change the filters."
-
-#: src/features/leave/components/leave-status.tsx
-msgctxt "people.eKEL_g"
-msgid "Pending"
-msgstr "Pending"
-
-#: src/features/leave/components/leave-status.tsx
-#: src/features/people/components/timesheet.tsx
-msgctxt "people.6XFO_C"
-msgid "Approved"
-msgstr "Approved"
-
-#: src/features/leave/components/leave-status.tsx
-#: src/features/people/components/timesheet.tsx
-msgctxt "people.5qaD7s"
-msgid "Rejected"
-msgstr "Rejected"
 
 #: src/features/leave/components/leave-status.tsx
 #: src/features/onboarding/components/onboarding-status.tsx
@@ -22534,6 +22672,7 @@ msgstr "Employee enrolled"
 
 #: src/features/onboarding/components/enroll-employee-form.tsx
 #: src/features/onboarding/components/onboarding-record-list.tsx
+#: src/features/people/components/employee-overviews.tsx
 msgctxt "people.7ScoLI"
 msgid "Program"
 msgstr "Program"
@@ -23355,6 +23494,7 @@ msgid "They start in the first stage of this opening."
 msgstr "They start in the first stage of this opening."
 
 #: src/features/people/components/add-candidate-dialog.tsx
+#: src/features/people/components/hiring-overviews.tsx
 msgctxt "people.3qW1f_"
 msgid "Candidate"
 msgstr "Candidate"
@@ -23401,6 +23541,9 @@ msgid "Work email"
 msgstr "Work email"
 
 #: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-detail.tsx
+#: src/features/people/components/employee-overviews.tsx
 #: src/features/people/components/employee-record-list.tsx
 msgctxt "people.HsQ3BK"
 msgid "Job title"
@@ -23412,6 +23555,8 @@ msgid "Manager"
 msgstr "Manager"
 
 #: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-overviews.tsx
 msgctxt "people.n5QvJy"
 msgid "Start date"
 msgstr "Start date"
@@ -23432,6 +23577,164 @@ msgstr "Private: only people who can see sensitive fields read it."
 msgctxt "people.Wlp3oI"
 msgid "Personal email"
 msgstr "Personal email"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.wgfvEI"
+msgid "The application didn't load"
+msgstr "The application didn't load"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-overviews.tsx
+#: src/features/people/components/employee-status.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.an5Yad"
+msgid "Hired"
+msgstr "Hired"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.GH4LtS"
+msgid "Withdrawn"
+msgstr "Withdrawn"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.d0Gd72"
+msgid "Opening"
+msgstr "Opening"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.uYAYib"
+msgid "Stage"
+msgstr "Stage"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.aH4De2"
+msgid "Source"
+msgstr "Source"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.7TUyZ1"
+msgid "Applied"
+msgstr "Applied"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.W-CT7Y"
+msgid "Hired on"
+msgstr "Hired on"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.kMWUiy"
+msgid "Hire this candidate"
+msgstr "Hire this candidate"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.wCnt0A"
+msgid "Marks the application hired and creates the employee record."
+msgstr "Marks the application hired and creates the employee record."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.8F-w8B"
+msgid "Hire"
+msgstr "Hire"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.kIGckQ"
+msgid "Candidate hired"
+msgstr "Candidate hired"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.ZgiUTh"
+msgid "Application rejected"
+msgstr "Application rejected"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.9uOFF3"
+msgid "Overview"
+msgstr "Overview"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.ZmlNQ3"
+msgid "Activity"
+msgstr "Activity"
+
+#: src/features/people/components/application-detail.tsx
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.KQsZBW"
+msgid "Related"
+msgstr "Related"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.4VbBEW"
+msgid "Pipeline"
+msgstr "Pipeline"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.VUYfCx"
+msgid "Where the candidate stands in the hiring process."
+msgstr "Where the candidate stands in the hiring process."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.7bwrV8"
+msgid "Application stage"
+msgstr "Application stage"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.dPr0ak"
+msgid "Interviews"
+msgstr "Interviews"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.h69WhT"
+msgid "No interviews scheduled yet."
+msgstr "No interviews scheduled yet."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.UIoMPD"
+msgid "Scheduled conversations with the candidate."
+msgstr "Scheduled conversations with the candidate."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.kn1WXB"
+msgid "Interview"
+msgstr "Interview"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.6F8r-W"
+msgid "Scorecards"
+msgstr "Scorecards"
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.TCDZv0"
+msgid "No scorecards submitted yet."
+msgstr "No scorecards submitted yet."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.h3dSS7"
+msgid "Ratings from 1 to 4 by the interviewers."
+msgstr "Ratings from 1 to 4 by the interviewers."
+
+#: src/features/people/components/application-detail.tsx
+msgctxt "people.t4KJaZ"
+msgid "No notes"
+msgstr "No notes"
 
 #: src/features/people/components/create-opening-dialog.tsx
 msgctxt "people.c2gvol"
@@ -23479,14 +23782,10 @@ msgid "This employee didn't load"
 msgstr "This employee didn't load"
 
 #: src/features/people/components/employee-detail.tsx
-msgctxt "people.GPMLWt"
-msgid "Private details"
-msgstr "Private details"
-
-#: src/features/people/components/employee-detail.tsx
-msgctxt "people.1ZgrhW"
-msgid "Role"
-msgstr "Role"
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.sy-pv5"
+msgid "Email"
+msgstr "Email"
 
 #: src/features/people/components/employee-detail.tsx
 msgctxt "people.rPDUOM"
@@ -23509,6 +23808,131 @@ msgstr "Started"
 msgctxt "people.p5LNtB"
 msgid "Not set"
 msgstr "Not set"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.GPMLWt"
+msgid "Private details"
+msgstr "Private details"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.v6Lr6t"
+msgid "Book a welcome meeting"
+msgstr "Book a welcome meeting"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.8uPwnG"
+msgid "Books a slot on your booking page and sets a reminder an hour before it."
+msgstr "Books a slot on your booking page and sets a reminder an hour before it."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.qOXENr"
+msgid "Book a meeting"
+msgstr "Book a meeting"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.bv2X6I"
+msgid "Book"
+msgstr "Book"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.oVHVJP"
+msgid "Meeting booked"
+msgstr "Meeting booked"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.zF7Cth"
+msgid "Guest"
+msgstr "Guest"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.Q4TEcV"
+msgid "Guest email"
+msgstr "Guest email"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.P7PLVj"
+msgid "Date"
+msgstr "Date"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people._zFP1_"
+msgid "Start time"
+msgstr "Start time"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.2MhzIf"
+msgid "Offboard {name}"
+msgstr "Offboard {name}"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.zKPP6b"
+msgid "Ends the employment, cancels onboarding runs and releases open shifts."
+msgstr "Ends the employment, cancels onboarding runs and releases open shifts."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.1yXELg"
+msgid "Offboard"
+msgstr "Offboard"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.DelLCI"
+msgid "Employee offboarded"
+msgstr "Employee offboarded"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.boa1qH"
+msgid "Last day"
+msgstr "Last day"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.AkCxS_"
+msgid "Reason"
+msgstr "Reason"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.SV9BhB"
+msgid "No onboarding program has been started for this person."
+msgstr "No onboarding program has been started for this person."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.KMv7SG"
+msgid "{done} of {total} steps done"
+msgstr "{done} of {total} steps done"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.tQpQon"
+msgid "Mark done"
+msgstr "Mark done"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.bAbW3A"
+msgid "Step done"
+msgstr "Step done"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.y7XZ8m"
+msgid "Leave balance"
+msgstr "Leave balance"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.6joKvd"
+msgid "No leave balances you can read."
+msgstr "No leave balances you can read."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.KoI2jJ"
+msgid "What is left of each leave type this period."
+msgstr "What is left of each leave type this period."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.I4AV7R"
+msgid "{available} left, {taken} taken"
+msgstr "{available} left, {taken} taken"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.1ZgrhW"
+msgid "Role"
+msgstr "Role"
 
 #: src/features/people/components/employee-detail.tsx
 msgctxt "people.bNMeN_"
@@ -23536,9 +23960,57 @@ msgid "{hours} h a week"
 msgstr "{hours} h a week"
 
 #: src/features/people/components/employee-overview.tsx
+#: src/features/people/components/employee-overviews.tsx
 msgctxt "people.9FS_rO"
 msgid "The directory didn't load"
 msgstr "The directory didn't load"
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.PCki4I"
+msgid "Not offboarded"
+msgstr "Not offboarded"
+
+#: src/features/people/components/employee-overviews.tsx
+#: src/features/people/components/employee-status.tsx
+msgctxt "people.c83exo"
+msgid "Preboarding"
+msgstr "Preboarding"
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.tq3C3b"
+msgid "Hired, not started yet"
+msgstr "Hired, not started yet"
+
+#: src/features/people/components/employee-overviews.tsx
+#: src/features/people/components/employee-status.tsx
+msgctxt "people.cnG-nl"
+msgid "On leave"
+msgstr "On leave"
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.g0vmQs"
+msgid "No one here."
+msgstr "No one here."
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.pQWS3J"
+msgid "Onboard a new hire"
+msgstr "Onboard a new hire"
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.aqkUkp"
+msgid "Creates the employee and starts them on an onboarding program."
+msgstr "Creates the employee and starts them on an onboarding program."
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.4r8OM2"
+msgid "Onboard"
+msgstr "Onboard"
+
+#: src/features/people/components/employee-overviews.tsx
+msgctxt "people.oTtBNv"
+msgid "Onboarding started"
+msgstr "Onboarding started"
 
 #: src/features/people/components/employee-private-details.tsx
 msgctxt "people.xwok6-"
@@ -23577,21 +24049,6 @@ msgid "Try another name, title or email."
 msgstr "Try another name, title or email."
 
 #: src/features/people/components/employee-status.tsx
-msgctxt "people.3a5wL8"
-msgid "Active"
-msgstr "Active"
-
-#: src/features/people/components/employee-status.tsx
-msgctxt "people.c83exo"
-msgid "Preboarding"
-msgstr "Preboarding"
-
-#: src/features/people/components/employee-status.tsx
-msgctxt "people.cnG-nl"
-msgid "On leave"
-msgstr "On leave"
-
-#: src/features/people/components/employee-status.tsx
 msgctxt "people.Icti08"
 msgid "Offboarded"
 msgstr "Offboarded"
@@ -23622,6 +24079,7 @@ msgid "Ask a hiring manager to create an opening."
 msgstr "Ask a hiring manager to create an opening."
 
 #: src/features/people/components/hiring-board.tsx
+#: src/features/people/components/hiring-overviews.tsx
 msgctxt "people.bebrjI"
 msgid "Openings"
 msgstr "Openings"
@@ -23650,6 +24108,46 @@ msgstr "Candidates start in the first stage of the pipeline."
 msgctxt "people.Nu6i_8"
 msgid "A candidate can't be moved to that stage here."
 msgstr "A candidate can't be moved to that stage here."
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.njcjoO"
+msgid "The applications didn't load"
+msgstr "The applications didn't load"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.OXocSj"
+msgid "Open applications"
+msgstr "Open applications"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.0DVLMu"
+msgid "Still moving through the pipeline"
+msgstr "Still moving through the pipeline"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.DUCXI5"
+msgid "With at least one application"
+msgstr "With at least one application"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.ku-mDU"
+msgid "State"
+msgstr "State"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.9tSPp-"
+msgid "No applications yet"
+msgstr "No applications yet"
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.JATn9P"
+msgid "Add a candidate to an opening on the board."
+msgstr "Add a candidate to an opening on the board."
+
+#: src/features/people/components/hiring-overviews.tsx
+msgctxt "people.VbwkY1"
+msgid "Applications appear here as candidates apply."
+msgstr "Applications appear here as candidates apply."
 
 #: src/features/people/components/log-time-dialog.tsx
 msgctxt "people.tF0N6C"
@@ -30259,6 +30757,7 @@ msgid "AI providers"
 msgstr "AI providers"
 
 #: src/features/shifts/components/roster-board.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.LHKgIm"
 msgid "The roster didn't load"
 msgstr "The roster didn't load"
@@ -30274,6 +30773,7 @@ msgid "Retry"
 msgstr "Retry"
 
 #: src/features/shifts/components/roster-board.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.7aB5fd"
 msgid "No shifts this week"
 msgstr "No shifts this week"
@@ -30290,18 +30790,21 @@ msgstr "Read the shifts guide"
 
 #: src/features/shifts/components/roster-board.tsx
 #: src/features/shifts/components/shift-detail.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.W6nwjo"
 msgid "Draft"
 msgstr "Draft"
 
 #: src/features/shifts/components/roster-board.tsx
 #: src/features/shifts/components/shift-detail.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.w7tf2z"
 msgid "Published"
 msgstr "Published"
 
 #: src/features/shifts/components/roster-board.tsx
 #: src/features/shifts/components/shift-detail.tsx
+#: src/features/shifts/components/shift-overviews.tsx
 msgctxt "shifts.PFtMy9"
 msgid "Canceled"
 msgstr "Canceled"
@@ -30375,6 +30878,46 @@ msgstr "Assigned"
 msgctxt "shifts.jDG_zH"
 msgid "Requested"
 msgstr "Requested"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.PtxhIN"
+msgid "This week"
+msgstr "This week"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.zRmqZK"
+msgid "Places filled"
+msgstr "Places filled"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.HVb2x5"
+msgid "Open places"
+msgstr "Open places"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.MNFqIW"
+msgid "Requests"
+msgstr "Requests"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.WAAYg7"
+msgid "Waiting for a planner"
+msgstr "Waiting for a planner"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.7pXrnq"
+msgid "Day"
+msgstr "Day"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/shifts/components/shift-overviews.tsx
+msgctxt "shifts.y0BmVt"
+msgid "Generate the week's shifts from a template."
+msgstr "Generate the week's shifts from a template."
 
 #: src/features/shop/components/adjust-stock-dialog.tsx
 msgctxt "shop.ddW5zC"

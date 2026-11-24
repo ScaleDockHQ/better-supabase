@@ -208,3 +208,31 @@ export const unlinkVulnerabilityRelations =
 
 export const removeVulnerabilityAttachments =
   recordPages.vulnerability.actions.attachments.remove;
+
+// People
+
+export const linkEmployeeRelations =
+  recordPages.employee.actions.relations.link;
+
+export const unlinkEmployeeRelations =
+  recordPages.employee.actions.relations.unlink;
+
+export const removeEmployeeAttachments =
+  recordPages.employee.actions.attachments.remove;
+
+export const linkApplicationRelations =
+  recordPages.application.actions.relations.link;
+
+export const unlinkApplicationRelations =
+  recordPages.application.actions.relations.unlink;
+
+export const removeApplicationAttachments =
+  recordPages.application.actions.attachments.remove;
+
+export const linkCourseRelations = recordPages.course.actions.relations.link;
+
+export const unlinkCourseRelations =
+  recordPages.course.actions.relations.unlink;
+
+export const removeCourseAttachments =
+  recordPages.course.actions.attachments.remove;

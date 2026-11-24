@@ -8,6 +8,10 @@ import { Temporal } from "temporal-polyfill";
 
 import { customerPage } from "@/features/customers/customer-record";
 import { getMembers } from "@/features/organization/organization-queries";
+import {
+  loadDirectory,
+  loadHiringBoard,
+} from "@/features/people/people-queries";
 import { loadDeals } from "@/features/sales/pipeline/pipeline-queries";
 import { getSession } from "@/features/user/user-queries";
 import { bsb } from "@/lib/supabase/server";
@@ -243,6 +247,32 @@ async function relationOptions(
             })),
           )
         : [];
+    }
+
+    // People
+    case "employee": {
+      const directory = await loadDirectory();
+
+      return named(
+        (directory?.managers ?? []).map((manager) => ({
+          id: manager.value,
+          name: manager.label,
+        })),
+      );
+    }
+
+    case "application": {
+      const board = await loadHiringBoard();
+
+      return named(board?.cards ?? []);
+    }
+
+    case "course": {
+      return named(
+        (await db.courses.list({ limit: OPTION_LIMIT }).orThrow()).map(
+          (course) => ({ id: course.id, name: course.title }),
+        ),
+      );
     }
 
     default: {

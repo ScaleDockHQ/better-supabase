@@ -67,4 +67,8 @@ export const recordPages = {
   care_plan: bsbCore.record(sectionRecord("care_plan")),
   risk: bsbCore.record(sectionRecord("risk")),
   vulnerability: bsbCore.record(sectionRecord("vulnerability")),
+  // People
+  employee: bsbCore.record(sectionRecord("employee")),
+  application: bsbCore.record(sectionRecord("application")),
+  course: bsbCore.record(sectionRecord("course")),
 } as const;

@@ -156,4 +156,34 @@ export const ACTIONS: readonly ActionCase[] = [
   write(COMPOSITES, "discussCase", "/cases", async () => [
     { caseId: await firstRowId("cases"), comment: "Looking into the cause." },
   ]),
+  // People
+  write(COMPOSITES, "hireApplication", "/people/hiring", async () => [
+    { applicationId: await firstRowId("applications") },
+  ]),
+  write(COMPOSITES, "onboardEmployee", "/people", async () => [
+    { name: "Noor Jansen", program: "new-hire" },
+  ]),
+  write(COMPOSITES, "offboardEmployee", "/people", async () => [
+    {
+      employeeId: "00000000-0000-4000-8000-0000000e0005",
+      endDate: "2030-01-31",
+    },
+  ]),
+  write(COMPOSITES, "assignCourse", "/courses", async () => [
+    {
+      courseId: await firstRowId("courses"),
+      userId: "00000000-0000-4000-8000-0000000000a2",
+    },
+  ]),
+  write(COMPOSITES, "bookWithReminder", "/people", async () => [
+    { name: "Priya Patel", date: "2030-01-15", hour: "10" },
+  ]),
+  write(
+    "features/onboarding/onboarding-actions.ts",
+    "completeOnboardingStep",
+    "/people/onboarding",
+    async () => [
+      { enrollmentId: await firstRowId("enrollments"), step: "accounts" },
+    ],
+  ),
 ];
