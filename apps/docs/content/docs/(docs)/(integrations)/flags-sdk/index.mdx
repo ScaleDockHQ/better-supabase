@@ -58,7 +58,7 @@ export const newEditor = flag<boolean, FlagsSdkEntities>({
 Without the keys, a flag answers its `defaultValue` and one without a
 default throws. To pick the project, the Data API schema or the cache
 yourself, call `createBetterSupabaseAdapter`. It takes `url` and
-`secretKey` (with `schema`, `ttl` and `fetch`), or the options of
+`secretKey` (with `schema`, `ttl`, `staleTtl` and `fetch`), or the options of
 `createFlagsProvider`: a `transport` or fixed `definitions`. Give it an
 `identify` so every flag on it identifies the caller the same way:
 
