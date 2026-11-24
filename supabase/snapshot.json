@@ -454807,9 +454807,7 @@
         "settings": {
           "search_path": "\"\""
         },
-        "execute": [
-          "authenticated"
-        ]
+        "execute": []
       },
       {
         "schema": "better_supabase",
@@ -491464,7 +491462,6 @@
         "name": "rebuild_open_items",
         "signature": "tenant uuid",
         "execute": [
-          "authenticated",
           "service_role"
         ],
         "policy": false,

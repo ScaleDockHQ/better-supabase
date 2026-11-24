@@ -89,4 +89,20 @@ describe("maintained open items", () => {
     expect(drift).toContain("ledger_entries");
     expect(sql).toContain('"open_items_drift"(tenant uuid)');
   });
+
+  it("grants each function once: rebuild to the service role only", () => {
+    const grants = (name: string): string[] =>
+      [
+        ...sql.matchAll(
+          new RegExp(
+            String.raw`grant execute on function "better_supabase"\."${name}"\([^)]*\) to ([^;]+);`,
+            "g",
+          ),
+        ),
+      ].map((match) => match[1]!);
+
+    expect(grants("rebuild_open_items")).toEqual(["service_role"]);
+    expect(grants("open_items_drift")).toEqual(["authenticated, service_role"]);
+    expect(grants("open_items_page")).toEqual(["authenticated, service_role"]);
+  });
 });

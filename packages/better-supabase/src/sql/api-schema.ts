@@ -211,7 +211,7 @@ function apiGrants(sql: string, schema: string): Grant[] {
     "gi",
   );
 
-  return [...sql.matchAll(grant)].flatMap((match) => {
+  const found = [...sql.matchAll(grant)].flatMap((match) => {
     const roles = match[4]!
       .split(",")
       .map((role) => role.trim().replace(/^"(.*)"$/, "$1"))
@@ -229,6 +229,12 @@ function apiGrants(sql: string, schema: string): Grant[] {
       },
     ];
   });
+
+  return [
+    ...new Map(
+      found.map((entry) => [`${entry.name}(${entry.types.join(",")})`, entry]),
+    ).values(),
+  ];
 }
 
 const inputs = (signature: Signature): Argument[] =>

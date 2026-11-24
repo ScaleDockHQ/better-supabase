@@ -649,7 +649,8 @@ ledger. It holds one row per open invoice and one per party credit account with
 an unallocated payment. Triggers on invoices, charges and ledger balances keep
 it current, and an invoice issued with a future date shows from its issue date.
 A past or future `asOf` replays invoices and ledger entries. An import calls
-`rebuild_open_items(tenant)` once after the documents are in.
+`rebuild_open_items(tenant)` once after the documents are in; only the service
+role may call it.
 `open_items_drift(tenant)` returns the rows where the table and the replay
 differ (at most 100), `import_integrity` reports them as `open_items_drift`,
 and doctor rule BS638 lists the organizations to rebuild. Set
