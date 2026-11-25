@@ -451,8 +451,10 @@ function consumers(ctx: BlockSqlContext, n: Names): string {
       ? `${row}.${n.e("xid")}${direction}, ${pos(row)}${direction}`
       : `${pos(row)}${direction}`;
 
+  // One xmin for the whole claim: each statement takes its own snapshot, and
+  // an event that commits between them must not be passed over.
   const settled = byXid
-    ? `e.${n.e("xid")} < pg_snapshot_xmin(pg_current_snapshot())`
+    ? `e.${n.e("xid")} < v_xmin`
     : `e.${n.e("createdAt")} < now() - ${sqlString(settle)}::interval`;
 
   const xidOf = (row: string) => (byXid ? `${row}.${n.e("xid")}` : `'0'::xid8`);
@@ -570,7 +572,7 @@ as $$
 #variable_conflict use_variable
 declare
   c ${n.c};
-  events jsonb;
+  events jsonb;${byXid ? "\n  v_xmin xid8 := pg_snapshot_xmin(pg_current_snapshot());" : ""}
 begin
   update ${n.c} k
   set ${n.k("leaseOwner")} = owner, ${n.k("leaseUntil")} = now() + lease, ${n.k("updatedAt")} = now()

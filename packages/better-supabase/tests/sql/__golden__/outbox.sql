@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:63726328184f060d94a31b4c0bb80c6a32a520f8630f25322d63cf332408d487
+-- @bsb-hash sha256:9c31dba1693ec6523dd0bb1f4f651a12ec84869eda3100f3abc346a92f930a5f
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -231,6 +231,7 @@ as $$
 declare
   c "better_supabase"."outbox_consumers";
   events jsonb;
+  v_xmin xid8 := pg_snapshot_xmin(pg_current_snapshot());
 begin
   update "better_supabase"."outbox_consumers" k
   set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
@@ -260,7 +261,7 @@ begin
   ) as event, row_number() over (order by e."xid", e."position") as n
     from "better_supabase"."outbox_events" e
     where (e."xid", e."position") > (c."cursor_xid", c."cursor_position")
-      and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      and e."xid" < v_xmin
       and (c."types" is null or exists (
         select 1 from unnest(c."types") p
         where p = '*' or p = e."type"
@@ -273,12 +274,12 @@ begin
     update "better_supabase"."outbox_consumers" k
     set ("cursor_xid", "cursor_position") = (
       select e."xid", e."position" from "better_supabase"."outbox_events" e
-      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin
       order by e."xid" desc, e."position" desc
       limit 1
     )
     where k."name" = consumer
-      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot()));
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin);
   end if;
   return coalesce(events, '[]');
 end;
@@ -582,7 +583,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:aab698b44bc35e3cfc4c8c61723c04fc3a8edea1a6daa256b1929419a6778b25
+-- @bsb-hash sha256:8ecc105dbc9c17a42dfb16ae03a671e2837f97c614b7eef5380c7b1d1bdca585
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -812,6 +813,7 @@ as $$
 declare
   c "better_supabase"."outbox_consumers";
   events jsonb;
+  v_xmin xid8 := pg_snapshot_xmin(pg_current_snapshot());
 begin
   update "better_supabase"."outbox_consumers" k
   set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
@@ -841,7 +843,7 @@ begin
   ) as event, row_number() over (order by e."xid", e."position") as n
     from "better_supabase"."outbox_events" e
     where (e."xid", e."position") > (c."cursor_xid", c."cursor_position")
-      and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      and e."xid" < v_xmin
       and (c."types" is null or exists (
         select 1 from unnest(c."types") p
         where p = '*' or p = e."type"
@@ -854,12 +856,12 @@ begin
     update "better_supabase"."outbox_consumers" k
     set ("cursor_xid", "cursor_position") = (
       select e."xid", e."position" from "better_supabase"."outbox_events" e
-      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin
       order by e."xid" desc, e."position" desc
       limit 1
     )
     where k."name" = consumer
-      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot()));
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin);
   end if;
   return coalesce(events, '[]');
 end;
@@ -1167,7 +1169,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:dc9bd35d9f77b56d0e7f930ef9da01a17b2cf43de92ae683ab5ac74ec15d9ad8
+-- @bsb-hash sha256:6c2169d42e3bca36c81d09fb9a8b7522a72176b4465a2a75725b4e4041362d60
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1402,6 +1404,7 @@ as $$
 declare
   c "app_private"."outbox_consumers";
   events jsonb;
+  v_xmin xid8 := pg_snapshot_xmin(pg_current_snapshot());
 begin
   update "app_private"."outbox_consumers" k
   set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
@@ -1431,7 +1434,7 @@ begin
   ) as event, row_number() over (order by e."xid", e."position") as n
     from "app_private"."outbox_events" e
     where (e."xid", e."position") > (c."cursor_xid", c."cursor_position")
-      and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      and e."xid" < v_xmin
       and (c."types" is null or exists (
         select 1 from unnest(c."types") p
         where p = '*' or p = e."type"
@@ -1444,12 +1447,12 @@ begin
     update "app_private"."outbox_consumers" k
     set ("cursor_xid", "cursor_position") = (
       select e."xid", e."position" from "app_private"."outbox_events" e
-      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin
       order by e."xid" desc, e."position" desc
       limit 1
     )
     where k."name" = consumer
-      and exists (select 1 from "app_private"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot()));
+      and exists (select 1 from "app_private"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin);
   end if;
   return coalesce(events, '[]');
 end;
@@ -1753,7 +1756,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:3a81130aff0089831afbf83e7e35d2d1defe0aed3c9fb7655a61f3f0b0ac93b9
+-- @bsb-hash sha256:73b9225f4e2da1bc4677567a2b0578c349a69b79b9f2b957d2d1099f0396c685
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1983,6 +1986,7 @@ as $$
 declare
   c "better_supabase"."outbox_consumers";
   events jsonb;
+  v_xmin xid8 := pg_snapshot_xmin(pg_current_snapshot());
 begin
   update "better_supabase"."outbox_consumers" k
   set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
@@ -2012,7 +2016,7 @@ begin
   ) as event, row_number() over (order by e."xid", e."position") as n
     from "better_supabase"."outbox_events" e
     where (e."xid", e."position") > (c."cursor_xid", c."cursor_position")
-      and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      and e."xid" < v_xmin
       and (c."types" is null or exists (
         select 1 from unnest(c."types") p
         where p = '*' or p = e."type"
@@ -2025,12 +2029,12 @@ begin
     update "better_supabase"."outbox_consumers" k
     set ("cursor_xid", "cursor_position") = (
       select e."xid", e."position" from "better_supabase"."outbox_events" e
-      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin
       order by e."xid" desc, e."position" desc
       limit 1
     )
     where k."name" = consumer
-      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot()));
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin);
   end if;
   return coalesce(events, '[]');
 end;
@@ -2431,7 +2435,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:245f52cb4b6cca6a2322abcfc681c821eb5522ca2f8b6d6f6c16971675144e06
+-- @bsb-hash sha256:d71f3bb4a723f258d2daf44b64944cef063407084d2ccf0a380540de4e14e877
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2635,6 +2639,7 @@ as $$
 declare
   c "better_supabase"."outbox_consumers";
   events jsonb;
+  v_xmin xid8 := pg_snapshot_xmin(pg_current_snapshot());
 begin
   update "better_supabase"."outbox_consumers" k
   set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
@@ -2664,7 +2669,7 @@ begin
   ) as event, row_number() over (order by e."xid", e."position") as n
     from "better_supabase"."outbox_events" e
     where (e."xid", e."position") > (c."cursor_xid", c."cursor_position")
-      and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      and e."xid" < v_xmin
       and (c."types" is null or exists (
         select 1 from unnest(c."types") p
         where p = '*' or p = e."type"
@@ -2677,12 +2682,12 @@ begin
     update "better_supabase"."outbox_consumers" k
     set ("cursor_xid", "cursor_position") = (
       select e."xid", e."position" from "better_supabase"."outbox_events" e
-      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin
       order by e."xid" desc, e."position" desc
       limit 1
     )
     where k."name" = consumer
-      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot()));
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin);
   end if;
   return coalesce(events, '[]');
 end;
@@ -2986,7 +2991,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:12c6ea8988caf82fa196a9bacae67bc750a472442efe0437c75e5e3dfce0771d
+-- @bsb-hash sha256:6121fe1ba282c9beb3f2e82d4a499a47f8f0cc7a6184f6a457011c7acd4bcf29
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3216,6 +3221,7 @@ as $$
 declare
   c "better_supabase"."outbox_consumers";
   events jsonb;
+  v_xmin xid8 := pg_snapshot_xmin(pg_current_snapshot());
 begin
   update "better_supabase"."outbox_consumers" k
   set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
@@ -3245,7 +3251,7 @@ begin
   ) as event, row_number() over (order by e."xid", e."position") as n
     from "better_supabase"."outbox_events" e
     where (e."xid", e."position") > (c."cursor_xid", c."cursor_position")
-      and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      and e."xid" < v_xmin
       and (c."types" is null or exists (
         select 1 from unnest(c."types") p
         where p = '*' or p = e."type"
@@ -3258,12 +3264,12 @@ begin
     update "better_supabase"."outbox_consumers" k
     set ("cursor_xid", "cursor_position") = (
       select e."xid", e."position" from "better_supabase"."outbox_events" e
-      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin
       order by e."xid" desc, e."position" desc
       limit 1
     )
     where k."name" = consumer
-      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot()));
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin);
   end if;
   return coalesce(events, '[]');
 end;
