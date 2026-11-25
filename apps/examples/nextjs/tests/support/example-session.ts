@@ -45,6 +45,14 @@ export function recordUrl(route: string, url: string): void {
   writeFileSync(path, JSON.stringify(known, null, 2));
 }
 
+/** Drops the URL of `route`, so an earlier run's id does not outlive its row. */
+export function forgetUrl(route: string): void {
+  const path = `${PERF_DIR}/urls.json`;
+  const { [route]: _stale, ...known } = resolvedUrls();
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(known, null, 2));
+}
+
 /**
  * The routes a spec can open: those with a fixed URL and those whose URL the
  * resolve spec found by following a link from the list page.

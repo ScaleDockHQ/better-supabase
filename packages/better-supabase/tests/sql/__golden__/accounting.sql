@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:4c944fd1fa4084ecb51c2771713413d77736c27db4d293865af4b7b5cc8954f9
+-- @bsb-hash sha256:fbb36dac634e9243b7c38eb3d6002a207004b659acc227dccc63961d150c6b8e
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2216,6 +2216,28 @@ $$;
 revoke execute on function "better_supabase"."close_accounting_period"(uuid) from public, anon;
 grant execute on function "better_supabase"."close_accounting_period"(uuid) to authenticated, service_role;
 
+-- Closes a period when nothing blocks it, in one call (ADR 1235). A blocked
+-- period is not an error: { closed: false, blockers } changes nothing. It calls
+-- the checks above, so each keeps its permission check.
+create or replace function "better_supabase"."close_accounting_period_if_clear"(period_id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_blockers text[];
+begin
+  v_blockers := "better_supabase"."accounting_period_close_blockers"(close_accounting_period_if_clear.period_id);
+  if cardinality(v_blockers) > 0 then
+    return jsonb_build_object('closed', false, 'blockers', to_jsonb(v_blockers));
+  end if;
+  return jsonb_build_object('closed', true, 'period', "better_supabase"."close_accounting_period"(close_accounting_period_if_clear.period_id));
+end;
+$$;
+revoke execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) from public, anon;
+grant execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) to authenticated, service_role;
+
 -- Reopens a closed period with a reason. A period on or before the lock date
 -- stays closed; move the lock date first.
 create or replace function "better_supabase"."reopen_accounting_period"(period_id uuid, reason text)
@@ -3979,7 +4001,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:39f0136c284c48796f94b66babacd05d077a2dd6d9af0d10699821af5c350c43
+-- @bsb-hash sha256:9d9578f5fa31d7b88d7d1e950b5b3c0c7e9cdb68f36b5eb604aee9a9bf21450c
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6301,6 +6323,28 @@ $$;
 revoke execute on function "better_supabase"."close_accounting_period"(uuid) from public, anon;
 grant execute on function "better_supabase"."close_accounting_period"(uuid) to authenticated, service_role;
 
+-- Closes a period when nothing blocks it, in one call (ADR 1235). A blocked
+-- period is not an error: { closed: false, blockers } changes nothing. It calls
+-- the checks above, so each keeps its permission check.
+create or replace function "better_supabase"."close_accounting_period_if_clear"(period_id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_blockers text[];
+begin
+  v_blockers := "better_supabase"."accounting_period_close_blockers"(close_accounting_period_if_clear.period_id);
+  if cardinality(v_blockers) > 0 then
+    return jsonb_build_object('closed', false, 'blockers', to_jsonb(v_blockers));
+  end if;
+  return jsonb_build_object('closed', true, 'period', "better_supabase"."close_accounting_period"(close_accounting_period_if_clear.period_id));
+end;
+$$;
+revoke execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) from public, anon;
+grant execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) to authenticated, service_role;
+
 -- Reopens a closed period with a reason. A period on or before the lock date
 -- stays closed; move the lock date first.
 create or replace function "better_supabase"."reopen_accounting_period"(period_id uuid, reason text)
@@ -8147,7 +8191,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:a3108a7c2c6174799b7d5e729cd2b2c0b67e876c42b58801856c112561b0d82b
+-- @bsb-hash sha256:e509ca8be6330133e84ab1a1383fbc1f143818afd72b8519078a28dbfdb5aa74
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10367,6 +10411,28 @@ $$;
 revoke execute on function "app_private"."close_accounting_period"(uuid) from public, anon;
 grant execute on function "app_private"."close_accounting_period"(uuid) to authenticated, service_role;
 
+-- Closes a period when nothing blocks it, in one call (ADR 1235). A blocked
+-- period is not an error: { closed: false, blockers } changes nothing. It calls
+-- the checks above, so each keeps its permission check.
+create or replace function "app_private"."close_accounting_period_if_clear"(period_id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_blockers text[];
+begin
+  v_blockers := "app_private"."accounting_period_close_blockers"(close_accounting_period_if_clear.period_id);
+  if cardinality(v_blockers) > 0 then
+    return jsonb_build_object('closed', false, 'blockers', to_jsonb(v_blockers));
+  end if;
+  return jsonb_build_object('closed', true, 'period', "app_private"."close_accounting_period"(close_accounting_period_if_clear.period_id));
+end;
+$$;
+revoke execute on function "app_private"."close_accounting_period_if_clear"(uuid) from public, anon;
+grant execute on function "app_private"."close_accounting_period_if_clear"(uuid) to authenticated, service_role;
+
 -- Reopens a closed period with a reason. A period on or before the lock date
 -- stays closed; move the lock date first.
 create or replace function "app_private"."reopen_accounting_period"(period_id uuid, reason text)
@@ -12130,7 +12196,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:addf009c3399cc0294c42a56fc4c4493fa0c66437b229a366026fd35ee7c203c
+-- @bsb-hash sha256:443b25459e25558e19171a1fdfec50617715741acbde266da131682f10e17b5d
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14345,6 +14411,28 @@ $$;
 revoke execute on function "better_supabase"."close_accounting_period"(uuid) from public, anon;
 grant execute on function "better_supabase"."close_accounting_period"(uuid) to authenticated, service_role;
 
+-- Closes a period when nothing blocks it, in one call (ADR 1235). A blocked
+-- period is not an error: { closed: false, blockers } changes nothing. It calls
+-- the checks above, so each keeps its permission check.
+create or replace function "better_supabase"."close_accounting_period_if_clear"(period_id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_blockers text[];
+begin
+  v_blockers := "better_supabase"."accounting_period_close_blockers"(close_accounting_period_if_clear.period_id);
+  if cardinality(v_blockers) > 0 then
+    return jsonb_build_object('closed', false, 'blockers', to_jsonb(v_blockers));
+  end if;
+  return jsonb_build_object('closed', true, 'period', "better_supabase"."close_accounting_period"(close_accounting_period_if_clear.period_id));
+end;
+$$;
+revoke execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) from public, anon;
+grant execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) to authenticated, service_role;
+
 -- Reopens a closed period with a reason. A period on or before the lock date
 -- stays closed; move the lock date first.
 create or replace function "better_supabase"."reopen_accounting_period"(period_id uuid, reason text)
@@ -16336,6 +16424,15 @@ as $$ select "better_supabase"."close_accounting_period"($1) $$;
 revoke execute on function "api"."close_accounting_period"(uuid) from public, anon;
 grant execute on function "api"."close_accounting_period"(uuid) to authenticated, service_role;
 
+create or replace function "api"."close_accounting_period_if_clear"(period_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."close_accounting_period_if_clear"($1) $$;
+revoke execute on function "api"."close_accounting_period_if_clear"(uuid) from public, anon;
+grant execute on function "api"."close_accounting_period_if_clear"(uuid) to authenticated, service_role;
+
 create or replace function "api"."reopen_accounting_period"(period_id uuid, reason text)
 returns jsonb
 language sql
@@ -16606,7 +16703,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:4117ce4fe35f0c884e3ea3c6f74d4ba288ddb306eece07633466664771ee447c
+-- @bsb-hash sha256:092266a0a392592aaa40f404f6392832242bcf27d8d57e15ad7e7b83f84722e9
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18772,6 +18869,28 @@ $$;
 revoke execute on function "better_supabase"."close_accounting_period"(uuid) from public, anon;
 grant execute on function "better_supabase"."close_accounting_period"(uuid) to authenticated, service_role;
 
+-- Closes a period when nothing blocks it, in one call (ADR 1235). A blocked
+-- period is not an error: { closed: false, blockers } changes nothing. It calls
+-- the checks above, so each keeps its permission check.
+create or replace function "better_supabase"."close_accounting_period_if_clear"(period_id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_blockers text[];
+begin
+  v_blockers := "better_supabase"."accounting_period_close_blockers"(close_accounting_period_if_clear.period_id);
+  if cardinality(v_blockers) > 0 then
+    return jsonb_build_object('closed', false, 'blockers', to_jsonb(v_blockers));
+  end if;
+  return jsonb_build_object('closed', true, 'period', "better_supabase"."close_accounting_period"(close_accounting_period_if_clear.period_id));
+end;
+$$;
+revoke execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) from public, anon;
+grant execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) to authenticated, service_role;
+
 -- Reopens a closed period with a reason. A period on or before the lock date
 -- stays closed; move the lock date first.
 create or replace function "better_supabase"."reopen_accounting_period"(period_id uuid, reason text)
@@ -20522,7 +20641,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:f63b3a005699a2a6ae2a93c62629848fc97fea9c4766a87f053dcf79fc87c97a
+-- @bsb-hash sha256:b0b0c20fc0c84bb9ee376e38af9f1978340cfcef665a07fa1277e2661062f6a0
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22736,6 +22855,28 @@ end;
 $$;
 revoke execute on function "better_supabase"."close_accounting_period"(uuid) from public, anon;
 grant execute on function "better_supabase"."close_accounting_period"(uuid) to authenticated, service_role;
+
+-- Closes a period when nothing blocks it, in one call (ADR 1235). A blocked
+-- period is not an error: { closed: false, blockers } changes nothing. It calls
+-- the checks above, so each keeps its permission check.
+create or replace function "better_supabase"."close_accounting_period_if_clear"(period_id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_blockers text[];
+begin
+  v_blockers := "better_supabase"."accounting_period_close_blockers"(close_accounting_period_if_clear.period_id);
+  if cardinality(v_blockers) > 0 then
+    return jsonb_build_object('closed', false, 'blockers', to_jsonb(v_blockers));
+  end if;
+  return jsonb_build_object('closed', true, 'period', "better_supabase"."close_accounting_period"(close_accounting_period_if_clear.period_id));
+end;
+$$;
+revoke execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) from public, anon;
+grant execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) to authenticated, service_role;
 
 -- Reopens a closed period with a reason. A period on or before the lock date
 -- stays closed; move the lock date first.

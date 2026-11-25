@@ -90,6 +90,45 @@ describe("tasks block", () => {
     });
   });
 
+  it("creates and starts the SLA clocks in one call", async () => {
+    const t = transport({
+      create_task_with_sla: () => ({
+        task: ROW,
+        clocks: [
+          {
+            id: "c1",
+            subject_type: "work_item",
+            subject_id: "w1",
+            metric: "first_response",
+            started_at: "2026-10-14T09:00:00Z",
+            due_at: "2026-10-14T13:00:00Z",
+            state: "running",
+          },
+        ],
+      }),
+    });
+
+    const created = await createTasks({ transport: t })
+      .createWithSla({
+        organizationId: "o",
+        input: { title: "Payment API" },
+        assigneeIds: ["u1"],
+        subjectType: "work_item",
+      })
+      .orThrow();
+
+    expect(t.calls).toHaveLength(1);
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "o",
+      attrs: { title: "Payment API" },
+      assignees: ["u1"],
+      subject_type: "work_item",
+      priority: null,
+    });
+    expect(created.task.number).toBe(12n);
+    expect(created.clocks).toHaveLength(1);
+  });
+
   it("reads a sparse item and sends list filters", async () => {
     const sparse = {
       ...ROW,

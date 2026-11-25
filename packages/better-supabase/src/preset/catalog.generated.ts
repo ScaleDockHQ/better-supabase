@@ -4366,6 +4366,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "pipelines"
       ],
       "integrates": [
+        "sla",
         "approvals",
         "outbox",
         "notifications",

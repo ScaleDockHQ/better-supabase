@@ -114,13 +114,13 @@ describe("commerce.payAndFulfil", () => {
 describe("support.openTicket", () => {
   const ticket = { title: "Broken" } as never;
 
-  it("creates the ticket, then starts its SLA", async () => {
-    const start = vi.fn(() => done([{ id: "c" }]));
+  it("opens the ticket with one tasks.createWithSla call", async () => {
+    const createWithSla = vi.fn(() =>
+      done({ task: { id: "t1" }, clocks: [{ id: "c" }] }),
+    );
 
     const support = createSupport(
-      parts({
-        parts: { tasks: { create: () => done({ id: "t1" }) }, sla: { start } },
-      }),
+      parts({ parts: { tasks: { createWithSla }, sla: {} } }),
     );
 
     const result = await support.openTicket({
@@ -129,41 +129,43 @@ describe("support.openTicket", () => {
       priority: "high",
     });
 
-    expect(result.ok).toBe(true);
-    expect(start).toHaveBeenCalledWith({
-      subject: { type: "task", id: "t1" },
+    expect(result.data).toEqual({
+      ticket: { id: "t1" },
+      clocks: [{ id: "c" }],
+    });
+    expect(createWithSla).toHaveBeenCalledExactlyOnceWith({
+      organizationId: "o",
+      input: ticket,
+      subjectType: "task",
       priority: "high",
     });
   });
 
   it("starts the SLA on the configured ticket subject", async () => {
-    const start = vi.fn(() => done([{ id: "c" }]));
+    const createWithSla = vi.fn(() => done({ task: { id: "t1" }, clocks: [] }));
 
     const support = createSupport(
       parts({
         ticketSubject: "ticket",
-        parts: { tasks: { create: () => done({ id: "t1" }) }, sla: { start } },
+        parts: { tasks: { createWithSla }, sla: {} },
       }),
     );
 
     await support.openTicket({ organizationId: "o", ticket });
 
-    expect(start).toHaveBeenCalledWith({
-      subject: { type: "ticket", id: "t1" },
-    });
+    expect(createWithSla).toHaveBeenCalledWith(
+      expect.objectContaining({ subjectType: "ticket" }),
+    );
   });
 
-  it("returns a failed SLA start and keeps the ticket", async () => {
-    const create = vi.fn(() => done({ id: "t1" }));
-
+  it("returns the error when the ticket cannot be opened", async () => {
     const support = createSupport(
-      parts({ parts: { tasks: { create }, sla: { start: () => failure() } } }),
+      parts({ parts: { tasks: { createWithSla: () => failure() }, sla: {} } }),
     );
 
     expect((await support.openTicket({ organizationId: "o", ticket })).ok).toBe(
       false,
     );
-    expect(create).toHaveBeenCalledOnce();
   });
 });
 

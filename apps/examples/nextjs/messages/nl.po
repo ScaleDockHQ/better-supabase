@@ -25936,14 +25936,14 @@ msgid "Delete view {name}"
 msgstr "Weergave {name} verwijderen"
 
 #: src/features/projects/components/task-grid.tsx
-msgctxt "projects.JAYugF"
-msgid "Save view"
-msgstr "Weergave opslaan"
-
-#: src/features/projects/components/task-grid.tsx
 msgctxt "projects.FrIr1g"
 msgid "View saved"
 msgstr "Weergave opgeslagen"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.JAYugF"
+msgid "Save view"
+msgstr "Weergave opslaan"
 
 #: src/features/projects/components/task-grid.tsx
 msgctxt "projects.WM0aGV"
@@ -36758,14 +36758,14 @@ msgid "Drop an item here."
 msgstr "Zet hier een item neer."
 
 #: src/features/work/components/work-item-grid.tsx
-msgctxt "work.JAYugF"
-msgid "Save view"
-msgstr "Weergave opslaan"
-
-#: src/features/work/components/work-item-grid.tsx
 msgctxt "work.FrIr1g"
 msgid "View saved"
 msgstr "Weergave opgeslagen"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.JAYugF"
+msgid "Save view"
+msgstr "Weergave opslaan"
 
 #: src/features/work/components/work-item-grid.tsx
 msgctxt "work.heOG7H"

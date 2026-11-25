@@ -8,8 +8,8 @@ import * as v from "valibot";
 import { navLink } from "./support/example-session";
 
 // The second `next start` playwright.config.ts runs on the same build and
-// remote cache directory.
-const SECOND_ORIGIN = "http://localhost:3101";
+// remote cache directory, on the port after `BSB_PORT` (3101 by default).
+const SECOND_ORIGIN = `http://localhost:${String(Number(process.env["BSB_PORT"] ?? "3100") + 1)}`;
 
 const EMAIL = "admin@acme.test";
 

@@ -87,7 +87,9 @@ export async function ContactDetail({
       <div className="flex flex-col gap-6 lg:col-span-2">
         <Card>
           <CardHeader>
-            <CardTitle>{contact.name}</CardTitle>
+            <CardTitle>
+              <h1>{contact.name}</h1>
+            </CardTitle>
             <CardDescription className="flex items-center gap-2">
               <Badge variant="outline">
                 {contact.kind === "company" ? t("Company") : t("Person")}

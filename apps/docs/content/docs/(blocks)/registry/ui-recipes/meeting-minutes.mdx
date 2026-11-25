@@ -97,7 +97,9 @@ export function MeetingMinutes({
   return (
     <Frame spacing="sm" data-recipe="meeting-minutes">
       <FrameHeader className="gap-0.5">
-        <FrameTitle>{meeting.title}</FrameTitle>
+        <FrameTitle>
+          <h1>{meeting.title}</h1>
+        </FrameTitle>
         <FrameDescription>
           {t(
             "{count, plural, =0 {No attendees yet} one {# attendee} other {# attendees}}",

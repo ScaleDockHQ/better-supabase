@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { WRITE_GUARD_ALLOWLIST } from "../../src/sql/actor-guard.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
@@ -90,33 +90,31 @@ describe("actor write guard", () => {
     .map((file) => file.contents)
     .join("\n");
 
+  let schemaSql = "";
+
+  // Every schema module rendered once: the two whole-schema checks below read
+  // the same text, and rendering it is the cost of the file.
+  beforeAll(() => {
+    schemaSql = renderBlocks(
+      Object.values(SQL_MODULES)
+        .filter((module) => module.target === "schema")
+        .map((module) => module.name),
+    )
+      .map((file) => file.contents)
+      .join("\n");
+  }, 120_000);
+
   it("refuses a read-only actor inside user-granted writes", () => {
     expect(sql).toContain("ACTOR_READ_ONLY");
     expect(sql).toContain("better_supabase.actor_may_write()");
   });
 
   it("guards every authenticated write except the session allowlist", () => {
-    const sql = renderBlocks(
-      Object.values(SQL_MODULES)
-        .filter((module) => module.target === "schema")
-        .map((module) => module.name),
-    )
-      .map((file) => file.contents)
-      .join("\n");
-
-    expect(unguardedWrites(sql)).toEqual([]);
+    expect(unguardedWrites(schemaSql)).toEqual([]);
   });
 
   it("gives authenticated no permissive for-all policy, which would skip the guard", () => {
-    const sql = renderBlocks(
-      Object.values(SQL_MODULES)
-        .filter((module) => module.target === "schema")
-        .map((module) => module.name),
-    )
-      .map((file) => file.contents)
-      .join("\n");
-
-    const permissive = [...sql.matchAll(/create\s+policy\b[\s\S]*?;/gi)]
+    const permissive = [...schemaSql.matchAll(/create\s+policy\b[\s\S]*?;/gi)]
       .map((match) => match[0])
       .filter(
         (statement) =>

@@ -8,7 +8,6 @@ import type { CompositeOptions } from "../define-block.ts";
 import type { FinanceParts } from "./manifest.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult as Async } from "../../core/result.ts";
 
 /** What `finance.closePeriod` returns. */
 export type PeriodClose =
@@ -33,7 +32,10 @@ export interface Finance {
   /**
    * Closes the period when nothing blocks it. A blocked period is not an error:
    * the result lists the blockers (unreconciled bank lines, drafts) and changes
-   * nothing.
+   * nothing. It is one database call and one transaction
+   * (`close_accounting_period_if_clear`, ADR 1235); the TypeScript hooks of
+   * `closeBlockers` and `closePeriod` do not fire, the hook of
+   * `finance.closePeriod` does.
    */
   closePeriod(periodId: string): AsyncResult<PeriodClose>;
   /**
@@ -66,16 +68,7 @@ export function createFinance(options: FinanceOptions): Finance {
   const { accounting, banking } = options.parts;
 
   const client: Finance = {
-    closePeriod: (periodId) =>
-      accounting
-        .closeBlockers(periodId)
-        .andThen<PeriodClose>((blockers) =>
-          blockers.length > 0
-            ? Async.ok({ closed: false, blockers })
-            : accounting
-                .closePeriod(periodId)
-                .map((period) => ({ closed: true, period })),
-        ),
+    closePeriod: (periodId) => accounting.closePeriodIfClear(periodId),
     reconcile: (input) => banking.reconcile(input),
   };
 
