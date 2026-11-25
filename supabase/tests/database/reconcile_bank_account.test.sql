@@ -2,7 +2,7 @@
 -- unmatched transactions to their best open invoice in one call. Run with
 -- `supabase test db`.
 begin;
-select plan(6);
+select plan(7);
 
 select set_config(
   'request.jwt.claims',

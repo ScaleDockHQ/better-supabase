@@ -1,9 +1,25 @@
 -- offboard_with_work (ADR 1235): people.offboard as one function. The owner
--- (…a1) of Acme (…0001) offboards an seeded employee of the member (…a2). The
+-- (…a1) of Acme (…0001) offboards an employee of the member (…a2). The
 -- function ends the employment, cancels the active enrollment and releases the
 -- upcoming assigned shift; a shift outside the window stays.
 begin;
 select plan(8);
+
+create temporary table ids (name text primary key, id uuid) on commit drop;
+grant all on ids to authenticated;
+
+-- The library seed has no employees and the example seed has one for the
+-- member, so the member gets one here only when it has none.
+with existing as (
+  select id from better_supabase.employees
+  where tenant_id = '00000000-0000-4000-8000-000000000001' and user_id = '00000000-0000-4000-8000-0000000000a2'
+), created as (
+  insert into better_supabase.employees (tenant_id, user_id, name, status)
+  select '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', 'Leaver', 'active'
+  where not exists (select 1 from existing)
+  returning id
+)
+insert into ids select 'emp', id from existing union all select 'emp', id from created;
 
 select set_config(
   'request.jwt.claims',
@@ -11,12 +27,6 @@ select set_config(
   true
 );
 set local role authenticated;
-
-create temporary table ids (name text primary key, id uuid) on commit drop;
-grant all on ids to authenticated;
-
-insert into ids select 'emp', id from better_supabase.employees
-where user_id = '00000000-0000-4000-8000-0000000000a2' limit 1;
 
 select better_supabase.save_enrollment_program(
   '00000000-0000-4000-8000-000000000001',

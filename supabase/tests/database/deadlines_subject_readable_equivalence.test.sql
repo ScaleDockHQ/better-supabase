@@ -245,7 +245,10 @@ cross join (values ('00000000-0000-4000-8000-000000000001'::uuid), ('00000000-00
 
 insert into oracle_t.deadlines select * from better_supabase.deadlines;
 
-select cmp_ok((select count(*)::int from oracle_t.deadlines), '>', 150, 'the fixture holds a deadline for every type and tenant');
+select is(
+  (select count(*)::int from (select distinct subject_type, tenant_id from oracle_t.deadlines) d),
+  2 * (select count(distinct subject_type)::int from probes),
+  'the fixture holds a deadline for every type and tenant');
 select cmp_ok((select count(distinct subject_type)::int from oracle_t.deadlines), '>=', 50, 'the fixture covers the registry types');
 
 select cmp_ok(
