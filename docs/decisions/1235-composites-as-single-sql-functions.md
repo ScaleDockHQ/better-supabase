@@ -82,3 +82,13 @@ and `set_enrollment_dates`. `people.onboard` delegates to
 `employees.onboardWithProgram`. The call is atomic, so a failed enrollment rolls
 the employee back; before, the employee stayed created and the caller had to
 retry the enrollment.
+
+## bookWithReminder
+
+`book_with_reminder(service, resource, starts_at, customer, offset_minutes)` sits
+in the `bookings` module when `reminders` is installed. It calls `hold_booking`
+with `confirm` and `save_reminder` for the booking, reading the tenant from the
+service. `scheduling.bookWithReminder` delegates to `bookings.holdWithReminder`
+for a reminder in minutes. A reminder at an instant keeps the two-call path,
+because `save_reminder` takes `remind_at` only when a subject registers an `at`
+column. The call is atomic: a failed reminder rolls the booking back.
