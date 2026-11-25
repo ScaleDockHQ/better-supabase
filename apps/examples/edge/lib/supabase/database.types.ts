@@ -934,6 +934,7 @@ export type Database = {
         }[]
       }
       set_my_avatar_path: { Args: { avatar_path: string }; Returns: undefined }
+      shell_bootstrap: { Args: { args: Json }; Returns: Json }
       update_my_profile: { Args: { full_name: string }; Returns: undefined }
       work_bulk_state: {
         Args: {

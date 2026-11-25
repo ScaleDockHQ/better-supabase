@@ -156,6 +156,14 @@ export default {
     "returnsSet": false,
     "volatility": "volatile"
   },
+  "shell_bootstrap": {
+    "name": "shell_bootstrap",
+    "schema": "public",
+    "args": [{"name":"args","type":"jsonb"}],
+    "returns": "jsonb",
+    "returnsSet": false,
+    "volatility": "stable"
+  },
   "update_my_profile": {
     "name": "update_my_profile",
     "schema": "public",
