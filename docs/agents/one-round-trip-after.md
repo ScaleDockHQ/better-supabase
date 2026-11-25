@@ -2,6 +2,70 @@
 
 Measured the same way as [the before numbers](one-round-trip-before.md): production build, testing API, local stack. Counts are the budget; milliseconds are indicative.
 
+## Summary (pull request text)
+
+Final numbers, taken on the merged tree (`feat/one-round-trip-ship` on top of `main` after #1156), production build, testing API, fresh local stack at the seed tier. Counts are the budget; milliseconds are indicative and vary with machine load.
+
+| Measure (admin, warm render)            | Before            | After                                                                              |
+| --------------------------------------- | ----------------- | ---------------------------------------------------------------------------------- |
+| Routes measured                         | 190               | 227 with a database call                                                           |
+| Database calls, all routes              | 1016              | 566                                                                                |
+| Median calls per route                  | 5                 | 2                                                                                  |
+| Median waves per route                  | 1                 | 1                                                                                  |
+| Median warm render                      | n/a               | 136 ms                                                                             |
+| Median client navigation after prefetch | n/a               | 29 ms                                                                              |
+| Admin token, cookie, chunks             | 4035 B, 5567 B, 2 | 1494 B, 2179 B, 1                                                                  |
+| `/care/[clientId]` calls                | 21                | 18                                                                                 |
+| `/customers/[id]` calls                 | 13                | 14 (deferred sections start earlier; `my_permissions` calls went from six to none) |
+| `/crm/deals` calls                      | 16                | 13                                                                                 |
+| `(proxy)` entry, raw bytes              | 1,258,956         | 854,495                                                                            |
+
+Composites (calls to waves): `inviteWithinSeats` 6 to 3 waves, `offboardEmployee` 8 calls in 2 waves, `reconcileAccount` 2 calls, `onboardEmployee` 8 calls, `bookWithReminder` 8 calls, `payDueBills` 6 calls, `openTicket` 4 calls in 2 waves, `closeAccountingPeriod` 2 calls in 2 waves. The generated report in [example-perf.md](example-perf.md) holds every row.
+
+What changed: the shared session memo and bitset permission claim, the shell bootstrap with a kept entry, `heldPermissions` for record loaders, the `funding_award_usage` lateral aggregate, the proxy trim, and the composites as SQL functions (`book_with_reminder` and `pay_payment_batch` are on `main` as migrations 078 and 079; this branch adds `create_task_with_sla` at 124 and `close_period_if_clear` at 125).
+
+Verification on the merged tree:
+
+- `pnpm verify` (after the second merge of `main`): every task passes except `typecheck:perf`, whose generation timing gates fail locally (cold `gen` about 4 s against a 0.5 s baseline) because `gen` parses the 30 MB of migrations inside the repository. The same check passes in CI on `main` (run 45623587434, head `f96041274a`, conclusion success), so the failure is machine dependent and not caused by this branch. A first local run on `origin/main` gave the same 4.0 s.
+- Size baselines: `blocks/tasks` rose from 63,336 to 68,129 bytes gzip because `createTaskWithSla` ships its SQL function. The next-build baselines were regenerated from the current build (the update never raises a number).
+- Migrations: `main` already carries `book_with_reminder` and `pay_payment_batch` as 078 and 079, so this branch drops its identical copies and keeps `create_task_with_sla` and `close_period_if_clear`, renamed to 124 and 125 so they sort after `main`'s newest migration (`check:migration-order`).
+- The five specs that failed under load pass alone: `setProductStatus` (needed a product URL, see below), the eval run page, the API key page, the work order page, and the deals calendar view (the seed closes the deal 12 days out, which can be next month while the grid opens on the current one, so the spec now opens the seeded month).
+- Playwright, full suite on ports 3400 and 3401 after `supabase:reset` and `resolve-urls`: 1604 passed and 73 failed in the `chromium` project (down from 121), and 18 passed and 1 failed in `counters`. Causes of the 73:
+  - 66 are `instant-routes` cases of detail routes: the title heading sits behind the page's `Suspense` boundary, so it is not in the prefetched UI under the instant lock. No `page.tsx` under `apps/examples/nextjs/src/app` differs from `origin/main`, so the shells are the ones `main` has. The pages state "the back link is the static shell", and the record streams in; there is no shared detail layout to change, because each page owns its `Suspense` fallback (the 40 or so that pass have a heading in the skeleton). The fix is a static heading in about 60 skeletons, or one decision to drop the heading from the instant check for streamed records. I left it as recorded; it is a design call, not a regression. I did not rerun five of them on `main` (no build there), the identical page files stand in for it.
+  - 3 are `budgets` cases that now render and measure: `/customers/[id]` (14 calls against 13, the deferred sections start inside the window), `/crm/deals/[id]` (13 calls in 4 waves against 12 in 3) and `/crm/companies/[id]` (9 calls in 4 waves against 3 waves). None of the loaders are touched by this branch; they need a budget decision or a waterfall fix.
+  - 4 are the workflow builder route (budgets, cold-warm, db-time, measure-pages) opened with a stale definition id. `urls.json` kept an id from an earlier run after the reset. `resolve-urls` now forgets the URL of a route it cannot resolve, and the four cases pass alone.
+  - 1 in `counters`: `islands.spec.ts` "a second instance serves the remote entry" landed on a login page. The cause was the test, not the branch: it read the second instance from a fixed `localhost:3101`, so a run on `BSB_PORT=3400` reached another checkout's server. It now follows `BSB_PORT` and passes alone and with the other four islands cases. `main` has the same fixed port. `bsb-main-probe` has no install or build, so I did not run it there.
+- The 116 missing-`h1` failures reported earlier had three causes. Nine pages put their title in a `div` or `h2` (case, framework, lesson, contact, meeting, metric, rule, course, builder): they now have a level 1 heading. Two routes read other tables than `resolve-urls` assumed (`subject_collections` has no seed, so `/shop/collections/[id]` is skipped as unresolved; `/warehouse/counts/[id]` now reads `count_plans`). `/shop/products/[id]` had no seeded URL at all.
+- The Schema check failed on a stale `supabase/snapshot.json` after the migration renames; regenerated with `supabase:reset` and `gen --save-snapshot`. `verify / coverage` failed on the unit duration check: `actor-write-guard.test.ts` ("guards every authenticated write" 11.0 s, "gives authenticated no permissive for-all policy" 10.3 s) and `scope.test.ts` ("leaves no organization identifier but parameter names" 10.2 s) passed the half-timeout line of 10 s. They are not slower because of this branch: locally they take about 1 s each (3 s with coverage), the branch adds two small SQL functions to a render of hundreds of modules, and every other file in the same run ran 1.3 to 1.7 times over its budget (`over-app-tables` 184 s against 111 s, 3092 s of total test time on a loaded runner). `actor-write-guard` rendered all schema modules twice, so it now renders them once in `beforeAll`; `scope.test.ts` renders its modules in `beforeAll` too. The assertions did not change.
+- The machine carried a load average of 8 to 38 from other agents, so timing numbers are indicative.
+
+Manual steps for the maintainer:
+
+1. Apply the migrations to the hosted project (`20270120010124` and `20270120010125`, after `main`'s newest `...123`).
+2. Set `BSB_KEPT_STORE=vercel` in the Development, Preview and Production environments, then run the kept-entry probe against a preview. A kept read after a deploy is untested on Vercel.
+3. Apply the plans anon-read migration (`20270120010074` and `20270120010080`) before the plan catalog read as `anon` goes out.
+4. Adopters run `better-supabase upgrade` to pick up the composite functions and the bitset claim; a part's TypeScript hooks no longer fire inside a composite, the composite's own hook does.
+
+## Measured after the changes (calm enough: load 8 to 10)
+
+Admin, `db-time` spec (`BSB_DB_ADMIN_URL` set to this checkout's database; the default points at the main checkout's port), seed tier, warm render. Before is the first harness table in this file's sibling, [one-round-trip-before.md](one-round-trip-before.md).
+
+| Route                   | Statements | Exec ms before to after | Plan ms after | Buffers before to after        |
+| ----------------------- | ---------- | ----------------------- | ------------- | ------------------------------ |
+| `/funding`              | 14 to 11   | 1790.73 to 99.24        | 2.31          | 52707 to 4267                  |
+| `/care/[clientId]`      | 25 to 22   | 1203.12 to 70.92        | 2.90          | 30489 to 3505                  |
+| `/medications`          | 12 to 9    | 480.32 to 30.04         | 2.39          | 10273 to 1223                  |
+| `/care`                 | 20 to 18   | 359.92 to 180.56        | 9.56          | 16465 to 5977                  |
+| `/banking/transactions` | 12 to 9    | 210.92 to 89.35         | 2.83          | 15041 to 12063                 |
+| `/deadlines`            | 11 to 8    | 81.16 to 11.88          | 3.79          | 3589 to 472                    |
+| `/crm/deals`            | n/a        | n/a                     | 2.80          | 2672 (13 statements, 35.76 ms) |
+
+Buffers and statements are exact; milliseconds vary with the load. `/care/[clientId]` is 18 calls in 2 waves (before 21 in 2). The planning time of `better_supabase.funding_award_usage(uuid)` at the seed tier is 0.01 ms for the call (a nested function body is planned inside the call), 0.3 to 1.0 ms to execute and 6 to 518 buffers; the earlier 162 and 69 ms planning figures came from a larger award, not reproducible at the seed tier.
+
+Server bundles, raw bytes from `tests/next-build/server-baseline.json`, `main` then this branch: `(proxy)` 1,302,300 to 854,641 (minus 34.4 percent); all page entries 1,127,110,664 to 1,127,281,212 (plus 170,548 over 294 entries, about 0.6 KB each); all API route entries 297,179,773 to 297,214,770 (plus 34,997).
+
+To measure again in a worktree: `pnpm supabase:reset`, then `BSB_PORT=3400 BSB_REMOTE_CACHE_DIR=/tmp/bsb-remote-cache pnpm exec playwright test resolve-urls --project=chromium`, then the `db-time` and `measure-pages` specs with `BSB_DB_ADMIN_URL` set to the worktree's own database (its default is the main checkout's port, so a run without it reads and changes the wrong database). Take the numbers with a load average under 8; statements and buffers do not depend on it, milliseconds do.
+
 ## Token and cookie size
 
 The access token hook writes the `permissions` claim as a bitset (ADR 1231).
@@ -119,14 +183,19 @@ Admin, `next start`, calls and waves per action (`actions.spec.ts`):
 
 Admin, `next start`, `actions.spec.ts`. After the composite is one call, the rest of an action's calls are the page re-render that `refresh()` starts (members, roles, teams, `entitlement_value`, shell).
 
-| Action            | Calls before | Calls after | Waves before to after | Commit     |
-| ----------------- | ------------ | ----------- | --------------------- | ---------- |
-| inviteWithinSeats | 10           | 7           | 6 to 3                | aca51816e  |
-| offboardEmployee  | 12           | 8           | 4 to 2                | 181affa563 |
-| reconcileAccount  | 11           | 2           | 3 to 2                | 7b60090543 |
-| onboardEmployee   | 10           | 8           | 3 to 2                | fbdbda00cd |
-| bookWithReminder  | 9            | 8           | 2 to 2                | eab25f2535 |
-| payDueBills       | 7            | 6           | 4 to 4                | (next)     |
+| Action                | Calls before | Calls after | Waves before to after | Commit     |
+| --------------------- | ------------ | ----------- | --------------------- | ---------- |
+| inviteWithinSeats     | 10           | 7           | 6 to 3                | aca51816e  |
+| offboardEmployee      | 12           | 8           | 4 to 2                | 181affa563 |
+| reconcileAccount      | 11           | 2           | 3 to 2                | 7b60090543 |
+| onboardEmployee       | 10           | 8           | 3 to 2                | fbdbda00cd |
+| bookWithReminder      | 9            | 8           | 2 to 2                | eab25f2535 |
+| payDueBills           | 7            | 6           | 4 to 4                | 4a9a637725 |
+| openTicket            | 6            | 4           | 3 to 2                | a93d8063fc |
+| closeAccountingPeriod | 4            | 2           | 3 to 2                | 61760799cd |
+| discussCase (kept)    | 5            | 4           | 2 to 2                | none       |
+
+`discussCase` stays as is. The app passes no tags, so `collaboration.discuss` is one `create_comment` call already; the measured drop from 5 to 4 calls comes from the shell work, not from the composite. A SQL function would only pay off for a caller that attaches tags, where it replaces one `attach` call per tag.
 
 ## Cache tiers and invalidation (ADRs 1240, 1241, 1244, 1245)
 
@@ -213,9 +282,21 @@ The db-time spec's "failing detail routes" were stale ids: `resolve-urls.spec` w
 
 Doctor rule BS732 (ADR 1246) warns about statements from the API roles and functions that average more than 100 ms over at least five calls, and says when `pg_stat_statements` is not installed.
 
+### Proxy and bundles (Track 5)
+
+The proxy loads `./flags` lazily and takes the visitor cookie name from `visitor-cookie.ts`. The `(proxy)` entry went from 1,258,956 to 854,495 raw bytes (32 percent). A content test in `tests/next-build` keeps the flag keys out of the proxy chunks. Of what remains, a 628 KB chunk is the permission catalog, which the proxy needs to read the permission bitset, and a 158 KB chunk holds the navigation items it needs for `requiredPermission`. Decisions after measuring: `next-intl` stays in the proxy (the locale redirect is the proxy's job and its code is a small part of the 158 KB chunk), and the refresh policy stays as it is (only the proxy refreshes, invariant 7), so neither changes.
+
+The next-build baselines were retaken against a build without `EXPOSE_TESTING_API`: server chunks grew 43 KB on pages and about 160 KB on API routes since the last retake, which comes from branch work on shared chunks (cache tiers, composites, the stats trace) and is not attributed to one change. The library baselines in `tests/bundle` were retaken too (`./server` 223,875 to 235,715 B gzip, `./claims` 18,421 to 20,361 B gzip). Building the bundle test found a module-level `TextEncoder` in `core/stats.ts` that broke imports on runtimes without one; it is created on first use now.
+
+`banking.ts` was over the 1000 line limit, so the row mappers moved into `mappers.ts` as a pure move with no export changes.
+
 ### JWT size
 
 The header size check already exists, so there is nothing to add.
+
+### Not run: routes without an `h1` and the db-time baseline
+
+The `h1` check (a sign-in, then every openable route with a 6 second wait for a level-1 heading) and the full db-time baseline did not finish. With a load average of 11 to 24 from other jobs on the machine, the production server on the example's own port stopped answering and the resolve-urls pass slowed from 4 minutes to 11 minutes for 10 routes. The 23 routes in the plan are the detail routes whose seeded id had gone stale (see above), so a fresh `resolve-urls` should remove most of them; the first fresh run found `/metrics/[key]` still without an `h1`. Run `resolve-urls` then `db-time` on a quiet machine (the nightly workflow does), set `BSB_DB_TIME_UPDATE=1` once to write `tests/db-time.baseline.seed.json`, and fix any route the run lists.
 
 ### Skipped, with the reason
 

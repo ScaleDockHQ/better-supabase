@@ -1,5 +1,5 @@
 import { readdir, readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { moduleContext } from "../../src/sql/module-context.ts";
 import {
@@ -199,17 +199,23 @@ describe("blocks.memberships.names.organization", () => {
     modules: { memberships: { entities: { organization: "workspace" } } },
   } as const;
 
-  it("leaves no organization identifier but parameter names", () => {
+  let found = new Set<string>();
+
+  // Rendering every module under the renamed tenant is the cost of this test;
+  // it runs once here so the test itself only compares the names.
+  beforeAll(() => {
     const names = Object.keys(SQL_MODULES).filter((name) => name !== "pgtap");
 
-    const found = new Set(
+    found = new Set(
       renderBlocks(names, layout).flatMap((file) =>
         [...code(file.contents).matchAll(/\w*organization\w*/g)].map(
           (match) => match[0],
         ),
       ),
     );
+  }, 120_000);
 
+  it("leaves no organization identifier but parameter names", () => {
     // Function parameters keep their names, so the TypeScript clients pass
     // the same arguments under any tenant name. The rate-limit module's
     // organization rules take the organization as an argument, not as the

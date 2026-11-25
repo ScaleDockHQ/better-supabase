@@ -19,6 +19,7 @@ export {
   type AccountingLineInput,
   type AccountingOptions,
   type AccountingPeriod,
+  type PeriodCloseResult,
   type AccountingPeriodStatus,
   type AccountingReportOptions,
   type AccountingSetup,

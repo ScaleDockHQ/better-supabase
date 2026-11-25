@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@8 managed
--- @bsb-hash sha256:a34eead196eacf65dc7278913a2f1360c99dd0f7126e4701b5abeb9621a74018
+-- @bsb-hash sha256:c991309a699a72c0453892948735b125a0497f5290fa343846e17cff6e1babf5
 -- @bsb-names tasks task=work_item/work_items
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2975,6 +2975,27 @@ create policy bsb_work_items_receive on realtime.messages
         and (select realtime.topic()) like 'tasks:%'
         and substr((select realtime.topic()), 7) in (select x::text from better_supabase.tenant_ids_with('tasks.read') x));
 
+-- Creates a work item (attrs and assignees as create_task) and starts its SLA
+-- clocks on subject_type, at priority, in one transaction. Returns { task,
+-- clocks }.
+create or replace function "better_supabase"."create_work_item_with_sla"(tenant uuid, attrs jsonb, assignees uuid[], subject_type text, priority text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_task jsonb;
+  v_clocks jsonb;
+begin
+  v_task := "better_supabase"."create_work_item"(create_work_item_with_sla.tenant, create_work_item_with_sla.attrs, create_work_item_with_sla.assignees);
+  v_clocks := "better_supabase"."start_sla_clocks"(create_work_item_with_sla.subject_type, v_task ->> 'id', create_work_item_with_sla.priority);
+  return jsonb_build_object('task', v_task, 'clocks', v_clocks);
+end;
+$$;
+revoke execute on function "better_supabase"."create_work_item_with_sla"(uuid, jsonb, uuid[], text, text) from public, anon;
+grant execute on function "better_supabase"."create_work_item_with_sla"(uuid, jsonb, uuid[], text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3512,3 +3533,12 @@ set search_path = ''
 as $$ select "better_supabase"."work_item_stage_times"($1) $$;
 revoke execute on function "api"."work_item_stage_times"(uuid) from public, anon;
 grant execute on function "api"."work_item_stage_times"(uuid) to authenticated, service_role;
+
+create or replace function "api"."create_work_item_with_sla"(tenant uuid, attrs jsonb, assignees uuid[], subject_type text, priority text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."create_work_item_with_sla"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."create_work_item_with_sla"(uuid, jsonb, uuid[], text, text) from public, anon;
+grant execute on function "api"."create_work_item_with_sla"(uuid, jsonb, uuid[], text, text) to authenticated, service_role;

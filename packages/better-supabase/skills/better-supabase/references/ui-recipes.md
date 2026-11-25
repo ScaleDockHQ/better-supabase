@@ -9761,7 +9761,9 @@ export function RuleBuilder({
     <EditorContext value={editor}>
       <Card data-recipe="rule-builder">
         <CardHeader>
-          <CardTitle>{t("When a lead is saved")}</CardTitle>
+          <CardTitle>
+            <h1>{t("When a lead is saved")}</h1>
+          </CardTitle>
           <CardDescription>
             {t(
               "The rule matches when its conditions hold for the saved customer.",
@@ -13166,7 +13168,9 @@ export async function ContactDetail({
       <div className="flex flex-col gap-6 lg:col-span-2">
         <Card>
           <CardHeader>
-            <CardTitle>{contact.name}</CardTitle>
+            <CardTitle>
+              <h1>{contact.name}</h1>
+            </CardTitle>
             <CardDescription className="flex items-center gap-2">
               <Badge variant="outline">
                 {contact.kind === "company" ? t("Company") : t("Person")}
@@ -21839,7 +21843,7 @@ export async function CourseOutline({ courseId }: { courseId: string }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">{course.title}</h2>
+            <h1 className="text-lg font-semibold">{course.title}</h1>
             <Badge variant={statusVariants[course.status]}>
               {statusLabels[course.status]}
             </Badge>
@@ -22116,7 +22120,9 @@ export async function LessonPlayer({
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
-            <CardTitle>{lesson.title}</CardTitle>
+            <CardTitle>
+              <h1>{lesson.title}</h1>
+            </CardTitle>
             <Badge variant="outline">{kindLabels[lesson.kind]}</Badge>
             {lesson.done ? (
               <Badge variant="success-light">{t("Done")}</Badge>
@@ -29320,10 +29326,12 @@ export function CaseDetail({
     <Frame spacing="sm" data-recipe="case-detail">
       <FrameHeader className="gap-0.5">
         <FrameTitle>
-          {t("{number}: {title}", {
-            number: detail.number,
-            title: detail.title,
-          })}
+          <h1>
+            {t("{number}: {title}", {
+              number: detail.number,
+              title: detail.title,
+            })}
+          </h1>
         </FrameTitle>
         <FrameDescription>
           {detail.stage === null
@@ -30213,7 +30221,9 @@ export function MeetingMinutes({
   return (
     <Frame spacing="sm" data-recipe="meeting-minutes">
       <FrameHeader className="gap-0.5">
-        <FrameTitle>{meeting.title}</FrameTitle>
+        <FrameTitle>
+          <h1>{meeting.title}</h1>
+        </FrameTitle>
         <FrameDescription>
           {t(
             "{count, plural, =0 {No attendees yet} one {# attendee} other {# attendees}}",

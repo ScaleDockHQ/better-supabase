@@ -30,7 +30,7 @@ Installing `finance` installs these blocks. Each stays an ordinary block in the 
 
 ## Helpers
 
-`closePeriod(periodId)` closes the accounting period when nothing blocks it. A blocked period is not an error: the result is `{ closed: false, blockers }` and nothing changes. A closed period returns `{ closed: true, period }`.
+`closePeriod(periodId)` closes the accounting period when nothing blocks it. A blocked period is not an error: the result is `{ closed: false, blockers }` and nothing changes. A closed period returns `{ closed: true, period }`. It runs as one database call and one transaction through `accounting.closePeriodIfClear`; the TypeScript hooks of `closeBlockers` and `closePeriod` no longer fire inside it, the hook of `finance.closePeriod` does.
 
 ```ts
 const result = await blocks.finance.closePeriod(periodId).orThrow();

@@ -39,6 +39,7 @@ import {
   holdApprovalContribution,
 } from "./tasks-hold-approvals.ts";
 import { taskLinesContract, taskLinesSql } from "./tasks-lines.ts";
+import { createTaskWithSla } from "./tasks-sla.ts";
 
 /** The subject type of a project, after `blocks.tasks.entities`. */
 export function projectType(tasks: BlockSqlContext): string {
@@ -800,7 +801,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Work items on pipelines: issues and tasks with an identifier, a parent,
 -- assignees, a priority, dates, projects and iterations.
-${tables(ctx, n)}${coordinationTables(ctx, n)}${guard(ctx, n)}${taskFunctions(ctx, n)}`;
+${tables(ctx, n)}${coordinationTables(ctx, n)}${guard(ctx, n)}${taskFunctions(ctx, n)}${createTaskWithSla(ctx, n)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -810,6 +811,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "jsonb", "uuid[]"],
       returns: "jsonb",
     },
+    ...(ctx.installed("sla")
+      ? [
+          {
+            name: "create_task_with_sla",
+            args: ["{id}", "jsonb", "uuid[]", "text", "text"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     { name: "clone_task", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "update_tasks", args: ["jsonb", "boolean"], returns: "jsonb" },
     {
@@ -1017,6 +1027,7 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   // The pipelines module binds the tasks table, so the table comes first.
   before: "pipelines",
   integrates: [
+    "sla",
     "approvals",
     "outbox",
     "notifications",

@@ -596,6 +596,37 @@ describe("the Next.js example's first-load JavaScript", () => {
     120_000,
   );
 
+  // The proxy runs on every request, so it keeps off the flag definitions and
+  // the generated table schema; each marker is a string only that code holds.
+  it.skipIf(UPDATE)(
+    "keeps the flag definitions out of the proxy",
+    async () => {
+      const proxy = join(NEXT, "server/middleware.js");
+      const source = await readFile(proxy, "utf-8");
+      const markers = ["signup-waitlist", "pricing-banner"];
+      const leaks: string[] = [];
+
+      for (const match of source.matchAll(SERVER_CHUNK)) {
+        const chunk = match[1];
+
+        if (chunk === undefined) {
+          continue;
+        }
+
+        const text = await readFile(join(NEXT, chunk), "utf-8");
+
+        for (const marker of markers) {
+          if (text.includes(marker)) {
+            leaks.push(`${chunk} carries ${marker}`);
+          }
+        }
+      }
+
+      expect(leaks, "flag code in the proxy").toEqual([]);
+    },
+    120_000,
+  );
+
   // Server chunks per route (ADR 0450): a route loads the chunks of what it
   // imports, so a page that reads one table does not pay for the block set.
   it.skipIf(UPDATE)(

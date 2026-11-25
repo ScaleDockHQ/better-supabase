@@ -638,28 +638,24 @@ export const openTicket = bsb.action(
     permission: "tasks.write",
   },
   async ({ title, body }, { db, auth, tenant }) => {
-    // `support.openTicket` starts the clocks on a `task` subject, and this app
-    // names the entity `work_item` (finding 4): the same two calls, by hand.
-    const created = await db.$blocks.tasks.create({
+    // This app names the entity `work_item`, so the subject type is passed
+    // to the one-call create-and-start function.
+    const created = await db.$blocks.tasks.createWithSla({
       organizationId: tenant,
       input: body === undefined ? { title } : { title, body },
+      subjectType: "work_item",
     });
 
     if (!created.ok) {
       return created;
     }
 
-    const clocks = await db.$blocks.sla.start({
-      subject: { type: "work_item", id: created.data.id },
-    });
-
-    if (!clocks.ok) {
-      return clocks;
-    }
-
     await refreshCaller(auth, [PROJECTS_TAG, CASES_TAG]);
 
-    return ok({ id: created.data.id, clocks: clocks.data.length });
+    return ok({
+      id: created.data.work_item.id,
+      clocks: created.data.clocks.length,
+    });
   },
 );
 

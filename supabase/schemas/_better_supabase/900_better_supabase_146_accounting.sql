@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:4260ea9197ab88d7b91c89e3b4479299ad78a12eb428d9ec0427fea587a8a204
+-- @bsb-hash sha256:db384e65fd85163d448c3cf742f4ec007b69b3e0f8741b164ad0c1f224803cad
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2322,6 +2322,28 @@ $$;
 revoke execute on function "better_supabase"."close_accounting_period"(uuid) from public, anon;
 grant execute on function "better_supabase"."close_accounting_period"(uuid) to authenticated, service_role;
 
+-- Closes a period when nothing blocks it, in one call (ADR 1235). A blocked
+-- period is not an error: { closed: false, blockers } changes nothing. It calls
+-- the checks above, so each keeps its permission check.
+create or replace function "better_supabase"."close_accounting_period_if_clear"(period_id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_blockers text[];
+begin
+  v_blockers := "better_supabase"."accounting_period_close_blockers"(close_accounting_period_if_clear.period_id);
+  if cardinality(v_blockers) > 0 then
+    return jsonb_build_object('closed', false, 'blockers', to_jsonb(v_blockers));
+  end if;
+  return jsonb_build_object('closed', true, 'period', "better_supabase"."close_accounting_period"(close_accounting_period_if_clear.period_id));
+end;
+$$;
+revoke execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) from public, anon;
+grant execute on function "better_supabase"."close_accounting_period_if_clear"(uuid) to authenticated, service_role;
+
 -- Reopens a closed period with a reason. A period on or before the lock date
 -- stays closed; move the lock date first.
 create or replace function "better_supabase"."reopen_accounting_period"(period_id uuid, reason text)
@@ -4395,6 +4417,15 @@ set search_path = ''
 as $$ select "better_supabase"."close_accounting_period"($1) $$;
 revoke execute on function "api"."close_accounting_period"(uuid) from public, anon;
 grant execute on function "api"."close_accounting_period"(uuid) to authenticated, service_role;
+
+create or replace function "api"."close_accounting_period_if_clear"(period_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."close_accounting_period_if_clear"($1) $$;
+revoke execute on function "api"."close_accounting_period_if_clear"(uuid) from public, anon;
+grant execute on function "api"."close_accounting_period_if_clear"(uuid) to authenticated, service_role;
 
 create or replace function "api"."reopen_accounting_period"(period_id uuid, reason text)
 returns jsonb
