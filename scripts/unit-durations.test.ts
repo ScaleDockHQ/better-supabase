@@ -18,23 +18,24 @@ const times: UnitTimes = {
   slowTests: [
     { id: "tests/slow.test.ts > known", durationMs: 12_000, timeoutMs: 20_000 },
     { id: "tests/slow.test.ts > fresh", durationMs: 11_000, timeoutMs: 20_000 },
+    { id: "tests/slow.test.ts > hovers", durationMs: 9000, timeoutMs: 20_000 },
   ],
 };
 
 describe("grew", () => {
-  it("needs 50% and five seconds over the baseline", () => {
-    expect(grew(40_000, 20_000)).toBe(true);
+  it("needs twice the baseline and five seconds over it", () => {
+    expect(grew(41_000, 20_000)).toBe(true);
     expect(grew(40_000, 30_000)).toBe(false);
     expect(grew(2000, 500)).toBe(false);
   });
 });
 
 describe("findings", () => {
-  it("flags a grown file and a test past half its timeout that no baseline lists", () => {
+  it("flags a grown file and only an unlisted test past half its timeout", () => {
     const found = findings(
       times,
       new Map([
-        ["tests/slow.test.ts", 20_000],
+        ["tests/slow.test.ts", 19_000],
         ["tests/noisy.test.ts", 500],
       ]),
       new Map([["tests/slow.test.ts > known", 11_000]]),

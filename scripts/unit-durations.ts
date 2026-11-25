@@ -25,10 +25,15 @@ const LIBRARY = "packages/better-supabase/";
 // The unit project's testTimeout, for a test whose report carries none.
 const DEFAULT_TIMEOUT_MS = 20_000;
 
-// A time fails when it runs this much over its baseline, and by at least SLACK_MS: runner noise
-// moves a one second file by more than half.
-const GROWTH = 1.5;
+// A time fails when it runs this much over its baseline, and by at least SLACK_MS. A file's time
+// moved by up to 1.8 times between green runs with other files on its shard (runs 45452166250,
+// 45454066955, 45483751800 and 45577725387), so 50% failed on noise alone.
+const GROWTH = 2;
 const SLACK_MS = 5000;
+
+// The reporter records the tests past this share of their timeout, so the budget also lists the
+// ones that hover just under half and would fail at random.
+const WATCH = 0.4;
 
 const timesSchema = v.object({
   files: v.record(v.string(), v.number()),
@@ -67,7 +72,7 @@ export default class UnitTimesReporter implements Reporter {
         const durationMs = Math.round(test.diagnostic()?.duration ?? 0);
         const timeoutMs = test.options.timeout ?? DEFAULT_TIMEOUT_MS;
 
-        if (durationMs > timeoutMs / 2) {
+        if (durationMs > timeoutMs * WATCH) {
           times.slowTests.push({
             id: `${file} > ${test.fullName}`,
             durationMs,
@@ -108,7 +113,7 @@ export function slowestOf(
   return { files, slowTests };
 }
 
-/** True when `ms` grew past the budget over `before`. */
+/** True when `ms` grew past the budget over `before`: twice, and five seconds. */
 export function grew(ms: number, before: number): boolean {
   return ms > before * GROWTH && ms - before > SLACK_MS;
 }
@@ -132,7 +137,10 @@ export function findings(
   const tests = times.slowTests.flatMap((test) => {
     const before = slowBaseline.get(test.id);
 
-    if (before !== undefined && !grew(test.durationMs, before)) {
+    if (
+      test.durationMs <= test.timeoutMs / 2 ||
+      (before !== undefined && !grew(test.durationMs, before))
+    ) {
       return [];
     }
 

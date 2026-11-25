@@ -61,13 +61,13 @@ bump is one commit series:
   `main`, packed by `packages/better-supabase/tests/unit-durations.json`;
   the `coverage` job merges the blob reports and checks the thresholds below
   (ADR 1230). A red `main` opens the `main-red` issue.
-- The `coverage` job also fails when a test file runs 50% and 5 seconds over
+- The `coverage` job also fails when a test file runs twice and 5 seconds over
   its time in `scripts/unit-time-budget.json`, or a test runs past half its
-  timeout and the budget does not list it (or it grew the same way). It lists
-  the 20 slowest files in the step summary. A file's time swings by up to 1.8
-  times with its shard neighbours, so the budget keeps the slowest of the runs
-  it is written from, and the shard packing (`unit-durations.json`) is a
-  separate file. After a deliberate change, run
+  timeout and the budget does not list it (or it doubled). It lists the 20
+  slowest files in the step summary. A file's time swings by up to 1.8 times
+  with its shard neighbours, so the budget keeps the slowest of the runs it is
+  written from and lists every test past 40% of its timeout, and the shard
+  packing (`unit-durations.json`) is a separate file. After a deliberate change, run
   `gh run download <run id> -n unit-times -D <dir>` for one or more green runs,
   then `node scripts/unit-durations.ts --write <dir>/unit-times.json ...`.
   `--pack` rewrites the packing the same way, which moves files between shards,
