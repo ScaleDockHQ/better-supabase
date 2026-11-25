@@ -225,6 +225,10 @@ The next-build baselines were retaken against a build without `EXPOSE_TESTING_AP
 
 The header size check already exists, so there is nothing to add.
 
+### Not run: routes without an `h1` and the db-time baseline
+
+The `h1` check (a sign-in, then every openable route with a 6 second wait for a level-1 heading) and the full db-time baseline did not finish. With a load average of 11 to 24 from other jobs on the machine, the production server on the example's own port stopped answering and the resolve-urls pass slowed from 4 minutes to 11 minutes for 10 routes. The 23 routes in the plan are the detail routes whose seeded id had gone stale (see above), so a fresh `resolve-urls` should remove most of them; the first fresh run found `/metrics/[key]` still without an `h1`. Run `resolve-urls` then `db-time` on a quiet machine (the nightly workflow does), set `BSB_DB_TIME_UPDATE=1` once to write `tests/db-time.baseline.seed.json`, and fix any route the run lists.
+
 ### Skipped, with the reason
 
 | Item                                        | Reason                                                                                                                                 |
