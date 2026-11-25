@@ -36,22 +36,12 @@ const fresh = (): RemoteCacheCounters => ({
 type Holder = typeof globalThis & { [KEY]?: RemoteCacheCounters };
 
 /** The counters of this process. */
-export function remoteCacheCounters(): RemoteCacheCounters {
+function remoteCacheCounters(): RemoteCacheCounters {
   const holder: Holder = globalThis;
 
   holder[KEY] ??= fresh();
 
   return holder[KEY];
-}
-
-/** Zeroes the counters and returns what they held. */
-export function resetRemoteCacheCounters(): RemoteCacheCounters {
-  const holder: Holder = globalThis;
-  const before = remoteCacheCounters();
-
-  holder[KEY] = fresh();
-
-  return before;
 }
 
 /** Counts the bytes of `stream` and returns a stream with the same bytes. */

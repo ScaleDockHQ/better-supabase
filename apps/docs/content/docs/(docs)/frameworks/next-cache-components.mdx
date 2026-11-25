@@ -699,7 +699,12 @@ snapshot above. It returns the caller's full set of keys in the active tenant,
 or `null` when it has none, and then the loader asks `my_permissions` as before.
 
 ```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { createNext } from "better-supabase/next";
+
 import { getPermissions } from "@/features/user/permission-snapshot";
+
+import { betterSupabase } from "./index";
 
 export const bsb = createNext(betterSupabase, {
   heldPermissions: getPermissions,
