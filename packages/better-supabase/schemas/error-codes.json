@@ -4763,6 +4763,10 @@
     "message": "this quote is one of several variants; select a variant first"
   },
   {
+    "code": "QUOTE_VARIANT_TENANT",
+    "message": "a variant belongs to a quote of the same organization"
+  },
+  {
     "code": "QUOTE_VERSION_FROZEN",
     "message": "a published quote version never changes"
   },

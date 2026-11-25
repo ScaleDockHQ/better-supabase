@@ -484,6 +484,61 @@ function quoteTotals(ctx: BlockSqlContext): "block" | "app" {
   return totals;
 }
 
+/**
+ * A client writes a quote row directly only through the Data API grants an app
+ * gives it. The public link token and the customer's decision come from
+ * send_quote and the decision functions, so an insert outside an import or the
+ * service role clears them, and `variantOf` must name a quote of the same
+ * tenant.
+ */
+function clientGuard(ctx: BlockSqlContext, n: QuoteNames): string {
+  const { t, c } = n;
+  const q = (column: string): string => c("quotes", column);
+  const fn = ctx.fn("quote_client_guard");
+  const trigger = ctx.trigger("quote_client_guard");
+
+  const cleared = [
+    "tokenHash",
+    "decidedAt",
+    "decidedBy",
+    "decisionNote",
+    "decidedUser",
+    "decidedIp",
+    "decidedUserAgent",
+  ]
+    .filter((column) => ctx.has("quotes", column))
+    .map((column) => `new.${q(column)} := null;`)
+    .join("\n      ");
+
+  const variant = ctx.has("quotes", "variantOf")
+    ? `
+  if new.${q("variantOf")} is not null and (tg_op = 'INSERT' or new.${q("variantOf")} is distinct from old.${q("variantOf")})
+    and not exists (select 1 from ${t("quotes")} s where s.${q("id")} = new.${q("variantOf")} and s.${q("tenant")} = new.${q("tenant")}) then
+    ${fail("QUOTE_VARIANT_TENANT", "a variant belongs to a quote of the same organization", "22023")}
+  end if;`
+    : "";
+
+  return `
+create or replace function ${fn}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' and not (${ctx.importing()}) and not ${n.service} then
+      ${cleared}
+  end if;${variant}
+  return new;
+end;
+$$;
+${triggerGrant(`${fn}()`)}
+drop trigger if exists ${trigger} on ${t("quotes")};
+create trigger ${trigger} before insert${ctx.has("quotes", "variantOf") ? ` or update of ${q("variantOf")}` : ""} on ${t("quotes")}
+for each row execute function ${fn}();
+`;
+}
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -546,7 +601,7 @@ function build(ctx: BlockSqlContext): string {
 -- Quotes: line items, sections, optional lines, discounts and tax per rate,
 -- published versions, sending with a public link or to the signed-in portal
 -- the customer accepts, rejects or asks changes through, and expiry.
-${tables(ctx, n)}${quoteFunctions(ctx, n)}${quoteVariantFunctions(ctx, n)}${quoteImportFunctions(ctx, n)}${billingPartyReportSql(ctx, { name: n.fn("quote_totals_by_billing_party"), argument: "quote", lines: "lines" })}`;
+${tables(ctx, n)}${clientGuard(ctx, n)}${quoteFunctions(ctx, n)}${quoteVariantFunctions(ctx, n)}${quoteImportFunctions(ctx, n)}${billingPartyReportSql(ctx, { name: n.fn("quote_totals_by_billing_party"), argument: "quote", lines: "lines" })}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {

@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:436d6d0cf00f0046480b2e587d9d7dd878415a3dec1ae44bdcc32169967e12de
+-- @bsb-hash sha256:de3da5bde5d35b595b4448570628c655ffe35221d975f55e0b77c89c0add6560
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -124,6 +124,33 @@ grant all on "better_supabase"."quote_tax_lines" to service_role;
 create policy bsb_quote_tax_lines_read on "better_supabase"."quote_tax_lines"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."quotes" q where q."id" = "parent_id"));
+
+create or replace function "better_supabase"."quote_client_guard"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' and not (better_supabase.import_run() is not null) and not (auth.role() = 'service_role') then
+      new."token_hash" := null;
+      new."decided_at" := null;
+      new."decided_by" := null;
+      new."decision_note" := null;
+      new."decider_id" := null;
+      new."decided_ip" := null;
+      new."decided_user_agent" := null;
+  end if;
+  if new."variant_of" is not null and (tg_op = 'INSERT' or new."variant_of" is distinct from old."variant_of")
+    and not exists (select 1 from "better_supabase"."quotes" s where s."id" = new."variant_of" and s."tenant_id" = new."tenant_id") then
+    raise exception 'a variant belongs to a quote of the same organization' using errcode = '22023', hint = 'QUOTE_VARIANT_TENANT';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."quote_client_guard"() from public, anon, authenticated;
+create trigger "bsb_quote_client_guard" before insert or update of "variant_of" on "better_supabase"."quotes"
+for each row execute function "better_supabase"."quote_client_guard"();
 
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
