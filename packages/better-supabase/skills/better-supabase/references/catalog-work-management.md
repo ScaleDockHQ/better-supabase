@@ -139,7 +139,7 @@ Issues and tasks on pipelines: identifiers, parents without cycles, several assi
 - Client: `tasksBlock` from `better-supabase/blocks/tasks`
 - Modes: `managed`, `custom`
 - Requires: `memberships`, `permissions`, `subjects`, `pipelines`
-- Works with: `approvals`, `outbox`, `notifications`, `numbering`, `attachments`, `reminders`, `accounting`, `option-sets`, `templates`, `tags`, `catalog`, `relations`, `rank`, `messaging`, `housekeeping`, `pipelines`, `subjects`
+- Works with: `sla`, `approvals`, `outbox`, `notifications`, `numbering`, `attachments`, `reminders`, `accounting`, `option-sets`, `templates`, `tags`, `catalog`, `relations`, `rank`, `messaging`, `housekeeping`, `pipelines`, `subjects`
 - Entities: `task`, `project`, `iteration`, `checklist_item`
 - Tables: `tasks`, `projects`, `iterations`, `task_checklist_items`
 - Permission keys: `tasks.read`, `tasks.write`, `tasks.manage`
