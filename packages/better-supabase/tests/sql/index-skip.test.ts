@@ -122,42 +122,47 @@ create index if not exists a_idx on public.t (owner_id);
     expect(out.match(/a_idx on/g)).toHaveLength(2);
   });
 
-  it("finds no two indexes of the same definition across every module", () => {
-    const schema = renderBlocks(
-      Object.keys(SQL_MODULES).filter((name) => name !== "pgtap"),
-    ).filter((file) => file.kind === "schema");
+  // Renders every module: 11.4 s on a loaded CI shard.
+  it(
+    "finds no two indexes of the same definition across every module",
+    { timeout: 60_000 },
+    () => {
+      const schema = renderBlocks(
+        Object.keys(SQL_MODULES).filter((name) => name !== "pgtap"),
+      ).filter((file) => file.kind === "schema");
 
-    const seen = new Map<string, string>();
-    const repeated: string[] = [];
+      const seen = new Map<string, string>();
+      const repeated: string[] = [];
 
-    for (const file of schema) {
-      const masked = maskComments(file.contents);
+      for (const file of schema) {
+        const masked = maskComments(file.contents);
 
-      expect(file.contents).not.toContain("already gets the same index as");
+        expect(file.contents).not.toContain("already gets the same index as");
 
-      for (const [from, to] of statementSpans(file.contents)) {
-        const statement = masked.slice(from, to);
+        for (const [from, to] of statementSpans(file.contents)) {
+          const statement = masked.slice(from, to);
 
-        const [index] = /^\s*create\s+(?:unique\s+)?index\b/i.test(statement)
-          ? indexStatements(statement)
-          : [];
+          const [index] = /^\s*create\s+(?:unique\s+)?index\b/i.test(statement)
+            ? indexStatements(statement)
+            : [];
 
-        if (index?.name === undefined) {
-          continue;
+          if (index?.name === undefined) {
+            continue;
+          }
+
+          const signature = indexSignature(statement);
+          const kept = seen.get(signature);
+
+          if (kept !== undefined && kept !== index.name) {
+            repeated.push(`${index.name} repeats ${kept}`);
+          }
+
+          seen.set(signature, kept ?? index.name);
         }
-
-        const signature = indexSignature(statement);
-        const kept = seen.get(signature);
-
-        if (kept !== undefined && kept !== index.name) {
-          repeated.push(`${index.name} repeats ${kept}`);
-        }
-
-        seen.set(signature, kept ?? index.name);
       }
-    }
 
-    expect(seen.size).toBeGreaterThan(500);
-    expect(repeated).toEqual([]);
-  });
+      expect(seen.size).toBeGreaterThan(500);
+      expect(repeated).toEqual([]);
+    },
+  );
 });

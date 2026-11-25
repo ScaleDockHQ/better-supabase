@@ -119,24 +119,36 @@ describe("init on an existing project", () => {
     );
   });
 
-  it("treats a --from that is not a url as --preset, and refuses both", async () => {
-    await writeFile(join(dir, "package.json"), '{"name":"app"}');
+  // Runs init twice, the second writing a whole preset: 15.6 s on a loaded CI shard.
+  it(
+    "treats a --from that is not a url as --preset, and refuses both",
+    { timeout: 60_000 },
+    async () => {
+      await writeFile(join(dir, "package.json"), '{"name":"app"}');
 
-    const both = await run([
-      "init",
-      "--from",
-      "crm",
-      "--preset",
-      "crm",
-      "--cwd",
-      dir,
-    ]);
+      const both = await run([
+        "init",
+        "--from",
+        "crm",
+        "--preset",
+        "crm",
+        "--cwd",
+        dir,
+      ]);
 
-    expect(both.code).toBe(2);
-    expect(both.stderr).toContain("--from or --preset");
+      expect(both.code).toBe(2);
+      expect(both.stderr).toContain("--from or --preset");
 
-    const preset = await run(["init", "--from", "crm", "--cwd", dir, "--yes"]);
+      const preset = await run([
+        "init",
+        "--from",
+        "crm",
+        "--cwd",
+        dir,
+        "--yes",
+      ]);
 
-    expect(preset.code).toBe(0);
-  });
+      expect(preset.code).toBe(0);
+    },
+  );
 });
