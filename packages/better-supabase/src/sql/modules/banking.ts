@@ -283,6 +283,7 @@ export const BANKING: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: [
     "accounting",
+    "contacts",
     "invoices",
     "expenses",
     "attachments",

@@ -1,6 +1,6 @@
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:72bf3e4ce520588099ff2cb69390231695e93e6942eb9b70648534ffc4b56433
+-- @bsb-hash sha256:884e742cba1d4b6264d0af04d68823bc1ca4c6c12ea9d660e6010991cce34b21
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1083,6 +1083,16 @@ begin
         detail = jsonb_build_object('partyId', v_item.party)::text;
     end if;
     v_iban := upper(regexp_replace(coalesce(v_creditor ->> 'iban', ''), '\s', '', 'g'));
+    if exists (select 1 from "better_supabase"."party_bank_accounts" x where x."tenant_id" = create_payment_batch.tenant and x."party_id"::text = v_item.party) then
+      if v_iban = '' then
+        select x."iban" into v_iban from "better_supabase"."party_bank_accounts" x where x."tenant_id" = create_payment_batch.tenant and x."party_id"::text = v_item.party
+        order by x."is_primary" desc, x."iban" limit 1;
+      elsif not exists (select 1 from "better_supabase"."party_bank_accounts" x where x."tenant_id" = create_payment_batch.tenant and x."party_id"::text = v_item.party and upper(regexp_replace(x."iban", '\s', '', 'g')) = v_iban) then
+        raise exception 'the IBAN is not a registered bank account of the supplier' using errcode = '22023', hint = 'PAYMENT_BATCH_CREDITOR_INVALID',
+          detail = jsonb_build_object('partyId', v_item.party)::text;
+      end if;
+      v_iban := upper(regexp_replace(v_iban, '\s', '', 'g'));
+    end if;
     if v_iban !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' or "better_supabase"."bank_mod97"(substr(v_iban, 5) || substr(v_iban, 1, 4)) is distinct from 1 then
       raise exception 'a creditor has an invalid IBAN' using errcode = '22023', hint = 'PAYMENT_BATCH_CREDITOR_INVALID',
         detail = jsonb_build_object('partyId', v_item.party)::text;

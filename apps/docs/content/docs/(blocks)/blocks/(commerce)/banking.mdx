@@ -202,7 +202,11 @@ approved open supplier bills that fall due by `dueBy` (or whose discount date
 falls by then) into a draft batch of one bank account. A bill whose discount is
 still open on `executionOn` is paid less the discount. `creditors` maps each
 supplier party id to the `name`, `iban` and optional `bic` that receive the
-money. A bill that still waits for [approval](/docs/blocks/invoices#purchase-approval-levels)
+money. With the [contacts](/docs/blocks/contacts) block installed, a supplier
+that has a registered bank account (`party_bank_accounts`) is paid only to one
+of its registered IBANs: leave `iban` out to pay the primary account, and an
+IBAN the supplier didn't register fails with `PAYMENT_BATCH_CREDITOR_INVALID`.
+A bill that still waits for [approval](/docs/blocks/invoices#purchase-approval-levels)
 is skipped, and naming it in `invoiceIds` fails with
 `PAYMENT_BATCH_APPROVAL_REQUIRED`. Nothing qualifying fails with
 `PAYMENT_BATCH_EMPTY`.

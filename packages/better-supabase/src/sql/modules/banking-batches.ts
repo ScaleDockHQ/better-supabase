@@ -416,7 +416,7 @@ begin
         detail = jsonb_build_object('partyId', v_item.party)::text;
     end if;
     v_iban := upper(regexp_replace(coalesce(v_creditor ->> 'iban', ''), '\\s', '', 'g'));
-    if v_iban !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' or ${fn("bank_mod97")}(substr(v_iban, 5) || substr(v_iban, 1, 4)) is distinct from 1 then
+${registeredIban(ctx)}    if v_iban !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' or ${fn("bank_mod97")}(substr(v_iban, 5) || substr(v_iban, 1, 4)) is distinct from 1 then
       raise exception 'a creditor has an invalid IBAN' using errcode = '22023', hint = 'PAYMENT_BATCH_CREDITOR_INVALID',
         detail = jsonb_build_object('partyId', v_item.party)::text;
     end if;
@@ -562,6 +562,35 @@ begin
 end;
 $$;
 ${userGrant(`${fn("cancel_payment_batch")}(uuid)`)}
+`;
+}
+
+/**
+ * With the contacts block's party bank accounts, a supplier that registered an
+ * account is paid only to a registered IBAN: the caller's, if it is one, else
+ * the primary account. The caller can't redirect the payment.
+ */
+function registeredIban(ctx: BlockSqlContext): string {
+  const contacts = linked(ctx, "contacts");
+
+  if (contacts === undefined || !contacts.hasTable("bankAccounts")) {
+    return "";
+  }
+
+  const accounts = contacts.table("bankAccounts");
+  const k = (column: string): string => contacts.col("bankAccounts", column);
+  const own = `x.${k("tenant")} = create_payment_batch.tenant and x.${k("party")}::text = v_item.party`;
+
+  return `    if exists (select 1 from ${accounts} x where ${own}) then
+      if v_iban = '' then
+        select x.${k("iban")} into v_iban from ${accounts} x where ${own}
+        order by x.${k("isPrimary")} desc, x.${k("iban")} limit 1;
+      elsif not exists (select 1 from ${accounts} x where ${own} and upper(regexp_replace(x.${k("iban")}, '\\s', '', 'g')) = v_iban) then
+        raise exception 'the IBAN is not a registered bank account of the supplier' using errcode = '22023', hint = 'PAYMENT_BATCH_CREDITOR_INVALID',
+          detail = jsonb_build_object('partyId', v_item.party)::text;
+      end if;
+      v_iban := upper(regexp_replace(v_iban, '\\s', '', 'g'));
+    end if;
 `;
 }
 
