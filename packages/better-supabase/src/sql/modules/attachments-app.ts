@@ -354,18 +354,31 @@ export function registryReadable(
   layout: BlockSqlLayout,
   module: string,
   name: string | undefined,
+  extra: {
+    /** The subjects to check, where the module lists its own (`on`). */
+    readonly subjects?: readonly (readonly [string, Subject])[];
+    /**
+     * Types whose subject table can hold many rows a statement reads, such as
+     * an app's customers. They stay inline, where the check is one hashed
+     * subplan instead of a function call per row.
+     */
+    readonly inline?: (subject: Subject) => boolean;
+    /** The function that checks a type no branch names, as (type, id, tenant). */
+    readonly fallback?: string;
+  } = {},
 ): RegistryReadable {
-  const canSubject = ctx.of("subjects").fn("can_subject");
-
   const fallbackOf = (columns: {
     readonly type: string;
     readonly id: string;
+    readonly tenant: string;
   }): string =>
-    `coalesce(${canSubject}(${columns.type}, ${columns.id}, 'read'), false)`;
+    extra.fallback === undefined
+      ? `coalesce(${ctx.of("subjects").fn("can_subject")}(${columns.type}, ${columns.id}, 'read'), false)`
+      : `${extra.fallback}(${columns.type}, ${columns.id}, ${columns.tenant})`;
 
-  const inline = subjectsOption(ctx, ["deletedAt", "team"], {
-    registryOnly: true,
-  });
+  const inline =
+    extra.subjects ??
+    subjectsOption(ctx, ["deletedAt", "team"], { registryOnly: true });
 
   const members = new Set(
     inline.flatMap(([type, subject]) => {
@@ -392,7 +405,13 @@ export function registryReadable(
   }
 
   const early = earlySubjects(ctx, layout, inline, module);
-  const gates = gatedSubjectKeys(early, team);
+
+  const gates = gatedSubjectKeys(
+    extra.inline === undefined
+      ? early
+      : early.filter(([, subject]) => extra.inline?.(subject) !== true),
+    team,
+  );
 
   if (name === undefined || ctx.scope.kind !== "tenant" || gates.size === 0) {
     return {

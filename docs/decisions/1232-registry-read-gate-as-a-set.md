@@ -101,8 +101,15 @@ reads every registry type, a missing subject, a subject of another tenant and an
 unknown type as four roles against the frozen CASE policy, and finds no award
 that one form shows and the other hides.
 
-The `deadlines` policy still inlines the CASE through its own path
-(`subjectPolicy`) and plans in 20 ms; it is the next table to move onto this
-form. Adopters run `better-supabase upgrade` and apply the migration. Revisit if a type registers
+The `deadlines` read policy uses the same form through
+`deadline_subject_row_readable`, added by
+`20270120010071_deadlines_subject_readable_gate.sql`. It differs in one
+choice: a type whose table lies outside the module's schema (an app's customers)
+stays inline, because 12,000 customer deadlines read in 54 ms inline and in 620 ms
+through the function. Planning a deadlines read takes about 4 ms and 840
+buffers, from about 20 ms and 10,000, and the 12,000 customer read takes 15 ms.
+`supabase/tests/database/deadlines_subject_readable_equivalence.test.sql` holds
+the frozen old policy and the same four roles. The write paths keep the scalar
+`deadline_subject_readable`. Adopters run `better-supabase upgrade` and apply the migration. Revisit if a type registers
 a permission that needs a record grant: it leaves the gate and falls to the
 function, which costs nothing in planning.

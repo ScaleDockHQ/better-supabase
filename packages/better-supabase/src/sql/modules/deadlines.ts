@@ -25,7 +25,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption, tableCascades } from "../subjects.ts";
-import { inlineSubjectReadable } from "./attachments-app.ts";
+import { registryReadable } from "./attachments-app.ts";
 import { evaluatorSql } from "./deadlines-evaluator.ts";
 import { deadlinePageSql } from "./deadlines-page.ts";
 import { deadlinePruneSql } from "./deadlines-prune.ts";
@@ -422,22 +422,19 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       { target: table },
     );
 
-  // The policy inlines the check over the row's columns (ADR 0644); the
-  // function stays for the types a later module's table holds and for the
-  // write paths. Without subjects every subject passes.
+  // The read policy gates types by key and inlines the rest (ADR 1232).
   const own = (column: string): string => `${deadlines}.${d(column)}`;
 
-  const subjectPolicy = inlineSubjectReadable(
+  const rowReadable = registryReadable(
     ctx,
     layout,
-    subjects,
+    "deadlines",
+    "deadline_subject_row_readable",
     {
-      type: own("subjectType"),
-      id: own("subjectId"),
-      tenant: own("tenant"),
-      fallback: `${fn("deadline_subject_readable")}(${own("subjectType")}, ${own("subjectId")}, ${own("tenant")})`,
+      subjects,
+      inline: (subject) => !subject.table.startsWith(`${ctx.schemaName}.`),
+      fallback: fn("deadline_subject_readable"),
     },
-    { module: "deadlines", guest: false, typeNotNull: true },
   );
 
   const readPolicy = renderPolicy(
@@ -446,7 +443,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       name: sqlIdent(`${deadlinesName}_read`),
       command: "select",
       roles: ["authenticated"],
-      using: `${readGate(ctx.scope.check(d("tenant"), read), own("subjectType"), own("tenant"))} and ${subjectPolicy}`,
+      using: `${readGate(ctx.scope.check(d("tenant"), read), own("subjectType"), own("tenant"))} and ${subjects.length === 0 ? "true" : rowReadable.using({ type: own("subjectType"), id: own("subjectId"), tenant: own("tenant") })}`,
     }),
     { target: deadlines },
   );
@@ -575,7 +572,7 @@ end;
 $$;
 revoke execute on function ${fn("deadline_subject_readable")}(text, text, ${idType}) from public, anon;
 grant execute on function ${fn("deadline_subject_readable")}(text, text, ${idType}) to authenticated, service_role;
-${readPolicy}
+${rowReadable.sql}${readPolicy}
 ${evaluatorSql(fn, userGrant, triggerGrant)}
 ${validatorSql(fn, userGrant, triggerGrant)}
 ${contentHashSql(ctx)}
@@ -1060,6 +1057,7 @@ export const DEADLINES: BlockSqlDefinition = {
     "evaluate_deadline_rule",
     "compute_deadline",
     "deadline_subject_readable",
+    "deadline_subject_row_readable",
   ],
   names: NAMES,
   contract,

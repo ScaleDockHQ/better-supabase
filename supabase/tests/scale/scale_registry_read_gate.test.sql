@@ -1,10 +1,10 @@
--- The registry read gate (ADR 1232) on the care and funding tables. Planning
+-- The registry read gate (ADR 1232) on the care, funding and deadlines tables. Planning
 -- a read used to expand a 55-branch CASE in each of two policies, so a signed-in
 -- read of one table touched thousands of catalog pages before it ran. The plan
 -- of each table now stays small, and the rows still match the per-row
 -- can_subject answer. Set bsb.scale_rows to resize.
 begin;
-select plan(8);
+select plan(9);
 
 select set_config('bsb.n', coalesce(nullif(current_setting('bsb.scale_rows', true), ''), '12000'), true);
 
@@ -54,6 +54,9 @@ select cmp_ok(
 select cmp_ok(
   (pg_temp.plan_of('select id from better_supabase.funding_deliveries')->0->'Planning'->>'Shared Hit Blocks')::int,
   '<', 3000, 'funding_deliveries plans in under 3,000 buffers');
+select cmp_ok(
+  (pg_temp.plan_of('select id from better_supabase.deadlines')->0->'Planning'->>'Shared Hit Blocks')::int,
+  '<', 3000, 'deadlines plans in under 3,000 buffers');
 
 create temp table t0 as select clock_timestamp() as t;
 grant all on t0 to public;
