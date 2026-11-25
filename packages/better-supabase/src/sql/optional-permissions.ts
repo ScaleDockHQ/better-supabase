@@ -12,6 +12,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
   },
   audit: { reveal: "tenant" },
   deadlines: { prune: "tenant" },
+  drive: { delete: "tenant" },
   activities: { purge: "tenant" },
   agents: { purge: "tenant" },
   announcements: { purge: "tenant" },

@@ -1006,3 +1006,13 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     siblings,
   };
 }
+
+/**
+ * ` and <can delete>` when `blocks.drive.permissions.delete` names a key: a
+ * hard delete skips the bin, so an app can ask more than the share role.
+ */
+export function deleteKey(kit: DriveKit, tenant: string): string {
+  const key = kit.ctx.permissionKey("delete", "");
+
+  return key === "" ? "" : ` and ${kit.ctx.scope.can(tenant, sqlString(key))}`;
+}

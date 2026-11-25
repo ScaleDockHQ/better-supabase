@@ -144,6 +144,34 @@ const DRIVE_APP: Layout = {
 };
 
 describe("drive module", () => {
+  it("checks the delete key before a node is deleted for good when it is set", () => {
+    const layout: Layout = {
+      subjects: {
+        drive_node: {
+          table: "better_supabase.drive_nodes",
+          idType: "uuid",
+          tenant: "tenant_id",
+          deletedAt: "deleted_at",
+        },
+      },
+      modules: {
+        drive: { permissions: { delete: "files.delete" } },
+        "drive-files": { permissions: { delete: "files.delete" } },
+      },
+    };
+
+    const core = sqlOf(["drive"], "drive", layout);
+    const files = sqlOf(["drive", "trash"], "drive-files", layout);
+
+    expect(core).toMatch(
+      /drive_delete[\s\S]*better_supabase\.can\('tenant', v_node\."tenant_id", 'files\.delete'\)[\s\S]*delete from/u,
+    );
+    expect(files).toMatch(
+      /drive_purge[\s\S]*better_supabase\.can\('tenant', v_root\."tenant_id", 'files\.delete'\)/u,
+    );
+    expect(sqlOf(["drive"], "drive")).not.toContain("files.delete");
+  });
+
   it("renders ahead of comments and keeps the later file numbers", () => {
     const names = resolveBlocks(["drive", "comments"]).map(
       (module) => module.name,
