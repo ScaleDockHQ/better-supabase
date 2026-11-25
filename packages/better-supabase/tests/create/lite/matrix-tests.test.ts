@@ -173,6 +173,68 @@ async function attempt(
   return !result.ok && result.error.code === "42501" ? "denied" : "ran";
 }
 
+describe("a table with column insert grants", () => {
+  it("counts the column grant and takes a refused insert as no row", async () => {
+    const sandbox = await openSandbox({
+      files: [
+        {
+          path: "app.sql",
+          module: "app",
+          contents: `
+            create table public.drafts (id bigint generated always as identity primary key, title text);
+            alter table public.drafts enable row level security;
+            revoke all on public.drafts from anon, authenticated;
+            grant insert (title) on public.drafts to authenticated;
+            create function public.drafts_need_title() returns trigger language plpgsql as $$
+            begin
+              if new.title is null then
+                raise exception 'a draft needs a title' using errcode = '23502';
+              end if;
+              return new;
+            end;
+            $$;
+            create trigger drafts_need_title before insert on public.drafts
+              for each row execute function public.drafts_need_title();
+          `,
+        },
+      ],
+    });
+
+    try {
+      const query = await sandbox.query(verifyQuery(["public"]));
+
+      if (!query.ok) {
+        throw new Error(query.error.message);
+      }
+
+      const catalog = readSecurityCatalog(query.rows);
+      const drafts = catalog.tables.find((table) => table.name === "drafts");
+
+      expect(drafts?.grants).toContainEqual({
+        grantee: "authenticated",
+        privilege: "INSERT",
+      });
+
+      const insert = accessMatrix(catalog).find(
+        (each) =>
+          each.table === "public.drafts" &&
+          each.role === "authenticated" &&
+          each.command === "insert",
+      );
+
+      expect(insert?.reach).toBe("denied");
+
+      const contents = accessMatrixTests([insert!])
+        .map((file) => file.contents)
+        .join("\n");
+
+      expect(contents).toContain("like 'error:%'");
+    } finally {
+      await sandbox.close();
+    }
+  }, 120_000);
+});
+
 describe("access matrix over random projects", () => {
   const seeds = [1, 2, 3, 4, 5, 6];
 

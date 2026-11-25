@@ -174,7 +174,8 @@ function assertionsOf(
         case "denied": {
           return [
             {
-              sql: `select extensions.ok(extensions.bsb_attempt(${statement}) in ('denied', 'rows:0'), ${quoteLiteral(`${label} reaches no row`)});`,
+              // A refused statement (a trigger, a constraint) reaches no row either.
+              sql: `select extensions.ok(r in ('denied', 'rows:0') or r like 'error:%', ${quoteLiteral(`${label} reaches no row`)}) from extensions.bsb_attempt(${statement}) as r;`,
             },
           ];
         }
