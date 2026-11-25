@@ -128,7 +128,7 @@ Admin, `next start`, `actions.spec.ts`. After the composite is one call, the res
 | bookWithReminder      | 9            | 8           | 2 to 2                | eab25f2535 |
 | payDueBills           | 7            | 6           | 4 to 4                | 4a9a637725 |
 | openTicket            | 6            | 4           | 3 to 2                | a93d8063fc |
-| closeAccountingPeriod | 4            | 2           | 3 to 2                | (this PR)  |
+| closeAccountingPeriod | 4            | 2           | 3 to 2                | 61760799cd |
 | discussCase (kept)    | 5            | 4           | 2 to 2                | none       |
 
 `discussCase` stays as is. The app passes no tags, so `collaboration.discuss` is one `create_comment` call already; the measured drop from 5 to 4 calls comes from the shell work, not from the composite. A SQL function would only pay off for a caller that attaches tags, where it replaces one `attach` call per tag.
