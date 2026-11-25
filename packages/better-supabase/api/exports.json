@@ -12776,6 +12776,7 @@
       "BankMatchSuggestion",
       "BankMatchTarget",
       "BankReads",
+      "BankReconcileRun",
       "BankReconciliation",
       "BankReconciliationBoard",
       "BankReviewItem",
