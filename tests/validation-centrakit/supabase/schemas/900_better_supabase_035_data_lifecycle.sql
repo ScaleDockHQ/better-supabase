@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:967aeed80a91bebd9c46031d29d21c80f45147c513fc9a81f687f9374979ce1d
+-- @bsb-hash sha256:22136df905852f2ae2fa51aaa22f0ceaa79fe04e1965b03335cd28caf032bbc3
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1018,7 +1018,7 @@ begin
     select t.name, t.tbl, t.col, t.omit, to_regclass(t.tbl) as oid
     from "better_supabase"."data_lifecycle_tables"() t
     where t.subject = 'organization' and t.exported and to_regclass(t.tbl) is not null
-      and t.name <> all (array['better_supabase.api_keys', 'better_supabase.import_chunks', 'better_supabase.import_records', 'better_supabase.permission_overrides', 'better_supabase.support_requests', 'better_supabase.support_sessions', 'centrakit.audit_logs', 'centrakit.import_runs', 'centrakit.organization_invitations', 'centrakit.organization_users', 'centrakit.workflow_events']::text[])
+      and t.name <> all (array['better_supabase.api_keys', 'better_supabase.conversation_members', 'better_supabase.drive_drive_grants', 'better_supabase.import_chunks', 'better_supabase.import_records', 'better_supabase.permission_overrides', 'better_supabase.subject_members', 'better_supabase.support_requests', 'better_supabase.support_sessions', 'centrakit.audit_logs', 'centrakit.file_node_grant', 'centrakit.import_runs', 'centrakit.organization_invitations', 'centrakit.organization_users', 'centrakit.share_links', 'centrakit.team_members', 'centrakit.teams', 'centrakit.webhook_destination_secrets', 'centrakit.workflow_events']::text[])
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'name', l.name,

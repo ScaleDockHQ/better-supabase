@@ -4,7 +4,7 @@
 -- importer an owner or lift a quota. The run's creator needs the restore key
 -- (organization.delete by default): the owner (…a1) has it, the member (…a2) not.
 begin;
-select plan(6);
+select plan(7);
 
 insert into better_supabase.import_runs (id, tenant_id, source, created_by) values
   ('00000000-0000-4000-8000-0000000a7001', '00000000-0000-4000-8000-000000000001', 'restore', '00000000-0000-4000-8000-0000000000a1'),
@@ -17,6 +17,12 @@ select ok(
     where x.value ->> 'name' in ('public.memberships', 'better_supabase.permission_overrides', 'better_supabase.usage_quotas',
       'better_supabase.billing_subscriptions', 'better_supabase.support_sessions', 'better_supabase.api_keys')),
   'the restore lists no membership, permission, usage, billing, support or key table'
+);
+select ok(
+  not exists (select 1 from jsonb_array_elements(better_supabase.data_restore_tables()) x
+    where x.value ->> 'name' in ('better_supabase.team_members', 'better_supabase.approval_requests', 'better_supabase.guest_grants',
+      'better_supabase.drive_grants', 'better_supabase.share_links', 'better_supabase.subject_members', 'better_supabase.connector_grants')),
+  'the restore lists no team, approval, guest, grant or share link table'
 );
 select ok(
   exists (select 1 from jsonb_array_elements(better_supabase.data_restore_tables()) x where x.value ->> 'name' = 'better_supabase.companies'),

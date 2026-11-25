@@ -22,7 +22,7 @@ export const RESTORE_CONTRACT: readonly BlockSqlContractFunction[] = [
  * restore runs as the service role for a tenant, so it never writes them: an
  * edited export could otherwise make its importer an owner or lift a quota.
  */
-const CONTROL_MODULES: readonly string[] = [
+export const CONTROL_MODULES: readonly string[] = [
   "memberships",
   "invitations",
   "permissions",
@@ -44,6 +44,37 @@ const CONTROL_MODULES: readonly string[] = [
   "rate-limit",
   "ai-keys",
   "credentials",
+  "teams",
+  "guests",
+  "approvals",
+  "access-requests",
+  "agents",
+  "share-links",
+  "oauth-server",
+  "mfa",
+  "identities",
+  "organizations",
+  "connectors",
+  "agent-checkout",
+];
+
+/**
+ * Tables of other blocks that grant access or hold a secret: `module.table`.
+ * `tests/sql/modules/data-lifecycle-restore.test.ts` fails when a block adds a
+ * tenant table whose name says it decides access and neither list has it.
+ */
+export const CONTROL_TABLES: readonly string[] = [
+  "drive.grants",
+  "drive.driveGrants",
+  "inspections.members",
+  "invoices.approvalLevels",
+  "invoices.approvals",
+  "knowledge.collectionGrants",
+  "messaging.members",
+  "deals.members",
+  "subjects.members",
+  "webhooks.secrets",
+  "workflow-editor.credentials",
 ];
 
 /**
@@ -51,13 +82,18 @@ const CONTROL_MODULES: readonly string[] = [
  * and `options.restoreExclude` for the app's own (such as its billing tables).
  */
 function restoreExcluded(ctx: BlockSqlContext): readonly string[] {
-  const own = CONTROL_MODULES.filter((module) =>
-    ctx.installedModules.includes(module),
-  ).flatMap((module) => {
+  const own = ctx.installedModules.flatMap((module) => {
     const of = ctx.of(module);
 
     return Object.entries(of.names.tables).flatMap(([logical, spec]) => {
-      if (spec.lifecycle?.tenant === undefined || !of.hasTable(logical)) {
+      if (
+        spec.lifecycle?.tenant === undefined ||
+        !of.hasTable(logical) ||
+        !(
+          CONTROL_MODULES.includes(module) ||
+          CONTROL_TABLES.includes(`${module}.${logical}`)
+        )
+      ) {
         return [];
       }
 
