@@ -9,7 +9,6 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/reui/alert";
-import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,26 +26,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-import type { ControlRow } from "../compliance-queries";
+import { Link } from "@/i18n/navigation";
 
 import { getFramework } from "../compliance-queries";
+import { ControlStatusBadge } from "./control-status-badge";
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
 async function retry() {
   "use server";
   refresh();
 }
-
-const STATUS_VARIANT: Record<
-  ControlRow["status"],
-  "destructive-light" | "secondary" | "success-light"
-> = {
-  passing: "success-light",
-  failing: "destructive-light",
-  not_started: "secondary",
-  not_applicable: "secondary",
-};
 
 /** Render inside `<Suspense>`: one framework and the status of each control. */
 export async function FrameworkDetail({
@@ -82,13 +71,6 @@ export async function FrameworkDetail({
 
   const { name, version, controls } = state.data;
 
-  const statusLabels: Record<ControlRow["status"], string> = {
-    passing: t("Passing"),
-    failing: t("Failing"),
-    not_started: t("Not started"),
-    not_applicable: t("Not applicable"),
-  };
-
   return (
     <Card>
       <CardHeader>
@@ -123,15 +105,20 @@ export async function FrameworkDetail({
                   <TableCell className="font-mono text-xs">
                     {control.code}
                   </TableCell>
-                  <TableCell className="font-medium">{control.title}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link
+                      href={`/compliance/controls/${control.id}`}
+                      className="hover:underline"
+                    >
+                      {control.title}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {control.source ?? "-"}
                     {control.jurisdiction ? ` (${control.jurisdiction})` : ""}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_VARIANT[control.status]}>
-                      {statusLabels[control.status]}
-                    </Badge>
+                    <ControlStatusBadge status={control.status} />
                   </TableCell>
                 </TableRow>
               ))}

@@ -35,6 +35,8 @@ const TABLE_OF_ROUTE = {
   "/incidents/[id]": "incidents",
   "/deadlines/[id]": "deadlines",
   "/meetings/[id]": "meetings",
+  "/compliance/[framework]": "control_frameworks",
+  "/compliance/controls/[id]": "controls",
   "/settings/option-sets/[id]": "option_sets",
   "/forms/[id]": "forms",
   "/maintenance/meters/[id]": "maintenance_meters",

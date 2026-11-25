@@ -210,6 +210,18 @@ export const ACTIONS: readonly ActionCase[] = [
   write(COMPOSITES, "closeAccountingPeriod", "/finance/periods", async () => [
     { periodId: MISSING_ID },
   ]),
+  write(
+    "features/compliance/compliance-actions.ts",
+    "addControlEvidence",
+    "/compliance/controls/[id]",
+    async () => [{ controlId: MISSING_ID, note: "Access review evidence" }],
+  ),
+  write(
+    "features/dunning/dunning-actions.ts",
+    "applyStandardDunningLevels",
+    "/finance/invoices",
+    async () => [{}],
+  ),
   write(COMPOSITES, "payDueBills", "/finance/payables", async () => [
     {
       accountId: await firstRowId("bank_accounts"),
