@@ -50,7 +50,7 @@ import { isReadSet, readSetTables } from "../core/read-set.ts";
 import { err } from "../core/result.ts";
 import { isFunctionSpec, isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
-import { EMPTY_STATS } from "../core/stats.ts";
+import { byteSizeOf, EMPTY_STATS } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
 import { ACCOUNT_PARTS } from "../server/account-parts.ts";
 import { adapterBase } from "../server/adapter-base.ts";
@@ -174,9 +174,9 @@ export function createNext<
   const statsFor = (request: Request): ContextOptions =>
     statsForId(collector && requestIdOf(request.headers));
 
-  const recordTagCalls = (calls: number): void => {
+  const recordTagCalls = (calls: number, tags: readonly string[]): void => {
     recordOn(undefined, (recorder) => {
-      recorder.tagCalls(calls);
+      recorder.tagCalls(calls, tags);
     });
   };
 
@@ -610,9 +610,11 @@ export function createNext<
 
   const kept = keptBinding<ServerContext<M, F, E, C, P, B>, C, P>({
     tenantShare,
-    onEntry: (record, handle) => {
+    onEntry: (record, handle, value) => {
       recordOn(handle, (recorder) => {
-        recorder.entry(record);
+        const bytes = byteSizeOf(value);
+
+        recorder.entry(bytes === undefined ? record : { ...record, bytes });
       });
     },
     onTagCalls: recordTagCalls,

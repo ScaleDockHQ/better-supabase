@@ -22,6 +22,11 @@ export interface DbStats {
    * one per batch a store expires.
    */
   readonly tagCalls?: number;
+  /**
+   * The names of the tags those calls expired, in call order. A write that
+   * expires many tags shows which ones (and so which entries it refills).
+   */
+  readonly expiredTags?: readonly string[];
   /** One record per `bsb.kept` and `bsb.remote` call the request made. */
   readonly entries?: readonly CacheEntryStat[];
 }
@@ -44,6 +49,26 @@ export interface CacheEntryStat {
   readonly kind: "remote" | "kept" | "private" | "public";
   readonly outcome: "hit" | "miss" | "stale" | "wait";
   readonly fillMs?: number;
+  /**
+   * The size of the cached value as JSON, in bytes. Recorded for `kept`
+   * entries; the value of a `remote`, `private` or `public` entry never reaches
+   * the recorder (the sample's remote handler counts its own bytes).
+   */
+  readonly bytes?: number;
+}
+
+const encoder = new TextEncoder();
+
+/** The size of `value` as JSON in bytes, or `undefined` when it has none. */
+export function byteSizeOf(value: unknown): number | undefined {
+  try {
+    // `JSON.stringify` returns `undefined` for a function or `undefined`.
+    const json: unknown = JSON.stringify(value);
+
+    return typeof json === "string" ? encoder.encode(json).length : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export const EMPTY_STATS: DbStats = {
@@ -54,6 +79,7 @@ export const EMPTY_STATS: DbStats = {
   verifications: 0,
   adminCalls: 0,
   tagCalls: 0,
+  expiredTags: [],
   entries: [],
 };
 
@@ -71,6 +97,7 @@ export class StatsRecorder {
   #verifications = 0;
   #adminCalls = 0;
   #tagCalls = 0;
+  readonly #expiredTags: string[] = [];
   readonly #entries: CacheEntryStat[] = [];
   #inFlight = 0;
   #first: number | undefined;
@@ -98,10 +125,15 @@ export class StatsRecorder {
     this.#parent?.verification();
   }
 
-  /** Records `count` cache tag calls. */
-  tagCalls(count: number): void {
+  /** Records `count` cache tag calls, and the tag names when they are known. */
+  tagCalls(count: number, tags?: readonly string[]): void {
     this.#tagCalls += count;
-    this.#parent?.tagCalls(count);
+
+    if (tags) {
+      this.#expiredTags.push(...tags);
+    }
+
+    this.#parent?.tagCalls(count, tags);
   }
 
   /** Records how one cached call was served. */
@@ -159,6 +191,7 @@ export class StatsRecorder {
       verifications: this.#verifications,
       adminCalls: this.#adminCalls,
       tagCalls: this.#tagCalls,
+      expiredTags: [...this.#expiredTags],
       entries: [...this.#entries],
     };
   }

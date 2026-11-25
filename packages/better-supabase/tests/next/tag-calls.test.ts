@@ -22,6 +22,16 @@ describe("invalidateAll", () => {
     expect(calls).toEqual([3]);
   });
 
+  it("reports the names of the tags it expired", () => {
+    const seen: (readonly string[])[] = [];
+    const off = onTagCalls((_count, tags) => seen.push(tags));
+
+    invalidateAll(["bsb:deals", "bsb:deals@t1"]);
+    off();
+
+    expect(seen).toEqual([["bsb:deals", "bsb:deals@t1"]]);
+  });
+
   it("counts the revalidateTag calls outside a Server Action", () => {
     const calls: number[] = [];
     const off = onTagCalls((count) => calls.push(count));

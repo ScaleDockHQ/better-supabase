@@ -6,6 +6,7 @@ import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import {
   EMPTY_STATS,
+  byteSizeOf,
   StatsRecorder,
   recordingFetch,
 } from "../../src/core/stats.ts";
@@ -93,6 +94,26 @@ describe("StatsRecorder verifications and admin calls", () => {
       verifications: 1,
       adminCalls: 1,
     });
+  });
+});
+
+describe("StatsRecorder cache details", () => {
+  it("keeps the expired tag names and reports them to the parent", () => {
+    const parent = new StatsRecorder();
+    const child = new StatsRecorder(parent);
+
+    child.tagCalls(2, ["bsb:a", "bsb:b"]);
+    child.tagCalls(1);
+
+    expect(parent.snapshot()).toMatchObject({
+      tagCalls: 3,
+      expiredTags: ["bsb:a", "bsb:b"],
+    });
+  });
+
+  it("measures a value as JSON bytes", () => {
+    expect(byteSizeOf({ a: "é" })).toBe(10);
+    expect(byteSizeOf(undefined)).toBeUndefined();
   });
 });
 

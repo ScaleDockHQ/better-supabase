@@ -166,6 +166,8 @@ async function callAction(
     hits: entries.length - misses,
     misses,
     tagCalls: body.tagCalls ?? 0,
+    expiredTags: body.expiredTags?.length ?? 0,
+    keptBytes: entries.reduce((sum, e) => sum + (e.bytes ?? 0), 0),
   });
 }
 

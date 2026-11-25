@@ -51,6 +51,8 @@ export interface PerfInputs {
   readonly actions?: Readonly<Record<string, Measures>>;
   readonly auth?: Measures;
   readonly actionCoverage?: Measures;
+  /** Cache tiers by route and scenario, from cache.spec.ts. */
+  readonly cache?: Measures;
   /**
    * Uncompressed first-load JS per route, from
    * `.next/diagnostics/route-bundle-stats.json`.
@@ -102,6 +104,120 @@ export const summarizePages = (user: string, pages: Measures): Summary => ({
 
 const table = (rows: readonly (readonly (string | number)[])[]): string =>
   rows.map((row) => `| ${row.join(" | ")} |`).join("\n");
+
+/** The scenarios of cache.spec.ts, in the order of a visitor's day. */
+const CACHE_SCENARIOS = ["hard1", "hard2", "user2", "restart"] as const;
+
+/** `served` of `visits` as a percentage, or `-` with no visits. */
+const ratio = (served: number, visits: number): string =>
+  visits === 0 ? "-" : `${Math.round((served / visits) * 100)}%`;
+
+/**
+ * The Caching section: calls per scenario for each route, the hit ratio of each
+ * tier on the second hard load, and the writes that expire the most tags. A
+ * private or public entry records only its miss, so its visits are the most
+ * misses any scenario saw and its hits are visits minus misses.
+ */
+export const cacheLines = (
+  cache: Measures,
+  actions: Measures | undefined,
+): readonly string[] => {
+  const routes = Object.entries(cache);
+
+  if (routes.length === 0) {
+    return [];
+  }
+
+  const sum = (scenario: string, field: string): number =>
+    routes.reduce(
+      (total, [, v]) => total + (v[`${scenario}_${field}`] ?? 0),
+      0,
+    );
+
+  const visits = (field: string): number =>
+    routes.reduce(
+      (total, [, v]) =>
+        total +
+        Math.max(...CACHE_SCENARIOS.map((s) => v[`${s}_${field}`] ?? 0)),
+      0,
+    );
+
+  const privateVisits = visits("privateMisses");
+  const publicVisits = visits("publicMisses");
+
+  const tiers = (scenario: string): readonly (string | number)[] => {
+    const remote = sum(scenario, "remoteHits");
+    const remoteAll = remote + sum(scenario, "remoteMisses");
+    const kept = sum(scenario, "keptHits");
+    const keptAll = kept + sum(scenario, "keptMisses");
+
+    return [
+      scenario,
+      sum(scenario, "calls"),
+      ratio(remote, remoteAll),
+      ratio(kept, keptAll),
+      ratio(privateVisits - sum(scenario, "privateMisses"), privateVisits),
+      ratio(publicVisits - sum(scenario, "publicMisses"), publicVisits),
+      sum(scenario, "handlerBytesRead"),
+    ];
+  };
+
+  const writes = Object.entries(actions ?? {})
+    .map(([name, v]) => ({ name, value: v["expiredTags"] ?? 0 }))
+    .filter((w) => w.value > 0)
+    .toSorted((a, b) => b.value - a.value)
+    .slice(0, 10);
+
+  return [
+    "## Caching",
+    "",
+    `${routes.length} routes, each loaded as a hard load, a second hard load, a second user of the organization and on a restarted server (tests/cache.spec.ts). Calls are database calls summed over the routes; a ratio is the share of lookups a tier served.`,
+    "",
+    table([
+      [
+        "Scenario",
+        "Calls",
+        "Remote",
+        "Kept",
+        "Private",
+        "Public",
+        "Remote bytes read",
+      ],
+      ["---", "---", "---", "---", "---", "---", "---"],
+      ...CACHE_SCENARIOS.map(tiers),
+    ]),
+    "",
+    "Calls saved by the second hard load, by route:",
+    "",
+    table([
+      ["Route", "Hard 1", "Hard 2", "User 2", "Restart", "Kept bytes"],
+      ["---", "---", "---", "---", "---", "---"],
+      ...routes.map(([route, v]) => [
+        route,
+        v["hard1_calls"] ?? "-",
+        v["hard2_calls"] ?? "-",
+        v["user2_calls"] ?? "-",
+        v["restart_calls"] ?? "-",
+        v["hard2_keptBytes"] ?? "-",
+      ]),
+    ]),
+    "",
+    writes.length === 0
+      ? "No measured action expired a tag."
+      : "Actions that expire the most tags:",
+    "",
+    ...(writes.length === 0
+      ? []
+      : [
+          table([
+            ["Action", "Tags"],
+            ["---", "---"],
+            ...writes.map((w) => [w.name, w.value]),
+          ]),
+          "",
+        ]),
+  ];
+};
 
 /** The markdown of docs/agents/example-perf.md. */
 export const markdown = (inputs: PerfInputs, label: string): string => {
@@ -213,6 +329,8 @@ export const markdown = (inputs: PerfInputs, label: string): string => {
       "",
     );
   }
+
+  lines.push(...cacheLines(inputs.cache ?? {}, inputs.actions?.["admin"]));
 
   if (inputs.auth) {
     lines.push(
@@ -327,6 +445,7 @@ if (argv[1] === import.meta.filename) {
     actions: byUser("actions"),
     auth: read(`${perf}/auth-cost.json`, {}),
     actionCoverage: read(`${perf}/actions-coverage.json`, {}),
+    cache: read(`${perf}/cache.json`, {}),
     firstLoadJs: read("apps/examples/nextjs/perf/first-load.json", {}),
   };
 
