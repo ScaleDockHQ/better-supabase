@@ -10,7 +10,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     updateRolePlatform: "platform",
     removeMemberPlatform: "platform",
   },
-  audit: { reveal: "tenant" },
+  audit: { reveal: "tenant", revealPlatform: "platform" },
   banking: {
     createBatch: "tenant",
     postBatch: "tenant",

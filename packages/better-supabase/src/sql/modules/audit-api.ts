@@ -4,7 +4,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, pageSize, userGrant, raise } from "../shared.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import { auditRead, isAuditValueColumn } from "./audit-values.ts";
-import { OPERATIONS, modulePermission } from "./permissions-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 /** Logical log column to the key `list_audit_events` returns it under. */
 const ENTRY_KEYS: readonly (readonly [string, string])[] = [
@@ -367,8 +367,6 @@ export function reveal(ctx: BlockSqlContext, restricted: boolean): string {
     ctx.permissionKey("read", OPERATIONS["audit.read"]),
   );
 
-  const viewAll = modulePermission(ctx, "readAll", OPERATIONS["audit.readAll"]);
-
   const fields = (
     [
       ["old", "old"],
@@ -384,8 +382,17 @@ export function reveal(ctx: BlockSqlContext, restricted: boolean): string {
     .map(([logical, out]) => `, '${out}', d.${r(logical)}`)
     .join("");
 
+  // Platform staff reveal with a platform reveal key, not the read-all key.
+  const revealPlatform = ctx.permission(
+    "revealPlatform",
+    ctx.permissionKey(
+      "reveal",
+      ctx.permissionKey("read", OPERATIONS["audit.read"]),
+    ),
+  );
+
   const allowed = (tenant: string) => `(${SERVICE_CALLER})
-    or ${ctx.scope.platform(viewAll)}
+    or ${ctx.scope.platform(revealPlatform)}
     or (${tenant} is not null and coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${key}), false))`;
 
   return `-- The restricted details of one entry for a member with the reveal
