@@ -136,6 +136,14 @@ export const checkCoverage = (
         );
       }
     }
+
+    for (const action of area.actions) {
+      if (!routeExists(action.route, root)) {
+        problems.push(
+          `Area "${area.id}" runs ${action.name} on ${action.route}, which has no page.tsx`,
+        );
+      }
+    }
   }
 
   return { problems, planned, covered, noUi };

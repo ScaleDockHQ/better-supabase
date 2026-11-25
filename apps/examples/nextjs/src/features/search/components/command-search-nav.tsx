@@ -1,3 +1,4 @@
+import { areaCommands } from "@/features/areas/area-commands";
 import { getNavLabel } from "@/features/navigation/components/nav-label-server";
 import { navItems } from "@/features/navigation/nav-items";
 import { getVisibleNavIds } from "@/features/navigation/visible-nav";
@@ -19,6 +20,8 @@ export async function CommandSearchNav() {
     getPermissions(),
   ]);
 
+  const visibleItems = navItems.filter((item) => visible.includes(item.id));
+
   return (
     <CommandSearchLazy
       canCreate={{
@@ -27,13 +30,15 @@ export async function CommandSearchNav() {
         deal: can(permissions, "deals.write"),
         quote: can(permissions, "quotes.write"),
       }}
-      pages={navItems
-        .filter((item) => visible.includes(item.id))
-        .map((item) => ({
-          id: item.id,
-          href: item.href,
-          label: label(item.id),
-        }))}
+      pages={visibleItems.map((item) => ({
+        id: item.id,
+        href: item.href,
+        label: label(item.id),
+      }))}
+      areas={areaCommands({
+        visibleHrefs: visibleItems.map((item) => item.href),
+        hubs: visible.includes("areas"),
+      })}
     />
   );
 }
