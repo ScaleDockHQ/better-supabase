@@ -1,6 +1,6 @@
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:3c396b191d120d0152e61670420df851b6d7e1dbff65e6d8e9d760c05bac5cd8
+-- @bsb-hash sha256:11641b302eb57d1cce8273f54cc6e6a26dbe49191cacafa671960c7c783c046c
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -622,11 +622,7 @@ as $$
         'under', greatest(a."units" - s.used, 0)
       ) order by s.start)
       from (
-        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, (
-          select coalesce(sum(x."units"), 0) from "better_supabase"."funding_deliveries" x
-          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
-            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
-        ) as used
+        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, u.used
         from (
           select pg_catalog.generate_series(
             (case a."period" when 'week' then date_trunc('week', a."starts_on")::date when 'month' then date_trunc('month', a."starts_on")::date else a."starts_on" end)::timestamp,
@@ -637,6 +633,14 @@ as $$
           union all
           select a."starts_on" where a."period" = 'total'
         ) g
+        -- A lateral aggregate: a scalar subquery in the select list is copied into
+        -- every reference of `s.used` when the planner flattens `s`, which ran the
+        -- deliveries policy three times per period.
+        cross join lateral (
+          select coalesce(sum(x."units"), 0) as used from "better_supabase"."funding_deliveries" x
+          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
+            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
+        ) u
       ) s
     ), '[]'::jsonb)
   )

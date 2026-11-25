@@ -484,11 +484,7 @@ as $$
         'under', greatest(a.${w("units")} - s.used, 0)
       ) order by s.start)
       from (
-        select g.start, ${periodEnd(ctx, "a", "g.start")} as finish, (
-          select coalesce(sum(x.${d("units")}), 0) from ${deliveries} x
-          where x.${d("tenant")} = a.${w("tenant")} and x.${d("award")} = a.${w("id")} and x.${d("status")} <> 'rejected'
-            and x.${d("deliveredOn")} >= g.start and x.${d("deliveredOn")} < ${periodEnd(ctx, "a", "g.start")}
-        ) as used
+        select g.start, ${periodEnd(ctx, "a", "g.start")} as finish, u.used
         from (
           select pg_catalog.generate_series(
             ${periodStart(ctx, "a", `a.${w("startsOn")}`)}::timestamp,
@@ -499,6 +495,14 @@ as $$
           union all
           select a.${w("startsOn")} where a.${w("period")} = 'total'
         ) g
+        -- A lateral aggregate: a scalar subquery in the select list is copied into
+        -- every reference of \`s.used\` when the planner flattens \`s\`, which ran the
+        -- deliveries policy three times per period.
+        cross join lateral (
+          select coalesce(sum(x.${d("units")}), 0) as used from ${deliveries} x
+          where x.${d("tenant")} = a.${w("tenant")} and x.${d("award")} = a.${w("id")} and x.${d("status")} <> 'rejected'
+            and x.${d("deliveredOn")} >= g.start and x.${d("deliveredOn")} < ${periodEnd(ctx, "a", "g.start")}
+        ) u
       ) s
     ), '[]'::jsonb)
   )
