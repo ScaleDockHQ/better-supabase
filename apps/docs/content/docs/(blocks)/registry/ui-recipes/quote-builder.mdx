@@ -30,7 +30,7 @@ export async function QuoteBuilder({ id }: { id: string }) {
     forbidden();
   }
 
-  const loaded = await settle(() => loadQuote(id));
+  const loaded = await settle(() => getQuote(id));
 
   if (loaded.kind === "no-organization") {
     return null;

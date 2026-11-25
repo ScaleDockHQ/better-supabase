@@ -181,6 +181,26 @@ When you rename a block's nouns with `blocks.<name>.names`, its tables,
 functions, events and permission keys follow the new singular; see
 [Typed blocks](/docs/blocks/typed-blocks).
 
+## Verbs
+
+A name says what a function does with its first word, and the verb is the same in
+TypeScript, in generated code and in SQL.
+
+| Verb                                   | Meaning                                                                       |
+| -------------------------------------- | ----------------------------------------------------------------------------- |
+| `get`                                  | reads one thing or a list from a source (a database, a file, the environment) |
+| `use`                                  | a hook                                                                        |
+| `create`, `update`, `upsert`, `delete` | writes, in repositories, actions and SQL functions                            |
+
+There is no `load`, `fetch` or `read` verb in an exported function name, and no
+`loaded` in data code. `pnpm check:naming` fails on one unless
+`api/naming.json` lists it under `verbs` with its reason. The names that stay are
+factories around `fetch`, parsers that compute from their argument, and names
+that are concepts, such as read sets. The block record binding member that was
+`load` is `get`, so `bsb.record(...).load(id)` is `bsb.record(...).get(id)`.
+[ADR 1250](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1250-get-is-the-read-verb.md)
+records the decision.
+
 ## Renames
 
 `packages/better-supabase/api/naming.json` is the source of truth for names.
@@ -243,9 +263,30 @@ the config key.
 function returns a promise, so `codemod naming` renames the call and you add
 the `await`.
 
-| Kind     | Old           | New          | Since |
-| -------- | ------------- | ------------ | ----- |
-| function | `readSession` | `ssrSession` | 0.67  |
+| Kind     | Old                   | New                  | Since |
+| -------- | --------------------- | -------------------- | ----- |
+| function | `readSession`         | `ssrSession`         | 0.67  |
+| function | `loadBindings`        | `getBindings`        | 0.88  |
+| function | `loadConfig`          | `getConfig`          | 0.88  |
+| function | `loadEnv`             | `getEnv`             | 0.88  |
+| function | `loadJsonPath`        | `getJsonPath`        | 0.88  |
+| function | `loadMyWork`          | `getMyWork`          | 0.88  |
+| function | `loadProject`         | `getProject`         | 0.88  |
+| function | `loadSnapshot`        | `getSnapshot`        | 0.88  |
+| function | `loadTimeline`        | `getTimeline`        | 0.88  |
+| function | `readArgSource`       | `getArgSource`       | 0.88  |
+| function | `readArgSqlType`      | `getArgSqlType`      | 0.88  |
+| function | `readBitstringStatus` | `getBitstringStatus` | 0.88  |
+| function | `readC2paManifest`    | `getC2paManifest`    | 0.88  |
+| function | `readCatalog`         | `getCatalog`         | 0.88  |
+| function | `readDesignFile`      | `getDesignFile`      | 0.88  |
+| function | `readGrants`          | `getGrants`          | 0.88  |
+| function | `readPolicies`        | `getPolicies`        | 0.88  |
+| function | `readRulePolicies`    | `getRulePolicies`    | 0.88  |
+| function | `readSecurityCatalog` | `getSecurityCatalog` | 0.88  |
+| function | `readStatus`          | `getStatus`          | 0.88  |
+| function | `tableLoaders`        | `tableGetters`       | 0.88  |
+| function | `loadFunctions`       | `getFunctions`       | 0.88  |
 
 Columns renamed in 0.66, so timestamps end in `_at` and a user reference
 names the user's role. `better-supabase upgrade` renames them in place
@@ -274,5 +315,6 @@ The rules:
   entity noun gives, and on an event verb the rules ban. Both lists only
   shrink.
 - The helper functions live in `better_supabase`. The `bsb` schema is gone.
+- Reads are `get*`, never `load*`, `fetch*` or `read*` (ADR 1250).
 - Doctor codes are `BS` and three digits, never lower case.
 - A subpath is `better-supabase/<area>` or `better-supabase/<area>/<variant>`.

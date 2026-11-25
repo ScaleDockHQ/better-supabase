@@ -33,7 +33,7 @@ export async function HiringBoard({
     forbidden();
   }
 
-  const board = await settle(loadHiringBoard);
+  const board = await settle(getHiringBoard);
 
   if (board.kind === "no-organization") {
     return null;

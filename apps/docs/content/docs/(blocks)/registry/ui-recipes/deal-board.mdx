@@ -28,7 +28,7 @@ export async function DealBoard() {
     forbidden();
   }
 
-  const board = await settle(loadDealBoard);
+  const board = await settle(getDealBoard);
 
   if (board.kind === "no-organization") {
     return null;

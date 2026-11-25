@@ -18,7 +18,7 @@ the whole page in one wave, never one query per row:
 | Column  | Cell                                                                     |
 | ------- | ------------------------------------------------------------------------ |
 | `count` | how many rows the binding has, from its `count` (one query for the page) |
-| `data`  | the binding's rows, from its `column`, or one `load` per row in one wave |
+| `data`  | the binding's rows, from its `column`, or one `get` per row in one wave  |
 
 ```ts title="src/features/customers/customer-record-list.ts"
 import "server-only";
@@ -38,7 +38,7 @@ export const customerRecordList = defineRecordList(
 export const customerRecords = recordListServer(bsb, customerRecordList);
 ```
 
-`load(searchParams)` parses the URL state, runs the list query and fills the
+`get(searchParams)` parses the URL state, runs the list query and fills the
 columns. It returns `{ query, page, rows, filterFields, can }`: each row holds
 its `subject`, its `row` and its `cells`, and every cell settles on its own
 like a binding (`ok`, `error` or `hidden`). A column the caller can't read is
@@ -49,7 +49,7 @@ like a binding (`ok`, `error` or `hidden`). A column the caller can't read is
 import { customerRecords } from "@/features/customers/customer-record-list";
 
 export async function GET(request: Request): Promise<Response> {
-  const result = await customerRecords.load(new URL(request.url).searchParams);
+  const result = await customerRecords.get(new URL(request.url).searchParams);
 
   if (!result.ok) {
     return Response.json(result.error, {
@@ -63,7 +63,7 @@ export async function GET(request: Request): Promise<Response> {
 
 `recordListServer` returns plain data (Temporal values become ISO strings), so
 the page passes straight to a Client Component. Outside Next.js, call
-`customerRecordList.load({ db, clients, permissions }, searchParams)` with the
+`customerRecordList.get({ db, clients, permissions }, searchParams)` with the
 repositories, the record type's block clients and the caller's permission set.
 
 ## Keep the list state in the URL
@@ -94,7 +94,7 @@ in nuqs's `NuqsAdapter` once.
 
 ## A record's timeline
 
-`loadTimeline(source, subject)` loads every binding that maps its rows to
+`getTimeline(source, subject)` loads every binding that maps its rows to
 timeline entries and merges them, newest first. The comments, versions and
 attachments bindings do this; a block's own binding adds a `timeline` hook
 that turns a row into `{ id, kind, at, actor?, row }`. A binding that fails or
@@ -123,13 +123,13 @@ every row is one they can read.
 | `mention`  | `comments`  | comments that mention the caller, last 30 days    |
 | `sla`      | `sla`       | SLA clocks that warned on the caller's work items |
 
-A kind whose block isn't installed returns nothing. `loadMyWork` groups the
+A kind whose block isn't installed returns nothing. `getMyWork` groups the
 items by kind and counts them for tab badges, in one round trip:
 
 ```ts title="src/features/my-work/my-work-queries.ts"
-import { loadMyWork } from "better-supabase/records";
+import { getMyWork } from "better-supabase/records";
 
-const work = await loadMyWork(db.subjects, { tenant }).orThrow();
+const work = await getMyWork(db.subjects, { tenant }).orThrow();
 
 work.groups.approval; // approvals the caller can decide
 work.counts.assigned; // 3

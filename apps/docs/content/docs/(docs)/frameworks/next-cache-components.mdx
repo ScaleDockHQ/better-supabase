@@ -638,7 +638,7 @@ it first, then let `bsb.cached()` set the tags and the lifetime:
 import { bsb } from "@/lib/supabase";
 import { permissionsFor } from "@/lib/permissions";
 
-export async function loadSnapshot(organizationId: string) {
+export async function getSnapshot(organizationId: string) {
   "use cache: private";
   const session = await bsb.claims();
   const snapshot = permissionsFor(session, organizationId);
@@ -657,14 +657,14 @@ layout stays synchronous and the snapshot streams in:
 
 ```tsx title="src/app/[organizationSlug]/layout.tsx"
 import { PermissionsProvider } from "@/components/permissions-provider";
-import { loadSnapshot } from "@/lib/access";
+import { getSnapshot } from "@/lib/access";
 
 export default function OrganizationLayout({
   children,
   params,
 }: LayoutProps<"/[organizationSlug]">) {
   const snapshotPromise = params.then(({ organizationSlug }) =>
-    loadSnapshot(organizationSlug),
+    getSnapshot(organizationSlug),
   );
   return (
     <PermissionsProvider snapshotPromise={snapshotPromise}>
@@ -691,7 +691,7 @@ without verifying the token again. `null` gives the signed-out context.
 
 ### Record pages without `my_permissions`
 
-`bsb.record(type).load()`, `.timeline()` and `recordListServer` need the
+`bsb.record(type).get()`, `.timeline()` and `recordListServer` need the
 caller's keys for their `can` flags. By default they call `my_permissions` with
 the keys the record type checks, once per call. Pass `heldPermissions` to
 `createNext` to give them a source that costs no database call, such as the

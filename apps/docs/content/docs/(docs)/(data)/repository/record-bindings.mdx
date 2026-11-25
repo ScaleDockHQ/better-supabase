@@ -59,8 +59,8 @@ file serves the server, React and TanStack Query.
 
 ### In a Server Component
 
-`bsb.record(customerRecord)` returns `load`, `timeline`, `actions` and `tags`
-for the record type. `load(id, options?)` loads the bindings and the caller's
+`bsb.record(customerRecord)` returns `get`, `timeline`, `actions` and `tags`
+for the record type. `get(id, options?)` gets the bindings and the caller's
 `can` flags as plain data (Temporal values become ISO strings), so the view
 passes straight to a Client Component. It reads the request, so call it
 outside `"use cache"`:
@@ -81,7 +81,7 @@ export default async function CustomerPage({
   params,
 }: PageProps<"/customers/[id]">) {
   const { id } = await params;
-  const view = await customerPage.load(id, {
+  const view = await customerPage.get(id, {
     bindings: ["comments", "versions"],
     options: { versions: { pageSize: 20 } },
   });
@@ -163,12 +163,12 @@ is a plain function, so a hand-written record type works the same way.
 
 ## Load a record
 
-`loadBindings(source, subject, names, options?)` takes the manifests and the
+`getBindings(source, subject, names, options?)` takes the manifests and the
 clients built from them, keyed alike, such as `blockSet.blocks` and
 `db.$blocks`. It runs the bindings in parallel and never throws:
 
 ```ts title="src/features/customers/customer-queries.ts"
-import { loadBindings, bindingCan } from "better-supabase/records";
+import { getBindings, bindingCan } from "better-supabase/records";
 
 import { blockSet, type AppDb } from "@/lib/supabase";
 import { permissions } from "@/lib/supabase/blocks.generated";
@@ -176,7 +176,7 @@ import { permissions } from "@/lib/supabase/blocks.generated";
 export async function customerBindings(db: AppDb, id: string) {
   const set = await db.permissions.permissions();
 
-  return loadBindings(
+  return getBindings(
     { blocks: blockSet.blocks, clients: db.$blocks },
     { type: "customer", id },
     ["comments", "attachments", "tags"],
@@ -203,7 +203,7 @@ fails with `unsupported` for a binding without `count`.
 ### With `"use cache"`
 
 A cached function stores what it returns, so a settled `error` would stay
-cached. Call `loadBindings` outside `"use cache"`, or throw on `error` inside
+cached. Call `getBindings` outside `"use cache"`, or throw on `error` inside
 it so the failure isn't stored, and tag the cached read with
 [`bindingTag`](/docs/frameworks/next#record-bindings) so a write drops it.
 
@@ -298,7 +298,7 @@ import { defineRecordBinding } from "better-supabase/records";
 
 export const workNotesBinding = defineRecordBinding({
   permissions: { read: "read", write: "create" },
-  load: (client: WorkNotes, subject) => client.list(subject),
+  get: (client: WorkNotes, subject) => client.list(subject),
   count: (client: WorkNotes, subjects) => client.countFor(subjects),
   events: ["work-note.*"],
 });
@@ -315,7 +315,7 @@ export const workNotesBlock = defineBlock({
 | ------------- | ------------------------------------------------------------------------------------ |
 | `permissions` | The module actions the binding reads and writes with, keys of `permissions.<module>` |
 | `module`      | The SQL module those actions belong to; default the block's first one                |
-| `load`        | The rows for one subject, as an `AsyncResult`                                        |
+| `get`         | The rows for one subject, as an `AsyncResult`                                        |
 | `count`       | Optional: rows per subject, keyed `type:id`                                          |
 | `events`      | The block events that make the binding stale; `*` ends a prefix                      |
 | `optimistic`  | Optional: a reducer for `useOptimistic`                                              |

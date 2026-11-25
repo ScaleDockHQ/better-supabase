@@ -140,11 +140,11 @@ the browser values from it:
 
 ```ts title="src/lib/supabase/server.ts"
 import "server-only";
-import { loadEnv } from "better-supabase/env";
+import { getEnv } from "better-supabase/env";
 import { createNext } from "better-supabase/next";
 import { betterSupabase } from "./index";
 
-export const env = loadEnv();
+export const env = getEnv();
 export const bsb = createNext(betterSupabase, { env });
 ```
 

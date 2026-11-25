@@ -23,7 +23,7 @@ export async function PrivacySettings() {
   const [t, format, result] = await Promise.all([
     getExtracted("privacy"),
     getFormatter(),
-    loadSettings(),
+    getSettings(),
   ]);
 
   if (result.kind === "error") {

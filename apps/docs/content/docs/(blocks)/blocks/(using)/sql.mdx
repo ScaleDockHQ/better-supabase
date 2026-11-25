@@ -2102,7 +2102,7 @@ memo keeps one call per transaction cheap. The functions ship with the
 
 `better-supabase/sql` builds, renders and reads row level security policies.
 `policy()` makes a typed `Policy`, `renderPolicy()` writes the `create policy`
-statement, and `readPolicies()` and `readGrants()` read them back from a script
+statement, and `getPolicies()` and `getGrants()` read them back from a script
 without being fooled by comments, strings or dollar-quoted bodies.
 
 ```ts
@@ -2140,7 +2140,7 @@ A `Rule` is a small tree: `public`, `owner`, `member`, `can`, `compare`,
 `null`, `and`, `or` and `not`. `rulePolicy()` renders it into a policy that
 calls only `better_supabase.is_member`, `better_supabase.can`, `better_supabase.owns` and `better_supabase.uid`, and
 `renderRulePolicy()` puts the tree in a `-- @bsb rule` comment above the
-statement. `readRulePolicies()` recovers the tree and reports `inSync: false`
+statement. `getRulePolicies()` recovers the tree and reports `inSync: false`
 once someone edits the SQL by hand, so a UI knows to show the SQL instead of
 the tree.
 

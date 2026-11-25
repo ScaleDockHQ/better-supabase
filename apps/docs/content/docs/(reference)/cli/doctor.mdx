@@ -2736,7 +2736,7 @@ switched off with `blocks.<name>.schedules` (`{ expire: false }`) is left out.
 ### BS509
 
 **Error: `SUPABASE_JWKS` does not parse.** An env file sets `SUPABASE_JWKS`
-to a value that is not JSON, or that holds no key with a `kty`. `loadEnv`
+to a value that is not JSON, or that holds no key with a `kty`. `getEnv`
 rejects it, so the server fails to start. Fill it with the output of
 `curl <url>/auth/v1/.well-known/jwks.json`, as `{"keys":[...]}` or `[...]`,
 or leave it empty so the server fetches `SUPABASE_JWKS_URL`. An empty

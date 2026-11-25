@@ -37,7 +37,7 @@ export async function ContactDetail({
     forbidden();
   }
 
-  const loaded = await settle(() => loadContact(id));
+  const loaded = await settle(() => getContact(id));
 
   if (loaded.kind === "no-organization") {
     return null;

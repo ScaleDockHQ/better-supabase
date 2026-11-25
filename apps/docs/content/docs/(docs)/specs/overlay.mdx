@@ -20,9 +20,9 @@ pnpm add jsonpath-rfc9535
 ## Apply an overlay
 
 ```ts
-import { applyOverlay, loadJsonPath } from "better-supabase/spec";
+import { applyOverlay, getJsonPath } from "better-supabase/spec";
 
-const jsonpath = await loadJsonPath();
+const jsonpath = await getJsonPath();
 const { document, diagnostics } = applyOverlay(openapi, overlay, { jsonpath });
 ```
 
@@ -42,7 +42,7 @@ the action (`/actions/2`), and you decide what fails a build.
 `applyOverlays(document, overlays, options)` applies several in order and
 prefixes each pointer with the overlay's index (`/1/actions/2`).
 
-`loadJsonPath()` imports `jsonpath-rfc9535` on first use and caches it.
+`getJsonPath()` imports `jsonpath-rfc9535` on first use and caches it.
 Without the package it rejects with the install command. Any RFC 9535
 engine fits instead: pass `{ paths(document, expression) }` that returns
 the normalized paths of the selected nodes and throws for an invalid query.
@@ -55,9 +55,9 @@ needs the engine as `applyOverlays`, on the `defineApi` options or on the
 call; without one, passing `overlays` throws.
 
 ```ts title="src/api/spec.ts"
-import { applyOverlays, defineApi, loadJsonPath } from "better-supabase/spec";
+import { applyOverlays, defineApi, getJsonPath } from "better-supabase/spec";
 
-const jsonpath = await loadJsonPath();
+const jsonpath = await getJsonPath();
 
 export const api = defineApi(betterSupabase, {
   info: { title: "CRM API", version: "1.0.0" },

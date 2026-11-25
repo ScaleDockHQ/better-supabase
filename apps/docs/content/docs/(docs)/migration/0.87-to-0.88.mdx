@@ -1,0 +1,51 @@
+---
+title: From 0.87 to 0.88
+description: What to change when upgrading from better-supabase 0.87 to 0.88. Reads are get, so the load and read functions and the record binding load member are renamed.
+---
+
+0.88 renames the functions that read a source to `get*` (ADR 1250). It is a
+minor release, and below 1.0 a minor version may carry breaking changes. Run
+`better-supabase codemod naming` to rename the functions in your app.
+
+| Section                             | Needs code                                            |
+| ----------------------------------- | ----------------------------------------------------- |
+| [Functions](#functions)             | Rename the imports, or run the codemod                |
+| [Record bindings](#record-bindings) | Rename `load` to `get` in your own bindings and calls |
+
+## Functions
+
+| Old                   | New                  |
+| --------------------- | -------------------- |
+| `loadConfig`          | `getConfig`          |
+| `loadProject`         | `getProject`         |
+| `loadSnapshot`        | `getSnapshot`        |
+| `loadEnv`             | `getEnv`             |
+| `loadJsonPath`        | `getJsonPath`        |
+| `loadBindings`        | `getBindings`        |
+| `loadMyWork`          | `getMyWork`          |
+| `loadTimeline`        | `getTimeline`        |
+| `readCatalog`         | `getCatalog`         |
+| `readSecurityCatalog` | `getSecurityCatalog` |
+| `readDesignFile`      | `getDesignFile`      |
+| `readPolicies`        | `getPolicies`        |
+| `readGrants`          | `getGrants`          |
+| `readRulePolicies`    | `getRulePolicies`    |
+| `readArgSource`       | `getArgSource`       |
+| `readArgSqlType`      | `getArgSqlType`      |
+| `readStatus`          | `getStatus`          |
+| `readBitstringStatus` | `getBitstringStatus` |
+| `readC2paManifest`    | `getC2paManifest`    |
+
+The schema meta keys `tableLoaders` and `loadFunctions` are `tableGetters` and
+`getFunctions`, and the nuqs generator writes `get<Name>SearchParams` instead of
+`load<Name>SearchParams`. Run `better-supabase gen` to rewrite the generated
+files.
+
+## Record bindings
+
+The `load` member of a record binding and the `load` method of
+`bsb.record(...)` and `recordListServer(...)` are `get`:
+
+```ts
+const view = await customer.get(id, { bindings: ["comments"] });
+```

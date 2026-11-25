@@ -26,7 +26,7 @@ export async function AccessRequestsInbox() {
     getPermissions(),
     getExtracted("accessRequests"),
     getFormatter(),
-    loadInbox(),
+    getInbox(),
   ]);
 
   if (!can(permissions, "access_requests.create")) {

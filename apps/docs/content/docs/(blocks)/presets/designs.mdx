@@ -238,7 +238,7 @@ in `.json`. `DESIGN_FILE` is the default name, `better-supabase.design.json`.
 import {
   defaultPreset,
   designFileSource,
-  readDesignFile,
+  getDesignFile,
   resolvePreset,
 } from "better-supabase/preset";
 
@@ -249,11 +249,11 @@ const source = designFileSource(resolvePreset(defaultPreset()), design);
 //   "appTables": { ... }
 // }
 
-const { preset, design: read } = readDesignFile(source);
+const { preset, design: read } = getDesignFile(source);
 ```
 
 The file is the design JSON with its `version` and `preset`, with no length
-limit. `readDesignFile` checks it with the same rules as `parseDesign`, needs a
+limit. `getDesignFile` checks it with the same rules as `parseDesign`, needs a
 `preset`, and throws a `DesignParseError` for anything else.
 `safeDesignFileSource(resolved, design)` returns `{ ok: true, source }` or the
 issues instead of throwing.
@@ -301,7 +301,7 @@ or `/create/prompt.md?preset=<name>` for a named preset.
 | `safeParseDesign`      | `parseDesign` without the throw: `{ ok: true, design }` or `{ ok: false, issues }`         |
 | `designFileSource`     | the design file: the design JSON with its preset                                           |
 | `safeDesignFileSource` | `designFileSource` without the throw: `{ ok: true, source }` or `{ ok: false, issues }`    |
-| `readDesignFile`       | the preset and design from a design file; throws a `DesignParseError` for anything else    |
+| `getDesignFile`        | the preset and design from a design file; throws a `DesignParseError` for anything else    |
 
 ### The default preset
 

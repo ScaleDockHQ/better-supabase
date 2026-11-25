@@ -37,7 +37,7 @@ export async function DispatchBoard({
 
   const manage = can(permissions, "dispatch.manage");
   const monday = mondayOf(query["week"]);
-  const board = await settle(() => loadDispatchWeek(monday.toString()));
+  const board = await settle(() => getDispatchWeek(monday.toString()));
 
   if (board.kind === "no-organization") {
     return null;

@@ -35,7 +35,7 @@ export async function TechnicianDay({
   }
 
   const day = dayOf(query["day"]);
-  const plan = await settle(() => loadTechnicianDay(day.toString()));
+  const plan = await settle(() => getTechnicianDay(day.toString()));
 
   if (plan.kind === "no-organization") {
     return null;

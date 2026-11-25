@@ -41,7 +41,7 @@ export async function ActivityTimeline({
     return null;
   }
 
-  const timeline = await settle(() => loadTimeline(subject.type, subject.id));
+  const timeline = await settle(() => getTimeline(subject.type, subject.id));
 
   if (timeline.kind === "no-organization") {
     return null;
