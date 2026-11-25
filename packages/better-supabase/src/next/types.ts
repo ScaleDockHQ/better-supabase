@@ -17,6 +17,7 @@ import type {
   BlockDataOf,
   BlockMethodName,
 } from "../blocks/block-method.ts";
+import type { PermissionSet } from "../blocks/permissions/permissions-controller.ts";
 import type { AuthzVersionCache } from "../core/authorizer.ts";
 import type { DbError } from "../core/errors.ts";
 import type { KeptSkip, KeptStore } from "../core/kept-cache.ts";
@@ -92,6 +93,15 @@ export interface NextOptions extends ServerOptions {
    * ```
    */
   readonly rootParams?: NextRootParams;
+  /**
+   * The caller's keys in the active tenant from a source that costs no database
+   * call, such as the token's `permissions` claim or the shell's bootstrap
+   * entry. `bsb.record(...).load()` and `recordListServer` use it for their
+   * `can` flags and call `my_permissions` only when it returns `undefined` or
+   * `null`. The keys must be the full set: a set that omits a key the record
+   * type checks denies it.
+   */
+  readonly heldPermissions?: () => Promise<PermissionSet | null | undefined>;
   /**
    * In development, warns when one render waits on more sequential database
    * round trips than this, and names the fix: load the page's data in one read
@@ -624,6 +634,13 @@ export interface BetterNext<
   brand(): Promise<string | undefined>;
   /** `rootParams.tenant()`, or `undefined` without one or outside a render. */
   tenant(): Promise<string | undefined>;
+  /**
+   * `NextOptions.heldPermissions`, which record servers read before they ask
+   * the database for the caller's keys.
+   */
+  readonly heldPermissions:
+    | (() => Promise<PermissionSet | null | undefined>)
+    | undefined;
   /**
    * Service-role repositories, like `bsb.admin()`. With `request` (the one a
    * route handler or proxy hook received) its calls count as admin calls in

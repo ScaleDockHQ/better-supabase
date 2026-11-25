@@ -78,6 +78,10 @@ export interface RecordServerHost {
   context(): Promise<RecordServerContext>;
   /** The active tenant, or `undefined` without one. */
   tenant?(): Promise<string | undefined>;
+  /** `NextOptions.heldPermissions`: the caller's keys without a database call. */
+  readonly heldPermissions?:
+    | (() => Promise<PermissionSet | null | undefined>)
+    | undefined;
   action<S extends StandardSchemaV1, T>(
     options: { readonly input: S; readonly requireTenant: true },
     fn: (
@@ -207,11 +211,18 @@ async function permissionsOf(
     readonly bindings: readonly string[];
   },
   db: BlockClientSource,
+  held?: RecordServerHost["heldPermissions"],
 ): Promise<PermissionLoad> {
   const keys = recordPermissionKeys(feature);
 
   if (feature.access === undefined || keys.length === 0) {
     return { set: undefined };
+  }
+
+  const known = await held?.();
+
+  if (known) {
+    return { set: known };
   }
 
   const { createBlockClient } = await blocksOf();
@@ -314,7 +325,13 @@ export function recordServer<
     async load(id, options = {}) {
       const ctx = await bsb.context();
       const subject = recordSubject(feature, id);
-      const permissions = await permissionsOf(feature, ctx.db);
+
+      const permissions = await permissionsOf(
+        feature,
+        ctx.db,
+        bsb.heldPermissions,
+      );
+
       const can = recordCan(feature, permissions.set);
       const readable = readableSections(can);
 
@@ -349,7 +366,13 @@ export function recordServer<
     },
     async timeline(id, options = {}) {
       const ctx = await bsb.context();
-      const permissions = await permissionsOf(feature, ctx.db);
+
+      const permissions = await permissionsOf(
+        feature,
+        ctx.db,
+        bsb.heldPermissions,
+      );
+
       const readable = readableSections(recordCan(feature, permissions.set));
 
       const timeline = await loadTimeline(
@@ -534,7 +557,7 @@ export function recordListServer<
   P extends { readonly items: readonly unknown[] },
   Cols,
 >(
-  bsb: Pick<RecordServerHost, "context">,
+  bsb: Pick<RecordServerHost, "context" | "heldPermissions">,
   recordList: RecordList<T, B, N, Q, P, Cols>,
 ): RecordListServer<B, N, Q, P, Cols> {
   const { feature } = recordList;
@@ -542,7 +565,12 @@ export function recordListServer<
   return {
     async load(input, options) {
       const ctx = await bsb.context();
-      const permissions = await permissionsOf(feature, ctx.db);
+
+      const permissions = await permissionsOf(
+        feature,
+        ctx.db,
+        bsb.heldPermissions,
+      );
 
       const result = await recordList.load(
         {

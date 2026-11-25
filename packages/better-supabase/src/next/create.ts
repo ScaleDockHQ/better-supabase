@@ -836,6 +836,7 @@ export function createNext<
     locale: () => rootParam(options.rootParams?.locale),
     brand: () => rootParam(options.rootParams?.brand),
     tenant: () => rootParam(options.rootParams?.tenant),
+    heldPermissions: options.heldPermissions,
 
     async liveCount(spec, db) {
       const runner = db ?? (await current()).db;

@@ -5,6 +5,7 @@ import { permissionsAuthorizer } from "better-supabase/blocks/permissions";
 import { createNext } from "better-supabase/next";
 
 import { env } from "@/env";
+import { getPermissions } from "@/features/user/permission-snapshot";
 
 import { catalog } from "../permission-catalog";
 import { permissions } from "./blocks.config";
@@ -12,6 +13,8 @@ import { betterSupabaseCore } from "./core";
 import { sharedCounters } from "./session-counters";
 
 const options: NextOptions = {
+  // Record pages read their `can` flags from the token or the shell's one call.
+  heldPermissions: getPermissions,
   // The browser client in `client.ts` sets the same `cookies.encode`.
   auth: { cookie: { encode: "tokens-only" } },
   debug: {
