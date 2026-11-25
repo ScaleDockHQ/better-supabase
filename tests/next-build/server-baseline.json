@@ -158,6 +158,9 @@
   "/[locale]/(app)/cases/page": {
     "raw": 3926432
   },
+  "/[locale]/(app)/change-requests/page": {
+    "raw": 5375612
+  },
   "/[locale]/(app)/chat/page": {
     "raw": 3859753
   },

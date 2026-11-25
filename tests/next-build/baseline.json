@@ -239,6 +239,11 @@
     "gzip": 524098,
     "brotli": 458410
   },
+  "/[locale]/(app)/change-requests/page": {
+    "raw": 1392980,
+    "gzip": 445249,
+    "brotli": 389230
+  },
   "/[locale]/(app)/chat/page": {
     "raw": 1455255,
     "gzip": 466325,
