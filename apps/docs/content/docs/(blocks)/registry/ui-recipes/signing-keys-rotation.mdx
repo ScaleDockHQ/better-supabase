@@ -115,48 +115,65 @@ export async function SigningKeysRotation() {
                 </form>
               </AlertAction>
             </Alert>
-          ) : rows.length === 0 ? (
-            <Empty className="border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <KeyRoundIcon />
-                </EmptyMedia>
-                <EmptyTitle>{t("No signing key yet")}</EmptyTitle>
-                <EmptyDescription>
-                  {t("Create one before the organization signs any tokens.")}
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <RotateSigningKeyButton first />
-              </EmptyContent>
-            </Empty>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("Key ID")}</TableHead>
-                  <TableHead>{t("Algorithm")}</TableHead>
-                  <TableHead>{t("Status")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((key) => (
-                  <TableRow key={key.kid}>
-                    <TableCell className="font-mono text-xs">
-                      {key.kid}
-                    </TableCell>
-                    <TableCell className="text-sm">{key.algorithm}</TableCell>
-                    <TableCell>
-                      {key.active ? (
-                        <Badge variant="success-light">{t("Active")}</Badge>
-                      ) : (
-                        <Badge variant="secondary">{t("Previous")}</Badge>
+            <div className="flex flex-col gap-3">
+              {rows.length === 0 ? (
+                <Empty className="border">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <KeyRoundIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>{t("No signing key yet")}</EmptyTitle>
+                    <EmptyDescription>
+                      {t(
+                        "Create one before the organization signs any tokens.",
                       )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <RotateSigningKeyButton first />
+                  </EmptyContent>
+                </Empty>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("Key ID")}</TableHead>
+                      <TableHead>{t("Algorithm")}</TableHead>
+                      <TableHead>{t("Status")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((key) => (
+                      <TableRow key={key.kid}>
+                        <TableCell className="font-mono text-xs">
+                          {key.kid}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {key.algorithm}
+                        </TableCell>
+                        <TableCell>
+                          {key.active ? (
+                            <Badge variant="success-light">{t("Active")}</Badge>
+                          ) : (
+                            <Badge variant="secondary">{t("Previous")}</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {t("Receivers read the public keys at")}{" "}
+                <a
+                  href={state.overview.jwksPath}
+                  className="font-mono underline underline-offset-4 transition-colors hover:text-foreground"
+                >
+                  {state.overview.jwksPath}
+                </a>
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
