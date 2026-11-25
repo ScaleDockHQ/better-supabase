@@ -1,5 +1,3 @@
-/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
-   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
 import { expect, test } from "@playwright/test";
 import { expectInstant } from "better-supabase/testing";
 
@@ -167,7 +165,6 @@ test("a workflow definition opens instantly with its progress and runs", async (
   ).toBeVisible();
 });
 
-// oxlint-disable-next-line vitest/prefer-each -- Playwright has no `test.each` (1 finding).
 for (const path of [
   "/assistant/agents",
   "/assistant/agents/runs",

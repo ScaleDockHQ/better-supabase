@@ -215,7 +215,6 @@ export function DependencyGraph({
       )}
     >
       <svg
-        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline SVG needs role="img" to read as one image (1 finding)
         role="img"
         aria-labelledby={titleId}
         viewBox={`0 0 ${String(layout.width)} ${String(layout.height)}`}
