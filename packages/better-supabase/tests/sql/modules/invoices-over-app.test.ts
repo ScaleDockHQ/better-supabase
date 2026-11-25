@@ -375,6 +375,31 @@ create table public.bill_lines (
     ).toThrow(/lineRates/);
   });
 
+  it("keeps a basis point discount column under percent tax rates", () => {
+    const modules: AnyBlocksConfig = {
+      invoices: {
+        ...BLOCKS["invoices"],
+        tables: { invoices: "public.bills", lines: "public.bill_lines" },
+        columns: {
+          ...BLOCKS["invoices"]?.columns,
+          lines: { taxRateBps: "vat_rate", discountBps: "discount_bps" },
+        },
+        options: { lineRates: "percent", lineDiscountRates: "bps" },
+      },
+    };
+
+    const sql = renderBlocks(["invoices"], {
+      modules,
+      ownTables: { ...OWN_TABLES, "public.bill_lines": "app.sql" },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toMatch(/'taxRateBps'\)::integer, 0\) \/ 100\.0\)/u);
+    expect(sql).not.toMatch(/'discountBps'\)::integer[^\n]*\/ 100\.0\)/u);
+    expect(sql).not.toContain(`round(l."discount_bps" * 100)`);
+  });
+
   it("writes a tax code's rate as a percentage when issuing", async () => {
     await expect(
       run(

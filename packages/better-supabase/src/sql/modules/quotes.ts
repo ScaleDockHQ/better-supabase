@@ -104,6 +104,7 @@ const NAMES: BlockSqlNames = {
     "prefix",
     "validDays",
     "lineRates",
+    "lineDiscountRates",
     "workingCopy",
     "versionLines",
     "totals",

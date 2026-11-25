@@ -6106,6 +6106,9 @@
                 "type": "string",
                 "default": "bps"
               },
+              "lineDiscountRates": {
+                "type": "string"
+              },
               "searchColumn": {
                 "type": "boolean",
                 "default": false
@@ -6869,6 +6872,9 @@
               "lineRates": {
                 "type": "string",
                 "default": "bps"
+              },
+              "lineDiscountRates": {
+                "type": "string"
               },
               "totals": {
                 "type": "string",
@@ -7937,6 +7943,9 @@
               "lineRates": {
                 "type": "string",
                 "default": "bps"
+              },
+              "lineDiscountRates": {
+                "type": "string"
               },
               "workingCopy": {
                 "type": "boolean",

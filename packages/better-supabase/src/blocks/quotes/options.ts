@@ -21,6 +21,12 @@ export type QuotesSqlOptions = {
    */
   readonly lineRates?: "bps" | "percent";
   /**
+   * How the discount column of your line table stores its rate, when it differs
+   * from `lineRates`: `"bps"` for basis points next to percent tax rates.
+   * Default: `lineRates`.
+   */
+  readonly lineDiscountRates?: "bps" | "percent";
+  /**
    * Staff edit a sent quote while the customer keeps seeing its last published
    * version; sending it again publishes the next revision on the same link, and
    * an acceptance restores the version the customer saw.
@@ -83,6 +89,7 @@ export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
     titleTemplate: option.string({ default: "Quote {number}" }),
     validDays: option.number({ default: 30 }),
     lineRates: option.string<"bps" | "percent">({ default: "bps" }),
+    lineDiscountRates: option.string<"bps" | "percent">(),
     workingCopy: option.boolean({ default: false }),
     versionLines: option.boolean({ default: false }),
     totals: option.string<"block" | "app">({ default: "block" }),
