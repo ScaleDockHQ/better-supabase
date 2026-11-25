@@ -25,6 +25,14 @@ export interface PermissionsAuthorizerOptions<Key extends string> {
    */
   readonly permissions: PermissionMap<Key>;
   /**
+   * The catalog the bitset form of the `permissions` claim is read over, from
+   * `permissionCatalog(permissionKeys)` with the generated `permissionKeys`. It
+   * must hold every key of the database catalog, so the default (the keys of
+   * the `permissions` map, which leaves out keys no block checks) only matches
+   * a hook that writes the key list.
+   */
+  readonly catalog?: PermissionCatalog;
+  /**
    * The caller's keys in a tenant when the token can't answer (no claim, no
    * entry for the tenant, or the hook marked it truncated), for example
    * `my_permissions` through the request's client. Runs once per subject and
@@ -70,9 +78,13 @@ export function permissionsAuthorizer<Key extends string>(
 ): Authorizer<Key> {
   const claim = options.claim ?? DEFAULT_CLAIMS.permissions;
 
-  const catalog = permissionCatalog(
-    Object.values(options.permissions).flatMap((owner) => Object.values(owner)),
-  );
+  const catalog =
+    options.catalog ??
+    permissionCatalog(
+      Object.values(options.permissions).flatMap((owner) =>
+        Object.values(owner),
+      ),
+    );
 
   const keysFor = async (
     request: AuthorizationRequest<Key>,

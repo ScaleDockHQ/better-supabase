@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:07ce29a664b8166fe7fbcdfa5539dc1a1a64577f3af9c0bcb3bfa95a03069fd1
+-- @bsb-hash sha256:0b45f298589717c0986ae647b06547982025d81d77b2fa6a836bf4a2dd5782e7
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -462,6 +462,8 @@ as $$
     else coalesce(jsonb_strip_nulls(jsonb_build_object(permission_claims.tenant::text, to_jsonb(better_supabase.member_permissions(permission_claims.user_id, permission_claims.tenant)))), '{}'::jsonb)
   end
 $$;
+
+
 
 -- The caller's permission keys in a tenant, for client checks. With keys,
 -- the ones can() grants: every model answers, including a provider and

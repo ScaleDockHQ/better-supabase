@@ -1008,6 +1008,39 @@ measures
 A member holds about 170 keys that fold to 2.8 KB, so a member's token carries
 `permissions_truncated` and the app reads `my_permissions()`.
 
+### The bitset form
+
+The key list grows with the catalog. The roles and catalog models also generate
+`better_supabase.permission_claims_bitset(user, tenant)`, which writes
+`{ "<tenant>": { "h": "<hash>", "b": "<bitset>" } }` instead. `h` is the first 8
+hex characters of the md5 of the catalog keys sorted by code point and joined
+by newlines. `b` is a base64url bitset: bit `(i - 1) % 8` of byte
+`(i - 1) / 8` is set when the caller holds the `i`th key. The example's hook
+returns it for every role, so a 413 key catalog costs about 160 bytes whether
+the caller holds 20 keys or all of them, and a member's token no longer carries
+`permissions_truncated`.
+
+Give the reader the same catalog with `permissionCatalog` from
+`better-supabase/claims`. Pass the keys the generator wrote to
+`permission-scopes.ts` (`permissionKeys`), plus any key a hand-written
+migration put in `better_supabase.permissions` that the config doesn't list:
+
+```ts
+import { permissionCatalog, permissionsOf } from "better-supabase/claims";
+
+import { permissionKeys } from "./supabase/permission-scopes";
+
+export const catalog = permissionCatalog(permissionKeys);
+
+const keys = permissionsOf(session, undefined, { catalog });
+```
+
+`permissionsAuthorizer` and `permissionsShareKey` take the same `catalog`
+option. A catalog whose hash differs from the token's (a new migration the app
+hasn't deployed yet, or a key the app doesn't list) makes `permissionsOf`
+return `undefined`, so the caller reads `my_permissions()` and never decides
+from a bitset it can't interpret. A list of keys in the claim still works.
+
 Read the claim with `permissionsOf`:
 
 ```ts

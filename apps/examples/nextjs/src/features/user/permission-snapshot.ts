@@ -2,6 +2,7 @@ import "server-only";
 import { permissionsOf, tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { catalog } from "@/lib/permission-catalog";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import type { PermissionSet } from "./user-permissions";
@@ -45,7 +46,7 @@ export async function readPermissions({
 
   cacheTag(organizationSnapshotTag(tenant));
 
-  const keys = permissionsOf(session, tenant);
+  const keys = permissionsOf(session, tenant, { catalog });
 
   return keys === undefined
     ? db.permissions.permissions().orThrow()

@@ -8,6 +8,7 @@ import { createServer, sqlSupportStore } from "better-supabase/server";
 
 import { env } from "@/env";
 
+import { catalog } from "../permission-catalog";
 import { permissions } from "./blocks.generated";
 import { betterSupabase } from "./index";
 import { sharedCounters } from "./session-counters";
@@ -28,7 +29,11 @@ const options: NextOptions = {
   replicas: { pinMs: 5000 },
   // `permission` on actions, routes and resources: granted from the token's
   // `permissions` claim, and from `my_permissions` when the token can't say.
-  authorizer: permissionsAuthorizer({ permissions, load: myPermissions }),
+  authorizer: permissionsAuthorizer({
+    permissions,
+    catalog,
+    load: myPermissions,
+  }),
 };
 
 const counters = sharedCounters();

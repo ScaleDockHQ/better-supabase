@@ -18,6 +18,7 @@ import { env } from "@/env";
 import { requiredPermission } from "./features/navigation/nav-items";
 import { pricingFlags, signupWaitlist, VISITOR_COOKIE } from "./flags";
 import { localizedPath, routing } from "./i18n/routing";
+import { catalog } from "./lib/permission-catalog";
 import { app } from "./lib/supabase/app";
 
 const intl = createMiddleware(routing);
@@ -126,7 +127,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   }
 
   const needed = requiredPermission(path);
-  const keys = permissionsOf(session);
+  const keys = permissionsOf(session, undefined, { catalog });
 
   if (
     needed !== undefined &&

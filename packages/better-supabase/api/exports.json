@@ -1281,6 +1281,7 @@
       "MEMBERSHIPS_CLAIM",
       "PERMISSION_CAP_CLAIM",
       "permissionCapOf",
+      "permissionCatalog",
       "PERMISSIONS_CLAIM",
       "PERMISSIONS_TRUNCATED_CLAIM",
       "permissionsOf",
@@ -1293,6 +1294,7 @@
       "ClaimsSource",
       "EntitlementClaimOptions",
       "MembershipClaim",
+      "PermissionCatalog",
       "PermissionsOfOptions",
       "SessionSnapshot",
       "UserSession"
