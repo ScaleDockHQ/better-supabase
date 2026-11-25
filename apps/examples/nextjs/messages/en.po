@@ -15007,6 +15007,26 @@ msgid "The return has no boxes."
 msgstr "The return has no boxes."
 
 #: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.ot70TW"
+msgid "Close blockers"
+msgstr "Close blockers"
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.mjXHSf"
+msgid "Blocker"
+msgstr "Blocker"
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.h2E9rN"
+msgid "The period is closed."
+msgstr "The period is closed."
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.qiDOWf"
+msgid "Nothing blocks the close."
+msgstr "Nothing blocks the close."
+
+#: src/features/finance-records/components/finance-detail.tsx
 msgctxt "finance.Gz0Fja"
 msgid "Payroll run"
 msgstr "Payroll run"

@@ -598,7 +598,20 @@ export async function FinanceDetail({
             { label: t("Kind"), value: humanize(text("kind")) },
             { label: t("Closed"), value: dateTime(record["closed_at"]) },
           ],
-          tables: [],
+          tables: [
+            {
+              title: t("Close blockers"),
+              headers: [t("Blocker")],
+              rows: (Array.isArray(record["blockers"])
+                ? record["blockers"]
+                : []
+              ).map((blocker) => [humanize(String(blocker))]),
+              empty:
+                status === "closed"
+                  ? t("The period is closed.")
+                  : t("Nothing blocks the close."),
+            },
+          ],
         };
       }
 

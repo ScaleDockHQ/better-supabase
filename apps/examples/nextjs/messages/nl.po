@@ -15007,6 +15007,26 @@ msgid "The return has no boxes."
 msgstr "De aangifte heeft geen vakken."
 
 #: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.ot70TW"
+msgid "Close blockers"
+msgstr "Blokkades voor afsluiten"
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.mjXHSf"
+msgid "Blocker"
+msgstr "Blokkade"
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.h2E9rN"
+msgid "The period is closed."
+msgstr "De periode is afgesloten."
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.qiDOWf"
+msgid "Nothing blocks the close."
+msgstr "Niets houdt het afsluiten tegen."
+
+#: src/features/finance-records/components/finance-detail.tsx
 msgctxt "finance.Gz0Fja"
 msgid "Payroll run"
 msgstr "Salarisrun"

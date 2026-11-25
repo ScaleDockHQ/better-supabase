@@ -401,6 +401,8 @@ begin
       from better_supabase.tax_returns t where t.id = finance_detail.id and t.tenant_id = tenant)
     when 'periods' then (
       select to_jsonb(t) - 'tenant_id'
+        || jsonb_build_object('blockers', case when t.status = 'closed' then '[]'::jsonb
+          else to_jsonb(better_supabase.period_close_blockers(t.id)) end)
       from better_supabase.periods t where t.id = finance_detail.id and t.tenant_id = tenant)
     when 'payroll' then (
       select to_jsonb(t) - 'tenant_id'
