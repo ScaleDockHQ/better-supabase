@@ -113,6 +113,7 @@ import { taintObject, taintResolution, taintedAdmin } from "./taint.ts";
 import { gateUserOf } from "./user.ts";
 import { withContextFactory } from "./with-context.ts";
 
+// oxlint-disable-next-line react-doctor/no-impure-call-at-module-scope -- the mark records when the module evaluates, once per process.
 coldRecord().timings.evalEnd ??= performance.now();
 
 /**

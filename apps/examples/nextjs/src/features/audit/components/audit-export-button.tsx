@@ -36,7 +36,13 @@ export function AuditExportButton({ query }: { query: string }) {
     `/api/audit/export?${[query, extra].filter(Boolean).join("&")}`;
 
   async function run(): Promise<void> {
-    const probe: unknown = await (await fetch(url("probe=1"))).json();
+    const probed = await fetch(url("probe=1"));
+
+    if (!probed.ok) {
+      throw new Error("The export probe was refused");
+    }
+
+    const probe: unknown = await probed.json();
 
     if (isProbe(probe) && probe.rows <= probe.limit) {
       window.location.assign(url(""));

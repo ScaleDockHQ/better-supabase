@@ -38,6 +38,9 @@ vi.mock("react", async (original) => ({
       effects.cleanups.push(cleanup);
     }
   },
+  useLayoutEffect: (effect: () => void) => {
+    effect();
+  },
 }));
 
 describe("useSessionChange", () => {

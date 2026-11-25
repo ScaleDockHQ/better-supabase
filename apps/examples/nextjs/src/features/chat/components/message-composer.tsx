@@ -124,21 +124,26 @@ export function MessageComposer({
 
     setSending(true);
 
-    const result = await onSend({
-      body: text,
-      draft: {
-        attachmentIds: files.flatMap((file) => (file.id ? [file.id] : [])),
-      },
-    });
+    try {
+      const result = await onSend({
+        body: text,
+        draft: {
+          attachmentIds: files.flatMap((file) => (file.id ? [file.id] : [])),
+        },
+      });
+
+      if (result.ok) {
+        setBody("");
+        setFiles([]);
+      } else {
+        toast.error(errorMessage(result.error));
+      }
+    } catch (error) {
+      setSending(false);
+      throw error;
+    }
 
     setSending(false);
-
-    if (result.ok) {
-      setBody("");
-      setFiles([]);
-    } else {
-      toast.error(errorMessage(result.error));
-    }
   };
 
   return (
@@ -181,6 +186,10 @@ export function MessageComposer({
           }
         }}
         onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing) {
+            return;
+          }
+
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             void submit();

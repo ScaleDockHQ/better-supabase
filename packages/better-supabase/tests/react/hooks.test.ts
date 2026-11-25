@@ -80,6 +80,7 @@ const runtime = vi.hoisted(() => {
   const state = {
     slots: [] as Slot[],
     index: 0,
+    layout: [] as (() => void)[],
     pending: [] as (() => void)[],
     provided: new Map<object, unknown>(),
     rendering: false,
@@ -113,12 +114,31 @@ const runtime = vi.hoisted(() => {
     }
   };
 
-  return { state, slot, changed, schedule };
+  const queueEffect = (
+    queue: (() => void)[],
+    effect: () => (() => void) | undefined,
+    deps: readonly unknown[] | undefined,
+  ): void => {
+    const cell = slot();
+
+    if (!changed(cell.deps, deps)) {
+      return;
+    }
+
+    cell.deps = deps;
+    queue.push(() => {
+      cell.cleanup?.();
+      const cleanup = effect();
+      cell.cleanup = typeof cleanup === "function" ? cleanup : undefined;
+    });
+  };
+
+  return { state, slot, changed, schedule, queueEffect };
 });
 
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof ReactModule>();
-  const { state, slot, changed, schedule } = runtime;
+  const { state, slot, changed, schedule, queueEffect } = runtime;
 
   return {
     ...actual,
@@ -188,18 +208,14 @@ vi.mock("react", async (importOriginal) => {
       effect: () => (() => void) | undefined,
       deps?: readonly unknown[],
     ) => {
-      const cell = slot();
-
-      if (!changed(cell.deps, deps)) {
-        return;
-      }
-
-      cell.deps = deps;
-      state.pending.push(() => {
-        cell.cleanup?.();
-        const cleanup = effect();
-        cell.cleanup = typeof cleanup === "function" ? cleanup : undefined;
-      });
+      queueEffect(state.pending, effect, deps);
+    },
+    // Layout effects run before the passive ones of the same render.
+    useLayoutEffect: (
+      effect: () => (() => void) | undefined,
+      deps?: readonly unknown[],
+    ) => {
+      queueEffect(state.layout, effect, deps);
     },
     // Applies the reducer to the confirmed state at once and keeps it; React
     // drops it when the transition settles, which this runtime does not model.
@@ -292,7 +308,10 @@ function renderHook<P, R>(
       state.flushing = true;
 
       try {
-        for (const effect of state.pending.splice(0)) {
+        for (const effect of [
+          ...state.layout.splice(0),
+          ...state.pending.splice(0),
+        ]) {
           effect();
         }
       } finally {

@@ -4,6 +4,7 @@ import type { SubmitEvent } from "react";
 
 import {
   useCallback,
+  useLayoutEffect,
   useOptimistic,
   useRef,
   useState,
@@ -74,8 +75,9 @@ export function useAction<I, T>(
 
   const [settled, setSettled] = useState<Settled<T>>(IDLE);
   const latest = useRef({ action, options });
-  // oxlint-disable-next-line react/refs -- latest-ref pattern so `run` stays stable; the react peer range predates useEffectEvent.
-  latest.current = { action, options };
+  useLayoutEffect(() => {
+    latest.current = { action, options };
+  });
 
   const run = useCallback(
     (input: ActionInputOf<I>): Promise<ActionResultOf<T>> => {
@@ -200,8 +202,9 @@ export function useOptimisticAction<S, I, T>(
   );
 
   const latest = useRef({ action, addOptimistic });
-  // oxlint-disable-next-line react/refs -- latest-ref pattern so the wrapped action stays stable.
-  latest.current = { action, addOptimistic };
+  useLayoutEffect(() => {
+    latest.current = { action, addOptimistic };
+  });
 
   const handle = useAction<I, T>(
     useCallback((input: I) => {

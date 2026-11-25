@@ -8,6 +8,7 @@ import {
   createElement,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -215,8 +216,9 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
 
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
   const latest = useRef({ handlers, options });
-  // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
-  latest.current = { handlers, options };
+  useLayoutEffect(() => {
+    latest.current = { handlers, options };
+  });
   const name = values ? topic.topic(values) : null;
   const userId = auth.userId;
   const self = options?.self;
@@ -351,8 +353,9 @@ export function useLiveQuery(
   const joined = useRef<string | null>(null);
   const key = liveKey(client, held.spec, auth, options);
   const latest = useRef({ auth, options });
-  // oxlint-disable-next-line react/refs -- latest-ref pattern; the key already restarts the effect on a change.
-  latest.current = { auth, options };
+  useLayoutEffect(() => {
+    latest.current = { auth, options };
+  });
 
   useEffect(() => {
     if (key === null || !held.spec || !queryClient) {
@@ -411,8 +414,9 @@ export function useLiveCount(
   const joined = useRef<{ key: string | null; at: number } | null>(null);
   const key = liveKey(client, held.spec, auth, options);
   const latest = useRef({ auth, options });
-  // oxlint-disable-next-line react/refs -- latest-ref pattern; the key already restarts the effect on a change.
-  latest.current = { auth, options };
+  useLayoutEffect(() => {
+    latest.current = { auth, options };
+  });
   const hasInitial = parsed.initial !== undefined;
   const { seedAt } = parsed;
 

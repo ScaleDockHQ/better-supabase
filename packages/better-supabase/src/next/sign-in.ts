@@ -267,7 +267,13 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
   /** `redirectTo` with a same-origin `next` as `?next=`. */
   const callbackUrl = (params: EmailRedirect): string => {
     const next = safeRedirectPath(params.next, "");
-    const target = new URL(params.redirectTo);
+    const target = URL.parse(params.redirectTo);
+
+    // Supabase Auth rejects a redirect outside the allow list, so the flow
+    // reports it as a failed request instead of throwing here.
+    if (target === null) {
+      return params.redirectTo;
+    }
 
     if (next) {
       target.searchParams.set("next", next);
