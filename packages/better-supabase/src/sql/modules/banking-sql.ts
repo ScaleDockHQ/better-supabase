@@ -61,6 +61,15 @@ export interface BankingSql {
   readonly import: string;
   readonly reconcile: string;
   readonly manage: string;
+  /**
+   * The keys that create, post and cancel a payment batch: `createBatch`,
+   * `postBatch` and `cancelBatch`, each falling back to `manage`.
+   */
+  readonly batch: {
+    readonly create: string;
+    readonly post: string;
+    readonly cancel: string;
+  };
   /** The service role, or a member of `tenant` with `permission`. */
   readonly allowed: (tenant: string, permission: string) => string;
   readonly forbidden: (message: string) => string;
@@ -124,6 +133,7 @@ export function bankingSql(ctx: BlockSqlContext): BankingSql {
   const m = col("matches");
   const r = col("rules");
   const matches = ctx.table("matches");
+  const manageKey = ctx.permissionKey("manage", OPERATIONS["banking.manage"]);
   const extras = ctx.extraColumns("accounts", ["fields"]);
 
   const matchJson = (row: string): string =>
@@ -149,6 +159,11 @@ export function bankingSql(ctx: BlockSqlContext): BankingSql {
     import: ctx.permission("import", OPERATIONS["banking.import"]),
     reconcile: ctx.permission("reconcile", OPERATIONS["banking.reconcile"]),
     manage: ctx.permission("manage", OPERATIONS["banking.manage"]),
+    batch: {
+      create: ctx.permission("createBatch", manageKey),
+      post: ctx.permission("postBatch", manageKey),
+      cancel: ctx.permission("cancelBatch", manageKey),
+    },
     allowed: (tenant, permission) =>
       `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.can("tenant", tenant, permission)}))`,
     forbidden: (message) => fail("BANKING_FORBIDDEN", message),

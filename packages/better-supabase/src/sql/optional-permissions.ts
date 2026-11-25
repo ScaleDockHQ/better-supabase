@@ -11,6 +11,11 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     removeMemberPlatform: "platform",
   },
   audit: { reveal: "tenant" },
+  banking: {
+    createBatch: "tenant",
+    postBatch: "tenant",
+    cancelBatch: "tenant",
+  },
   deadlines: { prune: "tenant" },
   drive: { delete: "tenant" },
   activities: { purge: "tenant" },

@@ -40,12 +40,18 @@ Members with `banking.read` read every table. Writes go through the
 functions below. Bank accounts are subjects of type `bank_account`, so
 comments, attachments, tags and the other subject blocks work on them.
 
-| Permission          | Allows                                               | Default roles        |
-| ------------------- | ---------------------------------------------------- | -------------------- |
-| `banking.read`      | reading accounts, statements, transactions and rules | owner, admin, member |
-| `banking.import`    | importing statements and syncing a bank feed         | owner, admin         |
-| `banking.reconcile` | matching, unmatching, ignoring and applying rules    | owner, admin, member |
-| `banking.manage`    | changing bank accounts and bank rules                | owner, admin         |
+| Permission          | Allows                                                                                      | Default roles        |
+| ------------------- | ------------------------------------------------------------------------------------------- | -------------------- |
+| `banking.read`      | reading accounts, statements, transactions and rules                                        | owner, admin, member |
+| `banking.import`    | importing statements and syncing a bank feed                                                | owner, admin         |
+| `banking.reconcile` | matching, unmatching, ignoring and applying rules                                           | owner, admin, member |
+| `banking.manage`    | changing bank accounts and bank rules, and creating, posting and cancelling payment batches | owner, admin         |
+
+Payment batches move money, so they check `banking.manage`, not
+`banking.reconcile`. To grant them separately, set `permissions.createBatch`,
+`permissions.postBatch` and `permissions.cancelBatch` on the block to keys of
+your own, for example one that only a finance role holds; each falls back to
+the `manage` key.
 
 ## Accounts and statements
 

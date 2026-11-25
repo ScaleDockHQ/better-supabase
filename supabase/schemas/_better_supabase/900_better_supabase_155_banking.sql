@@ -1,6 +1,6 @@
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:cf05ffcb93633d2c8388fbcf3089d029367fb8850a89b7b2f124d50573065c3a
+-- @bsb-hash sha256:72bf3e4ce520588099ff2cb69390231695e93e6942eb9b70648534ffc4b56433
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1034,7 +1034,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_payment_batch.tenant is not null and coalesce(better_supabase.can('tenant', create_payment_batch.tenant, 'banking.reconcile'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_payment_batch.tenant is not null and coalesce(better_supabase.can('tenant', create_payment_batch.tenant, 'banking.manage'), false))) then
     raise exception 'not allowed to create payment batches' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
   end if;
   if jsonb_typeof(create_payment_batch.input) is distinct from 'object'
@@ -1401,7 +1401,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_batch from "better_supabase"."payment_batches" x where x."id" = post_payment_batch.batch_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_batch."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_batch."tenant_id", 'banking.reconcile'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_batch."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_batch."tenant_id", 'banking.manage'), false))) then
     raise exception 'no such payment batch' using errcode = 'P0002', hint = 'PAYMENT_BATCH_NOT_FOUND';
   end if;
   if v_batch."status" <> 'draft' then
@@ -1437,7 +1437,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_batch from "better_supabase"."payment_batches" x where x."id" = cancel_payment_batch.batch_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_batch."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_batch."tenant_id", 'banking.reconcile'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_batch."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_batch."tenant_id", 'banking.manage'), false))) then
     raise exception 'no such payment batch' using errcode = 'P0002', hint = 'PAYMENT_BATCH_NOT_FOUND';
   end if;
   if v_batch."status" not in ('draft', 'posted') then

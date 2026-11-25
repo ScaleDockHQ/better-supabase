@@ -365,7 +365,7 @@ declare
   v_total bigint := 0;
   v_count integer := 0;
 begin
-  if not ${q.allowed("create_payment_batch.tenant", q.reconcile)} then
+  if not ${q.allowed("create_payment_batch.tenant", q.batch.create)} then
     ${q.forbidden("not allowed to create payment batches")}
   end if;
   if jsonb_typeof(create_payment_batch.input) is distinct from 'object'
@@ -521,7 +521,7 @@ declare
   v_item record;
 begin
   select * into v_batch from ${batches} x where x.${b("id")} = post_payment_batch.batch_id for update;
-  if not found or not ${q.allowed(`v_batch.${b("tenant")}`, q.reconcile)} then
+  if not found or not ${q.allowed(`v_batch.${b("tenant")}`, q.batch.post)} then
     raise exception 'no such payment batch' using errcode = 'P0002', hint = 'PAYMENT_BATCH_NOT_FOUND';
   end if;
   if v_batch.${b("status")} <> 'draft' then
@@ -549,7 +549,7 @@ declare
   v_batch ${batches}%rowtype;
 begin
   select * into v_batch from ${batches} x where x.${b("id")} = cancel_payment_batch.batch_id for update;
-  if not found or not ${q.allowed(`v_batch.${b("tenant")}`, q.reconcile)} then
+  if not found or not ${q.allowed(`v_batch.${b("tenant")}`, q.batch.cancel)} then
     raise exception 'no such payment batch' using errcode = 'P0002', hint = 'PAYMENT_BATCH_NOT_FOUND';
   end if;
   if v_batch.${b("status")} not in ('draft', 'posted') then
