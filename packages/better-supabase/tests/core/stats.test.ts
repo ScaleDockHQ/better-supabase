@@ -50,6 +50,27 @@ describe("db.$stats()", () => {
     expect(stats.ms).toBeGreaterThan(0);
   });
 
+  it("traces each call with its wave and phase", async () => {
+    const request = new StatsRecorder();
+    const db = createSupabase(schema).connect(executor, {}, { stats: request });
+
+    await Promise.all([db.customers.list(), db.notes.list()]);
+    request.setPhase("action");
+    await db.tags.list();
+    request.setPhase("render");
+    await db.customers.count();
+
+    const trace = request.snapshot().trace ?? [];
+    expect(trace.map((call) => [call.name, call.wave, call.phase])).toEqual([
+      ["customers", 1, "render"],
+      ["notes", 1, "render"],
+      ["tags", 2, "action"],
+      ["customers", 3, "render"],
+    ]);
+    expect(trace[0]?.startMs).toBe(0);
+    expect(trace.every((call) => call.endMs >= call.startMs)).toBe(true);
+  });
+
   it("reports into a request-wide recorder", async () => {
     const betterSupabase = createSupabase(schema);
     const request = new StatsRecorder();

@@ -1,11 +1,13 @@
 import { headers } from "next/headers.js";
 
 import type { CacheEntryStat, StatsRecorder } from "../core/stats.ts";
+import type { Settled } from "../server/respond.ts";
 import type { ContextOptions } from "../server/server-types.ts";
 import type { CollectorView } from "./collector.ts";
 import type { CacheScope, RemoteCacheKey } from "./types.ts";
 
 import { recordingFetch } from "../core/stats.ts";
+import { settle } from "../server/respond.ts";
 import { requestIdOf } from "./collector.ts";
 import { fillsOf, handoffRequestId } from "./remote-handoff.ts";
 
@@ -25,6 +27,11 @@ export interface RequestRecording {
   ) => void;
   /** The current request's debug id, `undefined` without debug. */
   readonly currentId: () => Promise<string | undefined>;
+  /** Settles `run` with the request's calls marked as `phase`, then `render`. */
+  readonly settleIn: (
+    phase: "action" | "render",
+    run: () => unknown,
+  ) => Promise<Settled>;
   /**
    * Starts timing a `bsb.remote()` call under `key`; the returned function
    * records it as a hit or, when a fill ran meanwhile, a miss.
@@ -83,6 +90,18 @@ export function requestRecording(
     statsForHandle: (handle) => statsForId(handoffRequestId(handle)),
     recordOn,
     currentId,
+    settleIn: async (phase, run) => {
+      const id = await currentId();
+      const recorder = collector && id ? collector.recorderFor(id) : undefined;
+
+      recorder?.setPhase(phase);
+
+      try {
+        return await settle(run);
+      } finally {
+        recorder?.setPhase("render");
+      }
+    },
 
     missed: (scope, entry) => {
       const kind =

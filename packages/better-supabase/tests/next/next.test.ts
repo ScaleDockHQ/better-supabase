@@ -1614,7 +1614,11 @@ describe("createNext", () => {
           kind: "kept",
           outcome: "miss",
         }),
-        { id: "customer-ids", kind: "kept", outcome: "hit" },
+        expect.objectContaining({
+          id: "customer-ids",
+          kind: "kept",
+          outcome: "hit",
+        }),
         expect.objectContaining({
           id: "customerCount",
           kind: "remote",

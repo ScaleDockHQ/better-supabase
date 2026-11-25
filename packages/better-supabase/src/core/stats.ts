@@ -29,6 +29,32 @@ export interface DbStats {
   readonly expiredTags?: readonly string[];
   /** One record per `bsb.kept` and `bsb.remote` call the request made. */
   readonly entries?: readonly CacheEntryStat[];
+  /**
+   * Every call in start order, with its wave and phase. Times are milliseconds
+   * from the first call's start.
+   */
+  readonly trace?: readonly TraceCall[];
+}
+
+/**
+ * One database call of a request. `phase` is `action` for a call made inside
+ * `bsb.action` and `render` for every other call, including the re-render a
+ * server action starts.
+ */
+export interface TraceCall {
+  readonly name: string;
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly wave: number;
+  readonly phase: "action" | "render";
+}
+
+interface OpenTrace {
+  readonly name: string;
+  readonly start: number;
+  readonly wave: number;
+  readonly phase: "action" | "render";
+  end: number;
 }
 
 /**
@@ -71,6 +97,8 @@ export function byteSizeOf(value: unknown): number | undefined {
   }
 }
 
+const round = (ms: number): number => Math.round(ms * 100) / 100;
+
 export const EMPTY_STATS: DbStats = {
   calls: 0,
   waves: 0,
@@ -81,6 +109,7 @@ export const EMPTY_STATS: DbStats = {
   tagCalls: 0,
   expiredTags: [],
   entries: [],
+  trace: [],
 };
 
 /**
@@ -99,6 +128,8 @@ export class StatsRecorder {
   #tagCalls = 0;
   readonly #expiredTags: string[] = [];
   readonly #entries: CacheEntryStat[] = [];
+  readonly #trace: OpenTrace[] = [];
+  #phase: "action" | "render" = "render";
   #inFlight = 0;
   #first: number | undefined;
   #last: number | undefined;
@@ -117,6 +148,11 @@ export class StatsRecorder {
   /** Whether this recorder's calls run with the service role. */
   get admin(): boolean {
     return this.#admin;
+  }
+
+  /** Marks the phase the calls that start from now on belong to. */
+  setPhase(phase: "action" | "render"): void {
+    this.#phase = phase;
   }
 
   /** Records one token verification (a session memo miss). */
@@ -164,6 +200,16 @@ export class StatsRecorder {
 
     this.#tables.add(table);
     this.#first ??= started;
+
+    const traced: OpenTrace = {
+      name: table,
+      start: started,
+      wave: this.#waves,
+      phase: this.#phase,
+      end: started,
+    };
+
+    this.#trace.push(traced);
     let ended = false;
 
     return () => {
@@ -173,7 +219,8 @@ export class StatsRecorder {
 
       ended = true;
       this.#inFlight -= 1;
-      this.#last = Math.max(this.#last ?? 0, this.#now());
+      traced.end = this.#now();
+      this.#last = Math.max(this.#last ?? 0, traced.end);
       end?.();
     };
   }
@@ -193,6 +240,13 @@ export class StatsRecorder {
       tagCalls: this.#tagCalls,
       expiredTags: [...this.#expiredTags],
       entries: [...this.#entries],
+      trace: this.#trace.map((call) => ({
+        name: call.name,
+        startMs: round(call.start - (this.#first ?? call.start)),
+        endMs: round(call.end - (this.#first ?? call.start)),
+        wave: call.wave,
+        phase: call.phase,
+      })),
     };
   }
 }
