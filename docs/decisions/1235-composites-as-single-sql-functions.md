@@ -111,3 +111,23 @@ sits in the `tasks` module when `sla` is installed. It calls `create_task` and
 calls it, and `support.openTicket` delegates to it. The call is atomic: a failed
 clock start rolls the ticket back; before, the ticket stayed open. The
 `tasks.create` and `sla.start` hooks no longer fire inside the composite.
+
+## closeAccountingPeriod
+
+`close_accounting_period_if_clear(period_id)` sits in the `accounting` module. It
+reads `accounting_period_close_blockers` and, with none, calls
+`close_accounting_period`; with blockers it returns them and changes nothing.
+`accounting.closePeriodIfClear` calls it and `finance.closePeriod` delegates. The
+`closeBlockers` and `closePeriod` hooks no longer fire inside the composite.
+
+## discussCase stays
+
+`collaboration.discuss` is one `create_comment` call when no tags are given, which
+is how the example app calls it, so a function would save nothing there. It stays
+as the two-part helper until a caller needs many tags in one call.
+
+## Migration versions
+
+The branch carried two pairs of migrations with the same version (078 and 079).
+`book_with_reminder`, `pay_payment_batch` and the two later ones were renumbered to
+081 to 084, since none had reached `main`.

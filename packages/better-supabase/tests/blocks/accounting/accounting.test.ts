@@ -672,6 +672,23 @@ describe("createAccounting", () => {
     ]);
   });
 
+  it("closes a period in one call unless blockers remain", async () => {
+    const t = fieldsTransport({
+      close_accounting_period_if_clear: (args) =>
+        args["period_id"] === "p1"
+          ? { closed: false, blockers: ["draft_entries"] }
+          : { closed: true, period: PERIOD },
+    });
+
+    const books = createAccounting({ transport: t });
+    const blocked = await books.closePeriodIfClear("p1").orThrow();
+    const closed = await books.closePeriodIfClear("p2").orThrow();
+
+    expect(blocked).toEqual({ closed: false, blockers: ["draft_entries"] });
+    expect(closed).toMatchObject({ closed: true, period: { id: PERIOD.id } });
+    expect(t.calls).toHaveLength(2);
+  });
+
   it("closes and reopens periods and closes a fiscal year", async () => {
     const t = fieldsTransport({
       accounting_period_close_blockers: (args) =>

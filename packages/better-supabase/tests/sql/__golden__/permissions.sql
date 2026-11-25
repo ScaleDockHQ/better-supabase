@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:cca0f438131f49883b42f05653d14bb91527bf4d80447218d2dd5a799f9a9a26
+-- @bsb-hash sha256:4a92162f08f24274c448f51ef512536483329cbad6bf11a484198506ddfaaf49
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -455,8 +455,6 @@ as $$
   end
 $$;
 
-
-
 -- The caller's permission keys in a tenant, for client checks. With keys,
 -- the ones can() grants: every model answers, including a provider and
 -- delegated tokens. Without them, the keys the model lists for the member,
@@ -627,7 +625,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:13e73a677255be2842f229e723b2882e4ff477646719e76026c768947d2b802c
+-- @bsb-hash sha256:0170d8cf969d6d26c41e954d9cdca2d9c4b4a31fb1c6f66da01afd5c2c7b9b34
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1502,8 +1500,6 @@ as $$
   end
 $$;
 
-
-
 -- The caller's permission keys in a tenant, for client checks. With keys,
 -- the ones can() grants: every model answers, including a provider and
 -- delegated tokens. Without them, the keys the model lists for the member,
@@ -1674,7 +1670,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:dacd2e8550f87813e54df59725bb8abe28a83f8c01e3b195f7985136a6074f10
+-- @bsb-hash sha256:6db11eb7c17684d7061b6e2591cdce6f67e4fb1bc3a3ec091fcf38a411431a37
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2133,8 +2129,6 @@ as $$
   end
 $$;
 
-
-
 -- The caller's permission keys in a tenant, for client checks. With keys,
 -- the ones can() grants: every model answers, including a provider and
 -- delegated tokens. Without them, the keys the model lists for the member,
@@ -2305,7 +2299,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:39ebeb7e29db053e67f65df8c5fcb825a87d84e11b77d179c58193cf6d99aaa0
+-- @bsb-hash sha256:cda42ea75c040b4149ec9c1a47c4f8d93a65fc15f8b58fc6db6eb430dd510a3d
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2758,8 +2752,6 @@ as $$
     else coalesce(jsonb_strip_nulls(jsonb_build_object(permission_claims.tenant::text, to_jsonb(better_supabase.member_permissions(permission_claims.user_id, permission_claims.tenant)))), '{}'::jsonb)
   end
 $$;
-
-
 
 -- The caller's permission keys in a tenant, for client checks. With keys,
 -- the ones can() grants: every model answers, including a provider and
@@ -3195,7 +3187,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:cca0f438131f49883b42f05653d14bb91527bf4d80447218d2dd5a799f9a9a26
+-- @bsb-hash sha256:4a92162f08f24274c448f51ef512536483329cbad6bf11a484198506ddfaaf49
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3649,8 +3641,6 @@ as $$
   end
 $$;
 
-
-
 -- The caller's permission keys in a tenant, for client checks. With keys,
 -- the ones can() grants: every model answers, including a provider and
 -- delegated tokens. Without them, the keys the model lists for the member,
@@ -3821,7 +3811,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:f5504ce2d86fe4ca904618af17ed78cd36645beb9ba5fe5b6422938be17e08f5
+-- @bsb-hash sha256:2e3bb837b3dcde3314a166df8120863f5b550cd0999555b0f9ef989620fbbfef
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4274,8 +4264,6 @@ as $$
     else coalesce(jsonb_strip_nulls(jsonb_build_object(permission_claims.tenant::text, to_jsonb(better_supabase.member_permissions(permission_claims.user_id, permission_claims.tenant)))), '{}'::jsonb)
   end
 $$;
-
-
 
 -- The caller's permission keys in a tenant, for client checks. With keys,
 -- the ones can() grants: every model answers, including a provider and
