@@ -14,6 +14,9 @@ export default defineConfig({
     setupFiles: ["./src/setup.ts"],
     // Each file installs its recipe in a transaction; parallel installs deadlock.
     fileParallelism: false,
+    // A recipe renders every module it names from source; a cold CI runner took
+    // over 5 s for the CRM recipe and failed a release run.
+    testTimeout: 30_000,
   },
   resolve: { conditions },
   ssr: { resolve: { conditions } },
