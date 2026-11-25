@@ -43,6 +43,34 @@ describe("state machine", () => {
     expect(guard).toBeLessThan(refused);
   });
 
+  it("refuses a client insert in a status the initial status can't reach", () => {
+    const sql = sqlOf({
+      "state-machine": {
+        options: {
+          machines: {
+            quote: {
+              table: "public.quotes",
+              column: "status",
+              initial: "draft",
+              transitions: { draft: ["sent"], sent: ["accepted"] },
+            },
+          },
+        },
+      },
+    });
+
+    const insert = sql.slice(
+      sql.indexOf("if tg_op = 'INSERT' then"),
+      sql.indexOf("is not distinct from"),
+    );
+
+    expect(insert).toContain(`not in ('draft', 'sent')`);
+    expect(insert).toContain("STATE_TRANSITION_INVALID");
+    expect(insert).toContain(
+      "and not (better_supabase.import_run() is not null)",
+    );
+  });
+
   it("names the missing initial status", () => {
     expect(() =>
       sqlOf({

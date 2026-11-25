@@ -458,16 +458,22 @@ ${item.workflow === undefined ? "" : WORKFLOW_DECLARE}`
             : `if new.${sqlIdent(item.column)} is null then
       new.${sqlIdent(item.column)} := ${sqlString(item.initial)};
     end if;`
-        }${
-          importedWrite === ""
-            ? ""
-            : `
+        }
+    -- A new row starts where the initial status can go in one step; only an
+    -- import run or the service role creates one further along.
+    if new.${sqlIdent(item.column)}::text not in (${[...new Set([item.initial, ...(item.transitions[item.initial] ?? [])])].map(sqlString).join(", ")})
+      and not (${ctx.importing()}) and not ${SERVICE_CALLER} then
+      ${fail("STATE_TRANSITION_INVALID", "a new record can't start in that status", "22023")}
+    end if;${
+      importedWrite === ""
+        ? ""
+        : `
     -- An import run (ADR 0141) may insert a row in any status: one synthetic
     -- imported history row stands for how it got there, and no event fires.
     if ${ctx.importing()} and new.${sqlIdent(item.column)} is not null then
       ${importedWrite}
     end if;`
-        }
+    }
     ${stageWrite(ctx, item, "open")}${stampWrite(ctx, item, true)}
     ${lifecycleInsert(ctx, item)}`
       : workflowInsert(

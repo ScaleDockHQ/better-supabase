@@ -333,7 +333,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:78752d9a418623779c69e0d45cd9492e3fe2fbf93d5e4cb2cbb1c1bf1c21b4dd
+-- @bsb-hash sha256:83d4251814d6fb42aad9100b556e9b0d0f8995199ccb1ab31a5ce7023093ea82
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.recordTypes type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -440,6 +440,12 @@ begin
   if tg_op = 'INSERT' then
     if new."status" is null then
       new."status" := 'draft';
+    end if;
+    -- A new row starts where the initial status can go in one step; only an
+    -- import run or the service role creates one further along.
+    if new."status"::text not in ('draft', 'submitted')
+      and not (better_supabase.import_run() is not null) and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+      raise exception 'a new record can''t start in that status' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
     end if;
     -- An import run (ADR 0141) may insert a row in any status: one synthetic
     -- imported history row stands for how it got there, and no event fires.
