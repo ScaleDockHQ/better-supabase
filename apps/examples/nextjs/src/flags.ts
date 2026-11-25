@@ -12,8 +12,7 @@ import "server-only";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
-/** A signed-out visitor's stable id, so a percentage rollout keeps its bucket. */
-export const VISITOR_COOKIE = "visitor-id";
+import { VISITOR_COOKIE } from "./visitor-cookie";
 
 /**
  * The user, the active organization with its plans and roles, read from the

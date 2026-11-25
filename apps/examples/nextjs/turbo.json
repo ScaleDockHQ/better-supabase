@@ -64,7 +64,8 @@
         "BSB_DB_TIME_UPDATE",
         "BSB_EXPLAIN_ROUTES",
         "BSB_PERF_DIR",
-        "BSB_PERF_USER"
+        "BSB_PERF_USER",
+        "BSB_PORT"
       ]
     },
     "dev:portless": {

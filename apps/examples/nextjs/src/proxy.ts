@@ -16,10 +16,10 @@ import { NextResponse } from "next/server";
 import { env } from "@/env";
 
 import { requiredPermission } from "./features/navigation/nav-items";
-import { pricingFlags, signupWaitlist, VISITOR_COOKIE } from "./flags";
 import { localizedPath, routing } from "./i18n/routing";
 import { catalog } from "./lib/permission-catalog";
 import { app } from "./lib/supabase/app";
+import { VISITOR_COOKIE } from "./visitor-cookie";
 
 const intl = createMiddleware(routing);
 
@@ -37,6 +37,13 @@ const PUBLIC = new Set([
 
 /** Pages a signed-in user skips, to the `?next=` path or the dashboard. */
 const GUEST_ONLY = new Set(["/login", "/signup", "/forgot-password"]);
+
+/**
+ * The flag declarations, loaded on the two requests that evaluate a flag. They
+ * pull in the shell block set and the flag adapter, which every other request
+ * the proxy handles never uses (a lazy chunk, not part of the proxy's start).
+ */
+const loadFlags = () => import("./flags");
 
 /**
  * The locale and the path inside it. With `localePrefix: "as-needed"` a path
@@ -83,7 +90,9 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   // The pricing flags are evaluated here once, and the static page for
   // their values is served; `precompute` signs them with FLAGS_SECRET.
   if (path === "/pricing") {
-    const code = env.FLAGS_SECRET ? await precompute(pricingFlags) : "default";
+    const code = env.FLAGS_SECRET
+      ? await precompute((await loadFlags()).pricingFlags)
+      : "default";
 
     return NextResponse.rewrite(
       new URL(`/${locale}/pricing/${code}${search}`, request.url),
@@ -103,7 +112,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
     path.startsWith("/store/");
 
   if (session.kind !== "user") {
-    if (path === "/signup" && (await signupWaitlist())) {
+    if (path === "/signup" && (await (await loadFlags()).signupWaitlist())) {
       return NextResponse.rewrite(
         new URL(`/${locale}/waitlist${search}`, request.url),
       );
