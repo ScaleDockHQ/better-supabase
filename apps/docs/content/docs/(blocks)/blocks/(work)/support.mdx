@@ -36,7 +36,7 @@ The app's own `blocks.<part>` settings win key by key ([Composite blocks](/docs/
 
 ## Helpers
 
-`openTicket`: Create a ticket as a task and start its SLA clocks. If the SLA step fails the ticket stays open; call `blocks.sla.start` again for it.
+`openTicket`: Create a ticket as a task and start its SLA clocks. If the SLA step fails the ticket stays open; call `blocks.sla.start` again for it. The clocks run on the subject type `task`; pass `ticketSubject` to `createSupport` when `names` renames the tasks entity.
 
 ```ts
 await blocks.support.openTicket({

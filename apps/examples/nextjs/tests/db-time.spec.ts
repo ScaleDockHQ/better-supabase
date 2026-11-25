@@ -3,6 +3,8 @@
 /* oxlint-disable vitest/prefer-each -- Playwright has no test.each; the loop
    generates one case per route of the manifest (1 finding). */
 import { expect, test } from "@playwright/test";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { Client } from "pg";
 
 import { ROUTES } from "./routes.manifest";
@@ -21,6 +23,12 @@ import {
 // is rendered once to fill the caches, the statistics are reset and it is
 // rendered again, so the numbers are those of a warm render. Run with
 // `BSB_PERF_USER=member` for the member. Writes db-time-<user>.json.
+//
+// Buffers are also checked against `tests/db-time.baseline.<tier>.json`
+// (`BSB_DB_TIME_TIER`, default `seed`), the committed buffers of each route
+// as the admin: a route fails when it reads more than 25 percent and 64
+// buffers over its baseline. `BSB_DB_TIME_UPDATE=1` rewrites the entries of
+// the routes it ran, which is how a tier gets its first baseline.
 
 const DATABASE_URL =
   process.env["BSB_DB_ADMIN_URL"] ??
@@ -29,7 +37,32 @@ const DATABASE_URL =
 /** Statements over this many milliseconds are a finding. */
 const SLOW_STATEMENT_MS = 100;
 
+/** A route may read this share of its baseline buffers more, plus the slack. */
+const BUFFER_GROWTH = 1.25;
+const BUFFER_SLACK = 64;
+
 const user = perfUser();
+
+const BASELINE = `tests/db-time.baseline.${process.env["BSB_DB_TIME_TIER"] ?? "seed"}.json`;
+
+function readBaseline(): Record<string, number> {
+  // SAFETY: this file is only written by writeBaseline, as route to buffers.
+  return existsSync(BASELINE)
+    ? (JSON.parse(readFileSync(BASELINE, "utf-8")) as Record<string, number>)
+    : {};
+}
+
+function writeBaseline(route: string, buffers: number): void {
+  const known = { ...readBaseline(), [route]: buffers };
+
+  const sorted = Object.fromEntries(
+    Object.entries(known).toSorted(([a], [b]) => a.localeCompare(b)),
+  );
+
+  mkdirSync(dirname(BASELINE), { recursive: true });
+
+  writeFileSync(BASELINE, `${JSON.stringify(sorted, null, 2)}\n`);
+}
 
 const admin = new Client({ connectionString: DATABASE_URL });
 
@@ -108,6 +141,23 @@ for (const entry of openableRoutes(ROUTES)) {
       buffers: sum((row) => Number(row.buffers)),
       slowestMs: Math.round(slowest * 100) / 100,
     });
+
+    const buffers = sum((row) => Number(row.buffers));
+
+    if (process.env["BSB_DB_TIME_UPDATE"] === "1") {
+      if (user === "admin") {
+        writeBaseline(entry.route, buffers);
+      }
+    } else if (user === "admin") {
+      const baseline = readBaseline()[entry.route];
+
+      if (baseline !== undefined) {
+        expect(
+          buffers,
+          `${entry.route} reads ${buffers} buffers, baseline ${baseline}`,
+        ).toBeLessThanOrEqual(baseline * BUFFER_GROWTH + BUFFER_SLACK);
+      }
+    }
 
     if (slowest > SLOW_STATEMENT_MS) {
       test

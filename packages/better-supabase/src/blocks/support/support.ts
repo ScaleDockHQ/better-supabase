@@ -31,7 +31,7 @@ export interface Support {
    * Creates the ticket, a task named by `blocks.tasks.names` (`tasks.create`),
    * then starts its SLA clocks (`sla.start`, with `priority`). A failed SLA
    * start returns its error and leaves the ticket created, so retry it with
-   * `sla.start` on `{ type: "task", id }`, not `openTicket`.
+   * `sla.start` on `{ type: ticketSubject, id }`, not `openTicket`.
    */
   openTicket(input: {
     organizationId: string;
@@ -56,6 +56,11 @@ export interface Support {
 /** What the `support` creator receives. */
 export type SupportOptions = BlockContext &
   CompositeOptions<SupportParts> & {
+    /**
+     * The subject type the tickets' SLA clocks run on. Default: `"task"`; set
+     * it to the final name of the tasks entity when `names` renames it.
+     */
+    readonly ticketSubject?: string;
     /** `before` and `after` hooks per method (ADR 0015). */
     readonly hooks?: NoInfer<BlockHooks<Support>>;
     /** Receives the errors `after` hooks throw. Default: `console`. */
@@ -65,6 +70,7 @@ export type SupportOptions = BlockContext &
 /** Creates the `support` helpers over the clients of its parts. */
 export function createSupport(options: SupportOptions): Support {
   const { tasks, sla } = options.parts;
+  const ticketSubject = options.ticketSubject ?? "task";
 
   const client: Support = {
     openTicket: ({ organizationId, ticket, assigneeIds, priority }) =>
@@ -80,7 +86,7 @@ export function createSupport(options: SupportOptions): Support {
         }
 
         const clocks = await sla.start({
-          subject: { type: "task", id: created.data.id },
+          subject: { type: ticketSubject, id: created.data.id },
           ...(priority === undefined ? {} : { priority }),
         });
 
@@ -100,7 +106,7 @@ export function createSupport(options: SupportOptions): Support {
         }
 
         const clocks = await sla.start({
-          subject: { type: "task", id: ticketId },
+          subject: { type: ticketSubject, id: ticketId },
           priority,
         });
 

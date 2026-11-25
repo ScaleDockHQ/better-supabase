@@ -60,6 +60,9 @@
       "env": [
         "$TURBO_EXTENDS$",
         "BSB_DB_ADMIN_URL",
+        "BSB_DB_TIME_TIER",
+        "BSB_DB_TIME_UPDATE",
+        "BSB_EXPLAIN_ROUTES",
         "BSB_PERF_DIR",
         "BSB_PERF_USER"
       ]
