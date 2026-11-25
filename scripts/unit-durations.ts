@@ -7,7 +7,7 @@
 //   node scripts/unit-durations.ts --check-tests unit-times.json...  (validation projects: tests)
 //   node scripts/unit-durations.ts --write unit-times.json...
 //   node scripts/unit-durations.ts --pack unit-times.json...
-import type { Reporter, TestModule } from "vitest/node";
+import type { Reporter, TestModule, Vitest } from "vitest/node";
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { relative } from "node:path";
@@ -40,6 +40,7 @@ const SLACK_MS = 5000;
 const TOTAL_GROWTH = 1.15;
 
 const timesSchema = v.object({
+  coverage: v.boolean(),
   files: v.record(v.string(), v.number()),
   slowTests: v.array(
     v.object({ id: v.string(), durationMs: v.number(), timeoutMs: v.number() }),
@@ -52,9 +53,18 @@ const budgetSchema = v.object({
   slowTests: v.record(v.string(), v.number()),
 });
 
+// Coverage instrumentation slows every test, so a run with coverage (the library's shards) and a
+// run without it (the validation projects) are checked against their own numbers.
+const budgetFileSchema = v.object({
+  coverage: budgetSchema,
+  plain: budgetSchema,
+});
+
 export type UnitTimes = v.InferOutput<typeof timesSchema>;
 
 export type Budget = v.InferOutput<typeof budgetSchema>;
+
+type BudgetFile = v.InferOutput<typeof budgetFileSchema>;
 
 /** Half of a test's timeout, capped at half the unit project's timeout. */
 export function limitOf(timeoutMs: number): number {
@@ -63,8 +73,18 @@ export function limitOf(timeoutMs: number): number {
 
 /** Collects the times while Vitest runs or replays a project's tests. */
 export default class UnitTimesReporter implements Reporter {
+  private coverage = false;
+
+  onInit(vitest: Vitest): void {
+    this.coverage = vitest.config.coverage.enabled;
+  }
+
   onTestRunEnd(testModules: readonly TestModule[]): void {
-    const times: UnitTimes = { files: {}, slowTests: [] };
+    const times: UnitTimes = {
+      coverage: this.coverage,
+      files: {},
+      slowTests: [],
+    };
 
     for (const module of testModules) {
       const file = relative(ROOT, module.moduleId).replaceAll("\\", "/");
@@ -249,14 +269,13 @@ function main(): number {
 
   const runs = paths.map(readTimes);
 
-  if (flag === "--write") {
-    writeFileSync(BUDGET, `${JSON.stringify(budgetOf(runs), null, 2)}\n`);
-
-    return 0;
-  }
+  const sectionOf = (run: UnitTimes): keyof BudgetFile =>
+    run.coverage ? "coverage" : "plain";
 
   if (flag === "--pack") {
-    const library = Object.entries(budgetOf(runs).files)
+    const library = Object.entries(
+      budgetOf(runs.filter((run) => run.coverage)).files,
+    )
       .filter(([file]) => file.startsWith(LIBRARY))
       .map(([file, ms]) => [file.slice(LIBRARY.length), ms]);
 
@@ -269,12 +288,31 @@ function main(): number {
   }
 
   const budget = v.parse(
-    budgetSchema,
+    budgetFileSchema,
     JSON.parse(readFileSync(BUDGET, "utf-8")),
   );
 
+  if (flag === "--write") {
+    // A section is rewritten only from runs of its kind; the other one stays.
+    const next: BudgetFile = { ...budget };
+
+    for (const section of ["coverage", "plain"] as const) {
+      const own = runs.filter((run) => sectionOf(run) === section);
+
+      if (own.length > 0) {
+        next[section] = budgetOf(own);
+      }
+    }
+
+    writeFileSync(BUDGET, `${JSON.stringify(next, null, 2)}\n`);
+
+    return 0;
+  }
+
   if (flag === "--check-tests") {
-    return report(runs.flatMap((run) => testFindings(run, budget)));
+    return report(
+      runs.flatMap((run) => testFindings(run, budget[sectionOf(run)])),
+    );
   }
 
   const [times] = runs;
@@ -283,9 +321,11 @@ function main(): number {
     return 1;
   }
 
-  process.stdout.write(slowestFilesSummary(times, budget));
+  const own = budget[sectionOf(times)];
 
-  return report(findings(times, budget));
+  process.stdout.write(slowestFilesSummary(times, own));
+
+  return report(findings(times, own));
 }
 
 if (import.meta.main) {

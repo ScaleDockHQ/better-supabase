@@ -43,7 +43,8 @@ job on a larger runner (`vars.UNIT_RUNNER`). That runner was never created, so t
     double. The budget lists every test past 80% of that limit, so a test that hovers near it does
     not fail at random.
     The validation projects run with the same reporter in `verify / test` and in the Integration
-    jobs, and their tests go through the same limit. The budget is written from cold runs only, as a
+    jobs, and their tests go through the same limit. The budget keeps separate numbers for runs with
+    coverage (the shards) and without it (the validation projects), as instrumentation slows every test. The budget is written from cold runs only, as a
     replayed blob repeats old times, and stays apart from the packing file;
     `docs/agents/tooling.md` says how to refresh both.
 - A `unit tests and coverage` job runs after the shards and the merge whatever their result, and

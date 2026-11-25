@@ -67,9 +67,12 @@ bump is one commit series:
   not list. `verify / test` and the Integration validation jobs check the
   validation projects' tests the same way. Refresh the budget only from cold
   runs, where the library's `test` task missed the Turbo cache, because a
-  replayed blob repeats the old times: `gh run download <run id> -n unit-times
-  -D <dir>` for two or three such runs, then
-  `node scripts/unit-durations.ts --write <dir>/unit-times.json ...`.
+  replayed blob repeats the old times. The budget keeps one section for runs
+  with coverage (the library's shards) and one for runs without it (the
+  validation projects). Download the `unit-times` artifact of two or three
+  such runs and the `validation-times-*` artifacts, then run
+  `node scripts/unit-durations.ts --write <every unit-times.json>`; it
+  rewrites each section from the runs of its kind.
   `--pack` rewrites the shard packing from the same files, which moves files
   between shards, so refresh the budget from a cold run after a repack. Commit
   either with the reason.

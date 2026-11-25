@@ -251,3 +251,11 @@ jobs:
           if [ "${#times[@]}" -gt 0 ]; then
             node scripts/unit-durations.ts --check-tests "${times[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Upload the validation test times
+        if: ${{ !cancelled() && hashFiles('tests/*/unit-times.json') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: validation-times-${{ strategy.job-index }}
+          path: tests/*/unit-times.json
+          retention-days: 14

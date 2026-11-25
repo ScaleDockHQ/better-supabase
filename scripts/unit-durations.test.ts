@@ -14,6 +14,7 @@ import {
 const LIB = "packages/better-supabase/tests";
 
 const times: UnitTimes = {
+  coverage: true,
   files: {
     [`${LIB}/slow.test.ts`]: 40_000,
     [`${LIB}/noisy.test.ts`]: 2000,
@@ -81,6 +82,7 @@ describe("budgetOf", () => {
     const next = budgetOf([
       times,
       {
+        coverage: true,
         files: {
           [`${LIB}/slow.test.ts`]: 50_000,
           [`${LIB}/noisy.test.ts`]: 1000,

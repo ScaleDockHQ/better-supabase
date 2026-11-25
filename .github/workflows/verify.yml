@@ -186,6 +186,15 @@ jobs:
           TIMES_REPORTER: ${{ github.workspace }}/scripts/unit-durations.ts
         run: ${{ matrix.run }}
 
+      # `node scripts/unit-durations.ts --write` reads these for the budget's section without coverage.
+      - name: Upload the validation test times
+        if: ${{ !cancelled() && matrix.task == 'test' && hashFiles('tests/*/unit-times.json') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: validation-times-verify
+          path: tests/*/unit-times.json
+          retention-days: 14
+
       - name: Upload the Turbo logs
         if: failure()
         uses: actions/upload-artifact@v7
