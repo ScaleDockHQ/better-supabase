@@ -102,3 +102,12 @@ when payment batches are on. It calls `create_payment_batch` and
 is a pure function of the batch and the account. `procurement.payDueBills`
 delegates to it. The call is atomic: a bill that needs approval refuses the
 post and no draft batch is left.
+
+## openTicket
+
+`create_<entity>_with_sla(tenant, attrs, assignees, subject_type, priority)`
+sits in the `tasks` module when `sla` is installed. It calls `create_task` and
+`start_sla_clocks` and returns the task and the clocks. `tasks.createWithSla`
+calls it, and `support.openTicket` delegates to it. The call is atomic: a failed
+clock start rolls the ticket back; before, the ticket stayed open. The
+`tasks.create` and `sla.start` hooks no longer fire inside the composite.

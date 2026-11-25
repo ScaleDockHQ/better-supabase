@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@8 managed tasks
--- @bsb-hash sha256:abc671e47c38b6004a49df58a26c99c3ed57b14084771aeb618553c19139fde2
+-- @bsb-hash sha256:dbec438b08c3324220e3fe4be18644c617f8041f8ba239642c7452c6d133a6a8
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2513,6 +2513,27 @@ create policy bsb_maintenance_requests_receive on realtime.messages
         and (select realtime.topic()) like 'tasks:%'
         and substr((select realtime.topic()), 7) in (select x::text from better_supabase.tenant_ids_with('facilities.read') x));
 
+-- Creates a work item (attrs and assignees as create_task) and starts its SLA
+-- clocks on subject_type, at priority, in one transaction. Returns { task,
+-- clocks }.
+create or replace function "better_supabase"."create_maintenance_request_with_sla"(tenant uuid, attrs jsonb, assignees uuid[], subject_type text, priority text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_task jsonb;
+  v_clocks jsonb;
+begin
+  v_task := "better_supabase"."create_maintenance_request"(create_maintenance_request_with_sla.tenant, create_maintenance_request_with_sla.attrs, create_maintenance_request_with_sla.assignees);
+  v_clocks := "better_supabase"."start_sla_clocks"(create_maintenance_request_with_sla.subject_type, v_task ->> 'id', create_maintenance_request_with_sla.priority);
+  return jsonb_build_object('task', v_task, 'clocks', v_clocks);
+end;
+$$;
+revoke execute on function "better_supabase"."create_maintenance_request_with_sla"(uuid, jsonb, uuid[], text, text) from public, anon;
+grant execute on function "better_supabase"."create_maintenance_request_with_sla"(uuid, jsonb, uuid[], text, text) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2971,3 +2992,12 @@ set search_path = ''
 as $$ select "better_supabase"."maintenance_request_stage_times"($1) $$;
 revoke execute on function "api"."maintenance_request_stage_times"(uuid) from public, anon;
 grant execute on function "api"."maintenance_request_stage_times"(uuid) to authenticated, service_role;
+
+create or replace function "api"."create_maintenance_request_with_sla"(tenant uuid, attrs jsonb, assignees uuid[], subject_type text, priority text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."create_maintenance_request_with_sla"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."create_maintenance_request_with_sla"(uuid, jsonb, uuid[], text, text) from public, anon;
+grant execute on function "api"."create_maintenance_request_with_sla"(uuid, jsonb, uuid[], text, text) to authenticated, service_role;

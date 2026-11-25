@@ -2,6 +2,7 @@ import type { BlockFields } from "../../core/block-fields.ts";
 import type { IdempotencyClaims } from "../../core/idempotent-write.ts";
 import type { Result } from "../../core/result.ts";
 import type { blockCall } from "../shared.ts";
+import type { SlaClock } from "../sla/sla.ts";
 import type { Task, TaskInput } from "./tasks.ts";
 
 import { idempotentCall } from "../../core/idempotent-write.ts";
@@ -14,6 +15,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { clocks as slaClocks } from "../sla/sla.ts";
 
 /** Who acts, as a label on events and timelines. It never grants access. */
 export interface TaskActorProfile {
@@ -90,6 +92,21 @@ export interface TaskMoveResult {
 }
 
 export interface TasksCoordination<F extends object = Record<never, never>> {
+  /**
+   * `create`, then `sla.start` on the new item as a `subjectType` record at
+   * `priority`, in one database call and one transaction
+   * (`create_task_with_sla`, needs the `sla` block, ADR 1235). A failed clock
+   * start rolls the item back. The TypeScript hooks of `create` and `sla.start`
+   * do not fire, the hook of `createWithSla` does. It takes no `custom`,
+   * `needs` or `idempotencyKey`.
+   */
+  createWithSla(input: {
+    organizationId: string;
+    input: TaskInput<F>;
+    assigneeIds?: readonly string[] | undefined;
+    subjectType: string;
+    priority?: string | undefined;
+  }): AsyncResult<{ task: Task<F>; clocks: SlaClock[] }>;
   /**
    * Replaces the task's prerequisites (tasks that block it). Needs the
    * relations block and its manage permission. A cycle or a prerequisite of
@@ -270,7 +287,7 @@ const profileArg = (
 export function coordinationClient<F extends object>(
   deps: CoordinationDeps<F>,
 ): TasksCoordination<F> {
-  const { call, itemOf, fields } = deps;
+  const { call, itemOf, fields, args } = deps;
 
   const grantOf = (value: unknown): ClaimedTask => {
     const row = recordOf(value, "claimed task");
@@ -330,6 +347,41 @@ export function coordinationClient<F extends object>(
   };
 
   return {
+    createWithSla: ({
+      organizationId,
+      input,
+      assigneeIds,
+      subjectType,
+      priority,
+    }) => {
+      const { fields: extra, attachmentIds, ...attrs } = input;
+
+      return fields
+        .args(extra)
+        .andThen((checked) =>
+          call(
+            "create_task_with_sla",
+            {
+              tenant: organizationId,
+              attrs: {
+                ...args(attrs),
+                ...(attachmentIds === undefined
+                  ? {}
+                  : { attachments: [...attachmentIds] }),
+                ...(checked === undefined ? {} : { fields: checked }),
+              },
+              assignees: assigneeIds === undefined ? null : [...assigneeIds],
+              subject_type: subjectType,
+              priority: priority ?? null,
+            },
+            (value) => recordOf(value, "create_task_with_sla"),
+          ).andThen((row) =>
+            fields
+              .row(itemOf(row["task"]))
+              .map((task) => ({ task, clocks: slaClocks(row["clocks"]) })),
+          ),
+        );
+    },
     setNeeds: ({ taskId, needs }) =>
       call("set_task_needs", { task: taskId, ids: [...needs] }, (value) =>
         itemOf(value),

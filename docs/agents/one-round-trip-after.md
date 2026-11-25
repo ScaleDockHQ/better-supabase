@@ -126,7 +126,8 @@ Admin, `next start`, `actions.spec.ts`. After the composite is one call, the res
 | reconcileAccount  | 11           | 2           | 3 to 2                | 7b60090543 |
 | onboardEmployee   | 10           | 8           | 3 to 2                | fbdbda00cd |
 | bookWithReminder  | 9            | 8           | 2 to 2                | eab25f2535 |
-| payDueBills       | 7            | 6           | 4 to 4                | (next)     |
+| payDueBills       | 7            | 6           | 4 to 4                | 4a9a637725 |
+| openTicket        | 6            | 4           | 3 to 2                | (this PR)  |
 
 ## Cache tiers and invalidation (ADRs 1240, 1241, 1244, 1245)
 
@@ -212,6 +213,14 @@ The db-time spec's "failing detail routes" were stale ids: `resolve-urls.spec` w
 `.github/workflows/example-db-time.yml` runs `resolve-urls` and `db-time` every night and on demand. `db-time.spec.ts` compares each route's buffers with `tests/db-time.baseline.<tier>.json` (growth of 25 percent plus 64 buffers). Without a baseline file the spec only records. Write the baseline on a quiet machine with `BSB_DB_TIME_UPDATE=1`. The local attempt in this pass was skipped: the machine had a load average above 20 and the 248 routes did not finish before the server stopped answering, so no number would have been trustworthy.
 
 Doctor rule BS732 (ADR 1246) warns about statements from the API roles and functions that average more than 100 ms over at least five calls, and says when `pg_stat_statements` is not installed.
+
+### Proxy and bundles (Track 5)
+
+The proxy loads `./flags` lazily and takes the visitor cookie name from `visitor-cookie.ts`. The `(proxy)` entry went from 1,258,956 to 854,495 raw bytes (32 percent). A content test in `tests/next-build` keeps the flag keys out of the proxy chunks. Of what remains, a 628 KB chunk is the permission catalog, which the proxy needs to read the permission bitset, and a 158 KB chunk holds the navigation items it needs for `requiredPermission`. Decisions after measuring: `next-intl` stays in the proxy (the locale redirect is the proxy's job and its code is a small part of the 158 KB chunk), and the refresh policy stays as it is (only the proxy refreshes, invariant 7), so neither changes.
+
+The next-build baselines were retaken against a build without `EXPOSE_TESTING_API`: server chunks grew 43 KB on pages and about 160 KB on API routes since the last retake, which comes from branch work on shared chunks (cache tiers, composites, the stats trace) and is not attributed to one change. The library baselines in `tests/bundle` were retaken too (`./server` 223,875 to 235,715 B gzip, `./claims` 18,421 to 20,361 B gzip). Building the bundle test found a module-level `TextEncoder` in `core/stats.ts` that broke imports on runtimes without one; it is created on first use now.
+
+`banking.ts` was over the 1000 line limit, so the row mappers moved into `mappers.ts` as a pure move with no export changes.
 
 ### JWT size
 

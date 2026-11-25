@@ -28,10 +28,11 @@ export interface EscalatedTicket {
 /** The helpers `support` adds over its parts. */
 export interface Support {
   /**
-   * Creates the ticket, a task named by `blocks.tasks.names` (`tasks.create`),
-   * then starts its SLA clocks (`sla.start`, with `priority`). A failed SLA
-   * start returns its error and leaves the ticket created, so retry it with
-   * `sla.start` on `{ type: ticketSubject, id }`, not `openTicket`.
+   * Creates the ticket, a task named by `blocks.tasks.names`, and starts its
+   * SLA clocks with `priority`, in one database call and one transaction
+   * (`tasks.createWithSla`, ADR 1235). A failed SLA start rolls the ticket
+   * back, so retry the whole `openTicket`. The TypeScript hooks of
+   * `tasks.create` and `sla.start` do not fire.
    */
   openTicket(input: {
     organizationId: string;
@@ -74,26 +75,15 @@ export function createSupport(options: SupportOptions): Support {
 
   const client: Support = {
     openTicket: ({ organizationId, ticket, assigneeIds, priority }) =>
-      Async.from<OpenedTicket>(async () => {
-        const created = await tasks.create({
+      tasks
+        .createWithSla({
           organizationId,
           input: ticket,
+          subjectType: ticketSubject,
           ...(assigneeIds === undefined ? {} : { assigneeIds }),
-        });
-
-        if (!created.ok) {
-          return created;
-        }
-
-        const clocks = await sla.start({
-          subject: { type: ticketSubject, id: created.data.id },
           ...(priority === undefined ? {} : { priority }),
-        });
-
-        return clocks.ok
-          ? ok({ ticket: created.data, clocks: clocks.data })
-          : clocks;
-      }),
+        })
+        .map(({ task, clocks }) => ({ ticket: task, clocks })),
     escalate: ({ ticketId, assigneeIds, priority }) =>
       Async.from<EscalatedTicket>(async () => {
         const assigned = await tasks.assign({
