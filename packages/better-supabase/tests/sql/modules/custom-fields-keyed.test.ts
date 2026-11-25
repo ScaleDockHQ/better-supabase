@@ -305,7 +305,7 @@ $$;`,
     expect(sql).toContain('v."rank" nulls last');
   });
 
-  it("reads values by the record's own read check with readAccess record", async () => {
+  it("reads values by the record's own read check, else the tenant read key, with readAccess record", async () => {
     const entry = BLOCKS["custom-fields"]!;
 
     const subjects = {
@@ -352,8 +352,8 @@ begin
   values ('${TENANT}', '${ASSET}', 'serial', 'Serial', 'text', 'A1');
   ${AS_ALICE}
   v_list := better_supabase.read_field_values('${TENANT}', 'asset', '${ASSET}');
-  if jsonb_array_length(v_list) <> 1 then
-    raise exception 'asset %', v_list;
+  if jsonb_array_length(v_list) <> 0 then
+    raise exception 'asset without a read permission %', v_list;
   end if;
   v_list := better_supabase.read_field_values('${TENANT}', 'product', '${PRODUCT}');
   if jsonb_array_length(v_list) <> 0 then
