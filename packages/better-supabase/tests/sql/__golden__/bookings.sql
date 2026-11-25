@@ -1261,7 +1261,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:a7517ea157c15af877084c30cf65a1f95ef1759f08b7dda19eeec4f3f26f483c
+-- @bsb-hash sha256:94834a6d2e2e8c3d3541409a892d7bbd3f6d8c59e5f11f4066185602b1a42cd7
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2665,6 +2665,34 @@ end;
 $$;
 revoke all on function "better_supabase"."public_change_booking"(uuid, text, text) from public;
 grant execute on function "better_supabase"."public_change_booking"(uuid, text, text) to anon, authenticated, service_role;
+
+-- Books and confirms a slot, then sets the caller's reminder offset_minutes
+-- before it, in one transaction. Returns { booking, reminder }.
+create or replace function "better_supabase"."book_with_reminder"(service uuid, resource uuid, starts_at timestamptz, customer jsonb, offset_minutes integer)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid;
+  v_booking jsonb;
+  v_reminder jsonb;
+begin
+  select s."tenant_id" into v_tenant from "better_supabase"."booking_services" s where s."id" = book_with_reminder.service;
+  v_booking := "better_supabase"."hold_booking"(book_with_reminder.service, book_with_reminder.resource, book_with_reminder.starts_at, book_with_reminder.customer, true);
+  v_reminder := "better_supabase"."save_reminder"(
+    tenant => v_tenant,
+    subject_type => 'booking',
+    subject_id => v_booking ->> 'id',
+    offset_minutes => book_with_reminder.offset_minutes
+  );
+  return jsonb_build_object('booking', v_booking, 'reminder', v_reminder);
+end;
+$$;
+revoke execute on function "better_supabase"."book_with_reminder"(uuid, uuid, timestamptz, jsonb, integer) from public, anon;
+grant execute on function "better_supabase"."book_with_reminder"(uuid, uuid, timestamptz, jsonb, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

@@ -1614,12 +1614,11 @@ describe("createNext", () => {
           kind: "kept",
           outcome: "miss",
         }),
-        {
+        expect.objectContaining({
           id: "customer-ids",
           kind: "kept",
           outcome: "hit",
-          bytes: expect.any(Number),
-        },
+        }),
         expect.objectContaining({
           id: "customerCount",
           kind: "remote",

@@ -1068,16 +1068,15 @@ export function createNext<
           return mapped({ ok: false, data: null, error: refused });
         }
 
-        const scope = ctx;
         let settled: Settled;
 
         try {
           // SAFETY: parsed is the validated input, or the raw input when the
           // action has no schema; requireTenant refused a missing tenant.
-          settled = await settle(() =>
+          settled = await recording.settleIn("action", () =>
             fn(
               parsed as never,
-              withExtra(scope, caller) as never,
+              withExtra(ctx, caller) as never,
               bound as never,
             ),
           );

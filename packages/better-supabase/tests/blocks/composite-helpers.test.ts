@@ -64,6 +64,41 @@ describe("scheduling.bookWithReminder", () => {
     reminder: 60,
   };
 
+  const instant = {
+    ...slot,
+    reminder: { at: Temporal.Instant.from("2026-12-01T08:00:00Z") },
+  };
+
+  it("books with one bookings.holdWithReminder call for minutes before", async () => {
+    const holdWithReminder = vi.fn(() =>
+      done({ booking: { id: "b1" }, reminder: { id: "rem1" } }),
+    );
+
+    const hold = vi.fn();
+    const upsert = vi.fn();
+
+    const scheduling = createScheduling(
+      parts({
+        parts: { bookings: { hold, holdWithReminder }, reminders: { upsert } },
+      }),
+    );
+
+    const result = await scheduling.bookWithReminder(slot);
+
+    expect(result.data).toEqual({
+      booking: { id: "b1" },
+      reminder: { id: "rem1" },
+    });
+    expect(holdWithReminder).toHaveBeenCalledExactlyOnceWith({
+      serviceId: "s1",
+      resourceId: "r1",
+      startsAt: slot.startsAt,
+      reminder: 60,
+    });
+    expect(hold).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
   it("confirms the booking, then sets the reminder on it", async () => {
     const hold = vi.fn(() => done({ id: "b1" }));
     const upsert = vi.fn(() => done({ id: "rem1" }));
@@ -72,7 +107,7 @@ describe("scheduling.bookWithReminder", () => {
       parts({ parts: { bookings: { hold }, reminders: { upsert } } }),
     );
 
-    const result = await scheduling.bookWithReminder(slot);
+    const result = await scheduling.bookWithReminder(instant);
 
     expect(result.data).toEqual({
       booking: { id: "b1" },
@@ -83,7 +118,7 @@ describe("scheduling.bookWithReminder", () => {
     );
     expect(upsert).toHaveBeenCalledWith({
       subject: { type: "booking", id: "b1" },
-      when: 60,
+      when: instant.reminder,
     });
   });
 
@@ -95,7 +130,7 @@ describe("scheduling.bookWithReminder", () => {
       parts({ parts: { bookings: { hold }, reminders: { upsert } } }),
     );
 
-    expect((await scheduling.bookWithReminder(slot)).ok).toBe(false);
+    expect((await scheduling.bookWithReminder(instant)).ok).toBe(false);
     expect(hold).toHaveBeenCalledOnce();
   });
 
@@ -108,7 +143,7 @@ describe("scheduling.bookWithReminder", () => {
       }),
     );
 
-    expect((await scheduling.bookWithReminder(slot)).ok).toBe(false);
+    expect((await scheduling.bookWithReminder(instant)).ok).toBe(false);
     expect(upsert).not.toHaveBeenCalled();
   });
 });
