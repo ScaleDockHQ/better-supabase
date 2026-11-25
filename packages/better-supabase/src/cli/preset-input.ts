@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 import type { CreateDesign, Preset } from "../preset/index.ts";
 
-import { presetAndDesignOf, readDesignFile } from "../preset/index.ts";
+import { presetAndDesignOf, getDesignFile } from "../preset/index.ts";
 import { CliError } from "./core/errors.ts";
 
 /** The preset and design `--preset` names. */
@@ -21,7 +21,7 @@ const isDesignFilePath = (input: string): boolean => input.endsWith(".json");
  * of a design file Create downloaded (relative to `root`). Throws a usage error
  * naming the problem.
  */
-export async function readPresetInput(
+export async function getPresetInput(
   input: string,
   root: string,
 ): Promise<PresetInputValue> {
@@ -35,7 +35,7 @@ export async function readPresetInput(
         );
       }
 
-      return readDesignFile(await readFile(path, "utf-8"));
+      return getDesignFile(await readFile(path, "utf-8"));
     }
 
     return await presetAndDesignOf(input);

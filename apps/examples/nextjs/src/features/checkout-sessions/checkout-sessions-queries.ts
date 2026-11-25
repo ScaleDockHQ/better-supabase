@@ -73,7 +73,7 @@ function toRow(session: CheckoutSession): SessionRow {
  * One page of sessions. The selected statuses and protocols are list filters of
  * one block call, and its keyset cursor pages (`after` holds it as JSON).
  */
-export async function loadSessionPage(
+export async function getSessionPage(
   db: Db,
   query: BlockListQuery<"newest">,
 ): Promise<Result<BlockPage<SessionRow>>> {
@@ -122,7 +122,7 @@ export async function getSessions(): Promise<BlockPage<SessionRow> | null> {
     return null;
   }
 
-  const result = await loadSessionPage(db, sessionList.defaults);
+  const result = await getSessionPage(db, sessionList.defaults);
 
   if (!result.ok) {
     throw new Error(result.error.message);

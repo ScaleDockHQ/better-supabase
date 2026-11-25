@@ -4,7 +4,7 @@ import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 import {
   codeStatementsOf,
   nameAt,
-  readCodeStatements,
+  getCodeStatements,
   wordsAt,
 } from "../schema-reader/index.ts";
 
@@ -73,7 +73,7 @@ async function armsByFunctionOnce(
   const found = new Map<string, readonly string[]>();
 
   for (const file of files) {
-    collectArms(await readCodeStatements(file.text), found);
+    collectArms(await getCodeStatements(file.text), found);
   }
 
   return found;

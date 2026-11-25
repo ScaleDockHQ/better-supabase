@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { loadEnv, projectRefOf, withEnvPrefix } from "../../src/env/index.ts";
+import { getEnv, projectRefOf, withEnvPrefix } from "../../src/env/index.ts";
 
 describe("projectRefOf", () => {
   it("reads the ref of a hosted URL only", () => {
@@ -36,14 +36,14 @@ describe("withEnvPrefix", () => {
   });
 });
 
-describe("loadEnv with the integration's names", () => {
+describe("getEnv with the integration's names", () => {
   const keys = {
     NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
   };
 
   it("reads a custom prefix", () => {
-    const env = loadEnv(
+    const env = getEnv(
       {
         DB1_SUPABASE_URL: keys.NEXT_PUBLIC_SUPABASE_URL,
         DB1_SUPABASE_PUBLISHABLE_KEY: keys.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
@@ -56,7 +56,7 @@ describe("loadEnv with the integration's names", () => {
 
   it("names the legacy variable when only it is set", () => {
     expect(() =>
-      loadEnv({
+      getEnv({
         NEXT_PUBLIC_SUPABASE_URL: keys.NEXT_PUBLIC_SUPABASE_URL,
         NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJ",
       }),
@@ -65,7 +65,7 @@ describe("loadEnv with the integration's names", () => {
 
   it("names the legacy secret when a secret key is required", () => {
     expect(() =>
-      loadEnv(
+      getEnv(
         { ...keys, SUPABASE_SERVICE_ROLE_KEY: "eyJ" },
         { require: ["secretKey"] },
       ),

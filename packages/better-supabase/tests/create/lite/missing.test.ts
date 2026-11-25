@@ -4,7 +4,7 @@ import type { LiteRuntime } from "../../../src/lite/runtime.ts";
 
 vi.mock(import("../../../src/lite/runtime.ts"), async (importOriginal) => ({
   ...(await importOriginal()),
-  loadLite: () => Promise.resolve(undefined),
+  getLite: () => Promise.resolve(undefined),
 }));
 
 test("validateDesign says how to install Lite when it is missing", async () => {

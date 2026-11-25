@@ -85,7 +85,7 @@ function isPlatformModule(value: unknown): value is SupabaseMcpPlatformModule {
  * variables so bundlers leave the optional peer out of apps that don't call
  * Supabase's MCP server; a missing install throws how to add it.
  */
-export async function loadSupabaseMcp(): Promise<SupabaseMcpModule> {
+export async function getSupabaseMcp(): Promise<SupabaseMcpModule> {
   const loaded = await importOptionalPeer("@supabase/mcp-server-supabase");
 
   if (!isServerModule(loaded)) {
@@ -96,7 +96,7 @@ export async function loadSupabaseMcp(): Promise<SupabaseMcpModule> {
 }
 
 /** Loads the Management API platform of `@supabase/mcp-server-supabase`. */
-export async function loadSupabaseMcpPlatform(): Promise<SupabaseMcpPlatformModule> {
+export async function getSupabaseMcpPlatform(): Promise<SupabaseMcpPlatformModule> {
   const loaded = await importOptionalPeer(
     "@supabase/mcp-server-supabase/platform/api",
   );

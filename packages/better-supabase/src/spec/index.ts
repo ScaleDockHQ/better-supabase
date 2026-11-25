@@ -197,7 +197,7 @@ export { overlayFromDiff } from "../overlay/diff.ts";
 
 export type { OverlayFromDiffOptions } from "../overlay/diff.ts";
 
-export { loadJsonPath } from "../overlay/load.ts";
+export { getJsonPath } from "../overlay/load.ts";
 
 export type {
   ApplyOverlayOptions,

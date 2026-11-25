@@ -260,7 +260,7 @@ export function createMetrics<
     options.mappers,
   );
 
-  const readSeries = (
+  const getSeries = (
     metric: string,
     range: MetricRange,
     read: MetricSeriesOptions,
@@ -319,9 +319,9 @@ export function createMetrics<
     series({ metric, range, options: read }) {
       const grain = read.grain ?? "day";
 
-      return readSeries(metric, range, read, grain).andThen((points) =>
+      return getSeries(metric, range, read, grain).andThen((points) =>
         read.compare === "previous"
-          ? readSeries(metric, previousRange(range), read, grain).map(
+          ? getSeries(metric, previousRange(range), read, grain).map(
               (previous) => ({ metric, grain, range, points, previous }),
             )
           : AsyncResult.ok({ metric, grain, range, points }),

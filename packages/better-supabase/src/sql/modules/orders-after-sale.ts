@@ -111,7 +111,7 @@ export function afterSaleFunctions(
       audit: false,
     });
 
-  const loadFulfillment = (id: string): string =>
+  const getFulfillment = (id: string): string =>
     `select x.${f("id")} as id, x.${f("order")} as order_id, ${ctx.label("fulfillments", "status", `x.${f("status")}`)} as status into v_fulfillment
   from ${fulfillments} x where x.${f("id")} = ${id} for update;
   if not found then
@@ -119,7 +119,7 @@ export function afterSaleFunctions(
   end if;
   ${load("v_fulfillment.order_id")}`;
 
-  const loadReturn = (id: string): string =>
+  const getReturn = (id: string): string =>
     `select x.${r("id")} as id, x.${r("order")} as order_id, ${ctx.label("returns", "status", `x.${r("status")}`)} as status into v_return
   from ${returns} x where x.${r("id")} = ${id} for update;
   if not found then
@@ -212,7 +212,7 @@ declare
   v_line record;
   v_claims text;
 begin
-  ${loadFulfillment("ship_fulfillment.fulfillment")}
+  ${getFulfillment("ship_fulfillment.fulfillment")}
   ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_fulfillment.status = 'shipped' then
     return false;
@@ -262,7 +262,7 @@ declare
   v_fulfillment record;
   v_order record;
 begin
-  ${loadFulfillment("deliver_fulfillment.fulfillment")}
+  ${getFulfillment("deliver_fulfillment.fulfillment")}
   ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_fulfillment.status = 'delivered' then
     return false;
@@ -293,7 +293,7 @@ declare
   v_fulfillment record;
   v_order record;
 begin
-  ${loadFulfillment("cancel_fulfillment.fulfillment")}
+  ${getFulfillment("cancel_fulfillment.fulfillment")}
   ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_fulfillment.status = 'cancelled' then
     return false;
@@ -379,7 +379,7 @@ declare
   v_line record;
   v_units integer := 0;
 begin
-  ${loadReturn("receive_return.return_id")}
+  ${getReturn("receive_return.return_id")}
   ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_return.status = 'received' then
     return false;
@@ -412,7 +412,7 @@ declare
   v_return record;
   v_order record;
 begin
-  ${loadReturn("reject_return.return_id")}
+  ${getReturn("reject_return.return_id")}
   ${guard(names.scope, names.manage, "v_order.tenant")}
   if v_return.status <> 'requested' then
     ${fail("ORDERS_TRANSITION_INVALID", "only a requested return can be rejected", "55000")}

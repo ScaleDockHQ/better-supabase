@@ -35,8 +35,8 @@ import type {
 
 import {
   blockFields,
-  readAllFields,
-  readFields,
+  getAllFields,
+  getFields,
   writeFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -765,13 +765,13 @@ export function createContacts<
   const fields: BlockFields<F> = blockFields(options.fields, "company fields");
 
   const company = (result: AsyncResult<Company>): AsyncResult<Company<F>> =>
-    result.andThen((row) => readFields(fields, row));
+    result.andThen((row) => getFields(fields, row));
 
   const party = (result: AsyncResult<Party>): AsyncResult<Party<F>> =>
     result.andThen((found) =>
       found.type === "person"
         ? AsyncResult.ok<Party<F>>(found)
-        : readFields(fields, found.company).map((read): Party<F> => ({
+        : getFields(fields, found.company).map((read): Party<F> => ({
             type: "company",
             company: read,
           })),
@@ -825,10 +825,7 @@ export function createContacts<
       companies
         .page(page)
         .andThen((read) =>
-          readAllFields(fields, read.items).map((items) => ({
-            ...read,
-            items,
-          })),
+          getAllFields(fields, read.items).map((items) => ({ ...read, items })),
         ),
     companyFacets: companies.facets,
     companyCount: companies.count,
@@ -837,7 +834,7 @@ export function createContacts<
         value === null ? null : companyOf(value),
       )
         .andThen((row) => foundOrNotFound("company", row, id))
-        .andThen((row) => readFields(fields, row)),
+        .andThen((row) => getFields(fields, row)),
     personPage: people.page,
     personFacets: people.facets,
     personCount: people.count,
@@ -913,10 +910,7 @@ export function createContacts<
     listCompanies: ({ organizationId, ...listOptions }) =>
       list("list_companies", organizationId, listOptions, companyOf).andThen(
         (page) =>
-          readAllFields(fields, page.items).map((items) => ({
-            ...page,
-            items,
-          })),
+          getAllFields(fields, page.items).map((items) => ({ ...page, items })),
       ),
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listPeople: ({ organizationId, ...listOptions }) =>
@@ -996,7 +990,7 @@ export function createContacts<
       call("get_company", { id }, (value) =>
         value === null ? null : companyOf(value),
       ).andThen((row) =>
-        row === null ? AsyncResult.ok(null) : readFields(fields, row),
+        row === null ? AsyncResult.ok(null) : getFields(fields, row),
       ),
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     getPerson: (id) =>

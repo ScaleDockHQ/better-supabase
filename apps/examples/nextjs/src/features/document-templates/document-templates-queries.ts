@@ -37,7 +37,7 @@ function templateRowOf(template: DocumentTemplate): TemplateRow {
  * One page of templates for a list query, searched, filtered and sorted by the
  * document templates block's `templatePage` and counted by `templateFacets`.
  */
-export function loadTemplatePage(
+export function getTemplatePage(
   db: Db,
   query: RecordListUrlQuery,
 ): Promise<RecordListPage<TemplateRow>> {
@@ -60,7 +60,7 @@ async function loadTemplates(): Promise<RecordListPage<TemplateRow> | null> {
   const { session, db } = await bsb.cached();
   cacheTag(DOCUMENT_TEMPLATES_TAG);
 
-  return tenantOf(session) ? loadTemplatePage(db, templateList.defaults) : null;
+  return tenantOf(session) ? getTemplatePage(db, templateList.defaults) : null;
 }
 
 export function getTemplates(): Promise<Loaded<RecordListPage<TemplateRow>>> {

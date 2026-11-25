@@ -5,7 +5,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { CRM_TAG } from "@/features/crm/crm-cache";
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { contractOf } from "../list-reads/contracts-reads";
@@ -42,7 +42,7 @@ export interface ContractDetail extends ContractRow {
   readonly obligations: readonly ObligationRow[];
 }
 
-export async function loadContract(
+export async function getContract(
   id: string,
 ): Promise<ContractDetail | undefined | null> {
   "use cache: private";
@@ -56,7 +56,7 @@ export async function loadContract(
 
   const [contract, obligations] = await Promise.all([
     db.contracts.get(id).orThrow(),
-    readAllPages((page) =>
+    getAllPages((page) =>
       db.contracts.obligationPage({
         organizationId: tenant,
         filters: { contractId: [id] },

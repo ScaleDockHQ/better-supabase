@@ -32,7 +32,7 @@ import { can } from "@/features/user/user-permissions";
 import type { SsoSettingsData } from "../sso-queries";
 
 import { refreshSso } from "../sso-actions";
-import { loadSsoSettings } from "../sso-queries";
+import { getSsoSettings } from "../sso-queries";
 import {
   AddDomainForm,
   AddSamlForm,
@@ -40,11 +40,11 @@ import {
   RemoveConnectionButton,
 } from "./sso-controls";
 
-async function loadSettings(): Promise<
+async function getSettings(): Promise<
   { kind: "ok"; data: SsoSettingsData | null } | { kind: "error" }
 > {
   try {
-    return { kind: "ok", data: await loadSsoSettings() };
+    return { kind: "ok", data: await getSsoSettings() };
   } catch (error) {
     unstable_rethrow(error);
 
@@ -65,7 +65,7 @@ export async function SsoSettings() {
     getPermissions(),
     getExtracted("sso"),
     getFormatter(),
-    loadSettings(),
+    getSettings(),
   ]);
 
   if (!can(permissions, "sso.manage")) {

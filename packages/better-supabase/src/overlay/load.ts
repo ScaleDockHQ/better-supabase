@@ -35,7 +35,7 @@ const cachedEngine = memoized(() => load(importEngine));
  * an install message when the package is missing. The engine is loaded once per
  * module; `importer` replaces the import in tests.
  */
-export function loadJsonPath(
+export function getJsonPath(
   importer?: () => Promise<unknown>,
 ): Promise<JsonPathEngine> {
   if (importer) {

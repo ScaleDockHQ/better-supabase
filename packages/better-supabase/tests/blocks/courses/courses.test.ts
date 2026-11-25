@@ -645,7 +645,7 @@ describe("courseLearnersBinding", () => {
     const subject = { type: "course", id: "c1" };
 
     const learners = await courseLearnersBinding
-      .load(courses, subject, undefined)
+      .get(courses, subject, undefined)
       .orThrow();
 
     expect(learners).toHaveLength(1);

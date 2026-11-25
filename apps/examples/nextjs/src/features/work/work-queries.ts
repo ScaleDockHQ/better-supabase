@@ -9,7 +9,7 @@ import { CUSTOM_FIELDS_TAG } from "@/features/custom-fields/custom-fields-cache"
 import { getMembers } from "@/features/organization/organization-queries";
 import { PROJECTS_TAG } from "@/features/projects/projects-cache";
 import { teamsTag } from "@/features/teams/teams-cache";
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type {
@@ -92,7 +92,7 @@ export async function getWorkBoard(
   }
 
   const [pipelineList, itemList] = await Promise.all([
-    readAllPages((page) =>
+    getAllPages((page) =>
       pipelines.page({
         organizationId: tenant,
         filters: { subjectType: [WORK_ITEM_SUBJECT] },
@@ -224,7 +224,7 @@ export async function getWorkGrid(
   }
 
   const [pipelineList, items] = await Promise.all([
-    readAllPages((page) =>
+    getAllPages((page) =>
       pipelines.page({
         organizationId: tenant,
         filters: { subjectType: [WORK_ITEM_SUBJECT] },

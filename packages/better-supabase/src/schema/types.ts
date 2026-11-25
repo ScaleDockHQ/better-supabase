@@ -203,14 +203,12 @@ export interface SchemaMeta {
    * Loads `functions` on the first `rpc` call. The generated server schema sets
    * it so `generated.functions.js` stays out of startup.
    */
-  readonly loadFunctions?: () => Promise<
-    Readonly<Record<string, FunctionMeta>>
-  >;
+  readonly getFunctions?: () => Promise<Readonly<Record<string, FunctionMeta>>>;
   /**
    * Loads one table the first time a repository method runs. The generated
    * server schema sets it when `gen.serverTables` is `lazy`.
    */
-  readonly tableLoaders?: Readonly<
+  readonly tableGetters?: Readonly<
     Record<string, () => Promise<TableMeta & { readonly key: string }>>
   >;
   readonly buckets?: Readonly<Record<string, BucketMeta>>;
@@ -231,7 +229,7 @@ export interface SchemaMeta {
   /**
    * The functions a `share: "tenant"` fill may call, by database name, from the
    * authorization provider's `sharedFunctions`. It stays on the startup
-   * metadata so a share decision never waits for `loadFunctions`.
+   * metadata so a share decision never waits for `getFunctions`.
    */
   readonly functionShares?: Readonly<Record<string, FunctionShare>>;
 }

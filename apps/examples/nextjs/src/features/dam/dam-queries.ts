@@ -35,7 +35,7 @@ export interface UsageRightRow {
   readonly expiresOn: string | null;
 }
 
-async function loadRights(): Promise<readonly UsageRightRow[] | null> {
+async function getRights(): Promise<readonly UsageRightRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
 
@@ -57,5 +57,5 @@ async function loadRights(): Promise<readonly UsageRightRow[] | null> {
 
 /** The organization's usage rights, the soonest to expire first. */
 export function getUsageRights(): Promise<Loaded<readonly UsageRightRow[]>> {
-  return settle(loadRights);
+  return settle(getRights);
 }

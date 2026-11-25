@@ -29,14 +29,14 @@ import {
   parseBaseline,
   updatedBaseline,
 } from "../doctor/baseline.ts";
-import { loadStackEnvCheck } from "../doctor/env.ts";
+import { getStackEnvCheck } from "../doctor/env.ts";
 import { formatReport, jsonReport } from "../doctor/format.ts";
 import { gitIgnored } from "../doctor/git-ignored.ts";
 import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
 import {
   ENV_FILES,
-  readGitignores,
-  readText,
+  getGitignores,
+  getText,
   dataFiles,
   functionFiles,
   seedFiles,
@@ -52,12 +52,12 @@ import {
   FLAG_FORMATS,
   reportFormat,
 } from "../doctor/options.ts";
-import { readProxyTrace } from "../doctor/proxy-size.ts";
+import { getProxyTrace } from "../doctor/proxy-size.ts";
 import { RECEIVER_RULES } from "../doctor/receiver-types.ts";
 import { DOCS_URL, RULE_CODES, RULES, runRules } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
-import { loadLocalStackCheck } from "../doctor/stacks.ts";
-import { loadSupabaseCliCheck } from "../doctor/supabase-cli.ts";
+import { getLocalStackCheck } from "../doctor/stacks.ts";
+import { getSupabaseCliCheck } from "../doctor/supabase-cli.ts";
 import {
   VERCEL_CODES,
   VERCEL_ENVIRONMENTS,
@@ -66,7 +66,7 @@ import {
 import { PROCESS_ENV } from "../env.ts";
 import {
   METADATA_REJECTED,
-  readMetadataSnapshot,
+  getMetadataSnapshot,
   refuseWithMetadata,
 } from "../gen/metadata.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
@@ -80,7 +80,7 @@ import {
 } from "../supabase-config.ts";
 import { openSymbolTier } from "../typescript-symbols/index.ts";
 import { VERSION } from "../version.ts";
-import { DEFAULT_SNAPSHOT_PATH, loadSnapshot } from "./snapshot.ts";
+import { DEFAULT_SNAPSHOT_PATH, getSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceFlags } from "./source-args.ts";
 
 const ARGS = {
@@ -282,14 +282,14 @@ async function applyFixes(
 }
 
 /** The baseline entries at `path`, none when the file doesn't exist yet. */
-async function readBaseline(
+async function getBaseline(
   root: string,
   path: string,
 ): Promise<{
   readonly entries: ReturnType<typeof parseBaseline>;
   readonly grouped: boolean;
 }> {
-  const file = await readText(root, path);
+  const file = await getText(root, path);
 
   if (file === undefined) {
     return { entries: [], grouped: false };
@@ -370,7 +370,7 @@ async function savedSnapshotWithoutDatabase(
     existsSync(resolve(config.root, path))
   ) {
     return {
-      snapshot: await loadSnapshot(config, env, { snapshotPath: path }),
+      snapshot: await getSnapshot(config, env, { snapshotPath: path }),
       path,
     };
   }
@@ -579,7 +579,7 @@ export async function runDoctor(
     proxyTrace,
   ] = await Promise.all([
     options.snapshot ??
-      loadSnapshot(config, env, source, pg, opened.open).catch(
+      getSnapshot(config, env, source, pg, opened.open).catch(
         async (cause: unknown) => {
           if (sourceOnly) {
             noSnapshot = errorText(cause);
@@ -606,7 +606,7 @@ export async function runDoctor(
           return saved.snapshot;
         },
       ),
-    Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
+    Promise.all(ENV_FILES.map((path) => getText(config.root, path))).then(
       (files) => files.filter((file): file is TextFile => file !== undefined),
     ),
     readSupabaseConfig(config.root).then(
@@ -616,7 +616,7 @@ export async function runDoctor(
           await sqlFiles(config.root, toml, sqlWorkflow(config, toml)),
         ] as const,
     ),
-    readGitignores(config.root),
+    getGitignores(config.root),
     sourceFiles(config),
     compiledReadSets(config).catch((cause: unknown) => ({
       skipped: errorText(cause),
@@ -629,18 +629,18 @@ export async function runDoctor(
         : undefined),
     options.stackEnv ??
       (rules.some((rule) => rule.code === "BS503")
-        ? loadStackEnvCheck(config.root, env, options.signal)
+        ? getStackEnvCheck(config.root, env, options.signal)
         : undefined),
     options.localStacks ??
       (rules.some((rule) => rule.code === "BS700" || rule.code === "BS701")
-        ? loadLocalStackCheck(config.root, env)
+        ? getLocalStackCheck(config.root, env)
         : undefined),
     options.supabaseCli ??
       (rules.some((rule) => rule.code === "BS710" || rule.code === "BS711")
-        ? loadSupabaseCliCheck(config.root, env)
+        ? getSupabaseCliCheck(config.root, env)
         : undefined),
     Promise.all(
-      NEXT_CONFIG_FILES.map((path) => readText(config.root, path)),
+      NEXT_CONFIG_FILES.map((path) => getText(config.root, path)),
     ).then((files) => files.find((file) => file !== undefined)),
     options.install ??
       (rules.some((rule) => rule.code === "BS607")
@@ -649,14 +649,11 @@ export async function runDoctor(
     rules.some((rule) => rule.code === "BS502")
       ? gitIgnored(config.root, ENV_FILES, env)
       : undefined,
-    readText(config.root, "vercel.json"),
+    getText(config.root, "vercel.json"),
     vercelEnv
       ? Promise.all(
           VERCEL_ENVIRONMENTS.map(async (environment) => {
-            const file = await readText(
-              config.root,
-              vercelEnvPath(environment),
-            );
+            const file = await getText(config.root, vercelEnvPath(environment));
 
             return file === undefined ? [] : [{ environment, file }];
           }),
@@ -664,7 +661,7 @@ export async function runDoctor(
       : undefined,
     listedDependencies(config.root).catch(() => undefined),
     rules.some((rule) => rule.code === "BS650")
-      ? readProxyTrace(config.root).catch(() => undefined)
+      ? getProxyTrace(config.root).catch(() => undefined)
       : undefined,
   ]).catch(async (cause: unknown) => {
     await closeQuietly();
@@ -821,7 +818,7 @@ export async function runDoctor(
   let findings: readonly Finding[] = located;
 
   if (baselinePath !== undefined) {
-    const { entries, grouped } = await readBaseline(config.root, baselinePath);
+    const { entries, grouped } = await getBaseline(config.root, baselinePath);
     const codes = new Set(rules.map((rule) => rule.code));
 
     if (updateBaseline) {
@@ -981,7 +978,7 @@ export const doctorCommand: AnyCommand = defineCliCommand({
       let snapshot: Snapshot;
 
       try {
-        snapshot = await readMetadataSnapshot(args.metadata, cwd, io);
+        snapshot = await getMetadataSnapshot(args.metadata, cwd, io);
       } catch (cause) {
         if (cause instanceof MetadataRejectedError) {
           return {

@@ -4,14 +4,14 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { databaseUrl } from "../../src/cli/config.ts";
-import { readStackStatus } from "../../src/cli/stack-status.ts";
+import { getStackStatus } from "../../src/cli/stack-status.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 
 vi.mock(import("../../src/cli/stack-status.ts"), () => ({
-  readStackStatus: vi.fn(),
+  getStackStatus: vi.fn(),
 }));
 
-const status = vi.mocked(readStackStatus);
+const status = vi.mocked(getStackStatus);
 
 describe("databaseUrl with a named stack", () => {
   let root: string;

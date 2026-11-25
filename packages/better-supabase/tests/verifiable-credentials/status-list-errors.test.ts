@@ -6,8 +6,8 @@ import {
   STATUS_LIST_TYP,
   StatusList,
   bitstringEntry,
-  readBitstringStatus,
-  readStatus,
+  getBitstringStatus,
+  getStatus,
   signBitstringStatusListCredential,
   signStatusListToken,
 } from "../../src/verifiable-credentials/index.ts";
@@ -66,7 +66,7 @@ describe("StatusList bounds", () => {
   });
 });
 
-describe("readStatus", () => {
+describe("getStatus", () => {
   it("signs with optional expiry and ttl and reads a bit", async () => {
     const { signer, jwks } = await testKey();
     const list = StatusList.create(8);
@@ -82,9 +82,9 @@ describe("readStatus", () => {
       ttl: 60,
     });
 
-    expect(
-      await readStatus(token, { jwks, uri: URI, index: 3, now: NOW }),
-    ).toBe(1);
+    expect(await getStatus(token, { jwks, uri: URI, index: 3, now: NOW })).toBe(
+      1,
+    );
   });
 
   it("refuses a bad signature, subject and expiry", async () => {
@@ -102,17 +102,17 @@ describe("readStatus", () => {
 
     expect(
       await codeOf(
-        readStatus(token, { jwks: other.jwks, uri: URI, index: 0, now: NOW }),
+        getStatus(token, { jwks: other.jwks, uri: URI, index: 0, now: NOW }),
       ),
     ).toBeTruthy();
     expect(
       await codeOf(
-        readStatus(token, { jwks, uri: "other", index: 0, now: NOW }),
+        getStatus(token, { jwks, uri: "other", index: 0, now: NOW }),
       ),
     ).toBe("STATUS_LIST_SUBJECT");
     expect(
       await codeOf(
-        readStatus(token, {
+        getStatus(token, {
           jwks,
           uri: URI,
           index: 0,
@@ -135,14 +135,14 @@ describe("readStatus", () => {
     ]) {
       expect(
         await codeOf(
-          readStatus(await make(claim), { jwks, uri: URI, index: 0 }),
+          getStatus(await make(claim), { jwks, uri: URI, index: 0 }),
         ),
       ).toBe("STATUS_LIST_CLAIMS");
     }
   });
 });
 
-describe("readBitstringStatus", () => {
+describe("getBitstringStatus", () => {
   const url = "https://issuer.test/bits";
 
   it("signs with optional validity and reads a suspension bit", async () => {
@@ -162,7 +162,7 @@ describe("readBitstringStatus", () => {
     });
 
     expect(
-      await readBitstringStatus(
+      await getBitstringStatus(
         token,
         bitstringEntry(url, 5, "suspension"),
         jwks,
@@ -183,18 +183,16 @@ describe("readBitstringStatus", () => {
 
     expect(
       await codeOf(
-        readBitstringStatus(token, bitstringEntry(url, 0), other.jwks),
+        getBitstringStatus(token, bitstringEntry(url, 0), other.jwks),
       ),
     ).toBeTruthy();
     expect(
       await codeOf(
-        readBitstringStatus(token, bitstringEntry(url, 0, "suspension"), jwks),
+        getBitstringStatus(token, bitstringEntry(url, 0, "suspension"), jwks),
       ),
     ).toBe("STATUS_LIST_CLAIMS");
     expect(
-      await codeOf(
-        readBitstringStatus(token, bitstringEntry("other", 0), jwks),
-      ),
+      await codeOf(getBitstringStatus(token, bitstringEntry("other", 0), jwks)),
     ).toBe("STATUS_LIST_CLAIMS");
 
     const bad = await signJws(
@@ -211,7 +209,7 @@ describe("readBitstringStatus", () => {
     );
 
     expect(
-      await codeOf(readBitstringStatus(bad, bitstringEntry(url, 0), jwks)),
+      await codeOf(getBitstringStatus(bad, bitstringEntry(url, 0), jwks)),
     ).toBe("STATUS_LIST_CLAIMS");
   });
 });

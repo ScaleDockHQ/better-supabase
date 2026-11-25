@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 
-import { readDotenv } from "../../../src/cli/doctor/dotenv.ts";
+import { getDotenv } from "../../../src/cli/doctor/dotenv.ts";
 import { ENV_RULES } from "../../../src/cli/doctor/env.ts";
 
 describe("readDotenv", () => {
   it("reads keys, export, spaces around = and quoted values with their lines", () => {
     expect(
-      readDotenv(
+      getDotenv(
         [
           "A=1",
           "export B = two",
@@ -31,7 +31,7 @@ describe("readDotenv", () => {
 
   it("skips comment lines and drops a comment after the value", () => {
     expect(
-      readDotenv(
+      getDotenv(
         [
           "# SUPABASE_SECRET_KEY=sb_secret_in_a_comment",
           "  # NEXT_PUBLIC_SECRET=x",
@@ -49,7 +49,7 @@ describe("readDotenv", () => {
 
   it("keeps a multi-line quoted value in one entry and counts its lines", () => {
     expect(
-      readDotenv(
+      getDotenv(
         'KEY="-----BEGIN\nNEXT_PUBLIC_SECRET=inside\n-----END"\nAFTER=1\r\n',
       ),
     ).toEqual([
@@ -63,7 +63,7 @@ describe("readDotenv", () => {
   });
 
   it("treats an unterminated quote as the rest of the line", () => {
-    expect(readDotenv('A="open\nB=2')).toEqual([
+    expect(getDotenv('A="open\nB=2')).toEqual([
       { key: "A", value: '"open', line: 1 },
       { key: "B", value: "2", line: 2 },
     ]);

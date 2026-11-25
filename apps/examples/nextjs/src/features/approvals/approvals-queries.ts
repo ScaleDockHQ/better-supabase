@@ -27,7 +27,7 @@ export type Loaded<T> =
  * The pending requests, newest first, with the customers a new request can
  * name. Throws on a failed read, so the private cache never keeps an error.
  */
-async function loadQueue(): Promise<ApprovalsQueue | null> {
+async function getQueue(): Promise<ApprovalsQueue | null> {
   "use cache: private";
   const request = await bsb.cached();
   cacheTag(APPROVALS_TAG, ACCESS_REQUESTS_TAG, CUSTOMERS_TAG);
@@ -85,7 +85,7 @@ async function loadQueue(): Promise<ApprovalsQueue | null> {
 
 export async function getApprovalsQueue(): Promise<Loaded<ApprovalsQueue>> {
   try {
-    const data = await loadQueue();
+    const data = await getQueue();
 
     return data === null ? { kind: "no-organization" } : { kind: "ok", data };
   } catch (error) {

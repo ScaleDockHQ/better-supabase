@@ -45,7 +45,7 @@ export interface InspectionRow {
   readonly plannedStart: string | null;
 }
 
-async function loadCalendar(): Promise<readonly InspectionRow[] | null> {
+async function getCalendar(): Promise<readonly InspectionRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(INSPECTIONS_TAG, CASES_TAG);
@@ -83,7 +83,7 @@ async function loadCalendar(): Promise<readonly InspectionRow[] | null> {
 export function getInspectionCalendar(): Promise<
   Loaded<readonly InspectionRow[]>
 > {
-  return settle(loadCalendar);
+  return settle(getCalendar);
 }
 
 /** One finding of an inspection, serializable. */
@@ -112,9 +112,7 @@ export interface InspectionRunView {
   readonly findings: readonly FindingView[];
 }
 
-async function loadRun(
-  inspectionId: string,
-): Promise<InspectionRunView | null> {
+async function getRun(inspectionId: string): Promise<InspectionRunView | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(INSPECTIONS_TAG, CASES_TAG);
@@ -152,5 +150,5 @@ async function loadRun(
 export function getInspectionRun(
   inspectionId: string,
 ): Promise<Loaded<InspectionRunView>> {
-  return settle(() => loadRun(inspectionId));
+  return settle(() => getRun(inspectionId));
 }

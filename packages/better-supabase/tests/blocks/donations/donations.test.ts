@@ -1304,7 +1304,7 @@ describe("donations block", () => {
 
     const donations = createDonations({ transport, tenant: "org-1" });
 
-    expect((await givingBinding.load(donations, DONOR, undefined)).ok).toBe(
+    expect((await givingBinding.get(donations, DONOR, undefined)).ok).toBe(
       true,
     );
     expect(calls[0]?.[1]).toMatchObject({ donor_type: "contact" });

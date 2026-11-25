@@ -26,7 +26,7 @@ import {
   requirePermission,
 } from "@/features/sales/components/overview-support";
 
-import { loadPortfolio } from "../projects-finance";
+import { getPortfolio } from "../projects-finance";
 import { ProjectLoadError } from "./project-load-error";
 
 export function ProjectPortfolioSkeleton() {
@@ -51,7 +51,7 @@ export async function ProjectPortfolio() {
     getExtracted("projects"),
     getLocale(),
     getFormatter(),
-    loadPortfolio().then(
+    getPortfolio().then(
       (portfolio) => ({ ok: true as const, portfolio }),
       () => ({ ok: false as const }),
     ),

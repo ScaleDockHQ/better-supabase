@@ -22,7 +22,7 @@ describe("invoicesBinding", () => {
       },
     });
 
-    const loaded = await invoicesBinding.load(
+    const loaded = await invoicesBinding.get(
       client,
       { type: "company", id: "c1" },
       undefined,

@@ -708,7 +708,7 @@ ${userGrant(`${fn("unlink_mail_thread")}(uuid, text, text)`)}
 `;
 }
 
-function readSql(ctx: BlockSqlContext, n: MailNames): string {
+function getSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, m, l } = n;
 
   const row = (alias: string): string =>
@@ -1063,7 +1063,7 @@ export function mailSyncFunctions(ctx: BlockSqlContext, n: MailNames): string {
     ctx.installed("activities") ? activitySql(ctx, n) : "",
     accountSql(ctx, n),
     messageSql(ctx, n),
-    readSql(ctx, n),
+    getSql(ctx, n),
     trackingSql(ctx, n),
   ].join("");
 }

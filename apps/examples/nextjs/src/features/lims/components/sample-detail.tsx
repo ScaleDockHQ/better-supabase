@@ -21,7 +21,7 @@ import {
 import { Link } from "@/i18n/navigation";
 
 import { completeSample, decideSample, recordResult } from "../lims-actions";
-import { loadInstruments, loadMethods, loadSample } from "../lims-queries";
+import { getInstruments, getMethods, loadSample } from "../lims-queries";
 import { sampleStatusLabels } from "./lims-overview";
 
 /** The specification limits of a method as text. */
@@ -76,8 +76,8 @@ export async function SampleDetail({ id, tab }: { id: string; tab: string }) {
   ] = await Promise.all([
     getExtracted("lims"),
     settle(() => loadSample(id)),
-    settle(loadMethods),
-    settle(loadInstruments),
+    settle(getMethods),
+    settle(getInstruments),
     dateFormatter(),
     sampleStatusLabels(),
     holds("lims.write"),

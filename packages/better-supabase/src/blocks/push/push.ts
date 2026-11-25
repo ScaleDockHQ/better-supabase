@@ -25,7 +25,7 @@ import { expoPushToken } from "../../client/native/push-token.ts";
 import { blockEmitter } from "../../core/block-events.ts";
 import {
   blockFields,
-  readAllFields,
+  getAllFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";
@@ -287,7 +287,7 @@ export function createPush<S extends StandardSchemaV1 | undefined = undefined>(
       call("unregister_push_device", { token }, (value) => value === true),
     tokensFor: (userIds) =>
       call("push_tokens_for", { users: [...userIds] }, targetsOf).andThen(
-        (targets) => readAllFields(fields, targets),
+        (targets) => getAllFields(fields, targets),
       ),
     prune: (tokens) =>
       call("prune_push_tokens", { tokens: [...tokens] }, countOf),

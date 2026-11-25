@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
 import {
-  loadSnapshot,
+  getSnapshot,
   managementTarget,
   openSource,
   parseSnapshot,
@@ -226,7 +226,7 @@ describe("snapshotFile", () => {
   });
 });
 
-describe("loadSnapshot", () => {
+describe("getSnapshot", () => {
   let root: string;
 
   beforeEach(async () => {
@@ -245,7 +245,7 @@ describe("loadSnapshot", () => {
   it("reads a saved file and reports a missing one", async () => {
     await write("snap.json", JSON.stringify(fixture));
 
-    const loaded = await loadSnapshot(
+    const loaded = await getSnapshot(
       config({}, root),
       {},
       { snapshotPath: "snap.json" },
@@ -253,7 +253,7 @@ describe("loadSnapshot", () => {
 
     expect(loaded.extras.tables).toHaveLength(fixture.extras.tables.length);
     await expect(
-      loadSnapshot(config({}, root), {}, { snapshotPath: "gone.json" }),
+      getSnapshot(config({}, root), {}, { snapshotPath: "gone.json" }),
     ).rejects.toThrow("Snapshot not found: gone.json");
   });
 
@@ -265,7 +265,7 @@ describe("loadSnapshot", () => {
     const db = fakeSql();
     const open = fakeConnect(db.pg);
 
-    const snapshot = await loadSnapshot(
+    const snapshot = await getSnapshot(
       resolveConfig({ database: { schemas: ["public", "api"] } }, root),
       {},
       { dbUrl: "postgresql://local/db" },
@@ -294,7 +294,7 @@ describe("loadSnapshot", () => {
 
     const open = fakeConnect(db.pg);
     await expect(
-      loadSnapshot(
+      getSnapshot(
         config({}, root),
         {},
         { dbUrl: "postgresql://x/y" },
@@ -309,7 +309,7 @@ describe("loadSnapshot", () => {
     const db = fakeSql([]);
     const open = fakeConnect(db.pg);
     await expect(
-      loadSnapshot(
+      getSnapshot(
         config({}, root),
         {},
         { dbUrl: "postgresql://x/y" },

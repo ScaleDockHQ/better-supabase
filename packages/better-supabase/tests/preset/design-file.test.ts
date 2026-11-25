@@ -9,7 +9,7 @@ import {
   encodeDesign,
   namedPreset,
   parseDesign,
-  readDesignFile,
+  getDesignFile,
   resolvePreset,
 } from "../../src/preset/index.ts";
 
@@ -54,7 +54,7 @@ describe("design files", () => {
 
     expect(file).toEqual({ version: 7, preset: "minimal", ...DESIGN });
     expect(text.endsWith("}\n")).toBe(true);
-    expect(readDesignFile(text)).toEqual({
+    expect(getDesignFile(text)).toEqual({
       preset: namedPreset("minimal"),
       design: DESIGN,
     });
@@ -77,27 +77,27 @@ describe("design files", () => {
       version: 7,
       preset: { casing: "camel", blocks: ["tags"] },
     });
-    expect(readDesignFile(JSON.stringify(file)).preset).toEqual(custom.preset);
+    expect(getDesignFile(JSON.stringify(file)).preset).toEqual(custom.preset);
   });
 
   it("reads a preset name and a file without a design", () => {
-    expect(readDesignFile(JSON.stringify({ preset: "crm" }))).toEqual({
+    expect(getDesignFile(JSON.stringify({ preset: "crm" }))).toEqual({
       preset: namedPreset("crm"),
       design: {},
     });
   });
 
   it("rejects text that isn't a design file", () => {
-    expect(() => readDesignFile("{")).toThrow("not JSON");
-    expect(() => readDesignFile("[]")).toThrow("design must be an object");
-    expect(() => readDesignFile(JSON.stringify({}))).toThrow(
+    expect(() => getDesignFile("{")).toThrow("not JSON");
+    expect(() => getDesignFile("[]")).toThrow("design must be an object");
+    expect(() => getDesignFile(JSON.stringify({}))).toThrow(
       "design file: preset is missing",
     );
     expect(() =>
-      readDesignFile(JSON.stringify({ preset: "crm", extra: 1 })),
+      getDesignFile(JSON.stringify({ preset: "crm", extra: 1 })),
     ).toThrow('unknown key "extra"');
     expect(() =>
-      readDesignFile(
+      getDesignFile(
         JSON.stringify({ preset: "1pWEF3d578B1iGt16", design: {} }),
       ),
     ).toThrow("Upgrade to 0.53 with that release first");

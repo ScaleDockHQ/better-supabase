@@ -4,7 +4,7 @@ import { cacheTag } from "next/cache";
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
-import { readCustomerRows } from "./customers-reads";
+import { getCustomerRows } from "./customers-reads";
 
 /**
  * The first page of the caller's customers plus the count per status.
@@ -23,7 +23,7 @@ export async function getCustomers() {
 
   cacheTag(CUSTOMERS_TAG);
 
-  return readCustomerRows(db, {});
+  return getCustomerRows(db, {});
 }
 
 /** One customer with its notes; `null` when RLS hides it or it is gone. */

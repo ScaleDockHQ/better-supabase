@@ -1,5 +1,5 @@
 import { riskList } from "../../../../features/risks/risk-list";
-import { readRiskPage } from "../../../../features/risks/risks-queries";
+import { getRiskPage } from "../../../../features/risks/risks-queries";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -16,5 +16,5 @@ export const GET = bsb.route(async (request, { db }) => {
     return Response.json({ issues: [] }, { status: 400 });
   }
 
-  return Response.json(await readRiskPage(db, query.value));
+  return Response.json(await getRiskPage(db, query.value));
 });

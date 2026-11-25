@@ -5,8 +5,8 @@ import {
   BITSTRING_MIN_ENTRIES,
   StatusList,
   bitstringEntry,
-  readBitstringStatus,
-  readStatus,
+  getBitstringStatus,
+  getStatus,
   signBitstringStatusListCredential,
   signStatusListToken,
 } from "../../src/verifiable-credentials/index.ts";
@@ -88,7 +88,7 @@ describe("Token Status List", () => {
     });
 
     const read = (index: number, uri = "https://issuer.example/status/1") =>
-      readStatus(token, { jwks: key.jwks, uri, index });
+      getStatus(token, { jwks: key.jwks, uri, index });
 
     expect(await read(5)).toBe(1);
     expect(await read(4)).toBe(0);
@@ -114,17 +114,13 @@ describe("Bitstring Status List", () => {
     });
 
     expect(
-      await readBitstringStatus(token, bitstringEntry(url, 94_567), key.jwks),
+      await getBitstringStatus(token, bitstringEntry(url, 94_567), key.jwks),
     ).toBe(1);
     expect(
-      await readBitstringStatus(token, bitstringEntry(url, 94_568), key.jwks),
+      await getBitstringStatus(token, bitstringEntry(url, 94_568), key.jwks),
     ).toBe(0);
     await expect(
-      readBitstringStatus(
-        token,
-        bitstringEntry(url, 1, "suspension"),
-        key.jwks,
-      ),
+      getBitstringStatus(token, bitstringEntry(url, 1, "suspension"), key.jwks),
     ).rejects.toMatchObject({ code: "STATUS_LIST_CLAIMS" });
   });
 });

@@ -25,7 +25,7 @@ import {
 } from "@/features/sales/components/overview-support";
 
 import { closeApplication } from "../people-actions";
-import { loadApplication, settle } from "../people-queries";
+import { getApplication, settle } from "../people-queries";
 import { PeopleLoadError } from "./people-load-error";
 
 export function ApplicationDetailSkeleton() {
@@ -47,7 +47,7 @@ export async function ApplicationDetail({
 
   const [t, loaded, fmtDate, canManage, canWrite] = await Promise.all([
     getExtracted("people"),
-    settle(() => loadApplication(id)),
+    settle(() => getApplication(id)),
     dateFormatter(),
     holds("hiring.manage"),
     holds("hiring.write"),

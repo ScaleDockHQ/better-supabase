@@ -30,7 +30,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { loadTechnicianDay } from "../field-queries";
+import { getTechnicianDay } from "../field-queries";
 import { AdvanceWorkOrderButton } from "./advance-work-order-button";
 import { FieldLoadError } from "./field-load-error";
 import { WorkOrderStatusBadge } from "./work-order-badges";
@@ -98,7 +98,7 @@ export async function TechnicianDay({
   }
 
   const day = dayOf(query["day"]);
-  const plan = await settle(() => loadTechnicianDay(day.toString()));
+  const plan = await settle(() => getTechnicianDay(day.toString()));
 
   if (plan.kind === "no-organization") {
     return null;

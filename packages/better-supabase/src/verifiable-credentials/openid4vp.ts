@@ -5,7 +5,7 @@ import { decodeJwtPayload } from "../core/base64.ts";
 import { isList, isRecord } from "../core/guards.ts";
 import { verifySdJwt } from "./sd-jwt.ts";
 import { CredentialError, randomUrl } from "./shared.ts";
-import { readStatus } from "./status-list.ts";
+import { getStatus } from "./status-list.ts";
 
 /** One credential a verifier asks for, in DCQL (OpenID4VP 1.0 section 6). */
 export interface CredentialQuery {
@@ -270,7 +270,7 @@ async function isRevoked(
     );
   }
 
-  const bit = await readStatus(await options.fetchStatusList(list["uri"]), {
+  const bit = await getStatus(await options.fetchStatusList(list["uri"]), {
     jwks,
     uri: list["uri"],
     index: list["idx"],

@@ -72,7 +72,7 @@ export interface StatusPageView {
  * The status page published at `slug`, read through the incidents block's
  * public function: it works signed out and returns only public fields.
  */
-export async function loadStatusPage(
+export async function getStatusPage(
   slug: string,
 ): Promise<StatusPageView | null> {
   "use cache: private";

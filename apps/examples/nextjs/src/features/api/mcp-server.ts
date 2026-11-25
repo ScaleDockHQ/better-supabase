@@ -5,7 +5,7 @@ import * as v from "valibot";
 
 import { betterSupabase } from "@/lib/supabase";
 
-import { loadTables } from "./load-tables";
+import { getTables } from "./load-tables";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -15,7 +15,7 @@ const Id = v.pipe(v.string(), v.uuid());
  * no `Authorizer`, so `set_permission_override` gets no `permission`: its SQL
  * function checks `roles.manage` and the tool returns that refusal.
  */
-await loadTables(betterSupabase, ["customers", "projects", "tasks"]);
+await getTables(betterSupabase, ["customers", "projects", "tasks"]);
 
 export const bsb = createMcp(betterSupabase, {
   name: "example-saas",

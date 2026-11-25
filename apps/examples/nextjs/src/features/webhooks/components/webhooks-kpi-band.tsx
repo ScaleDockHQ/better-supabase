@@ -2,12 +2,12 @@ import { getExtracted } from "next-intl/server";
 
 import { KpiBand, KpiBandSkeleton } from "@/components/record-list/kpi-band";
 
-import { loadWebhooks } from "../webhooks-queries";
+import { getWebhooks } from "../webhooks-queries";
 
 /** Render inside `<Suspense>` with `WebhooksKpiBandSkeleton`. */
 export async function WebhooksKpiBand() {
   const [overview, t] = await Promise.all([
-    loadWebhooks(),
+    getWebhooks(),
     getExtracted("webhooks"),
   ]);
 

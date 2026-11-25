@@ -51,7 +51,7 @@ function isYjs(value: unknown): value is YjsLike {
  * Loads `yjs` on first use. The specifier is a variable so bundlers leave the
  * optional peer out of apps that pass the module in.
  */
-async function loadYjs(given: YjsLike | undefined): Promise<YjsLike> {
+async function getYjs(given: YjsLike | undefined): Promise<YjsLike> {
   if (given !== undefined) {
     return given;
   }
@@ -364,7 +364,7 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
         setStatus("connecting");
 
         try {
-          yjs = await loadYjs(options.yjs);
+          yjs = await getYjs(options.yjs);
         } catch (cause) {
           setStatus("closed");
           throw cause;
@@ -531,7 +531,7 @@ export function compactDocument(
   options: CompactDocumentOptions,
 ): AsyncResult<boolean> {
   return AsyncResult.from(async () => {
-    const yjs = await loadYjs(options.yjs);
+    const yjs = await getYjs(options.yjs);
 
     const state = await options.documents.pull({
       documentId: options.documentId,

@@ -18,6 +18,6 @@ export const expensesBinding: RecordBinding<
   permissions: { read: "read" },
   module: "expenses",
   // oxlint-disable-next-line typescript/no-deprecated -- the binding loads the whole array until 0.70 (ADR 1077)
-  load: (client: Expenses, subject) => client.list({ userId: subject.id }),
+  get: (client: Expenses, subject) => client.list({ userId: subject.id }),
   events: ["expense_report.*"],
 });

@@ -32,7 +32,7 @@ export type MarketplaceRead =
  * tenant-scoped read of PR #902). The reply has no secret handles, so the page
  * needs no service role.
  */
-async function loadInstallation(): Promise<
+async function getInstallation(): Promise<
   MarketplaceInstallationView | undefined
 > {
   "use cache: private";
@@ -73,7 +73,7 @@ async function loadInstallation(): Promise<
  */
 export async function getMarketplace(): Promise<MarketplaceRead> {
   try {
-    const installation = await loadInstallation();
+    const installation = await getInstallation();
 
     return installation ? { kind: "ok", installation } : { kind: "none" };
   } catch (error) {

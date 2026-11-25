@@ -5,7 +5,7 @@ import type { SecurityCatalog } from "../../../src/create/lite/index.ts";
 import { previewFiles } from "../../../src/create/index.ts";
 import {
   accessMatrix,
-  readSecurityCatalog,
+  getSecurityCatalog,
   verifyCatalog,
   verifyFiles,
 } from "../../../src/create/lite/index.ts";
@@ -163,9 +163,9 @@ describe("accessMatrix", () => {
   });
 });
 
-describe("readSecurityCatalog", () => {
+describe("getSecurityCatalog", () => {
   it("reads JSON that arrives as text", () => {
-    const catalog = readSecurityCatalog([
+    const catalog = getSecurityCatalog([
       { catalog: JSON.stringify({ tables: [], functions: [] }) },
     ]);
 

@@ -166,7 +166,7 @@ export function maskSql(sql: string, options: MaskOptions = {}): string {
   const masked = maskText(sql, mode);
 
   // Only recent texts stay: one render masks a module's SQL several times
-  // (`readPolicies`, `readGrants`, `guardPolicies`) and then moves on.
+  // (`getPolicies`, `getGrants`, `guardPolicies`) and then moves on.
   if (sql.length <= MEMO_MAX_CHARS) {
     memo.set(sql, masked);
 
@@ -359,7 +359,7 @@ function clauseBody(
 }
 
 /** The first of `statement`'s clauses that sit at the top level. */
-function readStatement(original: string, masked: string): Policy | undefined {
+function getStatement(original: string, masked: string): Policy | undefined {
   HEADER.lastIndex = 0;
   const head = HEADER.exec(masked);
 
@@ -429,13 +429,13 @@ function readStatement(original: string, masked: string): Policy | undefined {
  * dollar-quoted bodies and quoted names can't confuse the scan. A statement
  * that isn't a well-formed `create policy` is skipped.
  */
-export function readPolicies(sql: string): ReadPolicy[] {
+export function getPolicies(sql: string): ReadPolicy[] {
   const masked = maskSql(sql, { dollarBodies: "scan" });
   const found: ReadPolicy[] = [];
 
   for (const [from, to] of keywordRanges(masked, /\bcreate\s+policy\b/)) {
     const original = sql.slice(from, to);
-    const read = readStatement(original, masked.slice(from, to));
+    const read = getStatement(original, masked.slice(from, to));
 
     if (read !== undefined) {
       found.push({
@@ -451,7 +451,7 @@ export function readPolicies(sql: string): ReadPolicy[] {
 
 /** The policy one `create policy` statement creates. */
 export function readPolicy(statement: string): Policy | undefined {
-  return readPolicies(statement)[0]?.policy;
+  return getPolicies(statement)[0]?.policy;
 }
 
 /** A grant of privileges on a table to roles. */
@@ -465,7 +465,7 @@ const GRANT =
   /^\s*grant\s+[\s\S]+?\s+on\s+(?:table\s+)?("(?:[^"]|"")+"|[a-z_][\w$]*)(?:\s*\.\s*("(?:[^"]|"")+"|[a-z_][\w$]*))?\s+to\s+([\s\S]+?);?\s*$/di;
 
 /** The table grants of `sql`, read past comments, strings and dollar quotes. */
-export function readGrants(sql: string): Grant[] {
+export function getGrants(sql: string): Grant[] {
   const masked = maskSql(sql, { dollarBodies: "scan" });
   const grants: Grant[] = [];
 

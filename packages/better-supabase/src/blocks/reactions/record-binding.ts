@@ -38,7 +38,7 @@ export const reactionsBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "create" },
   module: "reactions",
-  load: (client: Reactions, subject) =>
+  get: (client: Reactions, subject) =>
     client
       .summary([subject])
       .map((summary) => summary[subjectKey(subject)] ?? []),

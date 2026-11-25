@@ -11,7 +11,7 @@ export function badRequest(message: string): Response {
 }
 
 /** The JSON body of a request, or `undefined` when it is not JSON. */
-export async function readJson(request: Request): Promise<unknown> {
+export async function getJson(request: Request): Promise<unknown> {
   try {
     return await request.json();
   } catch {

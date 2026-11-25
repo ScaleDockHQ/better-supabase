@@ -1,4 +1,4 @@
-import { loadContactDeals } from "../../../../features/inbox/contact-deals";
+import { getContactDeals } from "../../../../features/inbox/contact-deals";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -22,7 +22,7 @@ export const GET = bsb.route(async (request, { db }) => {
     );
   }
 
-  const deals = await loadContactDeals(
+  const deals = await getContactDeals(
     db,
     conversation.data.contactId,
     request.nextUrl.searchParams.get("locale") ?? "en",

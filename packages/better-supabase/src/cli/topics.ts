@@ -65,7 +65,7 @@ const isLoadedTopic = (value: unknown): value is LoadedTopic =>
  * fresh, each once, sorted by template. Throws for a module that exports no
  * topic.
  */
-export async function loadTopics(
+export async function getTopics(
   root: string,
   from: readonly string[],
 ): Promise<readonly TopicExport[]> {

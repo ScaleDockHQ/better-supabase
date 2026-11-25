@@ -1032,7 +1032,7 @@ ${userGrant(`${fn("restore_pipeline_stage")}(uuid)`)}
 ${transitions}`;
 }
 
-export function readFunctions(
+export function getFunctions(
   idType: string,
   names: Names,
   bindings: readonly PipelineBinding[],

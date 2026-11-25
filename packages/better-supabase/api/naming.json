@@ -2505,6 +2505,132 @@
       "to": "ssrSession",
       "kind": "function",
       "since": "0.67"
+    },
+    {
+      "from": "loadBindings",
+      "to": "getBindings",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadConfig",
+      "to": "getConfig",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadEnv",
+      "to": "getEnv",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadJsonPath",
+      "to": "getJsonPath",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadMyWork",
+      "to": "getMyWork",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadProject",
+      "to": "getProject",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadSnapshot",
+      "to": "getSnapshot",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadTimeline",
+      "to": "getTimeline",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readArgSource",
+      "to": "getArgSource",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readArgSqlType",
+      "to": "getArgSqlType",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readBitstringStatus",
+      "to": "getBitstringStatus",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readC2paManifest",
+      "to": "getC2paManifest",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readCatalog",
+      "to": "getCatalog",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readDesignFile",
+      "to": "getDesignFile",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readGrants",
+      "to": "getGrants",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readPolicies",
+      "to": "getPolicies",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readRulePolicies",
+      "to": "getRulePolicies",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readSecurityCatalog",
+      "to": "getSecurityCatalog",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readStatus",
+      "to": "getStatus",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "tableLoaders",
+      "to": "tableGetters",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadFunctions",
+      "to": "getFunctions",
+      "kind": "function",
+      "since": "0.88"
     }
   ],
   "allowlist": {
@@ -2671,5 +2797,56 @@
       "lease.terminated",
       "medication_order.stopped"
     ]
+  },
+  "verbs": {
+    "apps/examples/nextjs/src/lib/highlighter.tsx:loadHighlighter": "Example query or action kept until the generated queries replace it (PR 5).",
+    "packages/better-supabase/src/sql/policy.ts:readPolicy": "A SQL builder for the read policy of a table; the word is the access kind, not a source read.",
+    "packages/better-supabase/src/sql/value-maps.ts:readValue": "Parses one value out of a value map it is given; it computes from its argument.",
+    "packages/better-supabase/src/sql/shared.ts:readLine": "Parses one line of generated SQL it is given; it computes from its argument.",
+    "packages/better-supabase/src/fhir/smart.ts:fetchSmartConfiguration": "A factory around the HTTP fetch of the SMART discovery document, named for the protocol call.",
+    "apps/examples/expo-powersync/src/lib/billing.ts:loadPlanCatalog": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/components/ops-list/ops-list-params.ts:loadOpsList": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/components/reui/data-grid/data-grid-features-read-only.ts:readOnlyGridFeatures": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/expo-powersync/src/lib/organizations.native.ts:loadOrganizations": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/lib/supabase/blocks/slices.ts:readSetsConfig": "Example query or action kept until the generated queries replace it (PR 5).",
+    "packages/better-supabase/src/cli/core/io.ts:readStdin": "Reads the process stdin stream, the one source that has no getter form.",
+    "packages/better-supabase/src/core/route-optimizer.ts:fetchRouteOptimizer": "A factory around the HTTP fetch of the optimizer, named for the protocol call.",
+    "packages/better-supabase/src/core/read-set.ts:readSetTables": "Names the read set concept (defineReadSet), not a read verb.",
+    "packages/better-supabase/src/core/read-type.ts:readTypeSource": "Named for the read type concept; computes the source text of a type from its argument.",
+    "packages/better-supabase/src/cli/supabase-config.ts:readSupabaseConfig": "getSupabaseConfig already names the cached lookup in the same file, so the rename would collide.",
+    "apps/examples/nextjs/src/features/crm/crm-queries.ts:readContacts": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/user/permission-snapshot.ts:readPermissions": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/lims/lims-queries.ts:loadSample": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/sales/revenue/revenue-queries.ts:loadStatement": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/sales/automation/automation-queries.ts:loadSegment": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/billing/billing-actions.ts:loadPlanCatalog": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/rfqs/rfqs-queries.ts:loadRfq": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadConversations": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadInboxes": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadMacros": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadDrafts": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadThread": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadMessage": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadTeams": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadScheduled": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadInboundEvents": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/audit/audit-search-params.ts:loadAuditFilters": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/notifications/notifications-actions.ts:loadNotifications": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/notifications/notifications-search-params.ts:loadNotificationFilters": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/tills/tills-queries.ts:loadSession": "Example query or action kept until the generated queries replace it (PR 5).",
+    "packages/better-supabase/src/cli/doctor/round-trips.ts:readSetFor": "Names the read set concept, not a read verb.",
+    "apps/examples/nextjs/src/features/assistant/assistant-slot/assistant-slot-actions.ts:loadAssistantSlot": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/workflows/builder/builder-actions.ts:loadVersionGraph": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/assistant/assistant-search-params.ts:loadChatBranch": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/ai-usage/ai-usage-search-params.ts:loadUsageRange": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/organization/organization-actions.ts:loadMyOrganizations": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/organization/organization-actions.ts:loadMembers": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/organization/organization-queries.ts:readMembers": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/evals/evals-search-params.ts:loadEvalParams": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/warehouse/warehouse-queries.ts:loadPickList": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/drive/drive-actions.ts:loadDriveSharing": "Example query or action kept until the generated queries replace it (PR 5).",
+    "packages/better-supabase/src/blocks/read-sets/manifest.ts:readSetsBlock": "Names the read sets block, not a read verb.",
+    "apps/examples/nextjs/src/features/people/people-queries.ts:loadDirectory": "Example query or action kept until the generated queries replace it (PR 5).",
+    "packages/better-supabase/src/blocks/webhooks/http.ts:fetchTransport": "A factory for the HTTP transport, named after fetch."
   }
 }

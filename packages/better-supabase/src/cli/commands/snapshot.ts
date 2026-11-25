@@ -127,7 +127,7 @@ export async function openSource(
   return pgSource(await databaseUrl(config, env), open, source.signal);
 }
 
-/** Whether `loadSnapshot` reads a saved file rather than a database. */
+/** Whether `getSnapshot` reads a saved file rather than a database. */
 export function snapshotFile(
   config: ResolvedConfig,
   source: SnapshotSource,
@@ -145,7 +145,7 @@ export function snapshotFile(
  * introspects over that source and leaves closing it to the caller, so later
  * queries reuse the connection.
  */
-export async function loadSnapshot(
+export async function getSnapshot(
   config: ResolvedConfig,
   env: Env,
   source: SnapshotSource,
@@ -155,7 +155,7 @@ export async function loadSnapshot(
   const path = snapshotFile(config, source);
 
   if (path) {
-    return readSnapshotFile(resolve(config.root, path), path);
+    return getSnapshotFile(resolve(config.root, path), path);
   }
 
   const [tomlRead, opened] = await Promise.allSettled([
@@ -206,7 +206,7 @@ export async function loadSnapshot(
   }
 }
 
-async function readSnapshotFile(
+async function getSnapshotFile(
   absolute: string,
   label: string = absolute,
 ): Promise<Snapshot> {

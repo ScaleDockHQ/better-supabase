@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PROCESS_ENV, parseEnv } from "../../src/cli/env.ts";
 import {
   parseStackStatus,
-  readStackStatus,
+  getStackStatus,
 } from "../../src/cli/stack-status.ts";
 
 describe("parseStackStatus", () => {
@@ -41,7 +41,7 @@ describe("readStackStatus", () => {
 
   it("returns the exit code when both status forms fail", async () => {
     const bin = await fakeSupabase("exit 3");
-    expect(await readStackStatus(root, { SUPABASE_BIN: bin })).toEqual({
+    expect(await getStackStatus(root, { SUPABASE_BIN: bin })).toEqual({
       ok: false,
       code: 3,
     });
@@ -55,7 +55,7 @@ describe("readStackStatus", () => {
 
     const env = parseEnv({ ...process.env, BS_MARKER: "local" });
     expect(env[PROCESS_ENV]?.["BS_MARKER"]).toBe("local");
-    expect(await readStackStatus(root, env)).toEqual({
+    expect(await getStackStatus(root, env)).toEqual({
       ok: true,
       status: { FROM: "local" },
     });
@@ -63,20 +63,20 @@ describe("readStackStatus", () => {
 
   it("fails with supabase_cli_missing instead of downloading one", async () => {
     await expect(
-      readStackStatus(root, { SUPABASE_BIN: join(root, "missing") }),
+      getStackStatus(root, { SUPABASE_BIN: join(root, "missing") }),
     ).rejects.toMatchObject({ code: "supabase_cli_missing" });
   });
 
   it("asks for a named stack with --stack", async () => {
     const bin = await fakeSupabase(`printf '{"ARGS":"%s"}' "$*"`);
     expect(
-      await readStackStatus(root, { SUPABASE_BIN: bin }, { stack: "dev" }),
+      await getStackStatus(root, { SUPABASE_BIN: bin }, { stack: "dev" }),
     ).toEqual({ ok: true, status: { ARGS: "status --stack dev -o json" } });
   });
 
   it("rejects a status that prints no JSON", async () => {
     const bin = await fakeSupabase("echo Stopped");
-    await expect(readStackStatus(root, { SUPABASE_BIN: bin })).rejects.toThrow(
+    await expect(getStackStatus(root, { SUPABASE_BIN: bin })).rejects.toThrow(
       "supabase status printed no JSON.",
     );
   });

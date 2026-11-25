@@ -177,7 +177,7 @@ function platformKeys(ctx: BlockSqlContext): {
   return { fallback, keys };
 }
 
-const readRule = (
+const getRule = (
   scope: BlockSqlScope,
   read: PlatformRead,
   permission: string,
@@ -409,8 +409,8 @@ function build(ctx: BlockSqlContext): string {
   )}`;
 
   const authenticatedRead = byKey(
-    (entry) => readRule(ctx.scope, entry.read, entry.permission),
-    readRule(ctx.scope, platform.fallback.read, platform.fallback.permission),
+    (entry) => getRule(ctx.scope, entry.read, entry.permission),
+    getRule(ctx.scope, platform.fallback.read, platform.fallback.permission),
   );
 
   const publicKeys = platform.keys

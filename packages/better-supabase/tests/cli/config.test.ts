@@ -10,7 +10,7 @@ import {
   discoverConfig,
   findConfig,
   importExport,
-  loadConfig,
+  getConfig,
   stdinDatabaseUrl,
 } from "../../src/cli/config.ts";
 import { run } from "../../src/cli/core/run.ts";
@@ -56,7 +56,7 @@ describe("config discovery", () => {
     await write(repo, "better-supabase.config.json", {
       gen: { file: "packages/runtime/src/generated.ts", casing: "camel" },
     });
-    const config = await loadConfig(join(pkg, "src"));
+    const config = await getConfig(join(pkg, "src"));
     expect(config.root).toBe(repo);
     expect(config.output).toBe("packages/runtime/src/generated.ts");
     expect(config.casing).toBe("camel");
@@ -69,7 +69,7 @@ describe("config discovery", () => {
     await write(pkg, "better-supabase.config.json", {
       gen: { casing: "snake" },
     });
-    const config = await loadConfig(pkg);
+    const config = await getConfig(pkg);
     expect(config.root).toBe(pkg);
     expect(config.casing).toBe("snake");
   });
@@ -85,7 +85,7 @@ describe("config discovery", () => {
       await mkdir(join(outer, "checkout/.git"), { recursive: true });
       await mkdir(inner, { recursive: true });
       expect(discoverConfig(inner)).toBeUndefined();
-      expect((await loadConfig(inner)).root).toBe(inner);
+      expect((await getConfig(inner)).root).toBe(inner);
     } finally {
       await rm(outer, { recursive: true, force: true });
     }
@@ -96,7 +96,7 @@ describe("config discovery", () => {
       gen: { casing: "camel" },
     });
     await write(pkg, "other.json", { gen: { casing: "snake" } });
-    const config = await loadConfig(pkg, "other.json");
+    const config = await getConfig(pkg, "other.json");
     expect(config.root).toBe(pkg);
     expect(config.casing).toBe("snake");
     expect(discoverConfig(pkg, "other.json")).toBe(join(pkg, "other.json"));
@@ -141,14 +141,14 @@ describe("config environments", () => {
   });
 
   it("applies no block without an environment", async () => {
-    const config = await loadConfig(dir);
+    const config = await getConfig(dir);
     expect(config.environment).toBeUndefined();
     expect(config.doctor.format).toBe("text");
     expect(config.gen.tasks).toEqual(["types", "spec"]);
   });
 
   it("merges objects and replaces arrays", async () => {
-    const config = await loadConfig(dir, undefined, "ci");
+    const config = await getConfig(dir, undefined, "ci");
     expect(config.environment).toBe("ci");
     expect(config.casing).toBe("camel");
     expect(config.doctor).toMatchObject({
@@ -161,13 +161,13 @@ describe("config environments", () => {
   });
 
   it("reads a named block from $env", async () => {
-    const config = await loadConfig(dir, undefined, "staging");
+    const config = await getConfig(dir, undefined, "staging");
     expect(config.doctor.strict).toBe(true);
     expect(config.doctor.ignore).toEqual(["BS100"]);
   });
 
   it("keeps the base for an environment with no block", async () => {
-    const config = await loadConfig(dir, undefined, "preview");
+    const config = await getConfig(dir, undefined, "preview");
     expect(config.environment).toBe("preview");
     expect(config.doctor.strict).toBe(false);
   });
@@ -187,7 +187,7 @@ describe("config environments", () => {
       }),
     );
 
-    const error = await loadConfig(dir).catch((error: unknown) => error);
+    const error = await getConfig(dir).catch((error: unknown) => error);
     expect(error).toMatchObject({
       code: "config_invalid",
       message: expect.stringContaining(
@@ -216,7 +216,7 @@ describe("config environments", () => {
       }),
     );
 
-    const error = await loadConfig(dir).catch((error: unknown) => error);
+    const error = await getConfig(dir).catch((error: unknown) => error);
     expect(error).toMatchObject({
       code: "config_invalid",
       message: expect.stringContaining(
@@ -231,7 +231,7 @@ describe("config environments", () => {
       JSON.stringify({ plugins: { timestamps: true } }),
     );
 
-    const error = await loadConfig(dir).catch((error: unknown) => error);
+    const error = await getConfig(dir).catch((error: unknown) => error);
     expect(error).toMatchObject({
       code: "config_invalid",
       message: expect.stringContaining(
@@ -249,7 +249,7 @@ describe("config environments", () => {
       }),
     );
 
-    const error = await loadConfig(dir).catch((error: unknown) => error);
+    const error = await getConfig(dir).catch((error: unknown) => error);
     expect(error).toMatchObject({
       code: "config_invalid",
       message: expect.stringMatching(
@@ -399,7 +399,7 @@ describe("config helpers", () => {
       "export default { tables: { notes: { columns: { body: { type: 'text' } } } }, records: { note: { table: 'notes' } }, recordTypes: { memo: { table: 'memos' } } };\n",
     );
 
-    const config = await loadConfig(dir, undefined, undefined, file, {
+    const config = await getConfig(dir, undefined, undefined, file, {
       legacyTables: true,
     });
 
@@ -437,7 +437,7 @@ describe("config helpers", () => {
     await writeFile(file, "export default ['tags'];\n");
 
     await expect(
-      loadConfig(dir, undefined, undefined, file, { legacyTables: true }),
+      getConfig(dir, undefined, undefined, file, { legacyTables: true }),
     ).rejects.toMatchObject({ code: "config_invalid" });
   });
 });

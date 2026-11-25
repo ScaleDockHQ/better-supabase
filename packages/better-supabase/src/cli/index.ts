@@ -43,7 +43,7 @@ export {
 export { runGen } from "./gen/run.ts";
 
 export {
-  loadSnapshot,
+  getSnapshot,
   parseSnapshot,
   serializeSnapshot,
 } from "./commands/snapshot.ts";
@@ -69,6 +69,6 @@ export { buildModel } from "./gen/model.ts";
 
 export { emitModule, GENERATED_HEADER } from "./gen/emit.ts";
 
-export { loadConfig } from "./config.ts";
+export { getConfig } from "./config.ts";
 
 export { VERSION } from "./version.ts";

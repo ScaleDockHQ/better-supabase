@@ -28,7 +28,7 @@ import {
   blockCall,
   errorText,
   isRecord,
-  readBodyCapped,
+  getBodyCapped,
   recordOf,
   recordsOf,
   run,
@@ -527,7 +527,7 @@ export function createWebhookInbox<
         );
       }
 
-      const body = await readBodyCapped(request.clone(), maxBodyBytes);
+      const body = await getBodyCapped(request.clone(), maxBodyBytes);
 
       if (body === undefined) {
         return problemResponse(

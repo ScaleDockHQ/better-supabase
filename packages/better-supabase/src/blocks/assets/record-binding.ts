@@ -8,6 +8,6 @@ export const assetsBinding: RecordBinding<Assets, readonly Asset[]> =
   defineRecordBinding({
     permissions: { read: "read", write: "assign" },
     module: "assets",
-    load: (client: Assets, subject) => client.assignedTo({ assignee: subject }),
+    get: (client: Assets, subject) => client.assignedTo({ assignee: subject }),
     events: ["asset.*"],
   });

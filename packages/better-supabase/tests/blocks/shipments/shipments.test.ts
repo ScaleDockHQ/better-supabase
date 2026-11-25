@@ -839,7 +839,7 @@ describe("shipments block", () => {
     const subject = { type: "order", id: "o1" };
 
     const rows = await shipmentsBinding
-      .load(shipments, subject, undefined)
+      .get(shipments, subject, undefined)
       .orThrow();
 
     await shipmentsBinding.writes.create

@@ -397,7 +397,7 @@ export function driveDocumentsSql(kit: DriveKit): string {
 }
 
 /** The common opening: the node, locked, readable and a file. */
-function loadNode(kit: DriveKit, fnName: string, what: string): string {
+function getNode(kit: DriveKit, fnName: string, what: string): string {
   const { T, n, canRead, notFound, live } = kit;
 
   return `select * into v_node from ${T} x where x.${n("id")} = ${fnName}.node${live("x")} for update;
@@ -479,7 +479,7 @@ declare
   v_format text;
 begin
   ${READ_ONLY_GUARD}
-  ${loadNode(kit, "drive_document_save", "a controlled document")}
+  ${getNode(kit, "drive_document_save", "a controlled document")}
   if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("control this document")}
   end if;
@@ -553,7 +553,7 @@ declare
   v_request jsonb;
 begin
   ${READ_ONLY_GUARD}
-  ${loadNode(kit, "drive_document_submit", "released")}
+  ${getNode(kit, "drive_document_submit", "released")}
   if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("submit this document")}
   end if;
@@ -627,7 +627,7 @@ begin
   )) then
     ${fail("DRIVE_FORBIDDEN", "only an approved release request releases a document")}
   end if;
-  ${loadNode(kit, "drive_document_release", "released")}
+  ${getNode(kit, "drive_document_release", "released")}
   if v_node.${n("documentStatus")} is null or v_node.${n("documentStatus")} not in ('in_review', 'effective') then
     ${statusInvalid("only a document in review or an effective one can be released")}
   end if;
@@ -735,7 +735,7 @@ declare
   v_node ${T}%rowtype;
 begin
   ${READ_ONLY_GUARD}
-  ${loadNode(kit, "drive_document_obsolete", "obsoleted")}
+  ${getNode(kit, "drive_document_obsolete", "obsoleted")}
   if not (${SERVICE_CALLER} or ${fn("drive_can")}(v_node.${n("id")}, ${sqlString(role)})) then
     ${forbidden("withdraw this document")}
   end if;
@@ -771,7 +771,7 @@ declare
   v_node ${T}%rowtype;
 begin
   ${READ_ONLY_GUARD}
-  ${loadNode(kit, "drive_document_review", "reviewed")}
+  ${getNode(kit, "drive_document_review", "reviewed")}
   if not (${SERVICE_CALLER} or v_node.${n("documentOwner")} = auth.uid() or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("review this document")}
   end if;

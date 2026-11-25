@@ -18,7 +18,7 @@ import {
   pipelinesMap,
   pipelinesPager,
 } from "../list-reads/pipelines-reads";
-import { loadDealPipeline } from "../pipeline/pipeline-queries";
+import { getDealPipeline } from "../pipeline/pipeline-queries";
 import { takeForecastSnapshot } from "../sales-actions";
 import { ActionDialog } from "./action-dialog";
 import { BlockOverview } from "./block-overview";
@@ -40,7 +40,7 @@ export async function DealOverview({ query }: { query: RecordListUrlQuery }) {
   const [t, loaded, fmtMoney, fmtDate, canWrite, canManage] = await Promise.all(
     [
       getExtracted("sales"),
-      settle(loadDealPipeline),
+      settle(getDealPipeline),
       moneyFormatter(),
       dateFormatter(),
       holds("deals.write"),

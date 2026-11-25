@@ -292,11 +292,11 @@ const isChatModule = (value: unknown): value is VercelConnectChatModule =>
  * Loads `@vercel/connect` on first use. The specifier is a variable so bundlers
  * leave the optional peer out of apps that don't use it.
  */
-const loadConnect = (): Promise<unknown> =>
+const getConnect = (): Promise<unknown> =>
   importOptionalPeer("@vercel/connect");
 
 /** Loads the Chat SDK helpers only when a ref takes forwarded webhooks. */
-const loadConnectChat = (): Promise<unknown> =>
+const getConnectChat = (): Promise<unknown> =>
   importOptionalPeer("@vercel/connect/chat");
 
 const strings = (value: unknown): string[] | undefined =>
@@ -450,7 +450,7 @@ export function vercelConnectCredentials(
     | undefined;
 
   const connect = (): Promise<VercelConnectModule> =>
-    (loaded ??= (options.load ?? loadConnect)().then((value) => {
+    (loaded ??= (options.load ?? getConnect)().then((value) => {
       if (!isModule(value)) {
         loaded = undefined;
         throw new TypeError(
@@ -464,7 +464,7 @@ export function vercelConnectCredentials(
   let chatLoaded: Promise<VercelConnectChatModule> | undefined;
 
   const chat = (): Promise<VercelConnectChatModule> =>
-    (chatLoaded ??= (options.loadChat ?? loadConnectChat)().then((value) => {
+    (chatLoaded ??= (options.loadChat ?? getConnectChat)().then((value) => {
       if (!isChatModule(value)) {
         chatLoaded = undefined;
         throw new TypeError(

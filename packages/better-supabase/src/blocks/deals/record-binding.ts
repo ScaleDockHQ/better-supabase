@@ -13,6 +13,6 @@ export const dealsBinding: RecordBinding<Deals, readonly Deal[]> =
   defineRecordBinding({
     permissions: { read: "read" },
     module: "deals",
-    load: (client: Deals, subject) => client.list({ subject }),
+    get: (client: Deals, subject) => client.list({ subject }),
     events: ["deal.*"],
   });

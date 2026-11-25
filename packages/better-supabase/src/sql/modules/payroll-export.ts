@@ -420,7 +420,7 @@ function build(ctx: BlockSqlContext): string {
     "55000",
   );
 
-  const loadRun = (arg: string, permission: string, lock: boolean): string => `
+  const getRun = (arg: string, permission: string, lock: boolean): string => `
   select * into v_run from ${runs} x where x.${r("id")} = ${arg}${lock ? " for update" : ""};
   if not found then
     ${missing}
@@ -560,7 +560,7 @@ as $$
 #variable_conflict use_column
 declare
   v_run ${runs}%rowtype;
-begin${loadRun("refresh_payroll_run.run_id", exportKey, true)}${draftOnly("refreshed")}
+begin${getRun("refresh_payroll_run.run_id", exportKey, true)}${draftOnly("refreshed")}
   perform ${fn("collect_payroll_lines")}(v_run.${r("id")});
   update ${runs} x set ${r("updatedAt")} = now() where x.${r("id")} = v_run.${r("id")} returning * into v_run;
   return ${runJson("v_run", true)};
@@ -644,7 +644,7 @@ as $$
 #variable_conflict use_column
 declare
   v_run ${runs}%rowtype;
-begin${loadRun("mark_payroll_run_exported.run_id", exportKey, true)}
+begin${getRun("mark_payroll_run_exported.run_id", exportKey, true)}
   if mark_payroll_run_exported.checksum !~ '^[0-9a-f]{64}$'
     or length(coalesce(mark_payroll_run_exported.format, '')) not between 1 and 100 then
     ${invalid("an export has a format name and the hex SHA-256 of its file")}
@@ -682,7 +682,7 @@ as $$
 #variable_conflict use_column
 declare
   v_run ${runs}%rowtype;
-begin${loadRun("delete_payroll_run.run_id", exportKey, true)}${draftOnly("deleted")}
+begin${getRun("delete_payroll_run.run_id", exportKey, true)}${draftOnly("deleted")}
   delete from ${runs} x where x.${r("id")} = v_run.${r("id")};
 end;
 $$;

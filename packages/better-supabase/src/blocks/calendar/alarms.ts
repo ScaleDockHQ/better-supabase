@@ -205,7 +205,7 @@ export function defaultAlarmOf(
  * calendar block doesn't store: an unknown `ACTION`, a missing or unreadable
  * `TRIGGER`, or a reminder of the reminders block (`X-BSB-METHOD`).
  */
-export function readAlarm(
+export function getAlarm(
   lines: readonly ContentLine[],
 ): CalendarAlarm | undefined {
   let method: CalendarAlarmAction | undefined;

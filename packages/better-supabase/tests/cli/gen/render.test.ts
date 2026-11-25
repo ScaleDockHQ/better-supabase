@@ -12,7 +12,7 @@ import {
 } from "../../../src/cli/gen/render.ts";
 import { CACHE_DIR } from "../../../src/cli/introspect/cache.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { loadFixtureSnapshot } from "../fixtures/render.ts";
+import { getFixtureSnapshot } from "../fixtures/render.ts";
 
 const base: BetterSupabaseConfig = {
   blocks: { "updated-at": {} },
@@ -30,7 +30,7 @@ const configFor = (contentMapper: boolean) =>
 
 describe("render", () => {
   it("imports EnrichDatabase only when a table needs it", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
 
     const empty = {
       ...snapshot,
@@ -62,7 +62,7 @@ describe("render", () => {
   });
 
   it("renders the types module only when asked in files mode", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
     const config = configFor(false);
 
     expect((await render(config, snapshot)).typesModule).toBeUndefined();
@@ -78,7 +78,7 @@ describe("render", () => {
   });
 
   it("writes the runtime half and schema.bsb in mapper mode", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
     const config = configFor(true);
     const { files, typesModule } = await render(config, snapshot);
     const paths = files.map((file) => file.path);
@@ -94,7 +94,7 @@ describe("render", () => {
   });
 
   it("serves the full module with the database types inlined", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
 
     const files = await render(configFor(false), snapshot, {
       typesModule: true,
@@ -119,7 +119,7 @@ describe("render", () => {
   });
 
   it("caches the served module per config and snapshot", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
     const root = await mkdtemp(join(tmpdir(), "bsb-render-"));
 
     try {
@@ -145,7 +145,7 @@ describe("render with gen.tableModules", () => {
   const split = resolveConfig({ ...base, gen: { tableModules: true } }, "/app");
 
   it("writes one module per table and a server schema module", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
     const { files } = await render(split, snapshot);
     const paths = files.map((file) => file.path);
     const meta = files.find((file) => file.path.endsWith("generated.meta.js"));
@@ -165,7 +165,7 @@ describe("render with gen.tableModules", () => {
   });
 
   it("keeps the table metadata and the schema out of the main module", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
     const { files } = await render(split, snapshot);
     const main = files.find((file) => file.path === split.output)?.contents;
 
@@ -179,7 +179,7 @@ describe("render with gen.tableModules", () => {
     expect(main).not.toContain("generated.meta.js");
     expect(main).not.toContain("./tables/");
     expect(schema).toContain("export const schema");
-    expect(schema).toContain("tableLoaders");
+    expect(schema).toContain("tableGetters");
     expect(schema).toContain('import("./tables/customers.ts")');
     expect(schema).not.toContain('from "./tables/customers.ts"');
     expect(files.map((file) => file.path)).toContain(
@@ -191,7 +191,7 @@ describe("render with gen.tableModules", () => {
   });
 
   it("imports every table up front when the server schema is eager", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
 
     const { files } = await render(
       resolveConfig(
@@ -213,7 +213,7 @@ describe("render with gen.tableModules", () => {
   });
 
   it("makes every hook read through its table module", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
 
     const { files } = await render(
       resolveConfig(
@@ -236,7 +236,7 @@ describe("render with gen.tableModules", () => {
   });
 
   it("leaves the layout alone with the option off", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
     const { files } = await render(configFor(false), snapshot);
 
     expect(files.some((file) => file.path.includes("/tables/"))).toBe(false);
@@ -246,7 +246,7 @@ describe("render with gen.tableModules", () => {
   });
 
   it("keeps the single-module output in stdin mode and mapper mode", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
 
     const inline = await render(split, snapshot, { inlineMeta: true });
 
@@ -277,7 +277,7 @@ describe("render with gen.blockModules", () => {
     (
       await render(
         resolveConfig({ ...blocks, gen: { blockModules } }, "/app"),
-        await loadFixtureSnapshot(),
+        await getFixtureSnapshot(),
       )
     ).files;
 
@@ -340,7 +340,7 @@ describe("render with gen.blockModules and renamed instances", () => {
         { ...renamed, gen: { tableModules: false, blockModules: true } },
         "/app",
       ),
-      await loadFixtureSnapshot(),
+      await getFixtureSnapshot(),
     );
 
     const todos = files.find((file) =>
@@ -372,7 +372,7 @@ describe("render with gen.constants", () => {
   );
 
   it("writes enums.ts and columns.ts next to the generated module, with no import", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
     const { files } = await render(config, snapshot);
     const enums = files.find((file) => file.path.endsWith("/enums.ts"));
     const columns = files.find((file) => file.path.endsWith("/columns.ts"));
@@ -390,7 +390,7 @@ describe("render with gen.constants", () => {
   });
 
   it("writes nothing extra by default", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
 
     const { files } = await render(
       resolveConfig({ ...base, gen: { tableModules: false } }, "/app"),

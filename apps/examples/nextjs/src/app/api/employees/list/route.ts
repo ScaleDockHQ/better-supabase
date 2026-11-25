@@ -1,4 +1,4 @@
-import { loadEmployeePage } from "@/features/people/people-queries";
+import { getEmployeePage } from "@/features/people/people-queries";
 import { employeeList } from "@/features/people/employees-list";
 import { bsb } from "@/lib/supabase/server";
 
@@ -10,7 +10,7 @@ export const GET = bsb.route(
   async (request, { db, tenant }) => {
     const query = employeeList.parse(request.nextUrl.searchParams);
 
-    return Response.json(await loadEmployeePage(db, tenant, query.value));
+    return Response.json(await getEmployeePage(db, tenant, query.value));
   },
   { requireTenant: true, permission: "employees.read" },
 );

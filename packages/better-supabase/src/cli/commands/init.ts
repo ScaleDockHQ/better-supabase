@@ -41,7 +41,7 @@ import {
   resolvePreset,
 } from "../../preset/index.ts";
 import { agentsBlockFile } from "../agents-block.ts";
-import { findConfig, loadConfig } from "../config.ts";
+import { findConfig, getConfig } from "../config.ts";
 import { contentMapperFiles } from "../content-mapper.ts";
 import {
   CONVENTION_ARGS,
@@ -60,7 +60,7 @@ import {
   PLAN_ARGS,
   planResult,
 } from "../core/files.ts";
-import { readIfExists } from "../core/io.ts";
+import { getIfExists } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
 import { latestMigrationVersion } from "../doctor/migration-safety.ts";
@@ -83,7 +83,7 @@ import {
   planSnapshotFrom,
 } from "../init-existing.ts";
 import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
-import { readPresetInput } from "../preset-input.ts";
+import { getPresetInput } from "../preset-input.ts";
 import { detectProject, installCommand } from "../project/detect.ts";
 import { detectWorkspace, suggestedPackage } from "../project/workspace.ts";
 import { appTablePlan } from "../sql/app-table-files.ts";
@@ -292,7 +292,7 @@ async function chosenPreset(
     return null;
   }
 
-  const input = await readPresetInput(value, root);
+  const input = await getPresetInput(value, root);
   const design = input.design;
   const preset = withConventions(input.preset, flags);
 
@@ -478,7 +478,7 @@ async function runInit(
   );
 
   if (hasConfig) {
-    generated = inPackage ? (await loadConfig(root)).output : config.output;
+    generated = inPackage ? (await getConfig(root)).output : config.output;
   }
 
   const templateContext: TemplateContext = {
@@ -675,7 +675,7 @@ async function runInit(
     const wiring = wiringFor(configInstances(presetConfig));
 
     const written = await wiringFiles(templateContext, wiring, (path) =>
-      readIfExists(resolve(root, path)),
+      getIfExists(resolve(root, path)),
     );
 
     if (written.files.length > 0) {

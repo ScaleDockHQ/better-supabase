@@ -9,7 +9,7 @@ import type { CliEnv } from "../env.ts";
 import {
   accessMatrix,
   accessMatrixTests,
-  readSecurityCatalog,
+  getSecurityCatalog,
   verifyCatalog,
   verifyQuery,
 } from "../../create/lite/index.ts";
@@ -69,7 +69,7 @@ export async function runVerify(
   try {
     const { rows } = await client.query(verifyQuery(config.schemas));
 
-    const catalog = readSecurityCatalog(rows);
+    const catalog = getSecurityCatalog(rows);
     const issues = verifyCatalog(catalog);
     const errors = issues.filter((entry) => entry.severity === "error");
     const written: string[] = [];

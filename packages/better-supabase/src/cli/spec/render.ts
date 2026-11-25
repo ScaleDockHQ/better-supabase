@@ -12,12 +12,12 @@ import type { SpecTarget } from "./targets.ts";
 
 import {
   applyOverlays,
-  loadJsonPath,
+  getJsonPath,
   serializeDocument,
 } from "../../spec/index.ts";
 import { errorText } from "../core/errors.ts";
 import { VERSION } from "../version.ts";
-import { readCachedRender, sha256, writeCachedRender } from "./cache.ts";
+import { getCachedRender, sha256, writeCachedRender } from "./cache.ts";
 import { documentFormatId } from "./entry.ts";
 import { documentText, fieldOf, parseAs, parseDocumentText } from "./text.ts";
 
@@ -53,7 +53,7 @@ const isOverlay = (value: unknown): value is Overlay =>
   "actions" in value &&
   Array.isArray(value.actions);
 
-async function loadOverlays(
+async function getOverlays(
   root: string,
   paths: readonly string[],
 ): Promise<LoadedOverlays> {
@@ -98,7 +98,7 @@ let jsonpath: Promise<JsonPathEngine> | undefined;
  * output has overlays.
  */
 function jsonPathEngine(): Promise<JsonPathEngine> {
-  jsonpath ??= loadJsonPath(() => import("jsonpath-rfc9535"));
+  jsonpath ??= getJsonPath(() => import("jsonpath-rfc9535"));
 
   return jsonpath;
 }
@@ -191,7 +191,7 @@ export async function renderTarget(
   const pin: string =
     target.format.versions[target.version]?.pin ?? target.version;
 
-  const loaded = await loadOverlays(context.root, target.overlays);
+  const loaded = await getOverlays(context.root, target.overlays);
 
   const fingerprint = context.cache
     ? sourceFingerprint(target, context.entry)
@@ -214,7 +214,7 @@ export async function renderTarget(
         );
 
   const hit = key
-    ? await readCachedRender(context.root, target.output, key)
+    ? await getCachedRender(context.root, target.output, key)
     : undefined;
 
   if (hit && (!context.validate || hit.schema)) {

@@ -26,7 +26,7 @@ import {
   generateWorkOrders,
   setPlanStatus,
 } from "../maintenance-actions";
-import { loadMeters, loadPlan, loadPlans } from "../maintenance-queries";
+import { getMeters, getPlan, getPlans } from "../maintenance-queries";
 import {
   planKindLabels,
   planStateLabels,
@@ -64,8 +64,8 @@ export async function PlanDetail({ id, tab }: { id: string; tab: string }) {
     canManage,
   ] = await Promise.all([
     getExtracted("maintenance"),
-    settle(() => loadPlan(id)),
-    settle(loadMeters),
+    settle(() => getPlan(id)),
+    settle(getMeters),
     dateFormatter(),
     planStateLabels(),
     planKindLabels(),
@@ -254,8 +254,8 @@ export async function MeterDetail({ id }: { id: string }) {
   const [t, metersLoaded, plansLoaded, fmtDate, canRecord, kinds] =
     await Promise.all([
       getExtracted("maintenance"),
-      settle(loadMeters),
-      settle(loadPlans),
+      settle(getMeters),
+      settle(getPlans),
       dateFormatter(),
       holds("maintenance.record"),
       planKindLabels(),

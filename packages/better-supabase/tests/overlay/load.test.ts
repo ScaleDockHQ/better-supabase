@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { loadJsonPath } from "../../src/spec/index.ts";
+import { getJsonPath } from "../../src/spec/index.ts";
 
-describe("loadJsonPath", () => {
+describe("getJsonPath", () => {
   it("loads jsonpath-rfc9535 once and returns normalized paths", async () => {
-    const engine = await loadJsonPath();
-    expect(await loadJsonPath()).toBe(engine);
+    const engine = await getJsonPath();
+    expect(await getJsonPath()).toBe(engine);
     expect(engine.paths({ a: [1, { "b/c": 2 }] }, "$..*")).toEqual([
       "$['a']",
       "$['a'][0]",
@@ -15,10 +15,10 @@ describe("loadJsonPath", () => {
   });
 
   it("rejects with an install message when the engine is missing", async () => {
-    await expect(loadJsonPath(async () => undefined)).rejects.toThrow(
+    await expect(getJsonPath(async () => undefined)).rejects.toThrow(
       "pnpm add jsonpath-rfc9535",
     );
-    await expect(loadJsonPath(async () => ({ paths: 1 }))).rejects.toThrow(
+    await expect(getJsonPath(async () => ({ paths: 1 }))).rejects.toThrow(
       TypeError,
     );
   });
@@ -29,16 +29,16 @@ describe("loadJsonPath", () => {
       throw new Error("Cannot find package 'jsonpath-rfc9535'");
     });
     const fresh = await import("../../src/overlay/load.ts");
-    await expect(fresh.loadJsonPath()).rejects.toThrow(
+    await expect(fresh.getJsonPath()).rejects.toThrow(
       "pnpm add jsonpath-rfc9535",
     );
     vi.doUnmock("jsonpath-rfc9535");
-    const engine = await fresh.loadJsonPath();
+    const engine = await fresh.getJsonPath();
     expect(engine.paths({ a: 1 }, "$.a")).toEqual(["$['a']"]);
   });
 
   it("accepts a module from a custom importer", async () => {
     const engine = { paths: () => ["$"] };
-    expect(await loadJsonPath(async () => engine)).toBe(engine);
+    expect(await getJsonPath(async () => engine)).toBe(engine);
   });
 });

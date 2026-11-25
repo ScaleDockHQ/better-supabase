@@ -211,7 +211,7 @@ export function threshold(
 }
 
 /** Loads a location's tenant into `v_tenant`, raising when it doesn't exist. */
-function loadLocation(ctx: BlockSqlContext, location: string): string {
+function getLocation(ctx: BlockSqlContext, location: string): string {
   const loc = locationsOf(ctx);
   const l = loc.col;
 
@@ -307,7 +307,7 @@ declare
   v_tenant ${ctx.idType};
   v_active boolean;
 begin
-  ${loadLocation(ctx, "set_location_active.location")}
+  ${getLocation(ctx, "set_location_active.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
   update ${locations} x set ${loc.setActive("coalesce(set_location_active.active, true)")}, ${l("updatedAt")} = now()
   where x.${l("id")} = set_location_active.location;
@@ -375,7 +375,7 @@ declare
   v_on_hand numeric;
   v_available numeric;
 begin
-  ${loadLocation(ctx, "adjust_stock.location")}
+  ${getLocation(ctx, "adjust_stock.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "adjust_stock.variant", "v_tenant")}
   if adjust_stock.quantity is null or adjust_stock.quantity = 0 then
@@ -425,7 +425,7 @@ declare
   v_bin uuid := nullif(count_stock.detail ->> 'binId', '')::uuid;
   v_lot uuid := nullif(count_stock.detail ->> 'lotId', '')::uuid;
 begin
-  ${loadLocation(ctx, "count_stock.location")}
+  ${getLocation(ctx, "count_stock.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "count_stock.variant", "v_tenant")}
   if count_stock.counted is null or count_stock.counted < 0 then
@@ -471,7 +471,7 @@ declare
   v_tenant ${ctx.idType};
   v_active boolean;
 begin
-  ${loadLocation(ctx, "set_reorder_point.location")}
+  ${getLocation(ctx, "set_reorder_point.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "set_reorder_point.variant", "v_tenant")}
   if set_reorder_point.reorder_point < 0 then
@@ -496,7 +496,7 @@ declare
   v_tenant ${ctx.idType};
   v_active boolean;
 begin
-  ${loadLocation(ctx, "set_reorder_quantity.location")}
+  ${getLocation(ctx, "set_reorder_quantity.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "set_reorder_quantity.variant", "v_tenant")}
   if set_reorder_quantity.reorder_quantity is not null and set_reorder_quantity.reorder_quantity <= 0 then
@@ -560,7 +560,7 @@ declare
   v_point numeric;
   v_expires timestamptz := coalesce(reserve_stock.expires_at, now() + interval '15 minutes');
 begin
-  ${loadLocation(ctx, "reserve_stock.location")}
+  ${getLocation(ctx, "reserve_stock.location")}
   ${guard(names.scope, names.reserve, "v_tenant")}
   if not v_active then
     ${fail("INVENTORY_LOCATION_INACTIVE", "the location is inactive", "55000")}

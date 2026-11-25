@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { PgliteConnection } from "../../../src/lite/runtime.ts";
 
-import { loadLite } from "../../../src/lite/runtime.ts";
+import { getLite } from "../../../src/lite/runtime.ts";
 import { moduleBody } from "../../../src/sql/render.ts";
 import { sameTenantLayoutOf } from "../../helpers/facts.ts";
 
@@ -61,7 +61,7 @@ describe("same_tenant on a database", { timeout: 60_000 }, () => {
   };
 
   beforeAll(async () => {
-    const lite = await loadLite();
+    const lite = await getLite();
 
     if (lite === undefined) {
       throw new Error("@supabase/lite is not installed");

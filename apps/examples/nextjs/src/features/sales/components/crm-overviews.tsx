@@ -20,7 +20,7 @@ import { settle } from "@/features/crm/crm-queries";
 import { loadedPager } from "@/lib/loaded-pager";
 import { contractsColumns } from "@/lib/supabase/pages/contracts.columns";
 
-import { loadHealth } from "../automation/automation-queries";
+import { getHealth } from "../automation/automation-queries";
 import {
   contractOf,
   contractsMap,
@@ -555,7 +555,7 @@ export async function HealthOverview({ query }: { query: RecordListUrlQuery }) {
 
   const [t, loaded, fmtDate] = await Promise.all([
     getExtracted("sales"),
-    settle(loadHealth),
+    settle(getHealth),
     dateFormatter(),
   ]);
 

@@ -24,7 +24,7 @@ import {
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
-import { loadWebhook } from "../webhooks-queries";
+import { getWebhook } from "../webhooks-queries";
 import {
   RedeliverButton,
   SendTestEventButton,
@@ -35,7 +35,7 @@ import { DeliveryStatusBadge, EndpointStatusBadge } from "./webhook-endpoints";
 /** Render inside `<Suspense>`: reads the `id` param and the endpoint. */
 export async function WebhookDetail({ id }: { id: string }) {
   const [detail, permissions, t, format] = await Promise.all([
-    loadWebhook(id),
+    getWebhook(id),
     getPermissions(),
     getExtracted("webhooks"),
     getFormatter(),

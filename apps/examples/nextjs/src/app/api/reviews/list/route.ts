@@ -1,7 +1,7 @@
 import { tenantOf } from "better-supabase/next";
 
 import { reviewList } from "../../../../features/reviews/reviews-list";
-import { loadReviewPage } from "../../../../features/reviews/reviews-queries";
+import { getReviewPage } from "../../../../features/reviews/reviews-queries";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -17,7 +17,7 @@ export const GET = bsb.route(async (request, { db, auth }) => {
     return Response.json({ issues: [] }, { status: 400 });
   }
 
-  const page = await loadReviewPage(db, organizationId, query.value);
+  const page = await getReviewPage(db, organizationId, query.value);
 
   return page.ok
     ? Response.json(page.data)

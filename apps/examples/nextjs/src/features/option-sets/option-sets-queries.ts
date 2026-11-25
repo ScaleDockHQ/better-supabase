@@ -24,7 +24,7 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
  * filtered and sorted by the block's `setPage` and counted by `setFacets`.
  * Archived sets are hidden, as the block hides them by default.
  */
-export function loadOptionSetPage(
+export function getOptionSetPage(
   db: Db,
   organizationId: string,
   query: RecordListUrlQuery,
@@ -65,7 +65,7 @@ export async function getOptionSets() {
     return null;
   }
 
-  return loadOptionSetPage(db, tenant, optionSetList.defaults);
+  return getOptionSetPage(db, tenant, optionSetList.defaults);
 }
 
 interface SetRecord {

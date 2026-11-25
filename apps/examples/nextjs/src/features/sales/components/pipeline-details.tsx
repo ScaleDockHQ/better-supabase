@@ -7,7 +7,7 @@ import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { settle } from "@/features/crm/crm-queries";
 import { Link, toAppHref } from "@/i18n/navigation";
 
-import { loadForecast, loadPipeline } from "../pipeline/pipeline-queries";
+import { getForecast, getPipeline } from "../pipeline/pipeline-queries";
 import { DetailTable, FactGrid } from "./detail-table";
 import {
   dateFormatter,
@@ -22,7 +22,7 @@ export async function PipelineDetail({ id }: { id: string }) {
 
   const [t, loaded, fmtMoney] = await Promise.all([
     getExtracted("sales"),
-    settle(() => loadPipeline(id)),
+    settle(() => getPipeline(id)),
     moneyFormatter(),
   ]);
 
@@ -107,7 +107,7 @@ export async function ForecastDetail({ id }: { id: string }) {
 
   const [t, loaded, fmtMoney, fmtDate] = await Promise.all([
     getExtracted("sales"),
-    settle(() => loadForecast(id)),
+    settle(() => getForecast(id)),
     moneyFormatter(),
     dateFormatter(),
   ]);

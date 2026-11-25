@@ -46,7 +46,7 @@ import { problemResponse } from "../../core/problem.ts";
 import { resumeFromStore, teeToStore } from "../../streams/tee.ts";
 import { aiErrorMessage, aiErrorToDbError } from "../errors.ts";
 import { gatewayOptions, problem429, runRelease, usageOf } from "../gateway.ts";
-import { badRequest, readJson, sse } from "../http.ts";
+import { badRequest, getJson, sse } from "../http.ts";
 import {
   AI_SDK_UI_FORMAT,
   fromUIMessage,
@@ -810,7 +810,7 @@ export function createAssistant<UI_MESSAGE extends UIMessage = UIMessage>(
     request: Request,
     context: AssistantContext,
   ): Promise<Response> {
-    const turn = await prepare(await readJson(request), context);
+    const turn = await prepare(await getJson(request), context);
 
     if (turn instanceof Response) {
       return turn;

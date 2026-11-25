@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  readTemplatePath,
+  getTemplatePath,
   resolveTemplates,
   templatePaths,
 } from "@/features/workflows/builder/config-templates";
@@ -13,9 +13,9 @@ const scope = {
 
 describe("config templates", () => {
   it("reads input and result paths", () => {
-    expect(readTemplatePath(scope, "input.name")).toBe("Ada");
-    expect(readTemplatePath(scope, "results.fetch.count")).toBe(2);
-    expect(readTemplatePath(scope, "other.x")).toBeUndefined();
+    expect(getTemplatePath(scope, "input.name")).toBe("Ada");
+    expect(getTemplatePath(scope, "results.fetch.count")).toBe(2);
+    expect(getTemplatePath(scope, "other.x")).toBeUndefined();
   });
 
   it("keeps the type of a whole-value marker", () => {

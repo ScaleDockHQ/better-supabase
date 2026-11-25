@@ -7,7 +7,7 @@ import * as v from "valibot";
 
 import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { Decimal, Id, Optional, given } from "@/lib/form-input";
-import { readAllPagesResult } from "@/lib/read-all-pages";
+import { getAllPagesResult } from "@/lib/read-all-pages";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -44,7 +44,7 @@ export const createTill = bsb.action(
     }
 
     const [accounts, tills] = await Promise.all([
-      readAllPagesResult((page) =>
+      getAllPagesResult((page) =>
         db.accounting.accountPage({ organizationId, ...page }),
       ),
       db.tills.tillPage({ filters: { includeArchived: ["true"] }, limit: 200 }),

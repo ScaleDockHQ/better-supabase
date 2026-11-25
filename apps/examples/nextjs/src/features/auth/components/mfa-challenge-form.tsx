@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/input-otp";
 import { sessionChanged } from "@/features/user/user-actions";
 import { localizedPath } from "@/i18n/routing";
-import { loadBrowserClient } from "@/lib/supabase/load-client";
+import { getBrowserClient } from "@/lib/supabase/load-client";
 
 import { safeNext } from "../safe-next";
 
@@ -38,7 +38,7 @@ export function MfaChallengeForm() {
 
   const verify = () => {
     startTransition(async () => {
-      const { supabase } = await loadBrowserClient();
+      const { supabase } = await getBrowserClient();
 
       const { data: factors } = await supabase.auth.mfa.listFactors();
       const factor = factors?.totp[0];

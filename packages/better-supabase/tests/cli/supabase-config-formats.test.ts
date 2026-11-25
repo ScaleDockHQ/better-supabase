@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { readSupabasePort } from "../../src/cli/config.ts";
+import { getSupabasePort } from "../../src/cli/config.ts";
 import { enablePgDelta } from "../../src/cli/enable-pgdelta.ts";
 import {
   configFileConflict,
@@ -13,7 +13,7 @@ import {
   findSupabaseRoot,
   httpHooks,
   pgFunctionHooks,
-  readConfigInDir,
+  getConfigInDir,
   readSupabaseConfig,
   schemaPaths,
   supabaseConfigFromText,
@@ -79,7 +79,7 @@ describe("the project config in each format", () => {
     expect(config?.path).toBe(`supabase/${name}`);
     expect(tomlGet(config!.document, ["api", "port"])).toBe(54_321);
     expect(findSupabaseRoot(dir)).toBe(dir);
-    expect(await readSupabasePort(dir, "api")).toBe(54_321);
+    expect(await getSupabasePort(dir, "api")).toBe(54_321);
   });
 
   it("prefers config.json over config.jsonc over config.toml, like the CLI", async () => {
@@ -113,11 +113,11 @@ describe("the project config in each format", () => {
       '{ "db": { "port": 55000 } } // demo',
     );
 
-    const stack = await readConfigInDir(join(dir, "supabase/stacks/demo"));
+    const stack = await getConfigInDir(join(dir, "supabase/stacks/demo"));
 
     expect(tomlGet(stack!.document, ["db", "port"])).toBe(55_000);
     expect(
-      await readConfigInDir(join(dir, "supabase/stacks/none")),
+      await getConfigInDir(join(dir, "supabase/stacks/none")),
     ).toBeUndefined();
   });
 

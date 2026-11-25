@@ -13,9 +13,9 @@ import { toConversationRow } from "@/features/inbox/inbox-types";
 import { getMembers } from "@/features/organization/organization-queries";
 import {
   loadDirectory,
-  loadHiringBoard,
+  getHiringBoard,
 } from "@/features/people/people-queries";
-import { loadDeals } from "@/features/sales/pipeline/pipeline-queries";
+import { getDeals } from "@/features/sales/pipeline/pipeline-queries";
 import { getOrders, getProducts } from "@/features/shop/shop-queries";
 import { getSession } from "@/features/user/user-queries";
 import { bsb } from "@/lib/supabase/server";
@@ -69,7 +69,7 @@ export interface AttachmentRow {
 export async function getAttachments(
   subject: RecordSubject,
 ): Promise<RecordBindingResult<readonly AttachmentRow[]>> {
-  const { bindings } = await recordPages[subject.type].load(subject.id, {
+  const { bindings } = await recordPages[subject.type].get(subject.id, {
     bindings: ["attachments"],
   });
 
@@ -154,7 +154,7 @@ async function relationOptions(
     }
 
     case "deal": {
-      const deals = await loadDeals();
+      const deals = await getDeals();
 
       return named(deals?.deals ?? []);
     }
@@ -266,7 +266,7 @@ async function relationOptions(
     }
 
     case "application": {
-      const board = await loadHiringBoard();
+      const board = await getHiringBoard();
 
       return named(board?.cards ?? []);
     }
@@ -367,7 +367,7 @@ async function relationOptions(
 export async function getRelations(
   subject: RecordSubject,
 ): Promise<Loaded<Relations>> {
-  const { bindings } = await recordPages[subject.type].load(subject.id, {
+  const { bindings } = await recordPages[subject.type].get(subject.id, {
     bindings: ["relations"],
   });
 
@@ -481,7 +481,7 @@ export async function getRecordConversations(
   const people = new Set<string>(subject.type === "person" ? [subject.id] : []);
 
   if (subject.type !== "person") {
-    const { bindings } = await recordPages[subject.type].load(subject.id, {
+    const { bindings } = await recordPages[subject.type].get(subject.id, {
       bindings: ["relations"],
     });
 

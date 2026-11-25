@@ -2,7 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { loadAdminList } from "@/features/admin-lists/admin-list-load";
+import { getAdminList } from "@/features/admin-lists/admin-list-load";
 import { bsbShell } from "@/lib/supabase/server-shell";
 
 import { INCOMING_WEBHOOKS_TAG } from "./incoming-webhooks-cache";
@@ -23,7 +23,7 @@ export async function getIncomingWebhooks() {
     return null;
   }
 
-  return loadAdminList({
+  return getAdminList({
     session,
     tenant,
     list: incomingWebhookList,

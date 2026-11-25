@@ -9,7 +9,7 @@ import type {
   DataKey,
 } from "../bindings/data-engine.ts";
 
-import { liveEngine, loadError } from "../bindings/data-engine.ts";
+import { liveEngine, getError } from "../bindings/data-engine.ts";
 
 const IDLE: DataEntry = { status: "idle", data: undefined, error: undefined };
 
@@ -56,7 +56,7 @@ export function queryEngine(
             ? "idle"
             : status,
       data,
-      error: error === null ? undefined : loadError(error),
+      error: error === null ? undefined : getError(error),
     };
 
     const held = entries.get(query.queryHash);

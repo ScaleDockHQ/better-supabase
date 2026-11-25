@@ -30,7 +30,7 @@ const EVENT = "bsb-saved-views";
 
 const storageKey = (scope: string): string => `savedViews:${VERSION}:${scope}`;
 
-function readViews(scope: string): string {
+function getViews(scope: string): string {
   try {
     return localStorage.getItem(storageKey(scope)) ?? "[]";
   } catch {
@@ -91,7 +91,7 @@ export function SavedViews({
 
   const raw = useSyncExternalStore(
     subscribe,
-    () => readViews(scope),
+    () => getViews(scope),
     () => "[]",
   );
 

@@ -9,7 +9,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { INSPECTIONS_TAG } from "@/features/inspections/inspections-cache";
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type { OpenStage } from "./cases-stages";
@@ -37,7 +37,7 @@ export interface CaseBoardData {
   >;
 }
 
-async function loadBoard(): Promise<CaseBoardData | null> {
+async function getBoard(): Promise<CaseBoardData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(CASES_TAG, INSPECTIONS_TAG);
@@ -50,7 +50,7 @@ async function loadBoard(): Promise<CaseBoardData | null> {
   const [page, kinds, pipelines] = await Promise.all([
     db.cases.list({ status: "open", limit: 200 }).orThrow(),
     db.cases.kinds().orThrow(),
-    readAllPages((page) =>
+    getAllPages((page) =>
       db.pipelines.page({
         organizationId,
         filters: { subjectType: ["case"] },
@@ -104,7 +104,7 @@ async function loadBoard(): Promise<CaseBoardData | null> {
 
 /** The organization's open cases, in a column for their stage. */
 export function getCaseBoard(): Promise<CaseBoardData | null> {
-  return loadBoard();
+  return getBoard();
 }
 
 /** One action of a case, serializable. */
@@ -134,7 +134,7 @@ export interface CaseDetailView {
   readonly actions: readonly CaseActionView[];
 }
 
-async function loadDetail(caseId: string): Promise<CaseDetailView | null> {
+async function getDetail(caseId: string): Promise<CaseDetailView | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(CASES_TAG, INSPECTIONS_TAG);
@@ -171,5 +171,5 @@ async function loadDetail(caseId: string): Promise<CaseDetailView | null> {
 
 /** A case with its blockers and actions. */
 export function getCaseDetail(caseId: string): Promise<CaseDetailView | null> {
-  return loadDetail(caseId);
+  return getDetail(caseId);
 }

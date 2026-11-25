@@ -15,7 +15,7 @@ import {
 } from "@/features/sales/components/overview-support";
 
 import { createTill, openSession } from "../tills-actions";
-import { loadOpenTillIds, loadTills } from "../tills-queries";
+import { getOpenTillIds, getTills } from "../tills-queries";
 
 export function TillsListSkeleton() {
   return <RecordListSkeleton rows={5} />;
@@ -32,7 +32,7 @@ export async function SessionOverview({
 
   const [t, tills, fmtDate, fmtMoney] = await Promise.all([
     getExtracted("tills"),
-    settle(loadTills),
+    settle(getTills),
     dateFormatter(),
     moneyFormatter(),
   ]);
@@ -116,7 +116,7 @@ export async function TillOverview({ query }: { query: RecordListUrlQuery }) {
 
   const [t, openIds, canManage] = await Promise.all([
     getExtracted("tills"),
-    loadOpenTillIds(),
+    getOpenTillIds(),
     holds("tills.manage"),
   ]);
 
@@ -232,7 +232,7 @@ export async function NewTillDialog() {
 export async function OpenSessionDialog() {
   const [t, loaded] = await Promise.all([
     getExtracted("tills"),
-    settle(loadTills),
+    settle(getTills),
   ]);
 
   const idle =

@@ -34,7 +34,7 @@ import type { BlockTemporalOptions, TransitionActor } from "../shared.ts";
 
 import {
   blockFields,
-  readFields,
+  getFields,
   writeFields,
 } from "../../core/block-fields.ts";
 import { optionalPlainDateOf } from "../../core/block-helpers.ts";
@@ -729,7 +729,7 @@ export function createQuotes<
     fn: string,
     args: Readonly<Record<string, unknown>>,
     then: (value: unknown) => T,
-  ) => call(fn, args, then).andThen((row) => readFields(fields, row));
+  ) => call(fn, args, then).andThen((row) => getFields(fields, row));
 
   const attrsOf = (
     input: QuoteInput<F>,
@@ -790,7 +790,7 @@ export function createQuotes<
           args: sent,
           run: () => call("create_quote", sent, (value) => value),
           decode: quoteOf,
-        }).andThen((row) => readFields(fields, row));
+        }).andThen((row) => getFields(fields, row));
       });
     },
     duplicate: ({ quote: source, title, input: overrides }) =>
@@ -854,7 +854,7 @@ export function createQuotes<
           token: textOf(recordOf(value, "send_quote")["token"]),
         }),
       ).andThen((sent) =>
-        readFields(fields, sent.quote).map((parsed) => ({
+        getFields(fields, sent.quote).map((parsed) => ({
           quote: parsed,
           token: sent.token,
         })),
@@ -940,7 +940,7 @@ export function createQuotes<
           quote: quoteOf(row),
         };
       }).andThen((version) =>
-        readFields(fields, version.quote).map((parsed) => ({
+        getFields(fields, version.quote).map((parsed) => ({
           ...version,
           quote: parsed,
         })),

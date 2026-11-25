@@ -211,7 +211,7 @@ export interface DesignParseIssue {
 }
 
 /**
- * What `parseDesign`, `decodeDesign`, `designFileSource` and `readDesignFile`
+ * What `parseDesign`, `decodeDesign`, `designFileSource` and `getDesignFile`
  * throw.
  */
 export class DesignParseError extends TypeError implements DesignParseIssue {
@@ -1095,7 +1095,7 @@ export function safeDesignFileSource(
  * a `DesignParseError` naming the first problem: text that isn't JSON, a
  * missing or invalid preset, a 0.14 file, or an invalid design.
  */
-export function readDesignFile(text: string): {
+export function getDesignFile(text: string): {
   readonly preset: Preset;
   readonly design: CreateDesign;
 } {

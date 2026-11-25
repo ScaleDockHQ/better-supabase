@@ -45,7 +45,7 @@ export interface EmployeeDesk {
  * their steps, the leave balances and the programs a new hire can start on. A
  * run or balance the caller cannot read is left out.
  */
-export async function loadEmployeeDesk(
+export async function getEmployeeDesk(
   id: string,
 ): Promise<EmployeeDesk | null> {
   "use cache: private";
@@ -109,7 +109,7 @@ export async function loadEmployeeDesk(
 }
 
 /** The enabled onboarding programs, for the dialog that onboards a new hire. */
-export async function loadOnboardingPrograms(): Promise<
+export async function getOnboardingPrograms(): Promise<
   readonly { readonly value: string; readonly label: string }[] | null
 > {
   "use cache: private";

@@ -58,7 +58,7 @@ export {
   presetApplyCommand,
   presetConfigSource,
   presetInstallCommand,
-  readDesignFile,
+  getDesignFile,
   safeDesignFileSource,
   safeParseDesign,
 } from "./design.ts";

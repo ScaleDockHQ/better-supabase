@@ -4,15 +4,15 @@ import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 import type { SharedMemorySegment } from "../../../src/cli/shm.ts";
 
 import {
-  loadLocalStackCheck,
+  getLocalStackCheck,
   STACK_RULES,
 } from "../../../src/cli/doctor/stacks.ts";
-import { readSharedMemory } from "../../../src/cli/shm.ts";
+import { getSharedMemory } from "../../../src/cli/shm.ts";
 import { listStacks } from "../../../src/cli/stacks.ts";
 
 vi.mock(import("../../../src/cli/shm.ts"), async (importOriginal) => ({
   ...(await importOriginal()),
-  readSharedMemory: vi.fn<typeof readSharedMemory>(),
+  getSharedMemory: vi.fn<typeof getSharedMemory>(),
 }));
 
 vi.mock(import("../../../src/cli/stacks.ts"), async (importOriginal) => ({
@@ -156,26 +156,26 @@ describe("BS701", () => {
 
 describe("loadLocalStackCheck", () => {
   beforeEach(() => {
-    vi.mocked(readSharedMemory).mockReset();
+    vi.mocked(getSharedMemory).mockReset();
     vi.mocked(listStacks).mockReset().mockResolvedValue([STACK]);
   });
 
   it("skips when ipcs is not available", async () => {
-    vi.mocked(readSharedMemory).mockResolvedValue({
+    vi.mocked(getSharedMemory).mockResolvedValue({
       supported: false,
       segments: [],
     });
 
-    expect(await loadLocalStackCheck("/code", {})).toEqual({
+    expect(await getLocalStackCheck("/code", {})).toEqual({
       skipped: "ipcs is not available.",
     });
   });
 
   it("reads the stacks only when a finding names them", async () => {
     const memory = { supported: true, limit: 32, segments: interlocks(2) };
-    vi.mocked(readSharedMemory).mockResolvedValue(memory);
+    vi.mocked(getSharedMemory).mockResolvedValue(memory);
 
-    expect(await loadLocalStackCheck("/code", {})).toEqual({
+    expect(await getLocalStackCheck("/code", {})).toEqual({
       memory,
       stacks: [],
     });
@@ -184,16 +184,16 @@ describe("loadLocalStackCheck", () => {
 
   it("reads the stacks near the limit and treats an unreadable list as empty", async () => {
     const memory = { supported: true, limit: 32, segments: interlocks(30) };
-    vi.mocked(readSharedMemory).mockResolvedValue(memory);
+    vi.mocked(getSharedMemory).mockResolvedValue(memory);
 
-    expect(await loadLocalStackCheck("/code", {})).toEqual({
+    expect(await getLocalStackCheck("/code", {})).toEqual({
       memory,
       stacks: [STACK],
     });
 
     vi.mocked(listStacks).mockRejectedValue(new Error("no stacks dir"));
 
-    expect(await loadLocalStackCheck("/code", {})).toEqual({
+    expect(await getLocalStackCheck("/code", {})).toEqual({
       memory,
       stacks: [],
     });
@@ -207,18 +207,18 @@ describe("loadLocalStackCheck", () => {
       ],
     };
 
-    vi.mocked(readSharedMemory).mockResolvedValue(memory);
+    vi.mocked(getSharedMemory).mockResolvedValue(memory);
 
-    expect(await loadLocalStackCheck("/code", {})).toEqual({
+    expect(await getLocalStackCheck("/code", {})).toEqual({
       memory,
       stacks: [STACK],
     });
   });
 
   it("skips with the reason when reading the segments fails", async () => {
-    vi.mocked(readSharedMemory).mockRejectedValue(new Error("ipcs crashed"));
+    vi.mocked(getSharedMemory).mockRejectedValue(new Error("ipcs crashed"));
 
-    expect(await loadLocalStackCheck("/code", {})).toEqual({
+    expect(await getLocalStackCheck("/code", {})).toEqual({
       skipped: "ipcs crashed",
     });
   });

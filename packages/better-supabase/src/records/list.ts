@@ -119,7 +119,7 @@ export interface RecordList<
    * whole page in one wave. Fails with `validation` on bad URL state and with
    * the list query's error; a column that fails is settled in its cells.
    */
-  load(
+  get(
     source: RecordListSource,
     input: ListSearchParams | undefined,
     options?: ListParseOptions,
@@ -158,7 +158,7 @@ type Load = (
   options: unknown,
 ) => AsyncResult<unknown>;
 
-function loadEach(
+function getEach(
   load: Load,
   client: unknown,
   subjects: readonly RecordRef[],
@@ -218,7 +218,7 @@ function columnOf(
   // SAFETY: as for `count`.
   const column = found.binding.column as Many | undefined;
   // SAFETY: as for `count`; a column loads each row without options.
-  const load = found.binding.load as Load;
+  const load = found.binding.get as Load;
 
   if (mode === "count") {
     return count === undefined
@@ -229,7 +229,7 @@ function columnOf(
   }
 
   return column === undefined
-    ? loadEach(load, client, subjects)
+    ? getEach(load, client, subjects)
     : column(client, subjects);
 }
 
@@ -274,7 +274,7 @@ export function defineRecordList<
     feature,
     list,
     columns,
-    load(source, input, options) {
+    get(source, input, options) {
       const parsed = list.parse(input, options);
 
       if (!parsed.ok) {

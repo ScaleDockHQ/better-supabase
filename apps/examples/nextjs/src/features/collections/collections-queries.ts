@@ -36,7 +36,7 @@ function toRow(collection: Collection): CollectionRow {
  * one list filter, `q` searches the name and the description, and the keyset
  * cursor `after` holds pages on.
  */
-export async function loadCollectionPage(
+export async function getCollectionPage(
   db: Db,
   organizationId: string,
   query: BlockListQuery<"newest">,
@@ -80,7 +80,7 @@ export async function getCollections(): Promise<BlockPage<CollectionRow> | null>
     return null;
   }
 
-  const result = await loadCollectionPage(
+  const result = await getCollectionPage(
     db,
     organizationId,
     collectionList.defaults,

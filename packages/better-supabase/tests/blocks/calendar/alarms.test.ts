@@ -6,7 +6,7 @@ import {
   alarmItem,
   alarmLines,
   alarmOf,
-  readAlarm,
+  getAlarm,
 } from "../../../src/blocks/calendar/alarms.ts";
 import { parseIcs, toIcs } from "../../../src/blocks/calendar/ics.ts";
 
@@ -100,16 +100,16 @@ describe("calendar alarms in iCalendar", () => {
 
 describe("readAlarm", () => {
   it("returns undefined for an alarm the block doesn't store", () => {
-    expect(readAlarm([line("TRIGGER", "-PT5M")])).toBeUndefined();
+    expect(getAlarm([line("TRIGGER", "-PT5M")])).toBeUndefined();
     expect(
-      readAlarm([line("ACTION", "PROCEDURE"), line("TRIGGER", "-PT5M")]),
+      getAlarm([line("ACTION", "PROCEDURE"), line("TRIGGER", "-PT5M")]),
     ).toBeUndefined();
-    expect(readAlarm([line("ACTION", "DISPLAY")])).toBeUndefined();
+    expect(getAlarm([line("ACTION", "DISPLAY")])).toBeUndefined();
     expect(
-      readAlarm([line("ACTION", "DISPLAY"), line("TRIGGER", "soon")]),
+      getAlarm([line("ACTION", "DISPLAY"), line("TRIGGER", "soon")]),
     ).toBeUndefined();
     expect(
-      readAlarm([
+      getAlarm([
         line("ACTION", "DISPLAY"),
         line("TRIGGER", "2026", { VALUE: "DATE-TIME" }),
       ]),
@@ -118,16 +118,16 @@ describe("readAlarm", () => {
 
   it("reads weeks, days, hours and seconds as whole minutes", () => {
     expect(
-      readAlarm([line("ACTION", "display"), line("TRIGGER", "-P1W2DT3H4M59S")]),
+      getAlarm([line("ACTION", "display"), line("TRIGGER", "-P1W2DT3H4M59S")]),
     ).toEqual({ method: "display", offsetMinutes: 13_144 });
     expect(
-      readAlarm([line("ACTION", "DISPLAY"), line("TRIGGER", "-PT0S")]),
+      getAlarm([line("ACTION", "DISPLAY"), line("TRIGGER", "-PT0S")]),
     ).toEqual({ method: "display", offsetMinutes: 0 });
   });
 
   it("keeps a repeat only with a positive interval", () => {
     expect(
-      readAlarm([
+      getAlarm([
         line("ACTION", "DISPLAY"),
         line("TRIGGER", "PT0M"),
         line("REPEAT", "3"),

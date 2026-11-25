@@ -10,7 +10,7 @@ import {
   cloneStackDatabase,
   inStackDiff,
   isShadowFailure,
-  loadPgDelta,
+  getPgDelta,
   openPgPool,
   migrationFiles,
   migrationVersion,
@@ -44,7 +44,7 @@ describe("in-stack diff helpers", () => {
   });
 
   it("loads pg-delta and opens a pool without connecting", async () => {
-    const delta = await loadPgDelta();
+    const delta = await getPgDelta();
     const pool = await openPgPool(STACK_URL);
 
     expect(typeof delta.planSchemaFiles).toBe("function");
@@ -53,7 +53,7 @@ describe("in-stack diff helpers", () => {
 
   it("says to reinstall better-supabase when pg-delta does not load", async () => {
     await expect(
-      loadPgDelta(() => Promise.reject(new Error("Cannot find package"))),
+      getPgDelta(() => Promise.reject(new Error("Cannot find package"))),
     ).rejects.toMatchObject({ code: "dependency_missing" });
   });
 

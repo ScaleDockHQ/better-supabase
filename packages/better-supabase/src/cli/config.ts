@@ -24,10 +24,10 @@ import { importFresh } from "./fresh-import.ts";
 import { withModuleSchemas } from "./module-schemas.ts";
 import { withSchemaTags } from "./schema-tags.ts";
 import { withSettingsSchemas } from "./settings-schemas.ts";
-import { readStackStatus } from "./stack-status.ts";
+import { getStackStatus } from "./stack-status.ts";
 import {
   findUp,
-  readConfigInDir,
+  getConfigInDir,
   readSupabaseConfig,
   tomlNumber,
 } from "./supabase-config.ts";
@@ -232,7 +232,7 @@ export function defaultConfig(
  * `--config` keeps `cwd` as the root. `path` is the file `discoverConfig`
  * found, for callers that already looked it up.
  */
-export async function loadConfig(
+export async function getConfig(
   cwd: string,
   explicit?: string,
   environment?: string,
@@ -299,7 +299,7 @@ export async function loadConfig(
 }
 
 /** `[db] port` or `[api] port` from `supabase/config.toml`. */
-export async function readSupabasePort(
+export async function getSupabasePort(
   root: string,
   section: "db" | "api",
 ): Promise<number | undefined> {
@@ -382,7 +382,7 @@ async function namedStackUrl(
   const toml = await readSupabaseConfig(root);
 
   const stack = toml
-    ? await readConfigInDir(
+    ? await getConfigInDir(
         join(dirname(resolve(root, toml.path)), "stacks", name),
       )
     : undefined;
@@ -413,7 +413,7 @@ async function namedStackUrl(
 const localUrls = new WeakMap<ResolvedConfig, Promise<string>>();
 
 async function localDatabaseUrl(root: string, env: CliEnv): Promise<string> {
-  const port = await readSupabasePort(root, "db");
+  const port = await getSupabasePort(root, "db");
 
   if (port !== undefined) {
     return `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`;
@@ -458,7 +458,7 @@ async function statusDatabaseUrl(
   try {
     // A wedged Docker daemon makes `supabase status` wait on the engine. The
     // caller only needs the URL or a failure, so give up and report no database.
-    const status = await readStackStatus(root, env, {
+    const status = await getStackStatus(root, env, {
       ...(stack === undefined ? {} : { stack }),
       signal: AbortSignal.timeout(5000),
     });

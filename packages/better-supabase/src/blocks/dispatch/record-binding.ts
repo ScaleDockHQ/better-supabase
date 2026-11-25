@@ -31,7 +31,7 @@ export const dispatchBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "manage" },
   module: "dispatch",
-  load: (client: Dispatch, subject) => client.list({ subject }),
+  get: (client: Dispatch, subject) => client.list({ subject }),
   events: ["work_order.*"],
   writes: {
     create: {

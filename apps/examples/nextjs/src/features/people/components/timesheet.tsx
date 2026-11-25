@@ -38,7 +38,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { TIME_ZONE, loadTimesheet, settle } from "../people-queries";
+import { TIME_ZONE, getTimesheet, settle } from "../people-queries";
 import { LogTimeDialog } from "./log-time-dialog";
 import { PeopleLoadError } from "./people-load-error";
 import { SubmitWeekButton, TimerControls } from "./timesheet-controls";
@@ -119,7 +119,7 @@ export async function Timesheet({
 
   const monday = mondayOf(query["week"]);
   const week = monday.toString();
-  const sheet = await settle(() => loadTimesheet(week));
+  const sheet = await settle(() => getTimesheet(week));
 
   if (sheet.kind === "no-organization") {
     return null;

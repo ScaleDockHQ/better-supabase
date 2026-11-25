@@ -8,7 +8,7 @@ import {
   configImportsKey,
   rememberConfigImports,
 } from "../../../src/cli/cache/config-imports.ts";
-import { loadConfig } from "../../../src/cli/config.ts";
+import { getConfig } from "../../../src/cli/config.ts";
 
 let root = "";
 
@@ -82,7 +82,7 @@ describe("configImportsHash", () => {
 });
 
 describe("configImportsKey", () => {
-  it("returns what loadConfig recorded for a root, and an empty key otherwise", () => {
+  it("returns what getConfig recorded for a root, and an empty key otherwise", () => {
     expect(configImportsKey(join(root, "none"))).toBe("");
 
     rememberConfigImports(root, "abc");
@@ -91,7 +91,7 @@ describe("configImportsKey", () => {
   });
 });
 
-describe("loadConfig", () => {
+describe("getConfig", () => {
   it("records the imports hash of the config it loaded", async () => {
     await write("lib/helper.ts", "export const schema = 'one';");
 
@@ -100,13 +100,13 @@ describe("loadConfig", () => {
       'import { schema } from "./lib/helper.ts";\nexport default { database: { sql: { schema } } };',
     );
 
-    await loadConfig(root, undefined, undefined, config);
+    await getConfig(root, undefined, undefined, config);
     const first = configImportsKey(root);
 
     expect(first).toBe(await configImportsHash(config));
 
     await write("lib/helper.ts", "export const schema = 'two';");
-    await loadConfig(root, undefined, undefined, config);
+    await getConfig(root, undefined, undefined, config);
 
     expect(configImportsKey(root)).not.toBe(first);
   });

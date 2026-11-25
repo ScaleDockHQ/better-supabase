@@ -23,7 +23,7 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
  * One page of the organization's hostnames for a list query, searched, filtered
  * and sorted by the domains block's `page` and counted by `facets`.
  */
-export function loadDomainPage(
+export function getDomainPage(
   db: Db,
   organizationId: string,
   { q: _search, ...query }: RecordListUrlQuery,
@@ -69,5 +69,5 @@ export async function getDomains() {
     return null;
   }
 
-  return loadDomainPage(request.db, tenant, domainList.defaults);
+  return getDomainPage(request.db, tenant, domainList.defaults);
 }

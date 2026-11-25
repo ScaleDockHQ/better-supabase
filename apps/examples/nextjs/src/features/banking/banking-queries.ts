@@ -12,7 +12,7 @@ import * as v from "valibot";
 
 import { BILLING_TAG } from "@/features/billing/billing-cache";
 import { SHOP_TAG } from "@/features/shop/shop-cache";
-import { readAllPagesResult } from "@/lib/read-all-pages";
+import { getAllPagesResult } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { BANKING_TAG } from "./banking-cache";
@@ -85,7 +85,7 @@ function amountOf(amount: string, currency: string): MoneyJson {
   return { amount, currency };
 }
 
-async function loadReconciliation(): Promise<
+async function getReconciliation(): Promise<
   readonly BankAccountReconciliation[] | null
 > {
   "use cache: private";
@@ -98,7 +98,7 @@ async function loadReconciliation(): Promise<
 
   const { banking } = db;
 
-  const accounts = await readAllPagesResult((page) =>
+  const accounts = await getAllPagesResult((page) =>
     banking.accountPage(page),
   ).orThrow();
 
@@ -156,5 +156,5 @@ async function loadReconciliation(): Promise<
 export function getBankReconciliation(): Promise<
   Loaded<readonly BankAccountReconciliation[]>
 > {
-  return settle(loadReconciliation);
+  return settle(getReconciliation);
 }

@@ -7,7 +7,7 @@ import { bsb } from "@/lib/supabase/server";
  * The seats the plan leaves given `used` members: `undefined` when the plan
  * sets no limit, `null` without an organization.
  */
-export async function loadSeatsLeft(
+export async function getSeatsLeft(
   used: number,
 ): Promise<number | undefined | null> {
   "use cache: private";

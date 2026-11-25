@@ -15,7 +15,7 @@ import {
   blockCall,
   errorText,
   isRecord,
-  readBodyCapped,
+  getBodyCapped,
 } from "../shared.ts";
 import { SSF_POLL, SSF_PUSH } from "./methods.ts";
 import { SET_CONTENT_TYPE, verifySet } from "./set.ts";
@@ -393,7 +393,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
       );
     }
 
-    const token = await readBodyCapped(request, maxBody);
+    const token = await getBodyCapped(request, maxBody);
 
     if (token === undefined) {
       return rejected("invalid_request", "The SET is too large");

@@ -24,7 +24,7 @@ export interface PayrollRunRow {
   readonly lineCount: number;
 }
 
-async function loadRuns(): Promise<readonly PayrollRunRow[] | null> {
+async function getRuns(): Promise<readonly PayrollRunRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(PEOPLE_TAG);
@@ -54,7 +54,7 @@ export async function getPayrollRuns(): Promise<
   Loaded<readonly PayrollRunRow[]>
 > {
   try {
-    const data = await loadRuns();
+    const data = await getRuns();
 
     return data === null ? { kind: "no-organization" } : { kind: "ok", data };
   } catch (error) {

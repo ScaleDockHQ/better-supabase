@@ -36,7 +36,7 @@ function roleOf(value: string | undefined): "member" | "admin" | null {
  * The active organization's domains and SAML connections as the caller. A
  * failed read throws, so it is never cached and Retry reads again.
  */
-export async function loadSsoSettings(): Promise<SsoSettingsData | null> {
+export async function getSsoSettings(): Promise<SsoSettingsData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(SSO_TAG);

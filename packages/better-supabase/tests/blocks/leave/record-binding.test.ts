@@ -25,7 +25,7 @@ describe("leaveBinding", () => {
       transport: transport(calls),
     });
 
-    const loaded = await leaveBinding.load(
+    const loaded = await leaveBinding.get(
       client,
       { type: "employee", id: "s1" },
       undefined,
@@ -55,7 +55,7 @@ describe("leaveBinding", () => {
   it("fails without an organization", async () => {
     const client = createLeave({ transport: transport([]) });
 
-    const loaded = await leaveBinding.load(
+    const loaded = await leaveBinding.get(
       client,
       { type: "employee", id: "s1" },
       undefined,

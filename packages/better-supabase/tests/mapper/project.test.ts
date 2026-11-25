@@ -8,14 +8,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { schemaStampPath } from "../../src/cli/content-mapper.ts";
 import {
   EMPTY_MODULE,
-  loadProject,
+  getProject,
   realPath,
 } from "../../src/mapper/project.ts";
 import { snapshotPath } from "../cli/fixtures/library.ts";
 
 const snapshot = fileURLToPath(snapshotPath);
 
-describe("loadProject", () => {
+describe("getProject", () => {
   let root: string;
   let tsconfig: string;
 
@@ -41,7 +41,7 @@ describe("loadProject", () => {
 
   it("serves the types module and watches the config, the snapshot and the stamp", async () => {
     await configure(snapshot);
-    const project = await loadProject(tsconfig, {}, {});
+    const project = await getProject(tsconfig, {}, {});
 
     expect(project.diagnostics).toEqual([]);
     expect(project.text).toContain("declare namespace SupabaseTypes {");
@@ -57,15 +57,15 @@ describe("loadProject", () => {
     ]);
     expect(existsSync(schemaStampPath(root, "src/generated.ts"))).toBe(true);
 
-    expect((await loadProject(tsconfig, {}, {})).configIdentity).toBe(
+    expect((await getProject(tsconfig, {}, {})).configIdentity).toBe(
       project.configIdentity,
     );
     expect(
-      (await loadProject(tsconfig, { config: "x" }, {})).configIdentity,
+      (await getProject(tsconfig, { config: "x" }, {})).configIdentity,
     ).not.toBe(project.configIdentity);
 
     await configure(snapshot, "snake");
-    expect((await loadProject(tsconfig, {}, {})).configIdentity).not.toBe(
+    expect((await getProject(tsconfig, {}, {})).configIdentity).not.toBe(
       project.configIdentity,
     );
   });
@@ -74,7 +74,7 @@ describe("loadProject", () => {
     await configure(snapshot);
 
     expect(
-      (await loadProject(tsconfig, { casing: "snake", config: 1 }, {}))
+      (await getProject(tsconfig, { casing: "snake", config: 1 }, {}))
         .optionDiagnostics,
     ).toMatchObject([
       { path: ["casing"], code: 606 },
@@ -84,7 +84,7 @@ describe("loadProject", () => {
 
   it("serves the last types when the source fails, and nothing before a first render", async () => {
     await configure("missing.json");
-    const first = await loadProject(tsconfig, {}, {});
+    const first = await getProject(tsconfig, {}, {});
 
     expect(first.text).toBe(EMPTY_MODULE);
     expect(first.diagnostics).toMatchObject([
@@ -97,9 +97,9 @@ describe("loadProject", () => {
     ]);
 
     await configure(snapshot);
-    const served = await loadProject(tsconfig, {}, {});
+    const served = await getProject(tsconfig, {}, {});
     await configure("missing.json");
-    const stale = await loadProject(tsconfig, {}, {});
+    const stale = await getProject(tsconfig, {}, {});
 
     expect(stale.text).toBe(served.text);
     expect(stale.diagnostics).toMatchObject([{ code: 604 }]);
@@ -107,7 +107,7 @@ describe("loadProject", () => {
   });
 
   it("reports a missing or invalid config on the file", async () => {
-    const missing = await loadProject(tsconfig, {}, {});
+    const missing = await getProject(tsconfig, {}, {});
 
     expect(missing).toMatchObject({
       text: EMPTY_MODULE,
@@ -120,7 +120,7 @@ describe("loadProject", () => {
 
     await writeFile(join(root, "better-supabase.config.json"), '{"gen": 1}');
 
-    expect(await loadProject(tsconfig, {}, {})).toMatchObject({
+    expect(await getProject(tsconfig, {}, {})).toMatchObject({
       watchedFiles: [join(root, "better-supabase.config.json")],
       diagnostics: [{ code: 603 }],
     });

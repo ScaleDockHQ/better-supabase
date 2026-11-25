@@ -104,7 +104,7 @@ function cardOf(order: WorkOrderLike): WorkOrderCard {
 }
 
 /** The schedule board for the week starting on `monday`, with the backlog. */
-export async function loadDispatchWeek(
+export async function getDispatchWeek(
   monday: string,
 ): Promise<DispatchWeek | null> {
   "use cache: private";
@@ -160,7 +160,7 @@ export async function loadDispatchWeek(
 }
 
 /** The caller's stops on `date`, in route order. */
-export async function loadTechnicianDay(
+export async function getTechnicianDay(
   date: string,
 ): Promise<TechnicianDayPlan | null> {
   "use cache: private";
@@ -187,7 +187,7 @@ export async function loadTechnicianDay(
 }
 
 /** The latest shipments and the timeline of `selectedId` (or the newest). */
-export async function loadShipmentTracking(
+export async function getShipmentTracking(
   selectedId: string | undefined,
 ): Promise<ShipmentTracking | null> {
   "use cache: private";
@@ -267,7 +267,7 @@ export interface WorkOrderDetail {
  * One work order with its parts and the meters a visit can read; `null` when
  * absent.
  */
-export async function loadWorkOrder(
+export async function getWorkOrder(
   id: string,
 ): Promise<WorkOrderDetail | undefined | null> {
   "use cache: private";
@@ -340,7 +340,7 @@ export interface ShipmentDetail {
 }
 
 /** One shipment with its tracking timeline; `undefined` when it does not exist. */
-export async function loadShipment(
+export async function getShipment(
   id: string,
 ): Promise<ShipmentDetail | undefined | null> {
   "use cache: private";

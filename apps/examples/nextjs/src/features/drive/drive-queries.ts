@@ -7,7 +7,7 @@ import { cacheTag } from "next/cache";
 import { notFound, unstable_rethrow } from "next/navigation";
 
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { DRIVE_TAG } from "./drive-cache";
@@ -52,7 +52,7 @@ export type DriveFolderView =
  * A folder's children (the root for `null`) and the folders above it. A failed
  * read throws, so it is never cached and Retry reads again.
  */
-async function loadFolder(folderId: string | null) {
+async function getFolder(folderId: string | null) {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
@@ -111,10 +111,10 @@ export async function getDriveFolder(
     notFound();
   }
 
-  let folder: Awaited<ReturnType<typeof loadFolder>>;
+  let folder: Awaited<ReturnType<typeof getFolder>>;
 
   try {
-    folder = await loadFolder(folderId);
+    folder = await getFolder(folderId);
   } catch (error) {
     unstable_rethrow(error);
 
@@ -149,7 +149,7 @@ export type DocumentRegisterView =
   | { readonly kind: "error" }
   | { readonly kind: "no-organization" };
 
-async function loadRegister(): Promise<readonly DocumentRow[] | null> {
+async function getRegister(): Promise<readonly DocumentRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
@@ -159,7 +159,7 @@ async function loadRegister(): Promise<readonly DocumentRow[] | null> {
     return null;
   }
 
-  const documents = await readAllPages((page) =>
+  const documents = await getAllPages((page) =>
     driveOf(db).documentPage({ organizationId: tenant, ...page }),
   );
 
@@ -184,7 +184,7 @@ async function loadRegister(): Promise<readonly DocumentRow[] | null> {
 /** The organization's controlled documents, by number. */
 export async function getDocumentRegister(): Promise<DocumentRegisterView> {
   try {
-    const documents = await loadRegister();
+    const documents = await getRegister();
 
     return documents === null
       ? { kind: "no-organization" }

@@ -103,34 +103,34 @@ function shared<T>(
 
 const schemaTexts = (
   config: ResolvedConfig,
-): ReturnType<typeof readSchemaTexts> =>
-  shared("schemaTexts", config.root, () => readSchemaTexts(config));
+): ReturnType<typeof getSchemaTexts> =>
+  shared("schemaTexts", config.root, () => getSchemaTexts(config));
 
 const declarativeTexts = (
   config: ResolvedConfig,
-): ReturnType<typeof readDeclarativeTexts> =>
-  shared("declarativeTexts", config.root, () => readDeclarativeTexts(config));
+): ReturnType<typeof getDeclarativeTexts> =>
+  shared("declarativeTexts", config.root, () => getDeclarativeTexts(config));
 
 const snapshotCatalog = (
   config: ResolvedConfig,
-): ReturnType<typeof readSnapshotCatalog> =>
-  shared("snapshotCatalog", config.root, () => readSnapshotCatalog(config));
+): ReturnType<typeof getSnapshotCatalog> =>
+  shared("snapshotCatalog", config.root, () => getSnapshotCatalog(config));
 
 const databaseTables = (
   config: ResolvedConfig,
-): ReturnType<typeof readDatabaseTables> =>
-  shared("databaseTables", config.root, () => readDatabaseTables(config));
+): ReturnType<typeof getDatabaseTables> =>
+  shared("databaseTables", config.root, () => getDatabaseTables(config));
 
 const auditedTables = (
   config: ResolvedConfig,
-): ReturnType<typeof readAuditedTables> =>
-  shared("auditedTables", config.root, () => readAuditedTables(config));
+): ReturnType<typeof getAuditedTables> =>
+  shared("auditedTables", config.root, () => getAuditedTables(config));
 
 /**
  * The migrations oldest first, then the declarative schema files, so a schema
  * file, which holds the final state, wins over an older migration.
  */
-async function readSchemaTexts(
+async function getSchemaTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly path: string; readonly text: string }[]> {
   const toml = await readSupabaseConfig(config.root);
@@ -158,7 +158,7 @@ async function readSchemaTexts(
   return texts;
 }
 
-async function readDeclarativeTexts(
+async function getDeclarativeTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly path: string; readonly text: string }[]> {
   const toml = await readSupabaseConfig(config.root);
@@ -189,7 +189,7 @@ async function readDeclarativeTexts(
  * the declarative schemas, so a later call or `unaudit` wins and the schema
  * files, which hold the final state, win over a migration.
  */
-async function readAuditedTables(
+async function getAuditedTables(
   config: ResolvedConfig,
 ): Promise<AuditedTable[]> {
   return auditRegistrations(await schemaTexts(config));
@@ -588,7 +588,7 @@ export function writtenByBlocks(source: {
  * schema files and migrations stand in for it.
  */
 /** The config's snapshot as a catalog, or `undefined` without one. */
-async function readSnapshotCatalog(
+async function getSnapshotCatalog(
   config: ResolvedConfig,
 ): Promise<ReturnType<typeof toCatalog> | undefined> {
   const path = config.source.snapshot;
@@ -650,7 +650,7 @@ export async function snapshotColumnTypes(
   return found;
 }
 
-async function readDatabaseTables(
+async function getDatabaseTables(
   config: ResolvedConfig,
 ): Promise<{
   readonly tables: Readonly<Record<string, string>>;

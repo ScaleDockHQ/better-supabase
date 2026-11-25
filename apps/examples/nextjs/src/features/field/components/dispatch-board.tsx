@@ -40,7 +40,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { loadDispatchWeek } from "../field-queries";
+import { getDispatchWeek } from "../field-queries";
 import { FieldLoadError } from "./field-load-error";
 import { NewWorkOrderDialog } from "./new-work-order-dialog";
 import {
@@ -85,7 +85,7 @@ export async function DispatchBoard({
 
   const manage = can(permissions, "dispatch.manage");
   const monday = mondayOf(query["week"]);
-  const board = await settle(() => loadDispatchWeek(monday.toString()));
+  const board = await settle(() => getDispatchWeek(monday.toString()));
 
   if (board.kind === "no-organization") {
     return null;

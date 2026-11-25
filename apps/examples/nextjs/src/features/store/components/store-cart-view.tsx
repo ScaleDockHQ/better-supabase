@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { settle } from "@/features/status/status-queries";
 import { Link } from "@/i18n/navigation";
 
-import { readCart } from "../store-cart";
+import { getCart } from "../store-cart";
 import { getStoreVariants } from "../store-queries";
 import { StoreLoadError } from "./store-load-error";
 import { priceText } from "./store-price";
@@ -30,7 +30,7 @@ export async function StoreCartView({ slug }: { slug: string }) {
   const [t, locale, lines] = await Promise.all([
     getExtracted("store"),
     getLocale(),
-    readCart(slug),
+    getCart(slug),
   ]);
 
   const loaded = await settle(async () =>

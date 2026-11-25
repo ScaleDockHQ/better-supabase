@@ -117,7 +117,7 @@ export function sameText(
 }
 
 /** The file's text, or `undefined` when it does not exist. */
-export async function readIfExists(path: string): Promise<string | undefined> {
+export async function getIfExists(path: string): Promise<string | undefined> {
   return existsSync(path) ? readFile(path, "utf-8") : undefined;
 }
 

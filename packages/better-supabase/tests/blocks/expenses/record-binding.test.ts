@@ -25,7 +25,7 @@ describe("expensesBinding", () => {
       transport: transport(calls),
     });
 
-    const loaded = await expensesBinding.load(
+    const loaded = await expensesBinding.get(
       client,
       { type: "user", id: "s1" },
       undefined,
@@ -52,7 +52,7 @@ describe("expensesBinding", () => {
   it("fails without an organization", async () => {
     const client = createExpenses({ transport: transport([]) });
 
-    const loaded = await expensesBinding.load(
+    const loaded = await expensesBinding.get(
       client,
       { type: "user", id: "s1" },
       undefined,

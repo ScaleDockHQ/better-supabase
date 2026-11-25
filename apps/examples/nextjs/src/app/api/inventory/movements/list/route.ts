@@ -1,5 +1,5 @@
 import { movementList } from "@/features/inventory/inventory-list";
-import { loadMovementPage } from "@/features/inventory/inventory-queries";
+import { getMovementPage } from "@/features/inventory/inventory-queries";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -11,9 +11,7 @@ export const GET = bsb.route(
   async (request, { db, tenant }) => {
     const query = movementList.parse(request.nextUrl.searchParams);
 
-    return Response.json(
-      (await loadMovementPage(db, tenant, query.value)).page,
-    );
+    return Response.json((await getMovementPage(db, tenant, query.value)).page);
   },
   { requireTenant: true },
 );

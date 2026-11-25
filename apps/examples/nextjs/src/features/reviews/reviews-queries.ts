@@ -75,7 +75,7 @@ async function nameSubjects(
 }
 
 /** One page of the moderation queue, shared by the page and the list route. */
-export async function loadReviewPage(
+export async function getReviewPage(
   db: Db,
   organizationId: string,
   query: BlockListQuery<"newest">,
@@ -126,7 +126,7 @@ export async function getReviews(): Promise<BlockPage<ReviewRow> | null> {
     return null;
   }
 
-  const result = await loadReviewPage(db, organizationId, reviewList.defaults);
+  const result = await getReviewPage(db, organizationId, reviewList.defaults);
 
   if (!result.ok) {
     throw new Error(result.error.message);

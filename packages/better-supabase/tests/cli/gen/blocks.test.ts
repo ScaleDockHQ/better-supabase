@@ -18,7 +18,7 @@ import { resolveConfig as resolveDefault } from "../../../src/config/resolve.ts"
 import { zod } from "../../../src/generators/zod.ts";
 import { PRESET_CATALOG } from "../../../src/preset/catalog.generated.ts";
 import { blockTables } from "../../../src/sql/index.ts";
-import { loadFixtureSnapshot } from "../fixtures/render.ts";
+import { getFixtureSnapshot } from "../fixtures/render.ts";
 
 /**
  * These tests read the single-module layout; the default layout has its own in
@@ -760,7 +760,7 @@ describe("schemaExtensions", () => {
     ]);
 
     const main = (
-      await renderFiles(config, await loadFixtureSnapshot(), {})
+      await renderFiles(config, await getFixtureSnapshot(), {})
     ).find((file) => file.path === "src/db/generated.ts")?.contents;
 
     expect(main).toContain(
@@ -804,7 +804,7 @@ describe("schemaExtensions", () => {
       "/project",
     );
 
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
 
     const main = (await renderFiles(config, snapshot, {})).find(
       (file) => file.path === "src/db/generated.ts",

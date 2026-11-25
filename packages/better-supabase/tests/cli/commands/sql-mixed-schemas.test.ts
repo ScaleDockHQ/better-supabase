@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
 import { runSql } from "../../../src/cli/commands/sql.ts";
-import { readIfExists } from "../../../src/cli/core/io.ts";
+import { getIfExists } from "../../../src/cli/core/io.ts";
 import { moduleLayoutFor } from "../../../src/cli/sql-layout.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
@@ -372,10 +372,10 @@ create index if not exists customers_block_idx on public.customers (organization
     const removed = await sql(["sync"], { ...MIXED_SCHEMAS_CONFIG, blocks });
 
     expect(removed.output).toContain(`Removed ${CONTACTS}`);
-    expect(await readIfExists(join(root, CONTACTS))).toBeUndefined();
+    expect(await getIfExists(join(root, CONTACTS))).toBeUndefined();
 
     for (const path of Object.values(APP)) {
-      expect(await readIfExists(join(root, path))).toBeDefined();
+      expect(await getIfExists(join(root, path))).toBeDefined();
     }
   });
 });

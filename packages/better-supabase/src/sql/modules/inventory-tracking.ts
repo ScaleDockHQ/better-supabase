@@ -220,7 +220,7 @@ ${read("buckets")}
 }
 
 /** Loads a variant's tenant into `v_tenant`, raising when it doesn't exist. */
-function loadVariant(ctx: BlockSqlContext, variant: string): string {
+function getVariant(ctx: BlockSqlContext, variant: string): string {
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
 
@@ -280,7 +280,7 @@ declare
   v_row ${items}%rowtype;
   v_old ${items}%rowtype;
 begin
-  ${loadVariant(ctx, "set_stock_item.variant")}
+  ${getVariant(ctx, "set_stock_item.variant")}
   ${guard(names.scope, names.manage, "v_tenant")}
   select * into v_old from ${items} x where x.${i("variant")} = set_stock_item.variant for update;
   v_row.${i("variant")} := set_stock_item.variant;
@@ -415,7 +415,7 @@ declare
   v_tenant ${ctx.idType};
   v_id uuid;
 begin
-  ${loadVariant(ctx, "save_lot.variant")}
+  ${getVariant(ctx, "save_lot.variant")}
   ${guard(names.scope, names.manage, "v_tenant")}
   v_id := ${fn("stock_lot_for")}(v_tenant, save_lot.variant, save_lot.code, save_lot.expires_on);
   return (select jsonb_build_object('id', x.${lt("id")}, 'code', x.${lt("code")}, 'expiresOn', x.${lt("expiresOn")})
@@ -571,7 +571,7 @@ declare
   v_tenant ${ctx.idType};
   v_item record;
 begin
-  ${loadVariant(ctx, "stock_valuation.variant")}
+  ${getVariant(ctx, "stock_valuation.variant")}
   if not (auth.role() = 'service_role' or ${names.scope.can("v_tenant", names.read)}) then
     ${fail("INVENTORY_FORBIDDEN", "not allowed to read this inventory")}
   end if;

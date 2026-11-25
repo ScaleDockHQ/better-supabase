@@ -66,7 +66,7 @@ export type RecordWriteHandlers<
   };
 };
 
-/** What the server loaded, such as `bsb.record(...).load(id)`. */
+/** What the server loaded, such as `bsb.record(...).get(id)`. */
 export interface RecordInitial<B extends RecordTypeBlocks, N extends string> {
   readonly bindings?: Partial<PlainBindings<B, N>>;
   readonly can?: RecordCan<B, N>;

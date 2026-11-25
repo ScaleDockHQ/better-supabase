@@ -426,7 +426,7 @@ describe("scoresBinding", () => {
     const scores = createScores({ transport: fake.transport, tenant: "org-1" });
 
     const rows = await scoresBinding
-      .load(scores, { type: "lead", id: "l1" }, undefined)
+      .get(scores, { type: "lead", id: "l1" }, undefined)
       .orThrow();
 
     expect(rows).toHaveLength(1);

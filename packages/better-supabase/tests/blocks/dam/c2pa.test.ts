@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { C2paManifest, C2paReader } from "../../../src/blocks/dam/c2pa.ts";
 
-import {
-  c2paReaderOf,
-  readC2paManifest,
-} from "../../../src/blocks/dam/c2pa.ts";
+import { c2paReaderOf, getC2paManifest } from "../../../src/blocks/dam/c2pa.ts";
 
 const AI =
   "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
@@ -26,9 +23,9 @@ function reader(manifest: C2paManifest | undefined | Error): C2paReader {
   };
 }
 
-describe("readC2paManifest", () => {
+describe("getC2paManifest", () => {
   it("reports a file without a manifest as absent", async () => {
-    const result = await readC2paManifest(reader(undefined), input);
+    const result = await getC2paManifest(reader(undefined), input);
 
     expect(result.ok && result.data).toEqual({
       status: "absent",
@@ -38,7 +35,7 @@ describe("readC2paManifest", () => {
   });
 
   it("keeps the actions of a valid manifest and flags generated media", async () => {
-    const result = await readC2paManifest(
+    const result = await getC2paManifest(
       reader({
         claimGenerator: "tool/1",
         valid: true,
@@ -55,7 +52,7 @@ describe("readC2paManifest", () => {
   });
 
   it("drops the actions of a manifest that failed validation", async () => {
-    const result = await readC2paManifest(
+    const result = await getC2paManifest(
       reader({
         valid: false,
         validationErrors: ["assertion.dataHash.mismatch"],
@@ -70,7 +67,7 @@ describe("readC2paManifest", () => {
   });
 
   it("returns an error when the reader fails", async () => {
-    const result = await readC2paManifest(reader(new Error("boom")), input);
+    const result = await getC2paManifest(reader(new Error("boom")), input);
 
     expect(!result.ok && result.error.hint).toBe("C2PA_READER_FAILED");
     expect(!result.ok && result.error.message).not.toContain("boom");

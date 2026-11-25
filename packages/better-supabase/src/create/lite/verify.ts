@@ -3,7 +3,7 @@ import type { Issue } from "../issue.ts";
 import type { PresetMigrationFile } from "../types.ts";
 import type { SkippedBlock } from "./apply.ts";
 
-import { LITE_INSTALL, loadLite } from "../../lite/runtime.ts";
+import { LITE_INSTALL, getLite } from "../../lite/runtime.ts";
 import { applyFiles } from "./apply.ts";
 import { SUPABASE_PRELUDE } from "./prelude.ts";
 
@@ -178,7 +178,7 @@ function readPolicy(row: Record<string, unknown>): CatalogPolicy {
 }
 
 /** Reads the row `verifyQuery` returns; the JSON may arrive as text. */
-export function readSecurityCatalog(rows: readonly unknown[]): SecurityCatalog {
+export function getSecurityCatalog(rows: readonly unknown[]): SecurityCatalog {
   const [row] = rows;
   const cell = isRecord(row) ? row["catalog"] : undefined;
   const parsed: unknown = typeof cell === "string" ? JSON.parse(cell) : cell;
@@ -497,7 +497,7 @@ export async function verifyFiles(
   files: readonly PresetMigrationFile[],
   options: VerifyDesignOptions = {},
 ): Promise<FilesVerification> {
-  const runtime = options.runtime ?? (await loadLite());
+  const runtime = options.runtime ?? (await getLite());
 
   if (runtime === undefined) {
     throw new Error(LITE_INSTALL);
@@ -512,7 +512,7 @@ export async function verifyFiles(
     const applied = await applyFiles(driver, files);
 
     const { rows } = await driver.query(verifyQuery(options.schemas));
-    const catalog = readSecurityCatalog(rows);
+    const catalog = getSecurityCatalog(rows);
 
     return {
       issues: [...applied.issues, ...verifyCatalog(catalog, options)],

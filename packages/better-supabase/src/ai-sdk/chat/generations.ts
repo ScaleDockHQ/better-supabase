@@ -12,7 +12,7 @@ import { problemResponse } from "../../core/problem.ts";
 import { validate } from "../../core/standard.ts";
 import { aiErrorToDbError } from "../errors.ts";
 import { gatewayOptions, problem429, usageOf } from "../gateway.ts";
-import { badRequest, readJson } from "../http.ts";
+import { badRequest, getJson } from "../http.ts";
 
 /** Who asks, for one generation request. */
 export interface GenerationContext {
@@ -96,7 +96,7 @@ function generationRoute<INPUT>(
 ): GenerationRoute {
   return {
     async respond(request, context) {
-      const body = await readJson(request);
+      const body = await getJson(request);
 
       if (!isRecord(body)) {
         return badRequest("Expected a JSON object.");

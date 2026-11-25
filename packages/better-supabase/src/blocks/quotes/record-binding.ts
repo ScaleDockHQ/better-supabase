@@ -13,6 +13,6 @@ export const quotesBinding: RecordBinding<Quotes, readonly Quote[]> =
   defineRecordBinding({
     permissions: { read: "read" },
     module: "quotes",
-    load: (client: Quotes, subject) => client.list({ subject }),
+    get: (client: Quotes, subject) => client.list({ subject }),
     events: ["quote.*"],
   });

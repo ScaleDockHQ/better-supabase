@@ -22,7 +22,7 @@ export const customersSearchParams: {
 export const customersSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof customersSearchParams>> = createSearchParamsCache(customersSearchParams);
 
 /** Parses `customersSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadCustomersSearchParams: LoaderFunction<typeof customersSearchParams> = createLoader(customersSearchParams);
+export const getCustomersSearchParams: LoaderFunction<typeof customersSearchParams> = createLoader(customersSearchParams);
 
 /** Writes `customersSearchParams` into a URL, for links. */
 export const serializeCustomersSearchParams: ReturnType<typeof createSerializer<typeof customersSearchParams>> = createSerializer(customersSearchParams);
@@ -46,7 +46,7 @@ export const tasksSearchParams: {
 export const tasksSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof tasksSearchParams>> = createSearchParamsCache(tasksSearchParams);
 
 /** Parses `tasksSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadTasksSearchParams: LoaderFunction<typeof tasksSearchParams> = createLoader(tasksSearchParams);
+export const getTasksSearchParams: LoaderFunction<typeof tasksSearchParams> = createLoader(tasksSearchParams);
 
 /** Writes `tasksSearchParams` into a URL, for links. */
 export const serializeTasksSearchParams: ReturnType<typeof createSerializer<typeof tasksSearchParams>> = createSerializer(tasksSearchParams);

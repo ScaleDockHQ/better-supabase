@@ -2,7 +2,7 @@
  * A `ctx.read` statement that runs when the jsonb array `rows` has items and
  * the optional `when` holds, or nothing when the read isn't logged.
  */
-export const readIfAny = (
+export const getIfAny = (
   statement: string,
   rows: string,
   when?: string,

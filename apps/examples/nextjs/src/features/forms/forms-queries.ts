@@ -12,7 +12,7 @@ import { notFound, unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
 import { CUSTOM_FIELDS_TAG } from "@/features/custom-fields/custom-fields-cache";
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { FORMS_TAG } from "./forms-cache";
@@ -83,7 +83,7 @@ async function loadForms(): Promise<readonly FormSummary[] | null> {
     return null;
   }
 
-  const forms = await readAllPages((page) =>
+  const forms = await getAllPages((page) =>
     db.forms.page({ organizationId: tenant, ...page }),
   );
 

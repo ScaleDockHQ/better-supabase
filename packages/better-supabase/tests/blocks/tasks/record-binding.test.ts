@@ -25,7 +25,7 @@ describe("taskChecklistBinding", () => {
     // SAFETY: the binding calls only `checklist`.
     const client = { checklist } as unknown as Tasks;
 
-    const loaded = await taskChecklistBinding.load(
+    const loaded = await taskChecklistBinding.get(
       client,
       { type: "task", id: "w1" },
       undefined,

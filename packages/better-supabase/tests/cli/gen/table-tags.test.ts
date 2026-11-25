@@ -4,14 +4,14 @@ import type { TableComment } from "../../../src/cli/gen/table-tags.ts";
 
 import { withTableTags } from "../../../src/cli/gen/table-tags.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { loadFixtureSnapshot } from "../fixtures/render.ts";
+import { getFixtureSnapshot } from "../fixtures/render.ts";
 
 async function tagged(
   table: string,
   comment: string,
 ): Promise<readonly TableComment[]> {
   const { schema } = await first();
-  const snapshot = await loadFixtureSnapshot();
+  const snapshot = await getFixtureSnapshot();
 
   return snapshot.generator.tables.map((each) =>
     each.schema === schema && each.name === table
@@ -21,7 +21,7 @@ async function tagged(
 }
 
 async function first(): Promise<{ schema: string; name: string; key: string }> {
-  const snapshot = await loadFixtureSnapshot();
+  const snapshot = await getFixtureSnapshot();
   const { schemas } = resolveConfig({ blocks: {} }, "/tmp");
 
   const table = snapshot.generator.tables.find((each) =>
@@ -47,7 +47,7 @@ describe("withTableTags", () => {
     expect(
       withTableTags(
         config,
-        (await loadFixtureSnapshot()).generator.tables.map((each) => ({
+        (await getFixtureSnapshot()).generator.tables.map((each) => ({
           ...each,
           comment: null,
         })),

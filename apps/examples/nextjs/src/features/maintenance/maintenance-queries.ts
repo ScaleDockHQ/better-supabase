@@ -2,7 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { MAINTENANCE_TAG } from "./maintenance-cache";
@@ -59,7 +59,7 @@ export function stateOf(plan: {
  * `getPlan`, so the overview searches and pages these rows on the server and
  * the detail page finds its plan among them (EX-1100).
  */
-export async function loadPlans(): Promise<readonly PlanRow[] | null> {
+export async function getPlans(): Promise<readonly PlanRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(MAINTENANCE_TAG);
@@ -92,10 +92,8 @@ export async function loadPlans(): Promise<readonly PlanRow[] | null> {
   }));
 }
 
-export async function loadPlan(
-  id: string,
-): Promise<PlanRow | null | undefined> {
-  const plans = await loadPlans();
+export async function getPlan(id: string): Promise<PlanRow | null | undefined> {
+  const plans = await getPlans();
 
   return plans === null ? null : plans.find((plan) => plan.id === id);
 }
@@ -109,7 +107,7 @@ export interface MeterRow {
   readonly assetId: string | null;
 }
 
-export async function loadMeters(): Promise<readonly MeterRow[] | null> {
+export async function getMeters(): Promise<readonly MeterRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(MAINTENANCE_TAG);
@@ -118,7 +116,7 @@ export async function loadMeters(): Promise<readonly MeterRow[] | null> {
     return null;
   }
 
-  const meters = await readAllPages((page) => db.maintenance.meterPage(page));
+  const meters = await getAllPages((page) => db.maintenance.meterPage(page));
 
   return meters.map((meter) => ({
     id: meter.id,

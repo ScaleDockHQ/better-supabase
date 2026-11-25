@@ -34,8 +34,8 @@ import type {
 
 import {
   blockFields,
-  readAllFields,
-  readFields,
+  getAllFields,
+  getFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";
@@ -415,16 +415,13 @@ export function createSavedViews<
           },
           savedOf,
         ),
-      ).andThen((saved) => readFields(fields, saved));
+      ).andThen((saved) => getFields(fields, saved));
     },
     page: (pageOptions) =>
       views
         .page(pageOptions)
         .andThen((page) =>
-          readAllFields(fields, page.items).map((items) => ({
-            ...page,
-            items,
-          })),
+          getAllFields(fields, page.items).map((items) => ({ ...page, items })),
         ),
     facets: views.facets,
     count: views.count,
@@ -433,14 +430,14 @@ export function createSavedViews<
         value === null || value === undefined ? undefined : viewOf(value),
       )
         .andThen((view) => foundOrNotFound("saved view", view, viewId))
-        .andThen((view) => readFields(fields, view)),
+        .andThen((view) => getFields(fields, view)),
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, list, limit }) =>
       call("list_views", { tenant: organizationId, list }, (value) => {
         const rows = recordsOf(value, "list_views").map(viewOf);
 
         return limit === undefined ? rows : rows.slice(0, limit);
-      }).andThen((views) => readAllFields(fields, views)),
+      }).andThen((views) => getAllFields(fields, views)),
     move: ({ id, organizationId, list, toIndex }) =>
       // oxlint-disable-next-line typescript/no-deprecated -- move reads the whole list in rank order
       hooked.list({ organizationId, list }).andThen((views) => {
@@ -486,7 +483,7 @@ export function createSavedViews<
           team: input.teamId ?? null,
         },
         savedOf,
-      ).andThen((saved) => readFields(fields, saved)),
+      ).andThen((saved) => getFields(fields, saved)),
     delete: (id) =>
       call("delete_view", { view_id: id }, (value) => value === true),
   };

@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { loadStatusPage, settle, UPTIME_DAYS } from "../status-queries";
+import { getStatusPage, settle, UPTIME_DAYS } from "../status-queries";
 
 // #region recipe:status-page
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
@@ -149,7 +149,7 @@ export async function StatusPage({ slug }: { slug: string }) {
     getFormatter(),
   ]);
 
-  const page = await settle(() => loadStatusPage(slug));
+  const page = await settle(() => getStatusPage(slug));
 
   if (page.kind === "missing") {
     notFound();

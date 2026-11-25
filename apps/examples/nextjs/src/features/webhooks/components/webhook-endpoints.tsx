@@ -43,7 +43,7 @@ import { Link } from "@/i18n/navigation";
 import type { WebhookEndpointRow, WebhookStatus } from "../webhook-types";
 import type { WebhooksOverview } from "../webhooks-queries";
 
-import { loadWebhooks } from "../webhooks-queries";
+import { getWebhooks } from "../webhooks-queries";
 import {
   CreateWebhookDialog,
   RedeliverButton,
@@ -57,9 +57,9 @@ type WebhooksState =
   | { readonly kind: "error" }
   | { readonly kind: "no-organization" };
 
-async function loadWebhooksState(): Promise<WebhooksState> {
+async function getWebhooksState(): Promise<WebhooksState> {
   try {
-    const overview = await loadWebhooks();
+    const overview = await getWebhooks();
 
     return overview ? { kind: "ok", overview } : { kind: "no-organization" };
   } catch (error) {
@@ -148,7 +148,7 @@ export function EndpointStatusBadge({
  */
 export async function WebhookEndpoints() {
   const [state, t, format, permissions] = await Promise.all([
-    loadWebhooksState(),
+    getWebhooksState(),
     getExtracted("webhooks"),
     getFormatter(),
     getPermissions(),

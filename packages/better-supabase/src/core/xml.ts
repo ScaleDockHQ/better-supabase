@@ -29,7 +29,7 @@ const loadModule = memoized(async (): Promise<XmlParserModule | undefined> => {
  * The `fast-xml-parser` module, loaded on first use. Throws a `TypeError` that
  * names `caller` when the package is not installed.
  */
-export async function loadXmlParser(
+export async function getXmlParser(
   caller: string,
   hint = "",
 ): Promise<XmlParserModule> {

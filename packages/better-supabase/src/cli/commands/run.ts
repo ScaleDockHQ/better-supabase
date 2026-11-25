@@ -11,7 +11,7 @@ import { commandMeta } from "../core/manifest.ts";
 import { PROCESS_ENV } from "../env.ts";
 import { spawnInherited } from "../exec.ts";
 import { staleVariables } from "../stack-env.ts";
-import { readStackEnv } from "./env.ts";
+import { getStackEnv } from "./env.ts";
 
 const ARGS = {
   prefix: {
@@ -64,7 +64,7 @@ export async function runWithStackEnv(
     );
   }
 
-  const { values } = await readStackEnv(config, args, env, signal);
+  const { values } = await getStackEnv(config, args, env, signal);
   const shell = env[PROCESS_ENV] ?? {};
   const stale = staleVariables(shell, values);
 

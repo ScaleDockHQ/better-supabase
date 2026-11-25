@@ -10,7 +10,7 @@ import { CliError } from "./core/errors.ts";
 import { importFresh } from "./fresh-import.ts";
 
 /** Every read set exported by the modules in `config.readSets`. */
-async function loadReadSets(config: ResolvedConfig): Promise<ReadSet[]> {
+async function getReadSets(config: ResolvedConfig): Promise<ReadSet[]> {
   const sets: ReadSet[] = [];
 
   for (const entry of config.readSets) {
@@ -55,7 +55,7 @@ export function compiledReadSets(
     return held;
   }
 
-  const compiled = loadReadSets(config).then((sets) => compileReadSets(sets));
+  const compiled = getReadSets(config).then((sets) => compileReadSets(sets));
   COMPILED.set(config, compiled);
 
   // A failed load is not kept, so the next call reports it again.

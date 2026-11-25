@@ -7,7 +7,7 @@ import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 
 import { CRM_TAG } from "@/features/crm/crm-cache";
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type { DealPipeline } from "../list-reads/deals-reads";
@@ -53,7 +53,7 @@ export interface DealsData {
  * organization. `undefined` data means the pipeline does not exist yet. The
  * overview filters and pages these rows on the server for each request.
  */
-export async function loadDeals(): Promise<DealsData | undefined | null> {
+export async function getDeals(): Promise<DealsData | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(SALES_TAG, CRM_TAG);
@@ -71,7 +71,7 @@ export async function loadDeals(): Promise<DealsData | undefined | null> {
  * `undefined` means the pipeline does not exist yet. The deals themselves are
  * paged by the deals block.
  */
-export async function loadDealPipeline(): Promise<
+export async function getDealPipeline(): Promise<
   DealPipeline | undefined | null
 > {
   "use cache: private";
@@ -102,7 +102,7 @@ export interface DealDetail {
 }
 
 /** One deal with its pipeline's stages; `undefined` when it is not on the board. */
-export async function loadDeal(
+export async function getDeal(
   id: string,
 ): Promise<DealDetail | undefined | null> {
   "use cache: private";
@@ -119,7 +119,7 @@ export async function loadDeal(
     return null;
   }
 
-  const pipelines = await readAllPages((page) =>
+  const pipelines = await getAllPages((page) =>
     db.pipelines.page({
       organizationId: tenant,
       filters: { subjectType: ["deal"] },
@@ -196,7 +196,7 @@ export interface PipelineDetail {
   readonly averageSeconds: Readonly<Record<string, number>>;
 }
 
-export async function loadPipeline(
+export async function getPipeline(
   id: string,
 ): Promise<PipelineDetail | undefined | null> {
   "use cache: private";
@@ -208,7 +208,7 @@ export async function loadPipeline(
     return null;
   }
 
-  const pipelines = await readAllPages((page) =>
+  const pipelines = await getAllPages((page) =>
     db.pipelines.page({
       organizationId: tenant,
       filters: { subjectType: ["deal"] },
@@ -301,7 +301,7 @@ export interface ForecastDetail {
   };
 }
 
-export async function loadForecast(
+export async function getForecast(
   id: string,
 ): Promise<ForecastDetail | undefined | null> {
   "use cache: private";
@@ -314,7 +314,7 @@ export async function loadForecast(
   }
 
   const [all, detail] = await Promise.all([
-    readAllPages((page) =>
+    getAllPages((page) =>
       db.forecasts.page({ organizationId: tenant, ...page }),
     ),
     db.forecasts.get(id).orThrow(),

@@ -36,7 +36,7 @@ import { Link } from "@/i18n/navigation";
 import type { ExportRow, PrivacyData } from "../privacy-queries";
 
 import { refreshPrivacy } from "../privacy-actions";
-import { loadPrivacy } from "../privacy-queries";
+import { getPrivacy } from "../privacy-queries";
 import {
   CancelDeletionButton,
   DeleteOrganizationButton,
@@ -44,11 +44,11 @@ import {
   RequestExportButton,
 } from "./privacy-controls";
 
-async function loadSettings(): Promise<
+async function getSettings(): Promise<
   { kind: "ok"; data: PrivacyData } | { kind: "error" }
 > {
   try {
-    return { kind: "ok", data: await loadPrivacy() };
+    return { kind: "ok", data: await getPrivacy() };
   } catch (error) {
     unstable_rethrow(error);
 
@@ -73,7 +73,7 @@ export async function PrivacySettings() {
   const [t, format, result] = await Promise.all([
     getExtracted("privacy"),
     getFormatter(),
-    loadSettings(),
+    getSettings(),
   ]);
 
   if (result.kind === "error") {

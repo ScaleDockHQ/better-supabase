@@ -21,7 +21,7 @@ export {
   optionalText,
   pageOf,
   randomToken,
-  readBodyCapped,
+  getBodyCapped,
   recordOf,
   recordOrEmpty,
   recordsOf,

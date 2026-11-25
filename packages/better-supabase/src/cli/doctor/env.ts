@@ -10,8 +10,8 @@ import {
   stackEnvValues,
   staleVariables,
 } from "../stack-env.ts";
-import { readStackStatus } from "../stack-status.ts";
-import { readDotenv } from "./dotenv.ts";
+import { getStackStatus } from "../stack-status.ts";
+import { getDotenv } from "./dotenv.ts";
 import { ignoredBy } from "./git-ignored.ts";
 
 export const PUBLIC_PREFIXES: readonly string[] = [
@@ -40,7 +40,7 @@ function normalizedUrl(value: string): string | null {
 export function envEntries(
   file: TextFile,
 ): { key: string; value: string; line: number }[] {
-  return [...readDotenv(file.text)];
+  return [...getDotenv(file.text)];
 }
 
 /** The shell's variables next to the running stack's, for BS503. */
@@ -131,7 +131,7 @@ function inlineKeyIds(value: string): string[] | undefined {
  * Reads the running stack only when the shell exports a `SUPABASE_*` variable,
  * so a doctor run without one never starts `supabase status`.
  */
-export async function loadStackEnvCheck(
+export async function getStackEnvCheck(
   root: string,
   env: CliEnv,
   signal?: AbortSignal,
@@ -143,7 +143,7 @@ export async function loadStackEnvCheck(
   }
 
   try {
-    const result = await readStackStatus(root, env, { signal });
+    const result = await getStackStatus(root, env, { signal });
 
     if (!result.ok) {
       return { skipped: "The local stack is not running." };
@@ -284,7 +284,7 @@ export const ENV_RULES: readonly Rule[] = [
     severity: "error",
     title: "SUPABASE_JWKS does not parse",
     description:
-      "SUPABASE_JWKS holds the project's signing keys inline, so the server verifies tokens without fetching the JWKS URL. loadEnv rejects a value that is not JSON or holds no key with a kty, and the server then fails to start. Fill it with the output of `curl <url>/auth/v1/.well-known/jwks.json`.",
+      "SUPABASE_JWKS holds the project's signing keys inline, so the server verifies tokens without fetching the JWKS URL. getEnv rejects a value that is not JSON or holds no key with a kty, and the server then fails to start. Fill it with the output of `curl <url>/auth/v1/.well-known/jwks.json`.",
     check: (context) =>
       context.envFiles.flatMap((file) =>
         envEntries(file)

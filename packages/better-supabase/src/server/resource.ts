@@ -44,8 +44,8 @@ import {
   keyValue,
   pageArgs,
   queryObject,
-  readBody,
-  readJson,
+  getBody,
+  getJson,
   splitPath,
 } from "./resource-http.ts";
 import { respond } from "./respond.ts";
@@ -857,7 +857,7 @@ export function defineResource<
       }
 
       if (found) {
-        const body = method === "GET" ? ok(undefined) : await readJson(request);
+        const body = method === "GET" ? ok(undefined) : await getJson(request);
 
         if (!body.ok) {
           return [body];
@@ -888,7 +888,7 @@ export function defineResource<
         return [methodNotAllowed(["POST"])];
       }
 
-      const body = await readJson(request);
+      const body = await getJson(request);
 
       return [
         body.ok ? await verb(db, verbName, { data: body.data, request }) : body,
@@ -906,7 +906,7 @@ export function defineResource<
       }
 
       if (request.method === "POST" && has("create")) {
-        const body = await readBody(request);
+        const body = await getBody(request);
 
         return [
           body.ok
@@ -930,7 +930,7 @@ export function defineResource<
     }
 
     if (request.method === "PATCH" && has("update")) {
-      const body = await readBody(request);
+      const body = await getBody(request);
 
       return [
         body.ok

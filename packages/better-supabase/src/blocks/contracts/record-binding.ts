@@ -8,7 +8,7 @@ export const contractsBinding: RecordBinding<Contracts, readonly Contract[]> =
   defineRecordBinding({
     permissions: { read: "read", write: "write" },
     module: "contracts",
-    load: (client: Contracts, subject) =>
+    get: (client: Contracts, subject) =>
       client.forCounterparty({ counterparty: subject }),
     events: ["contract.*"],
   });

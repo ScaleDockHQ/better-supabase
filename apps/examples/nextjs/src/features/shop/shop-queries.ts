@@ -510,7 +510,7 @@ export function getKitchen(
   return settle(() => loadKitchen(station));
 }
 
-async function loadBoard(): Promise<BoardView | null> {
+async function getBoard(): Promise<BoardView | null> {
   "use cache: private";
   const { session, supabase } = await bsbCore.cached();
   cacheTag(SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
@@ -529,5 +529,5 @@ async function loadBoard(): Promise<BoardView | null> {
 
 /** The orders sent to the kitchen in the last day, by state. */
 export function getOrderBoard(): Promise<Loaded<BoardView>> {
-  return settle(loadBoard);
+  return settle(getBoard);
 }

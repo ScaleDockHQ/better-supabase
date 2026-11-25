@@ -1,5 +1,5 @@
 import { sessionList } from "../../../../features/checkout-sessions/checkout-sessions-list";
-import { loadSessionPage } from "../../../../features/checkout-sessions/checkout-sessions-queries";
+import { getSessionPage } from "../../../../features/checkout-sessions/checkout-sessions-queries";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -14,7 +14,7 @@ export const GET = bsb.route(async (request, { db }) => {
     return Response.json({ issues: [] }, { status: 400 });
   }
 
-  const page = await loadSessionPage(db, query.value);
+  const page = await getSessionPage(db, query.value);
 
   return page.ok
     ? Response.json(page.data)

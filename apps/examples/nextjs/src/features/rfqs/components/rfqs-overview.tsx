@@ -11,7 +11,7 @@ import {
   dateFormatter,
   requirePermission,
 } from "@/features/sales/components/overview-support";
-import { loadLookups } from "@/features/warehouse/warehouse-queries";
+import { getLookups } from "@/features/warehouse/warehouse-queries";
 
 import { createRfq } from "../rfqs-actions";
 
@@ -115,7 +115,7 @@ export async function RfqOverview({ query }: { query: RecordListUrlQuery }) {
 export async function CreateRfqDialog() {
   const [t, lookups] = await Promise.all([
     getExtracted("rfqs"),
-    settle(loadLookups),
+    settle(getLookups),
   ]);
 
   const variants = lookups.kind === "ok" ? lookups.data.variants : [];

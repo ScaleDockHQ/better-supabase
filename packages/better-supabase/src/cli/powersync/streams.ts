@@ -8,7 +8,7 @@ import type { BlockSqlFile } from "../../sql/index.ts";
 import type { Projection } from "./projection.ts";
 
 import { SPEC_PINS } from "../../index.ts";
-import { readSchemaFacts } from "../schema-reader/index.ts";
+import { getSchemaFacts } from "../schema-reader/index.ts";
 import { addedColumnTypes, declaredColumnTypes } from "../sql-facts.ts";
 import { OFFLINE_RULES } from "./offline-rules.ts";
 
@@ -1172,7 +1172,7 @@ function schemaModule(
 export async function powersyncOutput(
   input: PowerSyncInput,
 ): Promise<PowerSyncOutput> {
-  await readSchemaFacts(
+  await getSchemaFacts(
     input.files.flatMap((file) =>
       file.kind === "schema" ? [{ path: file.path, text: file.contents }] : [],
     ),

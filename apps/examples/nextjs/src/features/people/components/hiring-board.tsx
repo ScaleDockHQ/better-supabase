@@ -25,7 +25,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { loadHiringBoard, settle } from "../people-queries";
+import { getHiringBoard, settle } from "../people-queries";
 import { AddCandidateDialog } from "./add-candidate-dialog";
 import { CreateOpeningDialog } from "./create-opening-dialog";
 import { HiringKanban } from "./hiring-kanban";
@@ -51,7 +51,7 @@ export async function HiringBoard({
     forbidden();
   }
 
-  const board = await settle(loadHiringBoard);
+  const board = await settle(getHiringBoard);
 
   if (board.kind === "no-organization") {
     return null;

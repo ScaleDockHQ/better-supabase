@@ -8,7 +8,7 @@ import { AsyncResult, ok } from "../../src/core/result.ts";
 import {
   countBinding,
   defineRecordBinding,
-  loadBindings,
+  getBindings,
   bindingCan,
 } from "../../src/records/index.ts";
 import { failed, resolved } from "../fixtures/ports.ts";
@@ -30,7 +30,7 @@ const notesBlock = defineBlock({
   create: (): Notes => notes,
   record: defineRecordBinding({
     permissions: { read: "read", write: "create" },
-    load: (client: Notes, subject, options?: { limit?: number }) =>
+    get: (client: Notes, subject, options?: { limit?: number }) =>
       client.list(subject, options),
     count: (client: Notes, subjects) => client.counts(subjects),
     events: ["note.*"],
@@ -44,7 +44,7 @@ const labelsBlock = defineBlock({
   record: defineRecordBinding({
     module: "labeling",
     permissions: { read: "view" },
-    load: (_client: unknown, subject) =>
+    get: (_client: unknown, subject) =>
       subject.id === "bad"
         ? failed<number>("No labels")
         : resolved(subject.id.length),
@@ -69,9 +69,9 @@ const blocks = { notes: notesBlock, labels: labelsBlock };
 const source = { blocks, clients: { notes, labels: {} } };
 const customer = { type: "customer", id: "7" };
 
-describe("loadBindings", () => {
+describe("getBindings", () => {
   it("loads each binding settled and typed", async () => {
-    const loaded = await loadBindings(source, customer, ["notes", "labels"], {
+    const loaded = await getBindings(source, customer, ["notes", "labels"], {
       options: { notes: { limit: 5 } },
     });
 
@@ -86,7 +86,7 @@ describe("loadBindings", () => {
   });
 
   it("keeps an error to its binding", async () => {
-    const loaded = await loadBindings(source, { type: "customer", id: "bad" }, [
+    const loaded = await getBindings(source, { type: "customer", id: "bad" }, [
       "notes",
       "labels",
     ]);
@@ -102,7 +102,7 @@ describe("loadBindings", () => {
     list.mockClear();
     const checks: unknown[] = [];
 
-    const loaded = await loadBindings(source, customer, ["notes", "labels"], {
+    const loaded = await getBindings(source, customer, ["notes", "labels"], {
       can: (check) => {
         checks.push(check);
 
@@ -119,7 +119,7 @@ describe("loadBindings", () => {
   });
 
   it("fails a binding whose block isn't built or that no block has", async () => {
-    const loaded = await loadBindings({ blocks, clients: {} }, customer, [
+    const loaded = await getBindings({ blocks, clients: {} }, customer, [
       "notes",
     ]);
 
@@ -128,9 +128,7 @@ describe("loadBindings", () => {
       error: { kind: "invalid_request" },
     });
 
-    const unknown = await loadBindings(source, customer, [
-      "missing" as "notes",
-    ]);
+    const unknown = await getBindings(source, customer, ["missing" as "notes"]);
 
     expect(unknown).toMatchObject({
       missing: { kind: "error", error: { kind: "invalid_request" } },
@@ -145,11 +143,11 @@ describe("loadBindings", () => {
       category: "work",
       record: defineRecordBinding({
         permissions: { read: "read" },
-        load: () => AsyncResult.from(() => Promise.resolve(ok(true))),
+        get: () => AsyncResult.from(() => Promise.resolve(ok(true))),
       }),
     });
 
-    await loadBindings(
+    await getBindings(
       { blocks: { bare }, clients: { bare: {} } },
       customer,
       ["bare"],

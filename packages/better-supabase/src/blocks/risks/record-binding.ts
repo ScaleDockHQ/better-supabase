@@ -14,6 +14,6 @@ export const risksBinding: RecordBinding<Risks, readonly Risk[]> =
   defineRecordBinding({
     permissions: { read: "read" },
     module: "risks",
-    load: (client: Risks, subject) => client.linkedTo({ subject }),
+    get: (client: Risks, subject) => client.linkedTo({ subject }),
     events: ["risk.*"],
   });

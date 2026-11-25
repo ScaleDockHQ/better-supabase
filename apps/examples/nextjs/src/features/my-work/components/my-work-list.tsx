@@ -44,7 +44,7 @@ const BADGES = {
 // #region recipe:my-work
 /**
  * Render inside `<Suspense>`: everything that waits on the caller, from
- * `loadMyWork`, newest first.
+ * `getMyWork`, newest first.
  */
 export async function MyWorkList() {
   // `relativeTime` reads the clock, which a prerender rejects unless the

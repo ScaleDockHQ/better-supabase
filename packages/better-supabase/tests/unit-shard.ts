@@ -56,7 +56,7 @@ export function assignShard<T>(
 }
 
 /** Reads `{ "tests/foo.test.ts": 1200 }` as milliseconds per file. */
-export function readDurations(path: string): Map<string, number> {
+export function getDurations(path: string): Map<string, number> {
   const parsed = v.parse(
     durationsSchema,
     JSON.parse(readFileSync(path, "utf-8")),

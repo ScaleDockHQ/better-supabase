@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { renderFiles } from "../../../src/cli/gen/render.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { standardSchema } from "../../../src/generators/standard-schema.ts";
-import { loadFixtureSnapshot } from "../fixtures/render.ts";
+import { getFixtureSnapshot } from "../fixtures/render.ts";
 
 const mainOf = async (
   gen: NonNullable<Parameters<typeof resolveConfig>[0]["gen"]>,
@@ -14,9 +14,7 @@ const mainOf = async (
   );
 
   return (
-    await renderFiles(config, await loadFixtureSnapshot(), {
-      extensions: false,
-    })
+    await renderFiles(config, await getFixtureSnapshot(), { extensions: false })
   ).find((file) => file.path === "src/db/generated.ts")?.contents;
 };
 

@@ -18,7 +18,7 @@ const MAX_ROWS = 500;
  * rows, for a list the list kit still searches and pages on the server
  * (EX-901). A failed page ends the read with its error.
  */
-export function readAllPagesResult<Item>(
+export function getAllPagesResult<Item>(
   read: (page: PageRead) => AsyncResult<ListPage<Item>>,
 ): AsyncResult<readonly Item[]> {
   return AsyncResult.from(async () => {
@@ -50,8 +50,8 @@ export function readAllPagesResult<Item>(
 }
 
 /** The same read as `readAllPagesResult`, which throws the first error. */
-export function readAllPages<Item>(
+export function getAllPages<Item>(
   read: (page: PageRead) => AsyncResult<ListPage<Item>>,
 ): Promise<readonly Item[]> {
-  return readAllPagesResult(read).orThrow();
+  return getAllPagesResult(read).orThrow();
 }

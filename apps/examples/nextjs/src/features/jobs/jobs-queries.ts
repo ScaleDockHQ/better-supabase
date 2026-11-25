@@ -75,7 +75,7 @@ function queueRuns(queue: string, param: string): string {
  * checking `audit.read`. A failed read throws, so it is never cached and Retry
  * reads again. `null` without an organization or the permission.
  */
-export async function loadJobRuns(): Promise<readonly JobRunRow[] | null> {
+export async function getJobRuns(): Promise<readonly JobRunRow[] | null> {
   "use cache: private";
 
   const request = await bsbShell.cached();

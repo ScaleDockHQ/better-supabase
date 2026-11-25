@@ -28,7 +28,7 @@ import {
   isRecord,
   nullableInstant,
   optionalText,
-  readBodyCapped,
+  getBodyCapped,
   recordOf,
   recordsOf,
   toInstant,
@@ -119,7 +119,7 @@ export function createIncomingWebhooks(
           );
         }
 
-        const body = await readBodyCapped(request, endpoint.max_body_bytes);
+        const body = await getBodyCapped(request, endpoint.max_body_bytes);
 
         if (body === undefined) {
           return await problem(

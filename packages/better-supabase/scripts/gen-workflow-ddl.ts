@@ -48,7 +48,7 @@ export async function worldPostgresVersion(): Promise<string> {
   throw new Error(`no version in ${WORLD_POSTGRES_PACKAGE}/package.json`);
 }
 
-export async function readMigrations(): Promise<WorldMigration[]> {
+export async function getMigrations(): Promise<WorldMigration[]> {
   const dir = migrationsDir();
 
   const journal: unknown = JSON.parse(
@@ -321,7 +321,7 @@ if (import.meta.main) {
     throw new Error("SUPABASE_DB_URL is not set; run pnpm env:local");
   }
 
-  const migrations = await readMigrations();
+  const migrations = await getMigrations();
 
   const contents = renderModuleFile(
     await worldPostgresVersion(),

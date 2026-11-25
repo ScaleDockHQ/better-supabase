@@ -26,7 +26,7 @@ import { can } from "@/features/user/user-permissions";
 
 import type { TargetRow } from "../crm-queries";
 
-import { loadTargets, settle } from "../crm-queries";
+import { getTargets, settle } from "../crm-queries";
 import { CreateTargetDialog } from "./create-target-dialog";
 import { CrmLoadError } from "./crm-load-error";
 
@@ -47,7 +47,7 @@ export async function TargetsProgress() {
     return null;
   }
 
-  const targets = await settle(loadTargets);
+  const targets = await settle(getTargets);
 
   if (targets.kind === "no-organization") {
     return null;

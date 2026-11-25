@@ -551,7 +551,7 @@ ${userGrant(`${fn("withdraw_consent")}(uuid, text)`)}
 `;
 }
 
-function readFunctions(ctx: BlockSqlContext, q: ConsentsSql): string {
+function getFunctions(ctx: BlockSqlContext, q: ConsentsSql): string {
   const { fn, c, p, purposes, consents } = q;
 
   const tenant = (func: string): string =>
@@ -658,5 +658,5 @@ export function consentsFunctions(ctx: BlockSqlContext): string {
   return `${purposeFunctions(ctx, q)}
 ${recordFunction(ctx, q)}
 ${withdrawFunction(ctx, q)}
-${readFunctions(ctx, q)}`;
+${getFunctions(ctx, q)}`;
 }

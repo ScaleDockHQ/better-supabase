@@ -104,7 +104,7 @@ export function bankingMatching(ctx: BlockSqlContext): string {
   const books = booksAccounting(ctx);
   const allowed = targets(ctx);
 
-  const loadTransaction = (arg: string, lock: boolean) => `
+  const getTransaction = (arg: string, lock: boolean) => `
   select * into v_row from ${q.transactions} x where x.${t("id")} = ${arg}${lock ? " for update" : ""};
   if not found then
     ${q.transactionMissing}
@@ -279,7 +279,7 @@ declare
   v_item jsonb;
   v_amount bigint;
   v_sum bigint := 0;
-begin${loadTransaction("match_bank_transaction.transaction_id", true)}
+begin${getTransaction("match_bank_transaction.transaction_id", true)}
   if v_row.${t("status")} <> 'unmatched' then
     ${q.statusInvalid("v_row", "matched")}
   end if;
@@ -331,7 +331,7 @@ as $$
 #variable_conflict use_column
 declare
   ${declares}
-begin${loadTransaction("unmatch_bank_transaction.transaction_id", true)}
+begin${getTransaction("unmatch_bank_transaction.transaction_id", true)}
   if v_row.${t("status")} <> 'matched' then
     ${q.statusInvalid("v_row", "unmatched")}
   end if;
@@ -362,7 +362,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${q.transactions}%rowtype;
-begin${loadTransaction("ignore_bank_transaction.transaction_id", true)}
+begin${getTransaction("ignore_bank_transaction.transaction_id", true)}
   if v_row.${t("status")} <> (case when ignore_bank_transaction.ignored then 'unmatched' else 'ignored' end) then
     ${q.statusInvalid("v_row", "ignored")}
   end if;

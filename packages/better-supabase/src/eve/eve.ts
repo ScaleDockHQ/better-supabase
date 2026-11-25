@@ -502,7 +502,7 @@ const isToolsModule = (value: unknown): value is EveToolsModule =>
  * Loads `eve/tools` when the provider first builds its tools. The specifier is
  * a variable so bundlers leave the optional peer out.
  */
-const loadTools = (): Promise<unknown> => importOptionalPeer("eve/tools");
+const getTools = (): Promise<unknown> => importOptionalPeer("eve/tools");
 
 const isRecallResult = (value: unknown): value is EveRecallResult =>
   isRecord(value) &&
@@ -686,7 +686,7 @@ export function supabaseMemory(
   let tools: Promise<EveToolsModule> | undefined;
 
   const loaded = (): Promise<EveToolsModule> =>
-    (tools ??= (options.load ?? loadTools)().then((value) => {
+    (tools ??= (options.load ?? getTools)().then((value) => {
       if (!isToolsModule(value)) {
         tools = undefined;
         throw new TypeError(

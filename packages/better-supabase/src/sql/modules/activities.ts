@@ -14,7 +14,7 @@ import {
 } from "../archive-sql.ts";
 import { guestOr } from "../guest-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { readIfAny } from "../read-if-any.ts";
+import { getIfAny } from "../read-if-any.ts";
 import {
   extraFieldsJson,
   fail,
@@ -715,7 +715,7 @@ begin
       and (activities_of.before is null or coalesce(x.${e("doneAt")}, x.${e("dueAt")}, x.${e("createdAt")}) < activities_of.before)${archivable ? `\n      and ((x.${e("archivedAt")} is not null) = coalesce(activities_of.archived, false))` : ""}
     order by at desc, id desc
     limit ${pageSize("activities_of.page_size", 50, 200)}
-  ) p;${readIfAny(ctx.read("activities_of.subject_type", "activities_of.subject_id", "activities_of"), "v_rows")}
+  ) p;${getIfAny(ctx.read("activities_of.subject_type", "activities_of.subject_id", "activities_of"), "v_rows")}
   return v_rows;
 end;
 $$;

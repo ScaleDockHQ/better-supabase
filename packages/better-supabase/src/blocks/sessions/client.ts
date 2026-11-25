@@ -99,7 +99,7 @@ type Details = Result<OAuthConsentRequest | { readonly redirectUrl: string }>;
  */
 const reads = new Map<string, Promise<Details>>();
 
-async function readDetails(
+async function getDetails(
   oauth: OAuthApi,
   authorizationId: string,
 ): Promise<Details> {
@@ -198,7 +198,7 @@ export function createOAuthConsentController(
         let read = reads.get(id);
 
         if (read === undefined) {
-          read = readDetails(oauth, id);
+          read = getDetails(oauth, id);
           reads.set(id, read);
         }
 

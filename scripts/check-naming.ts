@@ -57,6 +57,8 @@ interface Naming {
     readonly typeNames: readonly string[];
     readonly subpaths: readonly string[];
   };
+  /** `path:name` of an exported function that keeps a banned verb, with why. */
+  readonly verbs: Readonly<Record<string, string>>;
 }
 
 const NAMING_FILE = "packages/better-supabase/api/naming.json";
@@ -213,6 +215,11 @@ for (const file of checked) {
   const lines = text.split("\n");
 
   for (const [index, line] of lines.entries()) {
+    // c12 exports `loadConfig`; the name is not ours to change.
+    if (line.includes('from "c12"')) {
+      continue;
+    }
+
     for (const [rename, pattern] of renameChecks) {
       if (pattern.test(line)) {
         found.rename.push(
@@ -447,6 +454,48 @@ if (argv.includes("--print")) {
 }
 
 const problems = [...found.rename, ...found.codes, ...checkPgtapCoverage()];
+
+// Reads are `get*` and hooks are `use*`: an exported `load*`, `fetch*` or
+// `read*` function fails unless naming.json lists it with its reason.
+const BANNED_VERB =
+  /^export (?:async )?(?:function\*? |const )((?:load|fetch|read)[A-Z]\w*)/;
+
+const VERB_ROOTS = ["packages/better-supabase/src/", "apps/examples/"];
+
+const verbHits = new Set<string>();
+
+for (const file of files) {
+  if (
+    !VERB_ROOTS.some((root) => file.startsWith(root)) ||
+    !/\.tsx?$/.test(file) ||
+    file.includes("generated") ||
+    file.includes("/tests/")
+  ) {
+    continue;
+  }
+
+  for (const line of readFileSync(file, "utf-8").split("\n")) {
+    const hit = BANNED_VERB.exec(line);
+
+    if (hit !== null) {
+      verbHits.add(`${file}:${hit[1] ?? ""}`);
+    }
+  }
+}
+
+for (const hit of verbHits) {
+  if (naming.verbs[hit] === undefined) {
+    problems.push(
+      `verbs: ${hit} is an exported load, fetch or read function; name it get* (reads) or list it in api/naming.json verbs with a reason`,
+    );
+  }
+}
+
+for (const hit of Object.keys(naming.verbs)) {
+  if (!verbHits.has(hit)) {
+    problems.push(`verbs: ${hit} no longer exists; remove it from naming.json`);
+  }
+}
 
 const lists = ["env", "typeNames", "subpaths"] as const;
 

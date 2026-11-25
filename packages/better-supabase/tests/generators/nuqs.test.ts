@@ -5,14 +5,14 @@ import type { GeneratorInput } from "../../src/config/index.ts";
 import { nuqs } from "../../src/generators/nuqs.ts";
 import {
   customersSearchParams,
-  loadCustomersSearchParams,
+  getCustomersSearchParams,
   serializeCustomersSearchParams,
 } from "../fixtures/generated-camel.nuqs.ts";
 
 describe("nuqs generator", () => {
   it("parses filters, order and paging from a URL", () => {
     expect(
-      loadCustomersSearchParams(
+      getCustomersSearchParams(
         "https://app.test/customers?status=active&orderBy=name&direction=desc&cursor=c1",
       ),
     ).toEqual({
@@ -25,7 +25,7 @@ describe("nuqs generator", () => {
   });
 
   it("drops values outside a column's closed set", () => {
-    const params = loadCustomersSearchParams(
+    const params = getCustomersSearchParams(
       "https://app.test/customers?status=deleted&orderBy=nope",
     );
 

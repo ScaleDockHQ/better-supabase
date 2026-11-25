@@ -3,7 +3,7 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { readIfAny } from "../read-if-any.ts";
+import { getIfAny } from "../read-if-any.ts";
 import {
   ensureCheck,
   extraFieldsArg,
@@ -818,7 +818,7 @@ begin
   m as (select ${authors.call(`array(select p.${c("id")} from page p)`)} as authors)`
   }
   select coalesce(jsonb_agg(${listJson("a")} order by a.${c("createdAt")}, a.${c("id")}), '[]'::jsonb) into v_files
-  from page a${authors === undefined ? "" : ", m"};${readIfAny(
+  from page a${authors === undefined ? "" : ", m"};${getIfAny(
     ctx.read(
       "list_attachments.subject_type",
       "list_attachments.subject_id",

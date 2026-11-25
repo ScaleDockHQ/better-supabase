@@ -570,7 +570,7 @@ describe("enrollmentsBinding", () => {
     });
 
     const list = await enrollmentsBinding
-      .load(enrollments, { type: "party", id: "pa1" }, undefined)
+      .get(enrollments, { type: "party", id: "pa1" }, undefined)
       .orThrow();
 
     expect(list).toHaveLength(1);

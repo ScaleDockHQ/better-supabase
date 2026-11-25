@@ -21,7 +21,7 @@ const CONVERSATION_WINDOW = 50;
  * buyers are the people on the deal's relations binding (the Related tab links
  * them), read once, and the newest conversations are filtered to those people.
  */
-export async function loadDealConversations(
+export async function getDealConversations(
   dealId: string,
 ): Promise<readonly ConversationRow[]> {
   "use cache: private";
@@ -41,7 +41,7 @@ export async function loadDealConversations(
         limit: CONVERSATION_WINDOW,
       })
       .orThrow(),
-    recordPages.deal.load(dealId, { bindings: ["relations"] }),
+    recordPages.deal.get(dealId, { bindings: ["relations"] }),
   ]);
 
   if (bindings.relations.kind !== "ok") {

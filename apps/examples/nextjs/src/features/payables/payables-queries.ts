@@ -26,7 +26,7 @@ export interface PayablesAging {
   readonly overdueCount: number;
 }
 
-async function loadPayables(): Promise<PayablesAging | null> {
+async function getPayables(): Promise<PayablesAging | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(BILLING_TAG, SHOP_TAG, BANKING_TAG);
@@ -61,5 +61,5 @@ async function loadPayables(): Promise<PayablesAging | null> {
 
 /** The open purchase bills in the shop's currency, by days past due. */
 export function getPayablesAging(): Promise<Loaded<PayablesAging>> {
-  return settle(loadPayables);
+  return settle(getPayables);
 }

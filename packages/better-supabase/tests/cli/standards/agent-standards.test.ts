@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { loadSkills } from "../../../src/cli/commands/skills.ts";
+import { getSkills } from "../../../src/cli/commands/skills.ts";
 
 /** Better-supabase, which ships the skills. */
 const PACKAGE = resolve(import.meta.dirname, "../../..");
@@ -88,7 +88,7 @@ describe("Agent Skills", () => {
     const manifest = await json(join(PACKAGE, "package.json"));
     expect(manifest["files"]).toContain("skills");
     expect(
-      (await loadSkills(SKILLS)).map((skill) => skill.name).toSorted(),
+      (await getSkills(SKILLS)).map((skill) => skill.name).toSorted(),
     ).toEqual(folders.toSorted());
   });
 

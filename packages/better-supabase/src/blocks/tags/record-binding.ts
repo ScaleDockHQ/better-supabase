@@ -66,7 +66,7 @@ export const tagsBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "apply" },
   // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
-  load: (client: Tags, subject) => client.list({ on: subject }),
+  get: (client: Tags, subject) => client.list({ on: subject }),
   copy: (client: Tags, from, to) =>
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
     client.list({ on: from }).andThen(async (tags) => {

@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { sessionChanged } from "@/features/user/user-actions";
 import { useRouter } from "@/i18n/navigation";
-import { loadBrowserClient } from "@/lib/supabase/load-client";
+import { getBrowserClient } from "@/lib/supabase/load-client";
 import { toast } from "@/lib/toast";
 
 /**
@@ -41,7 +41,7 @@ export function ResetPasswordForm() {
         return t("The passwords don't match.");
       }
 
-      const { supabase } = await loadBrowserClient();
+      const { supabase } = await getBrowserClient();
 
       const { error: updateError } = await supabase.auth.updateUser({
         password,

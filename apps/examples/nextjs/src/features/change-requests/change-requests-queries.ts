@@ -10,7 +10,7 @@ import type { ChangeLifecycle } from "./change-request-lifecycle";
 import {
   CHANGE_SUBJECT,
   CHANGE_WORKFLOW,
-  readLifecycle,
+  getLifecycle,
 } from "./change-request-lifecycle";
 import { CHANGE_REQUESTS_TAG } from "./change-requests-cache";
 
@@ -65,7 +65,7 @@ export async function getChangeRequests(): Promise<ChangeRequestsData | null> {
     lifecycle:
       version?.graph === undefined
         ? null
-        : { ...readLifecycle(version.graph), version: version.version },
+        : { ...getLifecycle(version.graph), version: version.version },
     rows: rows.map((row) => ({
       id: row.id,
       title: row.title,

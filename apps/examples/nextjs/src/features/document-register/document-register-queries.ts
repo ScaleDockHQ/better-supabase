@@ -43,7 +43,7 @@ const rowOf = (node: DriveNode): RegisterRow[] =>
  * One page of controlled documents for a list query, searched, filtered and
  * sorted by the drive block's `documentPage` and counted by `documentFacets`.
  */
-export function loadRegisterPage(
+export function getRegisterPage(
   db: Db,
   organizationId: string,
   query: RecordListUrlQuery,
@@ -68,7 +68,7 @@ async function loadRegister(): Promise<RecordListPage<RegisterRow> | null> {
   cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
-  return tenant ? loadRegisterPage(db, tenant, registerList.defaults) : null;
+  return tenant ? getRegisterPage(db, tenant, registerList.defaults) : null;
 }
 
 export function getRegister(): Promise<Loaded<RecordListPage<RegisterRow>>> {

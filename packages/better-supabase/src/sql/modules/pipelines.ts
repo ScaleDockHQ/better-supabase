@@ -19,7 +19,7 @@ import { pipelineSeeds } from "./pipelines-seeds.ts";
 import {
   defaultPipeline,
   manageFunctions,
-  readFunctions,
+  getFunctions,
   stageTrigger,
 } from "./pipelines-sql.ts";
 
@@ -357,7 +357,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 -- a category that maps to a fixed outcome, a stage history and board totals.
 ${tables(ctx, names, layout)}${defaultPipeline(ctx, names, bindings)}
 ${bindings.map((binding) => stageTrigger(ctx, names, binding)).join("\n")}
-${manageFunctions(ctx, names, bindings)}${readFunctions(ctx.idType, names, bindings)}${pipelinePageFunctions(ctx.idType, names)}`;
+${manageFunctions(ctx, names, bindings)}${getFunctions(ctx.idType, names, bindings)}${pipelinePageFunctions(ctx.idType, names)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {

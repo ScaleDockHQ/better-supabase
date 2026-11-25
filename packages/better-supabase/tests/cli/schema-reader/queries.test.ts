@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { readFileFacts } from "../../../src/cli/schema-reader/index.ts";
+import { getFileFacts } from "../../../src/cli/schema-reader/index.ts";
 import * as q from "../../../src/cli/schema-reader/queries.ts";
 
 const read = (...texts: string[]) =>
-  Promise.all(texts.map((text) => readFileFacts(text)));
+  Promise.all(texts.map((text) => getFileFacts(text)));
 
 describe("schema reader queries", () => {
   it("tracks tables, column types and row level security through drops", async () => {

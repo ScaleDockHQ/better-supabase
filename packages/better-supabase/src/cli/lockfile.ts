@@ -140,7 +140,7 @@ export function lockedVersions(
   ];
 }
 
-async function readLockfile(
+async function getLockfile(
   dir: string,
 ): Promise<{ kind: Lockfile; path: string; text: string } | undefined> {
   for (const kind of LOCKFILES) {
@@ -166,7 +166,7 @@ export async function lockedPackage(
   let dir = root;
 
   for (;;) {
-    const lockfile = await readLockfile(dir);
+    const lockfile = await getLockfile(dir);
 
     if (lockfile) {
       return {

@@ -24,7 +24,7 @@ import {
   PLAN_ARGS,
   planResult,
 } from "../core/files.ts";
-import { display, readIfExists } from "../core/io.ts";
+import { display, getIfExists } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { templateContextFor } from "../glue.ts";
 import { detectProject } from "../project/detect.ts";
@@ -197,7 +197,7 @@ async function runRemove(
   if (unwired.length > 0) {
     const project = await detectProject(config.root);
     const wiring = blocksWiringPath(templateContextFor(project, config.output));
-    const current = await readIfExists(resolve(config.root, wiring));
+    const current = await getIfExists(resolve(config.root, wiring));
 
     if (current !== undefined) {
       const unwire = removeBlocksFromWiring(current, unwired);

@@ -5,7 +5,7 @@ import type { BaselineContext } from "./stack.ts";
 
 import { CliError } from "../core/errors.ts";
 import { connect } from "../db.ts";
-import { loadPgDelta, migrationFiles, openPgPool } from "../in-stack-diff.ts";
+import { getPgDelta, migrationFiles, openPgPool } from "../in-stack-diff.ts";
 import { supabaseDir } from "../supabase-config.ts";
 import { VERSION } from "../version.ts";
 import { applyBaseline } from "./apply.ts";
@@ -50,7 +50,7 @@ export async function verifyBaseline(
 
   const [current, delta] = await Promise.all([
     migrationFiles(root, dir).then((files) => hashFiles(root, files)),
-    loadPgDelta(),
+    getPgDelta(),
   ]);
 
   const stack = await startScratch(ctx, VERIFY_STACK, EMPTY_START_ENV);
@@ -177,7 +177,7 @@ export async function verifyBaseline(
 
 async function withRestored(
   url: string,
-  delta: Awaited<ReturnType<typeof loadPgDelta>>,
+  delta: Awaited<ReturnType<typeof getPgDelta>>,
 ): Promise<
   Awaited<ReturnType<typeof extractCatalog>> & {
     readonly signatures: ReadonlyMap<string, string>;

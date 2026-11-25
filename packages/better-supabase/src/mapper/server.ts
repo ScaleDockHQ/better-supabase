@@ -2,12 +2,7 @@ import type { FileDiagnostic, LoadedProject } from "./project.ts";
 import type { Handlers } from "./rpc.ts";
 
 import { SPEC_PINS } from "../core/spec-pins.ts";
-import {
-  EMPTY_MODULE,
-  loadProject,
-  MAPPER_CODES,
-  realPath,
-} from "./project.ts";
+import { EMPTY_MODULE, getProject, MAPPER_CODES, realPath } from "./project.ts";
 
 /** The protocol version this mapper speaks, as `initialize` answers it. */
 const PROTOCOL_VERSION: number = Number(SPEC_PINS.typescriptContentMapper);
@@ -37,7 +32,7 @@ export interface MapperOptions {
   /** The environment the config and the source read. */
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** Loads a project; tests replace it. */
-  readonly load?: typeof loadProject;
+  readonly load?: typeof getProject;
 }
 
 /**
@@ -47,7 +42,7 @@ export interface MapperOptions {
  */
 export function mapperHandlers(options: MapperOptions = {}): Handlers {
   const env = options.env ?? {};
-  const load = options.load ?? loadProject;
+  const load = options.load ?? getProject;
   const projects = new Map<string, Promise<LoadedProject>>();
   let encoding: Encoding = "utf-16";
 

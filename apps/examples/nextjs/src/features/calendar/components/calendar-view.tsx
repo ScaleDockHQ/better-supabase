@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
 
 import type { MonthEvent } from "../calendar-queries";
 
-import { loadCalendarMonth, settle } from "../calendar-queries";
+import { getCalendarMonth, settle } from "../calendar-queries";
 import { CalendarLoadError } from "./calendar-load-error";
 import { CreateCalendarButton } from "./create-calendar-button";
 import { CreateEventDialog } from "./create-event-dialog";
@@ -91,7 +91,7 @@ export async function CalendarView({
     getPermissions(),
     getExtracted("calendar"),
     getFormatter(),
-    settle(() => loadCalendarMonth(from.toString(), until.toString())),
+    settle(() => getCalendarMonth(from.toString(), until.toString())),
   ]);
 
   if (!can(permissions, "calendar.read")) {

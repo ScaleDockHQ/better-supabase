@@ -23,8 +23,8 @@ import {
 } from "@/features/sales/components/overview-support";
 import { Link } from "@/i18n/navigation";
 
-import { loadOnboardingPrograms } from "../employee-desk/employee-desk-queries";
-import { loadRoster, settle } from "../people-queries";
+import { getOnboardingPrograms } from "../employee-desk/employee-desk-queries";
+import { getRoster, settle } from "../people-queries";
 import { PeopleLoadError } from "./people-load-error";
 
 /** The figures above the people overview. */
@@ -34,7 +34,7 @@ export async function EmployeeKpis() {
 
   const [t, roster] = await Promise.all([
     getExtracted("people"),
-    settle(loadRoster),
+    settle(getRoster),
   ]);
 
   if (roster.kind === "no-organization") {
@@ -85,7 +85,7 @@ export async function EmployeeStatusBoard() {
 
   const [t, roster] = await Promise.all([
     getExtracted("people"),
-    settle(loadRoster),
+    settle(getRoster),
   ]);
 
   if (roster.kind === "no-organization") {
@@ -154,7 +154,7 @@ export async function OnboardEmployeeDialog() {
 
   const [t, programs] = await Promise.all([
     getExtracted("people"),
-    loadOnboardingPrograms(),
+    getOnboardingPrograms(),
   ]);
 
   if (!programs || programs.length === 0) {

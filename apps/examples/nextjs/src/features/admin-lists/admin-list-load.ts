@@ -15,7 +15,7 @@ import { runAdminList } from "./admin-list-sql";
  * database owner (`admin`: the source's `scope` limits the tenant, so check the
  * permission before calling). A failed read throws, so a cache never keeps it.
  */
-export async function loadAdminList<
+export async function getAdminList<
   Raw extends AdminListRaw,
   Out extends { readonly id: string },
 >(options: {

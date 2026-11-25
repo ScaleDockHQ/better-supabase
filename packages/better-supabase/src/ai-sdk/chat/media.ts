@@ -13,7 +13,7 @@ import { aiErrorToDbError } from "../errors.ts";
 import { saveGeneratedFiles } from "../files/files.ts";
 import { governedGatewayOptions } from "../gateway-policy.ts";
 import { gatewayOptions, problem429 } from "../gateway.ts";
-import { badRequest, readJson } from "../http.ts";
+import { badRequest, getJson } from "../http.ts";
 
 async function governedOptions(
   read: ((organizationId: string) => AsyncResult<GatewayPolicy>) | undefined,
@@ -85,7 +85,7 @@ export interface MediaRoute {
   respond(request: Request, context: MediaContext): Promise<Response>;
 }
 
-async function readPrompt(
+async function getPrompt(
   request: Request,
 ): Promise<
   | {
@@ -94,7 +94,7 @@ async function readPrompt(
     }
   | Response
 > {
-  const body = await readJson(request);
+  const body = await getJson(request);
 
   if (!isRecord(body)) {
     return badRequest("Expected a JSON object.");
@@ -116,7 +116,7 @@ async function readPrompt(
 export function createMediaRoute(options: MediaRouteOptions): MediaRoute {
   return {
     async respond(request, context) {
-      const read = await readPrompt(request);
+      const read = await getPrompt(request);
 
       if (read instanceof Response) {
         return read;
@@ -324,7 +324,7 @@ export function createVideoRoutes(options: VideoRoutesOptions): VideoRoutes {
 
   return {
     async start(request, context) {
-      const read = await readPrompt(request);
+      const read = await getPrompt(request);
 
       if (read instanceof Response) {
         return read;
@@ -404,7 +404,7 @@ export function createVideoRoutes(options: VideoRoutesOptions): VideoRoutes {
     },
 
     async webhook(request) {
-      const body = await readJson(request);
+      const body = await getJson(request);
       const jobId = isRecord(body) ? body["jobId"] : undefined;
 
       if (typeof jobId === "string") {

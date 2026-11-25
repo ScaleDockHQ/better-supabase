@@ -31,7 +31,7 @@ export interface ProductionOrderCard {
   readonly dueOn: string | null;
 }
 
-async function loadBoard(): Promise<readonly ProductionOrderCard[] | null> {
+async function getBoard(): Promise<readonly ProductionOrderCard[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(MANUFACTURING_TAG, SHOP_TAG);
@@ -80,7 +80,7 @@ export interface RequirementRow {
   readonly demand: number;
 }
 
-async function loadRequirements(): Promise<readonly RequirementRow[] | null> {
+async function getRequirements(): Promise<readonly RequirementRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(MANUFACTURING_TAG, SHOP_TAG);
@@ -116,14 +116,14 @@ async function loadRequirements(): Promise<readonly RequirementRow[] | null> {
 export function getMaterialRequirements(): Promise<
   Loaded<readonly RequirementRow[]>
 > {
-  return settle(loadRequirements);
+  return settle(getRequirements);
 }
 
 /** The organization's open and done production orders, by due date. */
 export function getProductionOrderBoard(): Promise<
   readonly ProductionOrderCard[] | null
 > {
-  return loadBoard();
+  return getBoard();
 }
 
 /** One production order with its operations and components, serializable. */

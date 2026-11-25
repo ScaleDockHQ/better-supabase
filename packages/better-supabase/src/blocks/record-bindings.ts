@@ -55,7 +55,7 @@ export type RecordBindingWrites = Readonly<
 
 /**
  * One event of a record's history that a binding's rows hold, such as a comment
- * or a saved version, for `loadTimeline`.
+ * or a saved version, for `getTimeline`.
  */
 export interface TimelineItem<Row = unknown> {
   /** Unique within its binding. */
@@ -83,7 +83,7 @@ export interface RecordBindingDefinition<
    */
   readonly module?: string;
   /** The binding's rows for one subject. */
-  readonly load: (
+  readonly get: (
     client: Client,
     subject: RecordRef,
     options: Options | undefined,
@@ -99,13 +99,13 @@ export interface RecordBindingDefinition<
   /**
    * The binding's value for each of many subjects, keyed by `subjectKey`
    * (`type:id`), for a column of a record list (`defineRecordList`). Default:
-   * `count`, or else one `load` per subject.
+   * `count`, or else one `get` per subject.
    */
   readonly column?: (
     client: Client,
     subjects: readonly RecordRef[],
   ) => AsyncResult<Readonly<Record<string, unknown>>>;
-  /** The binding's rows as timeline entries, for `loadTimeline`. */
+  /** The binding's rows as timeline entries, for `getTimeline`. */
   readonly timeline?: (data: Data) => readonly TimelineItem[];
   /**
    * Copies the binding's rows from one record to another and returns how many
@@ -127,8 +127,8 @@ export interface RecordBindingDefinition<
 
 /**
  * A part of a record page a block owns, such as a comment thread (an extension
- * interface: `apiVersion: 1`). `loadBindings` loads it,
- * `createRecordController` keeps it current.
+ * interface: `apiVersion: 1`). `getBindings` loads it, `createRecordController`
+ * keeps it current.
  */
 export interface RecordBinding<
   Client = never,
@@ -147,7 +147,7 @@ export interface AnyRecordBinding {
   readonly apiVersion: 1;
   readonly permissions: RecordBindingPermissions;
   readonly module?: string;
-  readonly load: (
+  readonly get: (
     client: never,
     subject: RecordRef,
     options: never,
@@ -173,14 +173,14 @@ export interface AnyRecordBinding {
 
 /** The rows a binding loads. */
 export type RecordBindingData<S> = S extends {
-  readonly load: (...args: never) => AsyncResult<infer Data>;
+  readonly get: (...args: never) => AsyncResult<infer Data>;
 }
   ? Data
   : never;
 
-/** The options a binding's `load` takes. */
+/** The options a binding's `get` takes. */
 export type RecordBindingOptions<S> = S extends {
-  readonly load: (client: never, subject: never, options: infer O) => unknown;
+  readonly get: (client: never, subject: never, options: infer O) => unknown;
 }
   ? Exclude<O, undefined>
   : never;

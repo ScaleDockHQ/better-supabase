@@ -213,7 +213,7 @@ function callerResource(input: unknown): AuthorizationResource {
  * Runs a `resource` loader; any failure refuses, so a missing row never reads
  * as granted.
  */
-async function loadResource(
+async function getResource(
   load: () => unknown,
 ): Promise<AuthorizationResource | DbError> {
   const unavailable = dbError(
@@ -305,7 +305,7 @@ export async function authorizeCaller<I, C, P, X = ResourceLoaderContext<C, P>>(
 
   if (checks.permission !== undefined) {
     const resource = checks.resource
-      ? await loadResource(() =>
+      ? await getResource(() =>
           // SAFETY: X is the adapter's context, which `scope` is, plus
           // the session and tenant added here.
           checks.resource?.(input, { ...scope, session, tenant } as X),

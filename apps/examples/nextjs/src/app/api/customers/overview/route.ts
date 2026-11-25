@@ -1,4 +1,4 @@
-import { readCustomerRows } from "../../../../features/customers-list/customers-reads";
+import { getCustomerRows } from "../../../../features/customers-list/customers-reads";
 import { customersList } from "../../../../lib/supabase/pages/customers.list";
 import { bsbCore as bsb } from "../../../../lib/supabase/server-core";
 
@@ -15,5 +15,5 @@ export const GET = bsb.route(async (request, { db }) => {
     return Response.json({ issues: query.issues }, { status: 400 });
   }
 
-  return Response.json(await readCustomerRows(db, query.value));
+  return Response.json(await getCustomerRows(db, query.value));
 });

@@ -44,7 +44,7 @@ export interface WebhooksOverview {
  * members with `webhooks.read` see them. A failed read throws, so it is never
  * cached and Retry reads again. `null` without an organization.
  */
-export async function loadWebhooks(): Promise<WebhooksOverview | null> {
+export async function getWebhooks(): Promise<WebhooksOverview | null> {
   "use cache: private";
   const { session } = await bsbCore.cached();
   cacheTag(WEBHOOKS_TAG);
@@ -117,7 +117,7 @@ export interface WebhookDetail {
  * One endpoint with its latest deliveries; `undefined` when it does not exist
  * or RLS hides it, `null` without an organization.
  */
-export async function loadWebhook(
+export async function getWebhook(
   id: string,
 ): Promise<WebhookDetail | undefined | null> {
   "use cache: private";

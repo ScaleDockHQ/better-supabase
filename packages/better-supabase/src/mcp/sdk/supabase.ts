@@ -15,8 +15,8 @@ import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import {
   isRecord,
-  loadSupabaseMcp,
-  loadSupabaseMcpPlatform,
+  getSupabaseMcp,
+  getSupabaseMcpPlatform,
 } from "../../core/supabase-mcp.ts";
 import { MCP_AUTH_STATE_KEY } from "./sdk.ts";
 
@@ -118,8 +118,8 @@ export function supabaseMcpHandler<
   options: SupabaseMcpHandlerOptions<C, P>,
   loaders: SupabaseMcpLoaders = {},
 ): (request: Request) => Promise<Response> {
-  const loadServer = loaders.server ?? loadSupabaseMcp;
-  const loadPlatform = loaders.platform ?? loadSupabaseMcpPlatform;
+  const loadServer = loaders.server ?? getSupabaseMcp;
+  const loadPlatform = loaders.platform ?? getSupabaseMcpPlatform;
 
   return auth.serve({
     async fetch(request, init) {

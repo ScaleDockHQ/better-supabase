@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import type { PlannedFile } from "./core/files.ts";
 
-import { readIfExists } from "./core/io.ts";
+import { getIfExists } from "./core/io.ts";
 
 const BEGIN = "<!-- BEGIN:better-supabase-agent-rules -->";
 const END = "<!-- END:better-supabase-agent-rules -->";
@@ -71,7 +71,7 @@ export async function agentsBlockFile(
     return undefined;
   }
 
-  const current = await readIfExists(join(root, "AGENTS.md"));
+  const current = await getIfExists(join(root, "AGENTS.md"));
 
   return {
     path: "AGENTS.md",

@@ -163,7 +163,7 @@ export function bankingFunctions(ctx: BlockSqlContext): string {
   end if;`
     : "";
 
-  const loadAccount = (arg: string, permission: string, lock = false) => `
+  const getAccount = (arg: string, permission: string, lock = false) => `
   select * into v_account from ${q.accounts} x where x.${a("id")} = ${arg}${lock ? " for update" : ""};
   if not found then
     ${q.accountMissing}
@@ -376,7 +376,7 @@ declare
   v_external text;
   v_imported integer := 0;
   v_total integer := 0;
-begin${loadAccount("import_bank_statement.account_id", q.import, true)}
+begin${getAccount("import_bank_statement.account_id", q.import, true)}
   if v_account.${a("archivedAt")} is not null then
     ${q.statementInvalid("an archived bank account takes no statements")}
   end if;
@@ -476,7 +476,7 @@ as $$
 #variable_conflict use_column
 declare
   v_account ${q.accounts}%rowtype;
-begin${loadAccount("list_bank_statements.account_id", q.read)}
+begin${getAccount("list_bank_statements.account_id", q.read)}
   return coalesce((
     select jsonb_agg(${q.statementJson("x")} order by x.${s("untilOn")} desc nulls last, x.${s("createdAt")} desc)
     from ${q.statements} x where x.${s("account")} = v_account.${a("id")}
@@ -498,7 +498,7 @@ as $$
 declare
   v_account ${q.accounts}%rowtype;
   v_filter jsonb := coalesce(list_bank_transactions.filter, '{}'::jsonb);
-begin${loadAccount("list_bank_transactions.account_id", q.read)}
+begin${getAccount("list_bank_transactions.account_id", q.read)}
   return coalesce((
     select jsonb_agg(${q.transactionJson("x")} order by x.${t("bookedOn")} desc, x.${t("createdAt")} desc, x.${t("id")})
     from (
@@ -560,7 +560,7 @@ declare
   v_unmatched integer;
   v_unmatched_total bigint;
   v_ledger bigint;
-begin${loadAccount("bank_reconciliation_status.account_id", q.read)}
+begin${getAccount("bank_reconciliation_status.account_id", q.read)}
   select * into v_statement from ${q.statements} x
   where x.${s("account")} = v_account.${a("id")} and x.${s("closingBalance")} is not null
     and coalesce(x.${s("untilOn")}, x.${s("createdAt")}::date) <= v_as_of

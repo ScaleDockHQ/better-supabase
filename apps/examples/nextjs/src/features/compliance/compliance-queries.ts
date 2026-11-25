@@ -8,7 +8,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { COMPLIANCE_TAG } from "./compliance-cache";
@@ -56,7 +56,7 @@ async function loadRenewals(): Promise<readonly RenewalRow[] | null> {
     return null;
   }
 
-  const contracts = await readAllPages((page) =>
+  const contracts = await getAllPages((page) =>
     db.contracts.page({
       organizationId: tenant,
       filters: { status: ["active"] },

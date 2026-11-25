@@ -324,7 +324,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     blocks: ["subjects", "tasks", "approvals", "reminders", "comments"],
     kind: "screen",
     description:
-      "What waits on the caller across the installed blocks, from `loadMyWork`: assigned work, approvals, due reminders, mentions and SLA warnings, each linked to its record.",
+      "What waits on the caller across the installed blocks, from `getMyWork`: assigned work, approvals, due reminders, mentions and SLA warnings, each linked to its record.",
     web: {
       file: `${WEB_APP}/src/features/my-work/components/my-work-list.tsx`,
       components: ["alert", "badge", "button", "card", "empty", "skeleton"],

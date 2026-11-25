@@ -889,7 +889,7 @@ export function emitSchemaModule(
     return [
       ...header,
       "",
-      "const tableLoaders = {",
+      "const tableGetters = {",
       loaders,
       "};",
       "",
@@ -899,8 +899,8 @@ export function emitSchemaModule(
       "  lazyTables: true,",
       "  tables: {},",
       "  functions: {},",
-      "  tableLoaders,",
-      `  loadFunctions: () => import(${q((options.metaImport ?? "./generated.meta.js").replace(/\.meta\.js$/, ".functions.js"))}).then((mod) => mod.default as SchemaMeta["functions"]),`,
+      "  tableGetters,",
+      `  getFunctions: () => import(${q((options.metaImport ?? "./generated.meta.js").replace(/\.meta\.js$/, ".functions.js"))}).then((mod) => mod.default as SchemaMeta["functions"]),`,
       `}${extended ? ", extensions" : ""});`,
       "",
     ].join("\n");

@@ -1,5 +1,5 @@
 import { onboardingList } from "@/features/onboarding/onboarding-list";
-import { loadOnboardingPage } from "@/features/onboarding/onboarding-queries";
+import { getOnboardingPage } from "@/features/onboarding/onboarding-queries";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -10,7 +10,7 @@ import { bsb } from "@/lib/supabase/server";
 export const GET = bsb.route(
   async (request, { db, tenant }) => {
     const query = onboardingList.parse(request.nextUrl.searchParams);
-    const { page } = await loadOnboardingPage(db, tenant, query.value);
+    const { page } = await getOnboardingPage(db, tenant, query.value);
 
     return Response.json(page);
   },

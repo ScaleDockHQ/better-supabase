@@ -147,7 +147,7 @@ function isQueueSdk(value: unknown): value is VercelQueueSdk {
  * with `poll` or `pg_net` never need the package; without it the call rejects
  * with an install message.
  */
-export async function loadVercelQueue(): Promise<VercelQueueSdk> {
+export async function getVercelQueue(): Promise<VercelQueueSdk> {
   const loaded = await importOptionalPeer("@vercel/queue");
 
   if (isRecord(loaded) && typeof loaded["QueueClient"] === "function") {

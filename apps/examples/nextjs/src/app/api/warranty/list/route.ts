@@ -1,5 +1,5 @@
 import { claimList } from "../../../../features/warranty/warranty-list";
-import { loadClaimPage } from "../../../../features/warranty/warranty-queries";
+import { getClaimPage } from "../../../../features/warranty/warranty-queries";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -13,7 +13,7 @@ export const GET = bsb.route(async (request, { db }) => {
     return Response.json({ issues: [] }, { status: 400 });
   }
 
-  const page = await loadClaimPage(db, query.value);
+  const page = await getClaimPage(db, query.value);
 
   return page.ok
     ? Response.json(page.data)

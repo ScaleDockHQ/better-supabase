@@ -10,14 +10,14 @@ import type {
 
 import {
   applyOverlay,
-  loadJsonPath,
+  getJsonPath,
   overlayFromDiff,
 } from "../../src/spec/index.ts";
 
 let jsonpath: JsonPathEngine;
 
 beforeAll(async () => {
-  jsonpath = await loadJsonPath();
+  jsonpath = await getJsonPath();
 });
 
 const base = {

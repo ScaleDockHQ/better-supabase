@@ -59,7 +59,7 @@ async function memberNames(
  * organization see every request; others see their own. A failed read throws,
  * so it is never cached and Retry reads again.
  */
-export async function loadAccessRequests(): Promise<AccessRequestsData | null> {
+export async function getAccessRequests(): Promise<AccessRequestsData | null> {
   "use cache: private";
 
   const request = await bsb.cached();

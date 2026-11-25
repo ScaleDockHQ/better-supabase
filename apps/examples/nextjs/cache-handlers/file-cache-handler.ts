@@ -41,7 +41,7 @@ export function createFileCacheHandler(dir: string): CacheHandler {
     await rename(temporary, file);
   };
 
-  const readManifest = async () => {
+  const getManifest = async () => {
     try {
       // SAFETY: only `updateTags` below writes the manifest.
       manifest = JSON.parse(
@@ -139,7 +139,7 @@ export function createFileCacheHandler(dir: string): CacheHandler {
     // Next calls this once per request: the other instance's expirations
     // arrive here.
     refreshTags() {
-      return readManifest();
+      return getManifest();
     },
 
     getExpiration(tags) {
@@ -149,7 +149,7 @@ export function createFileCacheHandler(dir: string): CacheHandler {
     },
 
     async updateTags(tags, durations) {
-      await readManifest();
+      await getManifest();
       const now = Date.now();
 
       for (const tag of tags) {

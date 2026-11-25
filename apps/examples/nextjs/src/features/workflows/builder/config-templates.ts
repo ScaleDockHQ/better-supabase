@@ -46,7 +46,7 @@ const MARKER = /\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/gu;
 const WHOLE = /^\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}$/u;
 
 /** Reads `input.a.b` or `results.node.a` from the run's data. */
-export function readTemplatePath(
+export function getTemplatePath(
   scope: TemplateScope,
   path: string,
 ): JsonValue | undefined {
@@ -93,11 +93,11 @@ export function resolveTemplates(
     const whole = WHOLE.exec(value);
 
     if (whole?.[1] !== undefined) {
-      return readTemplatePath(scope, whole[1]) ?? null;
+      return getTemplatePath(scope, whole[1]) ?? null;
     }
 
     return value.replaceAll(MARKER, (_, path: string) =>
-      asText(readTemplatePath(scope, path)),
+      asText(getTemplatePath(scope, path)),
     );
   }
 

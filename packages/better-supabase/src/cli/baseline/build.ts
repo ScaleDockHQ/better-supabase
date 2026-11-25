@@ -16,10 +16,10 @@ import type { BaselineManifest, BaselineVersions, HashedFile } from "./key.ts";
 import type { BaselineContext, ScratchStack } from "./stack.ts";
 
 import { connect } from "../db.ts";
-import { loadPgDelta, migrationFiles, openPgPool } from "../in-stack-diff.ts";
+import { getPgDelta, migrationFiles, openPgPool } from "../in-stack-diff.ts";
 import { readSupabaseConfig, supabaseDir } from "../supabase-config.ts";
 import { VERSION } from "../version.ts";
-import { artifactFiles, baselineRoot, readManifest } from "./artifact.ts";
+import { artifactFiles, baselineRoot, getManifest } from "./artifact.ts";
 import {
   catalogFingerprint,
   changedTables,
@@ -177,7 +177,7 @@ async function cachedArtifact(
   wantsSeed: (manifest: BaselineManifest) => boolean,
 ): Promise<{ key: string; manifest: BaselineManifest } | undefined> {
   for (const key of await readdir(base).catch(() => [])) {
-    const manifest = await readManifest(artifactFiles(base, key).manifest);
+    const manifest = await getManifest(artifactFiles(base, key).manifest);
 
     if (manifest === undefined) {
       continue;
@@ -251,7 +251,7 @@ export async function buildBaseline(
     }
   }
 
-  const delta = await loadPgDelta();
+  const delta = await getPgDelta();
 
   // The empty catalog: a stack that skipped migrations and seeds.
   ctx.log("Reading the empty stack");

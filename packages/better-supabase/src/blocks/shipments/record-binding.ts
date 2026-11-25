@@ -31,7 +31,7 @@ export const shipmentsBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "manage" },
   module: "shipments",
-  load: (client: Shipments, subject) => client.list({ subject }),
+  get: (client: Shipments, subject) => client.list({ subject }),
   events: ["shipment.*"],
   writes: {
     create: {

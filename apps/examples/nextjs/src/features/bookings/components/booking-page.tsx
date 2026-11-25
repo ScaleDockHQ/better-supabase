@@ -22,7 +22,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
-import { loadPublicBooking, settle } from "../bookings-queries";
+import { getPublicBooking, settle } from "../bookings-queries";
 import { BookingsLoadError } from "./bookings-load-error";
 import { SlotPicker } from "./slot-picker";
 
@@ -42,7 +42,7 @@ export async function BookingPage({
 
   const parsed = v.safeParse(v.pipe(v.string(), v.isoDate()), query["from"]);
   const from = parsed.success ? parsed.output : undefined;
-  const page = await settle(() => loadPublicBooking(token, from));
+  const page = await settle(() => getPublicBooking(token, from));
 
   if (page.kind === "missing") {
     notFound();

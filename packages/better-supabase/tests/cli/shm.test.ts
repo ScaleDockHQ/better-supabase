@@ -7,7 +7,7 @@ import {
   parseIpcs,
   parseIpcsSizes,
   parsePs,
-  readSharedMemory,
+  getSharedMemory,
   stackIdOf,
 } from "../../src/cli/shm.ts";
 
@@ -96,7 +96,7 @@ describe("readSharedMemory", () => {
       ps: ` 4242 ${POSTMASTER}\n 5151 /usr/bin/other\n`,
     });
 
-    expect(await readSharedMemory("/repo", env, run, "darwin")).toEqual({
+    expect(await getSharedMemory("/repo", env, run, "darwin")).toEqual({
       supported: true,
       limit: 32,
       segments: [
@@ -114,7 +114,7 @@ describe("readSharedMemory", () => {
       ps: ` 4242 ${POSTMASTER}\n`,
     });
 
-    expect(await readSharedMemory("/repo", env, run, "linux")).toEqual({
+    expect(await getSharedMemory("/repo", env, run, "linux")).toEqual({
       supported: true,
       limit: 4096,
       segments: [
@@ -127,11 +127,11 @@ describe("readSharedMemory", () => {
     const run: RunProcess = () =>
       Promise.resolve({ code: 127, stdout: "", stderr: "not found" });
 
-    expect(await readSharedMemory("/repo", env, run, "darwin")).toEqual({
+    expect(await getSharedMemory("/repo", env, run, "darwin")).toEqual({
       supported: false,
       segments: [],
     });
-    expect(await readSharedMemory("/repo", env, run, "linux")).toEqual({
+    expect(await getSharedMemory("/repo", env, run, "linux")).toEqual({
       supported: false,
       segments: [],
     });

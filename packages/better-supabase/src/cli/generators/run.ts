@@ -80,7 +80,7 @@ const cacheFile = (root: string, generator: Generator): string =>
     `${sha256(generator.name).slice(0, 16)}.json`,
   );
 
-async function readCached(
+async function getCached(
   root: string,
   generator: Generator,
   key: string,
@@ -265,7 +265,7 @@ export async function runGenerators(
     keys.push(key);
 
     const hit = useCache
-      ? await readCached(options.root, generator, key)
+      ? await getCached(options.root, generator, key)
       : undefined;
 
     produced.push(hit);

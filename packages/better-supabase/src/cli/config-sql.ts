@@ -1,7 +1,7 @@
 import type { ResolvedConfig } from "../config/index.ts";
 import type { CommandResult } from "./core/io.ts";
 
-import { readFileFacts, SchemaReadFailure } from "./schema-reader/index.ts";
+import { getFileFacts, SchemaReadFailure } from "./schema-reader/index.ts";
 
 /** One SQL expression the config carries, with where it was written. */
 export interface ConfigSqlFragment {
@@ -163,7 +163,7 @@ export async function checkConfigSql(
     const text = probe(fragment);
 
     try {
-      await readFileFacts(text, { path: fragment.path });
+      await getFileFacts(text, { path: fragment.path });
     } catch (error) {
       if (error instanceof SchemaReadFailure) {
         return {

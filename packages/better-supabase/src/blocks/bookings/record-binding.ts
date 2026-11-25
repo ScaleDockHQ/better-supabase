@@ -14,6 +14,6 @@ export const bookingsBinding: RecordBinding<Bookings, readonly Booking[]> =
   defineRecordBinding({
     permissions: { read: "read" },
     module: "bookings",
-    load: (client: Bookings, subject) => client.forCustomer({ subject }),
+    get: (client: Bookings, subject) => client.forCustomer({ subject }),
     events: ["booking.*"],
   });

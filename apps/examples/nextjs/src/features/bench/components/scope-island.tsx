@@ -3,7 +3,7 @@ import { bsbCore } from "@/lib/supabase/server-core";
 
 import type { ScopeVariant } from "../bench-cache";
 
-import { readScope, readScopeFromHandle } from "../bench-queries";
+import { getScope, getScopeFromHandle } from "../bench-queries";
 
 /**
  * Render inside `<Suspense>`: one private scope of the benchmark page. The
@@ -20,8 +20,8 @@ export async function ScopeIsland({
     (await variant) === "session" ? await bsbCore.sessionHandle() : undefined;
 
   const who = await (session
-    ? readScopeFromHandle(index, session)
-    : readScope(index));
+    ? getScopeFromHandle(index, session)
+    : getScope(index));
 
   return (
     <li className="text-sm tabular-nums" data-testid={`scope-${index}`}>

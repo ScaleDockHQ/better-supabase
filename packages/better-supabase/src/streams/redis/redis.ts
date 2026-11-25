@@ -89,7 +89,7 @@ const isNodeRedis = (
  * Loads `redis` on first use. The specifier is a variable so bundlers leave the
  * optional peer out of apps that pass their own client.
  */
-const loadRedis = (): Promise<unknown> => importOptionalPeer("redis");
+const getRedis = (): Promise<unknown> => importOptionalPeer("redis");
 
 async function connectUrl(
   url: string,
@@ -144,7 +144,7 @@ const text = (value: unknown): string | undefined =>
  */
 export function redisStreamStore(
   options: RedisStreamStoreOptions,
-  load: () => Promise<unknown> = loadRedis,
+  load: () => Promise<unknown> = getRedis,
 ): StreamStore {
   let connected: Promise<Connected> | undefined =
     "client" in options

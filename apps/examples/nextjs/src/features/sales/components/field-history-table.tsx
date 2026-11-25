@@ -3,8 +3,8 @@ import { getExtracted } from "next-intl/server";
 import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { settle } from "@/features/crm/crm-queries";
 
-import { loadFieldHistory } from "../automation/automation-queries";
-import { loadMemberOptions } from "../member/member-queries";
+import { getFieldHistory } from "../automation/automation-queries";
+import { getMemberOptions } from "../member/member-queries";
 import { DetailTable } from "./detail-table";
 import { dateFormatter } from "./overview-support";
 
@@ -19,8 +19,8 @@ export async function FieldHistoryTable({
 }) {
   const [t, loaded, members, fmtDate] = await Promise.all([
     getExtracted("sales"),
-    settle(() => loadFieldHistory(type, id)),
-    loadMemberOptions(),
+    settle(() => getFieldHistory(type, id)),
+    getMemberOptions(),
     dateFormatter(),
   ]);
 

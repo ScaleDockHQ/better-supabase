@@ -263,7 +263,7 @@ export function channelStorefrontTables(
 }
 
 /** Grants a read function to the storefront's `anon` as well. */
-const readGrant = (signature: string): string =>
+const getGrant = (signature: string): string =>
   `revoke execute on function ${signature} from public;
 grant execute on function ${signature} to anon, authenticated, service_role;`;
 
@@ -323,7 +323,7 @@ as $$
   from ${channels} k
   where k.${k("id")} = $1 and k.${k("currency")} is not null
 $$;
-${readGrant(`${fn("channel_price")}(uuid, uuid, timestamptz)`)}
+${getGrant(`${fn("channel_price")}(uuid, uuid, timestamptz)`)}
 `
     : "";
 
@@ -514,7 +514,7 @@ as $$
     limit ${pageSize("$3", 100, 500)}
   ) items
 $$;
-${readGrant(`${fn("channel_products")}(uuid, text, integer, text, boolean)`)}
+${getGrant(`${fn("channel_products")}(uuid, text, integer, text, boolean)`)}
 `;
 }
 
@@ -668,7 +668,7 @@ as $$
   }
   where p.${p("id")} = $1
 $$;
-${readGrant(`${fn("product_text")}(uuid, text)`)}
+${getGrant(`${fn("product_text")}(uuid, text)`)}
 `;
 }
 
@@ -859,7 +859,7 @@ as $$
   from ${media} x
   where x.${m("product")} = $1
 $$;
-${readGrant(`${fn("product_media")}(uuid, text)`)}
+${getGrant(`${fn("product_media")}(uuid, text)`)}
 `;
 }
 

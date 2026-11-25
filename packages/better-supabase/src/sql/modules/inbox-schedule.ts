@@ -87,7 +87,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
   end if;`;
 
   // The author's own scheduled message, locked; anyone else gets not found.
-  const loadOwn = (
+  const getOwn = (
     param: string,
   ): string => `select * into v_row from ${T("scheduled")} where ${sm("id")} = ${param} and ${sm("author")} = (select auth.uid()) for update;
   if not found then
@@ -191,7 +191,7 @@ as $$
 declare
   v_row ${T("scheduled")}%rowtype;
 begin
-  ${loadOwn("reschedule_inbox_message.scheduled")}
+  ${getOwn("reschedule_inbox_message.scheduled")}
   ${future("reschedule_inbox_message.scheduled_at")}
   update ${T("scheduled")} set ${sm("scheduledFor")} = reschedule_inbox_message.scheduled_at
   where ${sm("id")} = v_row.${sm("id")}
@@ -212,7 +212,7 @@ as $$
 declare
   v_row ${T("scheduled")}%rowtype;
 begin
-  ${loadOwn("cancel_inbox_message.scheduled")}
+  ${getOwn("cancel_inbox_message.scheduled")}
   delete from ${T("scheduled")} where ${sm("id")} = v_row.${sm("id")};
   return true;
 end;

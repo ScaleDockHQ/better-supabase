@@ -13,7 +13,7 @@ import type { Paint } from "../style.ts";
 
 import { moduleLayout, renderBlocks, sameBlockFile } from "../../sql/index.ts";
 import { providerLabel, unsafeKey } from "../authorization.ts";
-import { loadSnapshot } from "../commands/snapshot.ts";
+import { getSnapshot } from "../commands/snapshot.ts";
 import { checkConfigSql } from "../config-sql.ts";
 import { schemaStampPath } from "../content-mapper.ts";
 import {
@@ -155,7 +155,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   }
 
   const snapshot =
-    options.snapshot ?? (await loadSnapshot(config, options.env, options));
+    options.snapshot ?? (await getSnapshot(config, options.env, options));
 
   const { files, warnings, notices, typesModule } = await render(
     config,

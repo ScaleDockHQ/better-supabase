@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { readFileFacts } from "../../../src/cli/schema-reader/index.ts";
+import { getFileFacts } from "../../../src/cli/schema-reader/index.ts";
 import { factsFrom } from "../../../src/cli/schema-reader/read.ts";
 import { Source } from "../../../src/cli/schema-reader/source.ts";
 
 describe("factsFrom", () => {
   it("reads column, key, foreign key and check constraints under a search path", async () => {
-    const read = await readFileFacts(`set search_path = "$user", app;
+    const read = await getFileFacts(`set search_path = "$user", app;
 create table t (
   id int generated always as identity,
   b int not null default 1 references other match full on delete cascade on update set null initially deferred,
@@ -61,7 +61,7 @@ create table t (
   });
 
   it("reads a column's deferrable after its initially clause", async () => {
-    const read = await readFileFacts(`create table public.t (
+    const read = await getFileFacts(`create table public.t (
   a int references public.o initially immediate deferrable,
   b int references public.o not deferrable initially immediate
 );`);
@@ -73,7 +73,7 @@ create table t (
   });
 
   it("reads the less common clause forms", async () => {
-    const read = await readFileFacts(`set search_path = "$user";
+    const read = await getFileFacts(`set search_path = "$user";
 create table t (a int references o);
 create view v with (security_barrier) as select 1;
 grant all on t to anon;
@@ -94,7 +94,7 @@ drop sequence s;`);
 
   it("reads alter table commands and every drop kind", async () => {
     const read =
-      await readFileFacts(`alter table p add column x int not null, alter column n set not null,
+      await getFileFacts(`alter table p add column x int not null, alter column n set not null,
   alter column x drop not null, drop column y, add constraint fk foreign key (x) references public.q,
   add constraint ck check (x > 1), add constraint u unique (x), enable row level security, owner to postgres;
 drop table public.p, q; drop materialized view s.m; drop domain dm; drop procedure pr();
@@ -125,7 +125,7 @@ drop policy pol on public.p; drop trigger tr on p; drop schema sc;`);
 
   it("reads policies, with public for a policy without roles", async () => {
     const read =
-      await readFileFacts(`create policy "r" on s.p as restrictive for select to anon, current_user
+      await getFileFacts(`create policy "r" on s.p as restrictive for select to anon, current_user
   using (true) with check (false);
 create policy w on p for update using (a = 1);`);
 
@@ -177,12 +177,12 @@ create policy w on p for update using (a = 1);`);
       },
     ],
   ])("reads %s", async (sql, expected) => {
-    expect((await readFileFacts(sql)).indexes[0]).toMatchObject(expected);
+    expect((await getFileFacts(sql)).indexes[0]).toMatchObject(expected);
   });
 
   it("reads views, types, functions and triggers", async () => {
     const read =
-      await readFileFacts(`create view v (a, b) with (security_invoker = false) as select 1, 2;
+      await getFileFacts(`create view v (a, b) with (security_invoker = false) as select 1, 2;
 create or replace view s.w with (security_invoker) as select * from t;
 create materialized view if not exists mv as select 1 as one;
 create type pair as (a int, b int);
@@ -233,7 +233,7 @@ create trigger tr before insert or update or delete or truncate on t for each ro
 
   it("reads comments, grants, do blocks, inserts and objects", async () => {
     const read =
-      await readFileFacts(`comment on function s.f(int, text[]) is 'fn';
+      await getFileFacts(`comment on function s.f(int, text[]) is 'fn';
 comment on column s.t.c is 'col';
 comment on schema app is 'sch';
 comment on type pair is 'ty';
@@ -283,7 +283,7 @@ create domain email as text;`);
   });
 
   it("reads markers, a module header and a statement outside a transaction", async () => {
-    const read = await readFileFacts(`-- pg-delta: transaction = false
+    const read = await getFileFacts(`-- pg-delta: transaction = false
 -- bsb: rename a to b
 -- @bsb-rows x
 /* -- @bsb-block y */
@@ -296,7 +296,7 @@ select 1;`);
     ]);
     expect(read.outsideTransaction).toBe(true);
     expect(read.module).toBe(false);
-    expect((await readFileFacts("-- @bsb-block y\nselect 1;")).module).toBe(
+    expect((await getFileFacts("-- @bsb-block y\nselect 1;")).module).toBe(
       true,
     );
   });
@@ -399,7 +399,7 @@ select 1;`);
 
   it("reads a do block with a language and an extension without a schema option", async () => {
     const read =
-      await readFileFacts(`do language plpgsql $$ begin create table x (); end $$;
+      await getFileFacts(`do language plpgsql $$ begin create table x (); end $$;
 create extension citext with version '1.6';`);
 
     expect(read.doCreates).toEqual([1]);

@@ -8,6 +8,6 @@ export const scoresBinding: RecordBinding<Scores, readonly Score[]> =
   defineRecordBinding({
     permissions: { read: "read", write: "compute" },
     module: "scores",
-    load: (client: Scores, subject) => client.list({ on: subject }),
+    get: (client: Scores, subject) => client.list({ on: subject }),
     events: ["score.changed"],
   });

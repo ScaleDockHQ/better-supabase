@@ -12,7 +12,7 @@ import type { Rewritten } from "./codemod-arguments.ts";
 import type { Codemod, MigrationContext } from "./codemod.ts";
 
 import naming from "../../api/naming.json" with { type: "json" };
-import { bsbPolicyName, readPolicies } from "../sql/index.ts";
+import { bsbPolicyName, getPolicies } from "../sql/index.ts";
 import { renameArguments, renameBlockReferences } from "./codemod-arguments.ts";
 import { renameConfigKeys } from "./codemod-config-keys.ts";
 import {
@@ -231,7 +231,7 @@ function generatedPolicyRenames(projectSql: string | undefined): string[] {
 
   const seen = new Set<string>();
 
-  return readPolicies(projectSql).flatMap(({ policy }): string[] => {
+  return getPolicies(projectSql).flatMap(({ policy }): string[] => {
     const { schema, name } = qualifiedOf(policy.table);
     const to = bsbPolicyName(policy.name);
     const key = `${policy.table}\u0000${policy.name}`;

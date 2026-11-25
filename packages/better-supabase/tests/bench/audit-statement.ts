@@ -1,7 +1,7 @@
 // Times `update` on N audited rows with the restricted table on, in row mode
 // and in statement mode, on in-process Postgres (PGlite).
 //   node tests/bench/audit-statement.ts
-import { loadLite, migrateLite, seedLite } from "../../src/lite/runtime.ts";
+import { getLite, migrateLite, seedLite } from "../../src/lite/runtime.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
 const SIZES = [48, 5000];
@@ -29,7 +29,7 @@ const ORG = "11111111-1111-4111-8111-111111111111";
 const median = (values: readonly number[]): number =>
   [...values].toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!;
 
-const lite = await loadLite();
+const lite = await getLite();
 
 if (!lite) {
   throw new Error("Install @supabase/lite to run this benchmark.");

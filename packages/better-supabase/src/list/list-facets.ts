@@ -147,7 +147,7 @@ export function facetCacheKey(query: {
  * Exact mode groups every matching row. Capped mode reads at most `scanCap`
  * rows per facet, so a large tenant is not scanned.
  */
-export function loadFacetCounts<F extends string>(input: {
+export function getFacetCounts<F extends string>(input: {
   readonly enabled: boolean;
   readonly mode: "exact" | "capped";
   readonly facets: readonly (FacetColumn & { readonly key: F })[];

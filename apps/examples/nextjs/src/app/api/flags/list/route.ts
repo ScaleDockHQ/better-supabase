@@ -1,6 +1,6 @@
 import {
   holdsPlatformPermission,
-  loadAdminList,
+  getAdminList,
 } from "../../../../features/admin-lists/admin-list-load";
 import { flagList } from "../../../../features/flags/flags-list";
 import { flagSource } from "../../../../features/flags/flags-source";
@@ -16,7 +16,7 @@ export const GET = bsb.route(
     const query = flagList.parse(request.nextUrl.searchParams);
 
     return Response.json(
-      await loadAdminList({
+      await getAdminList({
         session,
         tenant,
         list: flagList,

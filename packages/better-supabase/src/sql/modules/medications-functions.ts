@@ -42,7 +42,7 @@ const ORDER_FIELDS = `
  * PL/pgSQL that reads the order fields from `attrs` (a jsonb expression) into
  * the `ORDER_FIELDS` variables; a missing key keeps `fallback(field)`.
  */
-function readOrderFields(
+function getOrderFields(
   attrs: string,
   fallback: (field: string) => string,
 ): string {
@@ -348,7 +348,7 @@ ${userGrant(`${fn("approve_medication_order")}(uuid, uuid)`)}
     returning * into v_row;${writeFields(options.attrs)}`;
 
   const newFields = (attrs: string, unit: string): string =>
-    readOrderFields(attrs, (field) => {
+    getOrderFields(attrs, (field) => {
       switch (field) {
         case "doseUnit": {
           return unit;
@@ -365,7 +365,7 @@ ${userGrant(`${fn("approve_medication_order")}(uuid, uuid)`)}
     });
 
   const rowFields = (attrs: string): string =>
-    readOrderFields(attrs, (field) =>
+    getOrderFields(attrs, (field) =>
       has("orders", field) ? `v_row.${o(field)}` : "null",
     );
 

@@ -12,7 +12,7 @@ import {
 import { buildBaseline } from "../../../src/cli/baseline/build.ts";
 import { verifyBaseline } from "../../../src/cli/baseline/verify.ts";
 import { connect } from "../../../src/cli/db.ts";
-import { loadPgDelta, openPgPool } from "../../../src/cli/in-stack-diff.ts";
+import { getPgDelta, openPgPool } from "../../../src/cli/in-stack-diff.ts";
 import {
   EMPTY,
   MIGRATED,
@@ -30,7 +30,7 @@ vi.mock(
   import("../../../src/cli/in-stack-diff.ts"),
   async (importOriginal) => ({
     ...(await importOriginal()),
-    loadPgDelta: vi.fn(),
+    getPgDelta: vi.fn(),
     openPgPool: vi.fn(),
   }),
 );
@@ -42,7 +42,7 @@ beforeEach(async () => {
   world = fakeWorld(await fakeProject());
   vi.mocked(connect).mockImplementation(world.connect);
   vi.mocked(openPgPool).mockImplementation(world.openPool);
-  vi.mocked(loadPgDelta).mockResolvedValue(world.delta);
+  vi.mocked(getPgDelta).mockResolvedValue(world.delta);
   uploads = fakeFetch(() => ({ status: 200, body: {} }));
   vi.stubGlobal("fetch", uploads.fetch);
 });

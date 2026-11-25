@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderFiles } from "../../../src/cli/gen/render.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { loadFixtureSnapshot } from "../fixtures/render.ts";
+import { getFixtureSnapshot } from "../fixtures/render.ts";
 
 const render = async (also: readonly string[] | undefined) =>
   renderFiles(
@@ -15,7 +15,7 @@ const render = async (also: readonly string[] | undefined) =>
       },
       "/project",
     ),
-    await loadFixtureSnapshot(),
+    await getFixtureSnapshot(),
     { extensions: false },
   );
 

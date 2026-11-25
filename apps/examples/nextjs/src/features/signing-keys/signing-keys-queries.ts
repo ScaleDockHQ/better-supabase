@@ -32,7 +32,7 @@ export interface SigningKeysOverview {
  * read throws, so it is never cached and Retry reads again. `null` without an
  * organization or the permission.
  */
-export async function loadSigningKeys(): Promise<SigningKeysOverview | null> {
+export async function getSigningKeys(): Promise<SigningKeysOverview | null> {
   "use cache: private";
 
   const request = await bsbShell.cached();

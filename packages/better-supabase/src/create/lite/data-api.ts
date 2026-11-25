@@ -6,7 +6,7 @@ import type { RawCatalog, RawColumn, RawTable } from "./catalog.ts";
 import type { SandboxOptions } from "./sandbox.ts";
 
 import { defineApi } from "../../spec/api.ts";
-import { loadProject } from "../project.ts";
+import { getProject } from "../project.ts";
 import { openSandbox } from "./sandbox.ts";
 
 const JSON_TYPES = new Set(["json", "jsonb"]);
@@ -118,7 +118,7 @@ export async function designDataApi(
   design: CreateDesign = {},
   options: DesignDataApiOptions = {},
 ): Promise<DesignDataApi> {
-  const loaded = await loadProject(design, { preset });
+  const loaded = await getProject(design, { preset });
 
   if (!loaded.ok) {
     return loaded;

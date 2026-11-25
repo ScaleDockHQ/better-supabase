@@ -191,7 +191,7 @@ export function createClients(input: ClientsInput): Clients {
     return sharedAdmin;
   };
 
-  const readUrl = (): string | undefined =>
+  const getUrl = (): string | undefined =>
     options.readUrl === false
       ? undefined
       : (options.readUrl?.replace(/\/+$/, "") ?? env().readUrl);
@@ -354,7 +354,7 @@ export function createClients(input: ClientsInput): Clients {
     executorOptions,
     tunedExecutor,
     serviceClient,
-    readUrl,
+    readUrl: getUrl,
     apiKeyClient,
     bearerClients,
     contextClient,

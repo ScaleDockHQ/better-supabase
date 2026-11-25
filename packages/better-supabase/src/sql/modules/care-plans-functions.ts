@@ -28,7 +28,7 @@ const titleCheck = (q: CarePlansSql, value: string, what: string): string => `
  * Loads plans row `id` into `v_plan` for update and checks the caller holds
  * `permission` and can read the client.
  */
-const loadPlan = (q: CarePlansSql, id: string, permission: string): string => `
+const getPlan = (q: CarePlansSql, id: string, permission: string): string => `
   select * into v_plan from ${q.plans} x where x.${q.p("id")} = ${id} for update;
   if not found then
     ${q.missing}
@@ -191,7 +191,7 @@ as $$
 declare
   v_plan ${plans};
   v_title text;
-begin${loadPlan(q, "update_care_plan.plan_id", q.write)}
+begin${getPlan(q, "update_care_plan.plan_id", q.write)}
   if v_plan.${p("status")} = 'archived' then
     ${q.archived}
   end if;
@@ -250,7 +250,7 @@ declare
   v_system text;
   v_title text := trim(add_care_plan_problem.input ->> 'title');
   v_last text;
-begin${loadPlan(q, "add_care_plan_problem.plan_id", q.write)}${draftOnly(q)}
+begin${getPlan(q, "add_care_plan_problem.plan_id", q.write)}${draftOnly(q)}
   if jsonb_typeof(add_care_plan_problem.input) is distinct from 'object' then
     ${q.invalid("input must be an object")}
   end if;
@@ -293,7 +293,7 @@ begin
   end if;
   if jsonb_typeof(update_care_plan_problem.changes) is distinct from 'object' then
     ${q.invalid("changes must be an object")}
-  end if;${loadPlan(q, `v_row.${pr("plan")}`, `case when (update_care_plan_problem.changes - 'status') = '{}'::jsonb then ${q.evaluate} else ${q.write} end`)}
+  end if;${getPlan(q, `v_row.${pr("plan")}`, `case when (update_care_plan_problem.changes - 'status') = '{}'::jsonb then ${q.evaluate} else ${q.write} end`)}
   if v_plan.${p("status")} = 'archived' then
     ${q.archived}
   end if;
@@ -355,7 +355,7 @@ begin
   select * into v_problem from ${problems} y where y.${pr("id")} = add_care_plan_goal.problem_id;
   if not found then
     ${fail("CARE_PLAN_NOT_FOUND", "no such problem on a care plan", "P0002")}
-  end if;${loadPlan(q, `v_problem.${pr("plan")}`, q.write)}${draftOnly(q)}
+  end if;${getPlan(q, `v_problem.${pr("plan")}`, q.write)}${draftOnly(q)}
   if jsonb_typeof(add_care_plan_goal.input) is distinct from 'object' then
     ${q.invalid("input must be an object")}
   end if;${titleCheck(q, "v_title", "a goal")}${objectCheck(q, "add_care_plan_goal.input", "measure")}${rankCheck(q, "add_care_plan_goal.input")}
@@ -396,7 +396,7 @@ begin
   end if;
   if jsonb_typeof(update_care_plan_goal.changes) is distinct from 'object' then
     ${q.invalid("changes must be an object")}
-  end if;${loadPlan(q, `v_row.${g("plan")}`, `case when (update_care_plan_goal.changes - 'status') = '{}'::jsonb then ${q.evaluate} else ${q.write} end`)}
+  end if;${getPlan(q, `v_row.${g("plan")}`, `case when (update_care_plan_goal.changes - 'status') = '{}'::jsonb then ${q.evaluate} else ${q.write} end`)}
   if v_plan.${p("status")} = 'archived' then
     ${q.archived}
   end if;
@@ -488,7 +488,7 @@ begin
   select * into v_goal from ${goals} z where z.${g("id")} = add_care_plan_action.goal_id;
   if not found then
     ${q.goalMissing}
-  end if;${loadPlan(q, `v_goal.${g("plan")}`, q.write)}${draftOnly(q)}
+  end if;${getPlan(q, `v_goal.${g("plan")}`, q.write)}${draftOnly(q)}
   if jsonb_typeof(add_care_plan_action.input) is distinct from 'object' then
     ${q.invalid("input must be an object")}
   end if;${titleCheck(q, "v_title", "an action")}${checks("add_care_plan_action.input")}
@@ -540,7 +540,7 @@ begin
   end if;
   if jsonb_typeof(update_care_plan_action.changes) is distinct from 'object' then
     ${q.invalid("changes must be an object")}
-  end if;${loadPlan(q, `v_row.${a("plan")}`, q.write)}
+  end if;${getPlan(q, `v_row.${a("plan")}`, q.write)}
   if v_plan.${p("status")} = 'archived' then
     ${q.archived}
   end if;

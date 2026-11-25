@@ -23,8 +23,8 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
   blockFields,
-  readAllFields,
-  readFields,
+  getAllFields,
+  getFields,
   rowFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -243,7 +243,7 @@ export function createServiceAccounts<
     page: AsyncResult<T>,
   ) =>
     page.andThen((found) =>
-      readAllFields(fields, found.items).map((items) => ({ ...found, items })),
+      getAllFields(fields, found.items).map((items) => ({ ...found, items })),
     );
 
   const client: ServiceAccounts<F> = {
@@ -314,7 +314,7 @@ export function createServiceAccounts<
           return err(registered.error);
         }
 
-        return readFields(fields, registered.data);
+        return getFields(fields, registered.data);
       }),
     setRole: ({ id, role, ...extra }) =>
       call(
@@ -342,7 +342,7 @@ export function createServiceAccounts<
         return options?.limit === undefined
           ? rows
           : rows.slice(0, options.limit);
-      }).andThen((principals) => readAllFields(fields, principals)),
+      }).andThen((principals) => getAllFields(fields, principals)),
   };
 
   return withBlockHooks(client, options.hooks, {

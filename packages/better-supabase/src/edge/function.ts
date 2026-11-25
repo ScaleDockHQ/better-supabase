@@ -75,7 +75,7 @@ export interface FunctionDefinition<
   ) => Returned<Out>;
 }
 
-async function readInput(request: Request): Promise<Result<unknown>> {
+async function getInput(request: Request): Promise<Result<unknown>> {
   if (request.method === "GET" || request.method === "HEAD") {
     return ok(undefined);
   }
@@ -124,7 +124,7 @@ export function defineFunction<
   const { input, output, summary, handler, ...options } = definition;
 
   const fn = edge.handler(async (request, ctx) => {
-    const body = await readInput(request);
+    const body = await getInput(request);
 
     if (!body.ok) {
       return body;

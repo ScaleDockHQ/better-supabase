@@ -1,7 +1,7 @@
 import { tenantOf } from "better-supabase/next";
 
 import { collectionList } from "../../../../features/collections/collections-list";
-import { loadCollectionPage } from "../../../../features/collections/collections-queries";
+import { getCollectionPage } from "../../../../features/collections/collections-queries";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -17,7 +17,7 @@ export const GET = bsb.route(async (request, { db, auth }) => {
     return Response.json({ issues: [] }, { status: 400 });
   }
 
-  const page = await loadCollectionPage(db, organizationId, query.value);
+  const page = await getCollectionPage(db, organizationId, query.value);
 
   return page.ok
     ? Response.json(page.data)

@@ -54,7 +54,7 @@ export interface Portfolio {
  * used: `projects.financials` and `projects.retainerDrawdown`, the budget as
  * the retainer. `undefined` when the project does not exist.
  */
-export async function loadProjectFinance(
+export async function getProjectFinance(
   id: string,
 ): Promise<ProjectFinance | undefined | null> {
   "use cache: private";
@@ -102,7 +102,7 @@ export async function loadProjectFinance(
  * Every project with its tracked hours, and the team's utilization this week:
  * `projects.financials` per project and `projects.utilization`.
  */
-export async function loadPortfolio(): Promise<Portfolio | null> {
+export async function getPortfolio(): Promise<Portfolio | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(PROJECTS_TAG, WORK_TAG);

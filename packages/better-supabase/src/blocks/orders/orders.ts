@@ -37,7 +37,7 @@ import { money } from "../../commerce/money.ts";
 import { paymentProviderOf } from "../../commerce/payments.ts";
 import { detailArg } from "../../commerce/stock-detail.ts";
 import { taxProviderOf } from "../../commerce/tax.ts";
-import { blockFields, readFields } from "../../core/block-fields.ts";
+import { blockFields, getFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -406,7 +406,7 @@ export function createOrders<
   const fields: BlockFields<F> = blockFields(options.fields, "order fields");
 
   const parsed = (result: AsyncResult<Order>): AsyncResult<Order<F>> =>
-    result.andThen((order) => readFields(fields, order));
+    result.andThen((order) => getFields(fields, order));
 
   const payments = options.payments
     ? paymentProviderOf(options.payments)

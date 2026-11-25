@@ -49,12 +49,12 @@ export type BindingOf<
     : never
   : never;
 
-/** The settled results of `loadBindings`, by binding name. */
+/** The settled results of `getBindings`, by binding name. */
 export type LoadedBindings<B extends BindingBlocks, N extends string> = {
   readonly [K in N]: RecordBindingResult<RecordBindingData<BindingOf<B, K>>>;
 };
 
-/** The permission `loadBindings` asks `can` about. */
+/** The permission `getBindings` asks `can` about. */
 export interface BindingCheck {
   /** The key of the block whose binding it is. */
   readonly binding: string;
@@ -112,7 +112,7 @@ function missing(name: string, detail: string): DbError {
 }
 
 /**
- * A `can` for `loadBindings` from the caller's `PermissionSet` and the
+ * A `can` for `getBindings` from the caller's `PermissionSet` and the
  * `permissions` constant of `blocks.generated.ts`: a binding needs the key its
  * module's action names there. An action with no key there is allowed, and RLS
  * decides.
@@ -134,7 +134,7 @@ export function bindingCan(
  * it, which never runs its query. It never throws.
  *
  * ```ts
- * const { comments, tags } = await loadBindings(
+ * const { comments, tags } = await getBindings(
  *   { blocks: blockSet.blocks, clients: blocks },
  *   { type: "customer", id },
  *   ["comments", "tags"],
@@ -142,7 +142,7 @@ export function bindingCan(
  * );
  * ```
  */
-export async function loadBindings<
+export async function getBindings<
   B extends BindingBlocks,
   const N extends BindingName<B>,
 >(
@@ -187,7 +187,7 @@ export async function loadBindings<
 
       // SAFETY: the binding takes the client its block's creator made and the
       // options `LoadBindingsOptions` typed for it.
-      const load = found.binding.load as (
+      const load = found.binding.get as (
         client: unknown,
         subject: RecordRef,
         options: unknown,

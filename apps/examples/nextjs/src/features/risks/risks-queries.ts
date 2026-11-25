@@ -46,7 +46,7 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
  * One page of risks for a list query, ordered by every sort term. The cursor is
  * the offset of the next row, and travels in the URL as JSON.
  */
-export async function readRiskPage(
+export async function getRiskPage(
   db: Db,
   query: RecordListUrlQuery,
 ): Promise<RecordListPage<RiskRow>> {
@@ -67,7 +67,7 @@ export async function readRiskPage(
   };
 }
 
-async function loadRegister(): Promise<RecordListPage<RiskRow> | null> {
+async function getRegister(): Promise<RecordListPage<RiskRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
 
@@ -75,7 +75,7 @@ async function loadRegister(): Promise<RecordListPage<RiskRow> | null> {
     return null;
   }
 
-  return readRiskPage(db, riskList.defaults);
+  return getRiskPage(db, riskList.defaults);
 }
 
 /**
@@ -83,7 +83,7 @@ async function loadRegister(): Promise<RecordListPage<RiskRow> | null> {
  * Filtered and later pages go through `/api/risks/list`.
  */
 export function getRiskRegister(): Promise<Loaded<RecordListPage<RiskRow>>> {
-  return settle(loadRegister);
+  return settle(getRegister);
 }
 
 /** One heatmap cell, serializable. */
@@ -111,7 +111,7 @@ export interface HeatmapData {
   readonly total: number;
 }
 
-async function loadHeatmap(): Promise<HeatmapData | null> {
+async function getHeatmap(): Promise<HeatmapData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
 
@@ -157,7 +157,7 @@ async function loadHeatmap(): Promise<HeatmapData | null> {
 
 /** The open risks per cell of the default matrix, by residual rating. */
 export function getRiskHeatmap(): Promise<Loaded<HeatmapData>> {
-  return settle(loadHeatmap);
+  return settle(getHeatmap);
 }
 
 /** One rating, as the detail page shows it. */

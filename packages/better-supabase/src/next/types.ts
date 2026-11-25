@@ -96,7 +96,7 @@ export interface NextOptions extends ServerOptions {
   /**
    * The caller's keys in the active tenant from a source that costs no database
    * call, such as the token's `permissions` claim or the shell's bootstrap
-   * entry. `bsb.record(...).load()` and `recordListServer` use it for their
+   * entry. `bsb.record(...).get()` and `recordListServer` use it for their
    * `can` flags and call `my_permissions` only when it returns `undefined` or
    * `null`. The keys must be the full set: a set that omits a key the record
    * type checks denies it.
@@ -795,7 +795,7 @@ export interface BetterNext<
    *
    * ```ts
    * const customer = bsb.record(customerRecord);
-   * const { bindings, can } = await customer.load(id, {
+   * const { bindings, can } = await customer.get(id, {
    *   bindings: ["tags"],
    * });
    * ```

@@ -1,5 +1,5 @@
 import { assetList } from "../../../../features/assets/assets-list";
-import { loadAssetPage } from "../../../../features/assets/assets-queries";
+import { getAssetPage } from "../../../../features/assets/assets-queries";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -14,7 +14,7 @@ export const GET = bsb.route(async (request, { db }) => {
     return Response.json({ issues: [] }, { status: 400 });
   }
 
-  const page = await loadAssetPage(db, query.value);
+  const page = await getAssetPage(db, query.value);
 
   return page.ok
     ? Response.json(page.data)

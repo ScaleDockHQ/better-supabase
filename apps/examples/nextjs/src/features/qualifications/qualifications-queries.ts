@@ -13,7 +13,7 @@ import type {
   RecordListUrlQuery,
 } from "@/components/record-list/record-list-types";
 
-import { readMemberNames } from "@/features/people/member-names";
+import { getMemberNames } from "@/features/people/member-names";
 import { pageEntityRows } from "@/lib/block-entity-page";
 import { bsb } from "@/lib/supabase/server";
 
@@ -111,7 +111,7 @@ export interface MyQualificationsData {
   readonly gaps: readonly GapRow[];
 }
 
-async function loadMine(): Promise<MyQualificationsData | null> {
+async function getMine(): Promise<MyQualificationsData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(QUALIFICATIONS_TAG);
@@ -157,7 +157,7 @@ async function loadMine(): Promise<MyQualificationsData | null> {
 
 /** The signed-in member's holdings and the required ones they never held. */
 export function getMyQualifications(): Promise<Loaded<MyQualificationsData>> {
-  return settle(loadMine);
+  return settle(getMine);
 }
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -166,7 +166,7 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
  * One page of qualification types for a list query, searched, filtered and
  * sorted by the block's `typePage` and counted by `typeFacets`.
  */
-export function loadQualificationTypePage(
+export function getQualificationTypePage(
   db: Db,
   organizationId: string,
   query: RecordListUrlQuery,
@@ -193,21 +193,21 @@ export function loadQualificationTypePage(
   });
 }
 
-async function loadTypes(): Promise<RecordListPage<QualificationTypeRow> | null> {
+async function getTypes(): Promise<RecordListPage<QualificationTypeRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(QUALIFICATIONS_TAG);
   const tenant = tenantOf(session);
 
   return tenant
-    ? loadQualificationTypePage(db, tenant, qualificationTypeList.defaults)
+    ? getQualificationTypePage(db, tenant, qualificationTypeList.defaults)
     : null;
 }
 
 export function getQualificationTypes(): Promise<
   Loaded<RecordListPage<QualificationTypeRow>>
 > {
-  return settle(loadTypes);
+  return settle(getTypes);
 }
 
 export interface QualificationTypeDetailData {
@@ -262,7 +262,7 @@ async function loadType(
     db.qualifications
       .gaps({ organizationId: tenant, typeKey: type.key })
       .orThrow(),
-    readMemberNames(scope, tenant),
+    getMemberNames(scope, tenant),
   ]);
 
   return {

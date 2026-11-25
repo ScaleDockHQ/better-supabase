@@ -31,7 +31,7 @@ export const guestsBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "manage" },
   module: "guests",
-  load: (client: Guests, subject) => client.grants(subject),
+  get: (client: Guests, subject) => client.grants(subject),
   events: ["guest_grant.*", "guest.revoked"],
   writes: {
     grant: {

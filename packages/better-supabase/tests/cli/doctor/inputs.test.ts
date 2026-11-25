@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   functionFiles,
-  readGitignores,
+  getGitignores,
   seedFiles,
   sourceGlobs,
 } from "../../../src/cli/doctor/inputs.ts";
@@ -149,7 +149,7 @@ describe("readGitignores", () => {
     await writeFile(join(root, ".gitignore"), ".env*\n");
     await writeFile(join(root, "apps/web/.gitignore"), ".next\n");
 
-    const text = await readGitignores(join(root, "apps/web"));
+    const text = await getGitignores(join(root, "apps/web"));
 
     expect(text.split("\n").filter(Boolean)).toEqual([".next", ".env*"]);
   });
@@ -159,6 +159,6 @@ describe("readGitignores", () => {
     await writeFile(join(root, ".gitignore"), "outside\n");
     await writeFile(join(root, "repo/.gitignore"), "inside\n");
 
-    expect(await readGitignores(join(root, "repo"))).toBe("inside\n");
+    expect(await getGitignores(join(root, "repo"))).toBe("inside\n");
   });
 });

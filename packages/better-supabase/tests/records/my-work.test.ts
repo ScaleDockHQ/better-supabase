@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { MyTask } from "../../src/records/index.ts";
 
-import { loadMyWork } from "../../src/records/index.ts";
+import { getMyWork } from "../../src/records/index.ts";
 import { failed, resolved } from "../fixtures/ports.ts";
 
 const items: MyTask[] = [
@@ -11,11 +11,11 @@ const items: MyTask[] = [
   { kind: "approval", subject: { type: "invoice", id: "i2" }, ref: "r2" },
 ];
 
-describe("loadMyWork", () => {
+describe("getMyWork", () => {
   it("groups the items by kind with a count each", async () => {
     const myWork = vi.fn(() => resolved<readonly MyTask[]>(items));
 
-    const work = await loadMyWork({ myWork }, { pageSize: 10 }).orThrow();
+    const work = await getMyWork({ myWork }, { pageSize: 10 }).orThrow();
 
     expect(myWork).toHaveBeenCalledWith({ pageSize: 10 });
     expect(work.items).toEqual(items);
@@ -31,7 +31,7 @@ describe("loadMyWork", () => {
   });
 
   it("keeps only the kinds asked for", async () => {
-    const work = await loadMyWork(
+    const work = await getMyWork(
       { myWork: () => resolved<readonly MyTask[]>(items) },
       { kinds: ["assigned"] },
     ).orThrow();
@@ -41,7 +41,7 @@ describe("loadMyWork", () => {
   });
 
   it("passes the error through", async () => {
-    const result = await loadMyWork({ myWork: () => failed("down") });
+    const result = await getMyWork({ myWork: () => failed("down") });
 
     expect(result.ok).toBe(false);
   });

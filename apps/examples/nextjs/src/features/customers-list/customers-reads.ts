@@ -121,7 +121,7 @@ export function customersReads(db: Db) {
  * query's options in, the list kit's `RecordListPage` out. The overview's
  * `/api/customers/overview` route and the server-rendered first page share it.
  */
-export async function readCustomerRows(
+export async function getCustomerRows(
   db: Db & { readonly $buckets: { readonly logos: LogoBucket } },
   options: PageOptions,
 ): Promise<RecordListPage<CustomerRow>> {

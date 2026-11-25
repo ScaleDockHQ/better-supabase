@@ -82,7 +82,7 @@ interface Skill {
   readonly files: readonly SkillFile[];
 }
 
-async function readTree(root: string, prefix = ""): Promise<SkillFile[]> {
+async function getTree(root: string, prefix = ""): Promise<SkillFile[]> {
   const files: SkillFile[] = [];
   const entries = await readdir(join(root, prefix), { withFileTypes: true });
 
@@ -90,7 +90,7 @@ async function readTree(root: string, prefix = ""): Promise<SkillFile[]> {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
 
     if (entry.isDirectory()) {
-      files.push(...(await readTree(root, path)));
+      files.push(...(await getTree(root, path)));
     } else if (entry.isFile()) {
       files.push({ path, contents: await readFile(join(root, path), "utf-8") });
     }
@@ -99,9 +99,7 @@ async function readTree(root: string, prefix = ""): Promise<SkillFile[]> {
   return files;
 }
 
-export async function loadSkills(
-  root: string = skillsRoot(),
-): Promise<Skill[]> {
+export async function getSkills(root: string = skillsRoot()): Promise<Skill[]> {
   const skills: Skill[] = [];
 
   for (const entry of (await readdir(root, { withFileTypes: true })).filter(
@@ -113,7 +111,7 @@ export async function loadSkills(
       continue;
     }
 
-    const tree = await readTree(folder);
+    const tree = await getTree(folder);
     const main = tree.find((file) => file.path === "SKILL.md")!;
     const files = [main, ...tree.filter((file) => file !== main)];
     const description = /^description:\s*(.+)$/m.exec(main.contents)?.[1] ?? "";
@@ -129,7 +127,7 @@ export async function loadSkills(
 }
 
 async function listSkills(source: string | undefined): Promise<CommandResult> {
-  const skills = await loadSkills(source ?? skillsRoot());
+  const skills = await getSkills(source ?? skillsRoot());
 
   return {
     code: 0,
@@ -147,7 +145,7 @@ async function installSkills(
   args: InstallArgs,
   env: CliEnv,
 ): Promise<CommandResult> {
-  const skills = await loadSkills(args.source ?? skillsRoot());
+  const skills = await getSkills(args.source ?? skillsRoot());
   const global = args.global === true;
   const base = global ? (env.HOME ?? homedir()) : config.root;
 

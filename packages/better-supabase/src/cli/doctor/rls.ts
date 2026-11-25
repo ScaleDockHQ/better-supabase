@@ -352,7 +352,7 @@ function findPolicyHelpers(context: DoctorContext): Map<string, string> {
  * Tables a function body reads (`from` and `join`), with the names it refers to
  * them by.
  */
-function readTables(
+function getTables(
   body: string,
   tables: readonly CatalogTable[],
 ): { table: CatalogTable; names: string[] }[] {
@@ -432,7 +432,7 @@ function grantColumns(
   ]);
 
   for (const [helper, body] of policyHelpers(context)) {
-    const read = readTables(body, tables);
+    const read = getTables(body, tables);
 
     for (const { table, names } of read) {
       for (const column of table.columns) {

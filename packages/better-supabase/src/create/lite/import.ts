@@ -6,8 +6,8 @@ import type { PresetMigrationFile } from "../types.ts";
 import type { RawCatalog, RawTable } from "./catalog.ts";
 
 import { appDefaultError } from "../../config/app-defaults.ts";
-import { LITE_INSTALL, loadLite } from "../../lite/runtime.ts";
-import { catalogQuery, readCatalog } from "./catalog.ts";
+import { LITE_INSTALL, getLite } from "../../lite/runtime.ts";
+import { catalogQuery, getCatalog } from "./catalog.ts";
 import { SUPABASE_PRELUDE } from "./prelude.ts";
 
 /** Anything that runs a read-only query and returns rows: PGlite, `pg`, a shim. */
@@ -475,12 +475,12 @@ function messageOf(error: unknown): string {
     .slice(0, 300);
 }
 
-async function readFiles(
+async function getFiles(
   files: readonly ImportFile[],
   schemas: readonly string[],
   runtime: LiteRuntime | undefined,
 ): Promise<ImportResult> {
-  const lite = runtime ?? (await loadLite());
+  const lite = runtime ?? (await getLite());
 
   if (lite === undefined) {
     throw new Error(LITE_INSTALL);
@@ -516,13 +516,13 @@ async function readFiles(
 
     const { rows } = await driver.query(catalogQuery(schemas));
 
-    return designFromCatalog(readCatalog(rows), issues);
+    return designFromCatalog(getCatalog(rows), issues);
   } finally {
     await connection.close();
   }
 }
 
-async function readSupabase(
+async function getSupabase(
   source: Extract<ImportSource, { kind: "supabase" }>,
   schemas: readonly string[],
 ): Promise<ImportResult> {
@@ -559,7 +559,7 @@ async function readSupabase(
     );
   }
 
-  return designFromCatalog(readCatalog(rows));
+  return designFromCatalog(getCatalog(rows));
 }
 
 /**
@@ -582,17 +582,17 @@ export async function importProject(
 
   switch (source.kind) {
     case "files": {
-      return readFiles(source.files, schemas, options.runtime);
+      return getFiles(source.files, schemas, options.runtime);
     }
 
     case "queryable": {
       const { rows } = await source.queryable.query(catalogQuery(schemas));
 
-      return designFromCatalog(readCatalog(rows));
+      return designFromCatalog(getCatalog(rows));
     }
 
     case "supabase": {
-      return readSupabase(source, schemas);
+      return getSupabase(source, schemas);
     }
 
     default: {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { readFileFacts } from "../../../src/cli/schema-reader/index.ts";
+import { getFileFacts } from "../../../src/cli/schema-reader/index.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { moduleLayout } from "../../../src/sql/layout.ts";
 import { ORDER } from "../../../src/sql/registry.ts";
@@ -21,7 +21,7 @@ describe("rendered modules", () => {
 
     for (const file of files) {
       await expect(
-        readFileFacts(file.contents, { path: file.path }),
+        getFileFacts(file.contents, { path: file.path }),
       ).resolves.toBeDefined();
     }
   });

@@ -23,7 +23,7 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
  * One page of the deadlines the caller reads, searched, filtered and sorted by
  * the deadlines block's `page` and counted by its `facets`.
  */
-export function loadDeadlinePage(
+export function getDeadlinePage(
   db: Db,
   query: RecordListUrlQuery,
 ): Promise<RecordListPage<DeadlineRow>> {
@@ -60,7 +60,7 @@ async function loadDeadlines(): Promise<RecordListPage<DeadlineRow> | null> {
   const { session, db } = await bsb.cached();
   cacheTag(DEADLINES_TAG);
 
-  return tenantOf(session) ? loadDeadlinePage(db, deadlineList.defaults) : null;
+  return tenantOf(session) ? getDeadlinePage(db, deadlineList.defaults) : null;
 }
 
 export function getDeadlines(): Promise<Loaded<RecordListPage<DeadlineRow>>> {

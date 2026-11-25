@@ -371,7 +371,7 @@ describe("guestsBinding", () => {
     const guests = createGuests({ transport: fake.transport });
     const invoice = { type: "invoice", id: "i1" };
 
-    const rows = await guestsBinding.load(guests, invoice, undefined).orThrow();
+    const rows = await guestsBinding.get(guests, invoice, undefined).orThrow();
     await guestsBinding.writes.grant
       .run(guests, invoice, { guestId: "g1", actions: ["comment"] })
       .orThrow();

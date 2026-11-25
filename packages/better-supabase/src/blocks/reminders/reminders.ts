@@ -35,7 +35,7 @@ import type { DeliveryPayload } from "./schedule.ts";
 
 import {
   blockFields,
-  readFields,
+  getFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";
@@ -631,7 +631,7 @@ export function createReminders<
               };
             },
           ),
-        ).andThen((saved) => readFields(fields, saved)),
+        ).andThen((saved) => getFields(fields, saved)),
       ),
     page: reminders.page,
     facets: reminders.facets,

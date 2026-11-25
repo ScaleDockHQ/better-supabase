@@ -36,7 +36,7 @@ async function assetNames(db: Db): Promise<ReadonlyMap<string, string>> {
  * `q` searches the title, and the keyset cursor `after` holds pages on. Shared
  * by the page and `/api/warranty/list`.
  */
-export async function loadClaimPage(
+export async function getClaimPage(
   db: Db,
   query: BlockListQuery<"newest">,
 ): Promise<Result<BlockPage<ClaimRow>>> {
@@ -76,7 +76,7 @@ export async function getClaims(): Promise<BlockPage<ClaimRow> | null> {
     return null;
   }
 
-  const result = await loadClaimPage(db, claimList.defaults);
+  const result = await getClaimPage(db, claimList.defaults);
 
   if (!result.ok) {
     throw new Error(result.error.message);

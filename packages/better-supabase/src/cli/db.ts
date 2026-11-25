@@ -52,12 +52,12 @@ export interface PgConnection {
 
 const CONNECT_TIMEOUT_MS = 10_000;
 
-const loadPg = (): Promise<unknown> => import("pg");
+const getPg = (): Promise<unknown> => import("pg");
 
 /** Opens a `pg` connection. `pg` is an optional peer, loaded on demand. */
 export async function connect(
   url: string,
-  load: () => Promise<unknown> = loadPg,
+  load: () => Promise<unknown> = getPg,
   options: ConnectOptions = {},
 ): Promise<PgConnection> {
   let pg: PgModule;

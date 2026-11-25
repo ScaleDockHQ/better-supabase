@@ -20,7 +20,7 @@ export interface ServicePrincipalRow {
  * (`service_accounts.read`). A failed read throws, so it is never cached and
  * Retry reads again. `null` without an organization.
  */
-export async function loadServicePrincipals(): Promise<
+export async function getServicePrincipals(): Promise<
   readonly ServicePrincipalRow[] | null
 > {
   "use cache: private";

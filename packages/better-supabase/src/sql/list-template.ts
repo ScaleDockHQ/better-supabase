@@ -274,7 +274,7 @@ export function listBody(options: ListTemplateOptions): string {
     ) c;`;
 
   const reading = isExtended(options)
-    ? readExtended(options, read, counted, where)
+    ? getExtended(options, read, counted, where)
     : read(options.keys);
 
   return `if ${filters} ? 'after' and ${filters} ? 'offset' then
@@ -299,7 +299,7 @@ export function listBody(options: ListTemplateOptions): string {
  * `filters.direction` picks the keys the page reads by. Each sort and direction
  * is its own branch, so every order seeks into its own index.
  */
-function readExtended(
+function getExtended(
   options: ListTemplateOptions,
   read: (keys: readonly ListSortKey[]) => string,
   counted: () => string,

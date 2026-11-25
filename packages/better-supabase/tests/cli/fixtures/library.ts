@@ -9,7 +9,7 @@ import type { Snapshot } from "../../../src/cli/introspect/types.ts";
 export const libraryFixture = (name: string): URL =>
   new URL(`../../fixtures/${name}`, import.meta.url);
 
-export const readJsonFixture = (name: string): unknown =>
+export const getJsonFixture = (name: string): unknown =>
   JSON.parse(readFileSync(libraryFixture(name), "utf-8"));
 
 /** The fixture database's snapshot, which CI checks against a fresh stack. */

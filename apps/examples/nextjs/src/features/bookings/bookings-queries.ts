@@ -98,7 +98,7 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
  * spans its first slot's start to its last slot's end. Bookings at a day's
  * edges narrow it, and a break inside a day doesn't show.
  */
-export async function loadBookingSetup(): Promise<BookingSetup | null> {
+export async function getBookingSetup(): Promise<BookingSetup | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(BOOKINGS_TAG, CALENDAR_TAG);
@@ -204,7 +204,7 @@ export interface PublicBookingPage {
  * `from` (`YYYY-MM-DD`, today when it is earlier or missing). `null` when the
  * token doesn't resolve.
  */
-export async function loadPublicBooking(
+export async function getPublicBooking(
   token: string,
   from: string | undefined,
 ): Promise<PublicBookingPage | null> {

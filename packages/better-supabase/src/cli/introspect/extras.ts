@@ -150,7 +150,7 @@ where n.nspname = any(${schemas}) and p.prokind in ('f', 'p')
 order by 1, 2, 3`;
 
 /** Reads the function inventory of `schemas` (`config functions`, BS643). */
-async function readFunctionInventory(
+async function getFunctionInventory(
   db: Queryable,
   schemas: readonly string[],
 ): Promise<InventoryFunction[]> {
@@ -448,7 +448,7 @@ const functionOf = (row: FunctionRow): ExtrasFunction => ({
 });
 
 /** The functions behind Auth hooks, in any schema, with their ACLs. */
-async function readHooks(
+async function getHooks(
   db: Queryable,
   targets: readonly HookTarget[],
 ): Promise<ExtrasHook[]> {
@@ -553,7 +553,7 @@ function groupById<T extends { table_id: number | string }>(
 }
 
 /** Reads the extras for `schemas`, with the catalog queries in flight together. */
-export async function readExtras(
+export async function getExtras(
   db: Queryable,
   schemas: readonly string[],
   hooks: readonly HookTarget[] = [],
@@ -598,7 +598,7 @@ export async function readExtras(
     rows<{ name: string }>(db, REALTIME),
     rows<ExtrasFunctionRow>(db, FUNCTIONS(list)),
     rows<{ role: string; config: string[] | null }>(db, ROLE_SETTINGS),
-    hooks.length > 0 ? readHooks(db, hooks) : undefined,
+    hooks.length > 0 ? getHooks(db, hooks) : undefined,
     rows<{ key: string; comment: string }>(db, FUNCTION_COMMENTS(list)),
     rows<{ view: string; column: string; comment: string }>(
       db,
@@ -620,7 +620,7 @@ export async function readExtras(
           ),
         )
       : [],
-    readFunctionInventory(db, schemas),
+    getFunctionInventory(db, schemas),
   ]);
 
   const functionSources: Record<string, string> = {};

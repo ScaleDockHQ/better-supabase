@@ -29,7 +29,7 @@ import { resumeFromStore, teeToStore } from "../../streams/tee.ts";
 import { WORKFLOW_ATTRIBUTES } from "../../workflow-sdk/attributes.ts";
 import { STREAM_TAIL_INDEX_HEADER } from "../../workflow-sdk/runs.ts";
 import { tenantOf } from "../chat/assistant.ts";
-import { badRequest, readJson, sse } from "../http.ts";
+import { badRequest, getJson, sse } from "../http.ts";
 import { durableStopToken, durableTurnToken } from "./turn.ts";
 
 /** Who asks, for one request. */
@@ -668,7 +668,7 @@ export function durableChat<
     request: Request,
     context: DurableChatContext,
   ): Promise<Response> {
-    const body = await readJson(request);
+    const body = await getJson(request);
 
     const approvals = decisionsOf(
       isRecord(body) ? body["approvals"] : undefined,

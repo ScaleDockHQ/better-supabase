@@ -175,7 +175,7 @@ export function knowledgeCollectionsSql(ctx: BlockSqlContext): string {
     ${raise("visibility % is not automatic, restricted or disabled", "22023", "KNOWLEDGE_VISIBILITY", value)}
   end if;`;
 
-  const loadManaged = (name: string): string => `
+  const getManaged = (name: string): string => `
   select * into v_row from ${collections} x where x.${k("id")} = ${name}.collection_id for update;
   if not found or not ${manages(`v_row.${k("tenant")}`)} then
     ${raise("collection % not found", "P0002", "KNOWLEDGE_COLLECTION_NOT_FOUND", `${name}.collection_id`)}
@@ -279,7 +279,7 @@ as $$
 declare
   v_row ${collections}%rowtype;
   v_visibility text := coalesce(update_knowledge_collection.patch ->> 'visibility', 'automatic');
-begin${loadManaged("update_knowledge_collection")}
+begin${getManaged("update_knowledge_collection")}
   if update_knowledge_collection.patch ? 'visibility' then${checkVisibility("v_visibility")}
   end if;
   update ${collections} x set
@@ -304,7 +304,7 @@ set search_path = ''
 as $$
 declare
   v_row ${collections}%rowtype;
-begin${loadManaged("delete_knowledge_collection")}
+begin${getManaged("delete_knowledge_collection")}
   delete from ${collections} x where x.${k("id")} = v_row.${k("id")};
   return true;
 end;
@@ -373,7 +373,7 @@ as $$
 declare
   v_row ${collections}%rowtype;
   v_count integer;
-begin${loadManaged("set_knowledge_collection_grant")}
+begin${getManaged("set_knowledge_collection_grant")}
   if (set_knowledge_collection_grant.user_id is null) = (set_knowledge_collection_grant.team_id is null) then
     ${raise("name a user or a team", "22023", "KNOWLEDGE_GRANT")}
   end if;

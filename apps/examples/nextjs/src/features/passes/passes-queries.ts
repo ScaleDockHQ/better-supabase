@@ -22,7 +22,7 @@ const isStatus = (value: string): value is PassRow["status"] =>
   PASS_STATUSES.some((status) => status === value);
 
 /** One page of passes, shared by the page and `/api/passes/list`. */
-export async function loadPassPage(
+export async function getPassPage(
   db: Db,
   query: BlockListQuery<"newest">,
 ): Promise<Result<BlockPage<PassRow>>> {
@@ -62,7 +62,7 @@ export async function getPasses(): Promise<BlockPage<PassRow> | null> {
     return null;
   }
 
-  const result = await loadPassPage(db, passList.defaults);
+  const result = await getPassPage(db, passList.defaults);
 
   if (!result.ok) {
     throw new Error(result.error.message);

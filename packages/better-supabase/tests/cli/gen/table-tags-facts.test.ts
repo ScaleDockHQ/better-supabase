@@ -6,13 +6,13 @@ import { withTableTags } from "../../../src/cli/gen/table-tags.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { moduleContext } from "../../../src/sql/module-context.ts";
 import { lockModuleTable } from "../../../src/sql/modules/over-app.ts";
-import { loadFixtureSnapshot } from "../fixtures/render.ts";
+import { getFixtureSnapshot } from "../fixtures/render.ts";
 
 async function commented(
   name: string,
   comment: string,
 ): Promise<readonly TableComment[]> {
-  const snapshot = await loadFixtureSnapshot();
+  const snapshot = await getFixtureSnapshot();
 
   const found = snapshot.generator.tables.find(
     (each) => each.schema === "public",

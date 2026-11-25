@@ -43,7 +43,7 @@ const missing = (): never => {
 const generation: typeof Generation | undefined =
   await import("@supabase/postgrest-typegen/generation").catch(() => undefined);
 
-const loadGeneration = (): typeof Generation => generation ?? missing();
+const getGeneration = (): typeof Generation => generation ?? missing();
 
 /** The installed postgrest-typegen release, `undefined` when it is missing. */
 export async function typegenVersion(): Promise<string | undefined> {
@@ -90,7 +90,7 @@ export interface Queryable {
 }
 
 /** Introspects `schemas`, keeping only the types they reference. */
-export async function readGeneratorMetadata(
+export async function getGeneratorMetadata(
   db: Queryable,
   schemas: readonly string[],
 ): Promise<GeneratorMetadata> {
@@ -287,7 +287,7 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
     })),
   };
 
-  return { metadata: loadGeneration().sortGeneratorMetadata(stable), ids };
+  return { metadata: getGeneration().sortGeneratorMetadata(stable), ids };
 }
 
 /** Validates metadata loaded from a snapshot file. */
@@ -379,7 +379,7 @@ export async function serializeGenerator(
   const { serializeGeneratorMetadata } = await metadataModule();
 
   return serializeGeneratorMetadata(
-    loadGeneration().sortGeneratorMetadata(metadata),
+    getGeneration().sortGeneratorMetadata(metadata),
   );
 }
 
@@ -473,7 +473,7 @@ let oxfmt: Promise<typeof Oxfmt | undefined> | undefined;
  * Oxfmt is an optional peer, loaded on demand; `undefined` when it is not
  * installed.
  */
-function loadOxfmt(): Promise<typeof Oxfmt | undefined> {
+function getOxfmt(): Promise<typeof Oxfmt | undefined> {
   oxfmt ??= import("oxfmt").catch(() => undefined);
 
   return oxfmt;
@@ -481,12 +481,12 @@ function loadOxfmt(): Promise<typeof Oxfmt | undefined> {
 
 /** Whether `database.types.ts` comes out formatted. */
 export async function oxfmtInstalled(): Promise<boolean> {
-  return (await loadOxfmt()) !== undefined;
+  return (await getOxfmt()) !== undefined;
 }
 
 /** Formats like `supabase gen types`, or returns `code` as it is without oxfmt. */
 async function formatTypes(code: string): Promise<string> {
-  const formatter = await loadOxfmt();
+  const formatter = await getOxfmt();
 
   if (!formatter) {
     return code;
@@ -515,7 +515,7 @@ export function generateDatabaseTypes(
   metadata: GeneratorMetadata,
   options: DatabaseTypesOptions,
 ): Promise<string> {
-  const { generateTypescript, sortGeneratorMetadata } = loadGeneration();
+  const { generateTypescript, sortGeneratorMetadata } = getGeneration();
 
   const scoped = restrictSchemas(metadata, options.schemas);
 
@@ -549,7 +549,7 @@ export function tsTypeOf(
     owner: "",
   };
 
-  return loadGeneration().pgTypeToTsType(
+  return getGeneration().pgTypeToTsType(
     owner,
     format,
     {

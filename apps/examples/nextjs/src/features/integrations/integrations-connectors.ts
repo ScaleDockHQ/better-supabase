@@ -2,7 +2,7 @@ import "server-only";
 import { tagFor, tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { readAdminRows } from "@/features/admin-lists/admin-detail-read";
+import { getAdminRows } from "@/features/admin-lists/admin-detail-read";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsbShell } from "@/lib/supabase/server-shell";
@@ -53,7 +53,7 @@ export async function getConnectors(): Promise<
     return null;
   }
 
-  return readAdminRows<SummaryRaw>(
+  return getAdminRows<SummaryRaw>(
     request.session,
     `select s.id::text as id, s.name, s.url, s.transport, s.enabled
      from better_supabase.connector_servers s
@@ -78,7 +78,7 @@ export async function getConnector(
     return "forbidden";
   }
 
-  const [row] = await readAdminRows<DetailRaw>(
+  const [row] = await getAdminRows<DetailRaw>(
     request.session,
     `select s.id::text as id, s.name, s.url, s.transport, s.enabled, s.auth_type, s.scopes,
        (select count(*) from better_supabase.connector_grants g

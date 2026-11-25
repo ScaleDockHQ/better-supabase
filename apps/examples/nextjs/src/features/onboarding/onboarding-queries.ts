@@ -13,7 +13,7 @@ import type {
   Loaded,
 } from "@/features/people/people-queries";
 
-import { readDirectory, settle } from "@/features/people/people-queries";
+import { getDirectory, settle } from "@/features/people/people-queries";
 import { pageEntityRows } from "@/lib/block-entity-page";
 import { bsb } from "@/lib/supabase/server";
 
@@ -30,7 +30,7 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
  * by `enrollmentFacets`, with each employee's name from the directory. The
  * programs and the directory load beside the page, in one wave.
  */
-export async function loadOnboardingPage(
+export async function getOnboardingPage(
   db: Db,
   tenant: string,
   query: RecordListUrlQuery,
@@ -43,7 +43,7 @@ export async function loadOnboardingPage(
 
   const context = Promise.all([
     enrollments.programs().orThrow(),
-    readDirectory(db, tenant),
+    getDirectory(db, tenant),
   ]).then(([programs, directory]) => ({ programs, directory }));
 
   const page = await pageEntityRows({
@@ -96,7 +96,7 @@ async function loadOnboarding(): Promise<OnboardingOverviewData | null> {
     return null;
   }
 
-  const { page, programs, directory } = await loadOnboardingPage(
+  const { page, programs, directory } = await getOnboardingPage(
     db,
     tenant,
     onboardingList.defaults,

@@ -6,7 +6,7 @@ import type {
 } from "./statement.ts";
 
 import { negateMoney, parseMoney } from "../../commerce/money.ts";
-import { loadXmlParser } from "../../core/xml.ts";
+import { getXmlParser } from "../../core/xml.ts";
 
 const NAMESPACE = /urn:iso:std:iso:20022:tech:xsd:camt\.053\.001\.(\d{2})/;
 
@@ -263,7 +263,7 @@ export async function parseCamt053(
     );
   }
 
-  const { XMLParser } = await loadXmlParser("parseCamt053");
+  const { XMLParser } = await getXmlParser("parseCamt053");
 
   const document = new XMLParser({
     ignoreAttributes: false,

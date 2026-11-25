@@ -33,7 +33,7 @@ import { can } from "@/features/user/user-permissions";
 
 import type { TimelineSubjectType } from "../crm-queries";
 
-import { loadTimeline, settle } from "../crm-queries";
+import { getTimeline, settle } from "../crm-queries";
 import { CrmLoadError } from "./crm-load-error";
 import { LogActivityForm } from "./log-activity-form";
 
@@ -65,7 +65,7 @@ export async function ActivityTimeline({
     return null;
   }
 
-  const timeline = await settle(() => loadTimeline(subject.type, subject.id));
+  const timeline = await settle(() => getTimeline(subject.type, subject.id));
 
   if (timeline.kind === "no-organization") {
     return null;

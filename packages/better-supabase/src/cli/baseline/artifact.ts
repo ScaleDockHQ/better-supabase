@@ -48,7 +48,7 @@ export function artifactFiles(base: string, key: string): ArtifactFiles {
   };
 }
 
-export async function readManifest(
+export async function getManifest(
   file: string,
 ): Promise<BaselineManifest | undefined> {
   try {
@@ -87,7 +87,7 @@ export async function findArtifact(
 
   for (const name of names.toSorted((a, b) => a.localeCompare(b))) {
     const files = artifactFiles(base, name);
-    const manifest = await readManifest(files.manifest);
+    const manifest = await getManifest(files.manifest);
 
     if (manifest === undefined) {
       continue;

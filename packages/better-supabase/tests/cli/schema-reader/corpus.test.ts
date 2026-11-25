@@ -4,12 +4,12 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalSql,
   primeStatements,
-  readFileFacts,
+  getFileFacts,
   statementsOf,
 } from "../../../src/cli/schema-reader/index.ts";
 import { cleanTree, files, regressFiles } from "./corpus.ts";
 
-const facts = readFileFacts;
+const facts = getFileFacts;
 
 describe("the schema reader reads what the text scanners got wrong", () => {
   it("keeps a begin atomic body and an escaped string in one statement", async () => {
@@ -184,7 +184,7 @@ describe("the schema reader over the repository's own SQL", () => {
     for (const file of files) {
       await primeStatements([file.text]);
 
-      const read = await readFileFacts(file.text);
+      const read = await getFileFacts(file.text);
 
       if (read.statements.length !== statementsOf(file.text).length) {
         mismatched.push(file.path);
@@ -213,7 +213,7 @@ describe("the schema reader over Postgres regression scripts", () => {
     async (_, text) => {
       await primeStatements([text]);
 
-      const read = await readFileFacts(text);
+      const read = await getFileFacts(text);
       const canonical = await canonicalSql(text);
 
       expect(read.statements.length).toBeGreaterThan(0);

@@ -627,7 +627,7 @@ describe("assetsBinding", () => {
     const assets = createAssets({ transport: fake.transport });
 
     const rows = await assetsBinding
-      .load(assets, { type: "parties", id: "p1" }, undefined)
+      .get(assets, { type: "parties", id: "p1" }, undefined)
       .orThrow();
 
     expect(rows).toHaveLength(1);

@@ -48,7 +48,7 @@ async function donorNames(
  * list filter and pages by the keyset cursor `after` holds. Shared by the page
  * and `/api/donations/list`.
  */
-export async function loadGiftPage(
+export async function getGiftPage(
   db: Db,
   query: BlockListQuery<"newest">,
 ): Promise<Result<BlockPage<GiftRow>>> {
@@ -94,7 +94,7 @@ export async function getGifts(): Promise<BlockPage<GiftRow> | null> {
     return null;
   }
 
-  const result = await loadGiftPage(db, giftList.defaults);
+  const result = await getGiftPage(db, giftList.defaults);
 
   if (!result.ok) {
     throw new Error(result.error.message);

@@ -33,7 +33,7 @@ export const slaBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "manage" },
   module: "sla",
-  load: (client: Sla, subject) => client.clocks(subject),
+  get: (client: Sla, subject) => client.clocks(subject),
   events: ["sla.*"],
   writes: {
     start: {

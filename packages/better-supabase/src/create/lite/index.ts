@@ -3,7 +3,7 @@ import type { Issue } from "../issue.ts";
 import type { PresetMigrationFile } from "../types.ts";
 import type { SkippedBlock } from "./apply.ts";
 
-import { LITE_INSTALL, loadLite } from "../../lite/runtime.ts";
+import { LITE_INSTALL, getLite } from "../../lite/runtime.ts";
 import { applyFiles } from "./apply.ts";
 import { SUPABASE_PRELUDE } from "./prelude.ts";
 
@@ -13,7 +13,7 @@ export type { SkippedBlock } from "./apply.ts";
 
 export type { RawCatalog, RawColumn, RawTable } from "./catalog.ts";
 
-export { catalogQuery, readCatalog } from "./catalog.ts";
+export { catalogQuery, getCatalog } from "./catalog.ts";
 
 export * from "./import.ts";
 
@@ -60,7 +60,7 @@ export async function validateDesign(
   files: readonly PresetMigrationFile[],
   options: ValidateDesignOptions = {},
 ): Promise<DesignValidation> {
-  const runtime = options.runtime ?? (await loadLite());
+  const runtime = options.runtime ?? (await getLite());
 
   if (runtime === undefined) {
     throw new Error(LITE_INSTALL);

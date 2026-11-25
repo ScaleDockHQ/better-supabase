@@ -56,7 +56,7 @@ export const env = createEnv({
   server: {
     // Server-only: account deletion, the shared plan catalog and SSO setup.
     SUPABASE_SECRET_KEY: v.optional(v.string()),
-    // The signing keys inline; createServer reads it through loadEnv, which
+    // The signing keys inline; createServer reads it through getEnv, which
     // checks the shape.
     SUPABASE_JWKS: v.optional(v.string()),
     // Signs the precomputed pricing flags and guards Flags Explorer.

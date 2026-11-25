@@ -488,7 +488,7 @@ function renamedBinding(
 ): AnyRecordBinding {
   // SAFETY: a binding's functions take the client its block's creator made,
   // which `originalOf` returns, and values it renames back.
-  const load = binding.load as (...args: unknown[]) => AsyncResult<unknown>;
+  const load = binding.get as (...args: unknown[]) => AsyncResult<unknown>;
 
   // SAFETY: as for `load`.
   const count = binding.count as
@@ -503,7 +503,7 @@ function renamedBinding(
   return {
     ...binding,
     events: binding.events.map((type) => events.rename(type)),
-    load: (client: never, subject, options: never) =>
+    get: (client: never, subject, options: never) =>
       load(renamer.originalOf(client), subject, options).map((data) =>
         renamer.forward(data),
       ),

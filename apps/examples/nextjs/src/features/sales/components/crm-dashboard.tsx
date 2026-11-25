@@ -14,7 +14,7 @@ import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { settle } from "@/features/crm/crm-queries";
 import { Link, toAppHref } from "@/i18n/navigation";
 
-import { loadDeals } from "../pipeline/pipeline-queries";
+import { getDeals } from "../pipeline/pipeline-queries";
 import { DetailTable } from "./detail-table";
 import {
   dateFormatter,
@@ -37,7 +37,7 @@ export async function CrmDashboard() {
 
   const [t, loaded, fmtMoney, fmtDate] = await Promise.all([
     getExtracted("sales"),
-    settle(loadDeals),
+    settle(getDeals),
     moneyFormatter(),
     dateFormatter(),
   ]);

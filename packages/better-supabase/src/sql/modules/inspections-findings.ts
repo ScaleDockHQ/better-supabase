@@ -78,7 +78,7 @@ function controlCheck(
 }
 
 /** Loads the finding `v_row` and its inspection `v_inspection` for a writer. */
-function loadFinding(q: InspectionsSql, func: string, what: string): string {
+function getFinding(q: InspectionsSql, func: string, what: string): string {
   const { i, f, inspections, findings } = q;
 
   return `select * into v_row from ${findings} x where x.${f("id")} = ${func}.finding_id for update;
@@ -108,7 +108,7 @@ function raiseCase(q: InspectionsSql): string {
           const kindId = `select y.${k("id")} into v_kind from ${cases.table("kinds")} y
   where y.${k("tenant")}::text = v_row.${f("tenant")}::text and y.${k("key")} = raise_inspection_finding_case.kind and y.${k("archivedAt")} is null;`;
 
-          return `  ${loadFinding(q, "raise_inspection_finding_case", "raise a case for this finding")}
+          return `  ${getFinding(q, "raise_inspection_finding_case", "raise a case for this finding")}
   if v_row.${f("case")} is not null then
     ${q.invalid("the finding already has a case")}
   end if;
@@ -257,7 +257,7 @@ declare
   v_title text;
   v_control uuid;
 begin
-  ${loadFinding(q, "update_inspection_finding", "change this finding")}
+  ${getFinding(q, "update_inspection_finding", "change this finding")}
   if jsonb_typeof(update_inspection_finding.changes) is distinct from 'object' then
     ${q.invalid("changes must be an object")}
   end if;
@@ -291,7 +291,7 @@ declare
   v_row ${findings};
   v_inspection ${inspections};
 begin
-  ${loadFinding(q, "delete_inspection_finding", "delete this finding")}
+  ${getFinding(q, "delete_inspection_finding", "delete this finding")}
   if v_row.${f("case")} is not null then
     ${fail("INSPECTION_FINDING_HAS_CASE", "a finding with a case can't be deleted", "55000")}
   end if;

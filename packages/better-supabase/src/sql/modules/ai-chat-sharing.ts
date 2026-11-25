@@ -54,7 +54,7 @@ export function aiChatSharing(
     ${raise("You may not share chats here", "42501", "AI_CHAT_FORBIDDEN")}
   end if;`;
 
-  const loadChat = (name: string, chat: string): string =>
+  const getChat = (name: string, chat: string): string =>
     `select x.${ch.id} as id, x.${ch.owner} as owner, x.${ch.tenant} as tenant into v_chat
   from ${t.chats} x where x.${ch.id} = ${name}.${chat} for update;
   if ${owns} then
@@ -118,7 +118,7 @@ declare
   v_team uuid;
   v_row ${t.participants};
 begin
-  ${loadChat("add_ai_chat_party", "chat")}
+  ${getChat("add_ai_chat_party", "chat")}
 ${mayShare}
   if v_role not in ('viewer', 'editor') then
     ${raise("A participant is a viewer or an editor, not %", "22023", "AI_CHAT_INVALID", "v_role")}
@@ -167,7 +167,7 @@ declare
   v_chat record;
   v_count integer;
 begin
-  ${loadChat("remove_ai_chat_party", "chat")}
+  ${getChat("remove_ai_chat_party", "chat")}
   delete from ${t.participants} x
   where x.${pa.chat} = v_chat.id and x.${pa.kind}::text = remove_ai_chat_party.party_kind
     and (${branches.map(({ kind, column, cast }) => `(remove_ai_chat_party.party_kind = ${sqlString(kind)} and ${kind === "external" ? `lower(x.${pa[column]}) = lower(btrim(remove_ai_chat_party.party))` : `x.${pa[column]} = remove_ai_chat_party.party::${cast}`})`).join(" or ")});
@@ -233,7 +233,7 @@ declare
   v_chat record;
   v_salt text;
 begin
-  ${loadChat("create_ai_chat_link", "chat")}
+  ${getChat("create_ai_chat_link", "chat")}
 ${mayShare}
   insert into ${t.links} (${lk.chat}, ${lk.salt}, ${lk.createdBy})
   values (v_chat.id, encode(extensions.gen_random_bytes(16), 'hex'), coalesce(auth.uid(), v_chat.owner))
@@ -258,7 +258,7 @@ declare
   v_chat record;
   v_salt text := encode(extensions.gen_random_bytes(16), 'hex');
 begin
-  ${loadChat("rotate_ai_chat_link", "chat")}
+  ${getChat("rotate_ai_chat_link", "chat")}
 ${mayShare}
   update ${t.links} l set ${lk.salt} = v_salt${ctx.has("links", "rotatedAt") ? `, ${lk.rotatedAt} = now()` : ""}
   where l.${lk.chat} = v_chat.id;
@@ -281,7 +281,7 @@ ${variableConflict(ctx, "links", "chats")}
 declare
   v_chat record;
 begin
-  ${loadChat("revoke_ai_chat_link", "chat")}
+  ${getChat("revoke_ai_chat_link", "chat")}
   delete from ${t.links} l where l.${lk.chat} = v_chat.id;
   return found;
 end;

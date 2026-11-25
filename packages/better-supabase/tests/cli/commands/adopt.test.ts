@@ -8,7 +8,7 @@ import type { ExistingTable } from "../../../src/cli/sql/adopt.ts";
 
 import { runAdopt } from "../../../src/cli/commands/adopt.ts";
 import { runApply } from "../../../src/cli/commands/apply.ts";
-import { loadConfig } from "../../../src/cli/config.ts";
+import { getConfig } from "../../../src/cli/config.ts";
 import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
@@ -172,7 +172,7 @@ describe("adopt", () => {
     });
 
     const again = await runAdopt(
-      await loadConfig(dir, configPath()),
+      await getConfig(dir, configPath()),
       { block: "teams" },
       { configFile: configPath(), tables },
     );
@@ -331,7 +331,7 @@ describe("apply --adopt", () => {
         configFile: configPath(),
         now,
         tables,
-        reload: (root, file) => loadConfig(root, file),
+        reload: (root, file) => getConfig(root, file),
       },
     );
 

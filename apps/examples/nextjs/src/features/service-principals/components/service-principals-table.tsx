@@ -41,7 +41,7 @@ import { can } from "@/features/user/user-permissions";
 
 import type { ServicePrincipalRow } from "../service-principals-queries";
 
-import { loadServicePrincipals } from "../service-principals-queries";
+import { getServicePrincipals } from "../service-principals-queries";
 import {
   CreateServicePrincipalDialog,
   DisableServicePrincipalButton,
@@ -53,9 +53,9 @@ type PrincipalsState =
   | { readonly kind: "error" }
   | { readonly kind: "no-organization" };
 
-async function loadPrincipalsState(): Promise<PrincipalsState> {
+async function getPrincipalsState(): Promise<PrincipalsState> {
   try {
-    const principals = await loadServicePrincipals();
+    const principals = await getServicePrincipals();
 
     return principals
       ? { kind: "ok", principals }
@@ -89,7 +89,7 @@ export async function ServicePrincipalsTable() {
     return null;
   }
 
-  const state = await loadPrincipalsState();
+  const state = await getPrincipalsState();
 
   if (state.kind === "no-organization") {
     return null;

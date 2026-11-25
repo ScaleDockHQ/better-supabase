@@ -40,7 +40,7 @@ export interface LoadProjectOptions extends PreviewOptions {
  * `&design=`, with the preset inside the design or in `options.preset`. It
  * never throws for a bad project: each problem is an `Issue`.
  */
-export async function loadProject(
+export async function getProject(
   input: unknown,
   options: LoadProjectOptions = {},
 ): Promise<ProjectLoad> {

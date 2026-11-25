@@ -600,7 +600,7 @@ export function createMessaging<
     );
 
   /** A thread's root and its newest replies, oldest first. */
-  const readThread = (
+  const getThread = (
     threadId: string,
     max: number,
     replies: readonly Message<F>[] = [],
@@ -615,7 +615,7 @@ export function createMessaging<
       const last = page.at(-1);
 
       if (page.length === 500 && last?.sentAt !== undefined) {
-        return readThread(threadId, max, all, {
+        return getThread(threadId, max, all, {
           sentAt: last.sentAt,
           id: last.id,
         });
@@ -631,7 +631,7 @@ export function createMessaging<
     current: currentSummary,
     read: (target, max) =>
       "threadId" in target
-        ? readThread(target.threadId, max)
+        ? getThread(target.threadId, max)
         : many("list_messages", {
             conversation: target.conversationId,
             ...cursorArgs("after", undefined),

@@ -4,8 +4,8 @@ import type { DeclarationSummary } from "./schema-reader/queries.ts";
 import {
   factsOf,
   primeStatements,
-  readSchemaFacts,
-  readSchemaFactsLeniently,
+  getSchemaFacts,
+  getSchemaFactsLeniently,
 } from "./schema-reader/index.ts";
 import {
   addedColumnTypes as addedColumnTypesOf,
@@ -62,10 +62,10 @@ export async function primeSchemaFacts(
   );
 
   if (options.lenient === true) {
-    return readSchemaFactsLeniently(files, reader);
+    return getSchemaFactsLeniently(files, reader);
   }
 
-  await readSchemaFacts(files, reader);
+  await getSchemaFacts(files, reader);
 
   return [];
 }
@@ -81,7 +81,7 @@ export async function primeSchemaTexts(
   texts: readonly string[],
 ): Promise<void> {
   await primeStatements(texts);
-  await readSchemaFactsLeniently(
+  await getSchemaFactsLeniently(
     texts.map((text) => ({ path: "generated.sql", text })),
   );
 }

@@ -9,7 +9,7 @@ import {
   applyOverlay,
   defineOverlay,
   expandReusableActions,
-  loadJsonPath,
+  getJsonPath,
   overlayFromDiff,
 } from "../../src/spec/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -81,7 +81,7 @@ describe(`Overlay ${SPEC_PINS.overlay11}`, () => {
   });
 
   it("applies to a rendered OpenAPI document with RFC 9535 targets", async () => {
-    const jsonpath = await loadJsonPath();
+    const jsonpath = await getJsonPath();
 
     const { document, diagnostics } = applyOverlay(
       base,

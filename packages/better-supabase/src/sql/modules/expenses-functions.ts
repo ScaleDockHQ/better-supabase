@@ -203,7 +203,7 @@ set search_path = ''
 as $$
 declare
   v_row ${reports}%rowtype;
-begin${loadReport("decide_expense_report.report_id", true)}
+begin${getReport("decide_expense_report.report_id", true)}
   if not (${SERVICE_CALLER} or ((${ctx.can("tenant", `v_row.${r("tenant")}`, approve)}${managerDecides(
     ctx,
     "blocks.expenses.options",
@@ -445,7 +445,7 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
       "null",
     );
 
-  const loadReport = (id: string, lock = false): string => `
+  const getReport = (id: string, lock = false): string => `
   select * into v_row from ${reports} x where x.${r("id")} = ${id}${lock ? " for update" : ""};
   if not found then
     ${fail("EXPENSE_REPORT_NOT_FOUND", "no such expense report", "P0002")}
@@ -739,7 +739,7 @@ declare
   v_row ${reports}%rowtype;${approvalVar}
   v_category ${categories}%rowtype;
   v_line ${lines}%rowtype;
-begin${loadReport("add_expense_line.report_id", true)}${ownerOnly}${editable}${categoryCheck("add_expense_line.category_id", `v_row.${r("tenant")}`)}
+begin${getReport("add_expense_line.report_id", true)}${ownerOnly}${editable}${categoryCheck("add_expense_line.category_id", `v_row.${r("tenant")}`)}
   if add_expense_line.spent_on is null then
     ${invalid("EXPENSE_LINE_INVALID", "a line needs spent_on")}
   end if;
@@ -778,7 +778,7 @@ begin
   select * into v_line from ${lines} l where l.${x("id")} = update_expense_line.line_id;
   if not found then
     ${fail("EXPENSE_LINE_NOT_FOUND", "no such expense line", "P0002")}
-  end if;${loadReport(`v_line.${x("report")}`, true)}${ownerOnly}${editable}
+  end if;${getReport(`v_line.${x("report")}`, true)}${ownerOnly}${editable}
   if update_expense_line.category_id is not null then${categoryCheck("update_expense_line.category_id", `v_row.${r("tenant")}`)}
   end if;
   if update_expense_line.currency is not null and update_expense_line.currency <> v_row.${r("currency")} then
@@ -814,7 +814,7 @@ begin
   select * into v_line from ${lines} l where l.${x("id")} = remove_expense_line.line_id;
   if not found then
     ${fail("EXPENSE_LINE_NOT_FOUND", "no such expense line", "P0002")}
-  end if;${loadReport(`v_line.${x("report")}`, true)}${ownerOnly}${editable}
+  end if;${getReport(`v_line.${x("report")}`, true)}${ownerOnly}${editable}
   delete from ${lines} l where l.${x("id")} = v_line.${x("id")};
   update ${reports} x set ${r("updatedAt")} = now() where x.${r("id")} = v_row.${r("id")}
     returning * into v_row;
@@ -832,7 +832,7 @@ set search_path = ''
 as $$
 declare
   v_row ${reports}%rowtype;${approvalVar}
-begin${loadReport("check_expense_report.report_id")}${reader}
+begin${getReport("check_expense_report.report_id")}${reader}
   return ${fn("expense_report_violations")}(v_row.${r("id")});
 end;
 $$;
@@ -850,7 +850,7 @@ as $$
 declare
   v_row ${reports}%rowtype;${approvalVar}
   v_violations jsonb;${approvals === undefined ? "" : "\n  v_request jsonb;"}
-begin${loadReport("submit_expense_report.report_id", true)}${ownerOnly}${editable}
+begin${getReport("submit_expense_report.report_id", true)}${ownerOnly}${editable}
   if not exists (select 1 from ${lines} l where l.${x("report")} = v_row.${r("id")}) then
     ${invalid("EXPENSE_REPORT_EMPTY", "a report needs at least one line")}
   end if;
@@ -930,7 +930,7 @@ as $$
 declare
   v_row ${reports}%rowtype;${approvalVar}
   v_tx uuid;
-begin${loadReport("reimburse_expense_report.report_id", true)}
+begin${getReport("reimburse_expense_report.report_id", true)}
   if not ${can(`v_row.${r("tenant")}`, expenseKey(ctx, "reimburse"))} then
     ${forbidden("not allowed to reimburse expenses")}
   end if;
@@ -965,7 +965,7 @@ set search_path = ''
 as $$
 declare
   v_row ${reports}%rowtype;${approvalVar}
-begin${loadReport("cancel_expense_report.report_id", true)}
+begin${getReport("cancel_expense_report.report_id", true)}
   if not (coalesce(v_row.${r("user")} = auth.uid(), false) or ${can(`v_row.${r("tenant")}`, manage)}) then
     ${forbidden("not allowed to cancel this expense report")}
   end if;
@@ -996,7 +996,7 @@ set search_path = ''
 as $$
 declare
   v_row ${reports}%rowtype;${approvalVar}
-begin${loadReport("get_expense_report.report_id")}${reader}
+begin${getReport("get_expense_report.report_id")}${reader}
   return ${reportJson("v_row", "v_approval")};
 end;
 $$;

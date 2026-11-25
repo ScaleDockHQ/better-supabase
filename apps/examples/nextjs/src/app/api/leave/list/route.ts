@@ -1,5 +1,5 @@
 import { leaveList } from "@/features/leave/leave-list";
-import { loadLeavePage } from "@/features/leave/leave-queries";
+import { getLeavePage } from "@/features/leave/leave-queries";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -10,7 +10,7 @@ import { bsb } from "@/lib/supabase/server";
 export const GET = bsb.route(
   async (request, { db, tenant }) => {
     const query = leaveList.parse(request.nextUrl.searchParams);
-    const { page } = await loadLeavePage(db, tenant, query.value);
+    const { page } = await getLeavePage(db, tenant, query.value);
 
     return Response.json(page);
   },

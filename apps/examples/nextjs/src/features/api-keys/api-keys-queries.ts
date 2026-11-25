@@ -32,7 +32,7 @@ export interface ApiKeyDetail {
  * without an organization. The token shown is the prefix and public id: the
  * secret is only ever shown once, when the key is created or rotated.
  */
-export async function loadApiKey(
+export async function getApiKey(
   id: string,
 ): Promise<ApiKeyDetail | undefined | null> {
   "use cache: private";
@@ -80,7 +80,7 @@ export interface ApiKeyCounts {
 }
 
 /** The counts of the keys overview; `null` without an organization. */
-export async function loadApiKeyCounts(): Promise<ApiKeyCounts | null> {
+export async function getApiKeyCounts(): Promise<ApiKeyCounts | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(API_KEYS_TAG);

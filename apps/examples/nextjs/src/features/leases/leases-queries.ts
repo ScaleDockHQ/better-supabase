@@ -28,7 +28,7 @@ const isStatus = (value: string): value is LeaseRow["status"] =>
  * `q` searches the title, and the keyset cursor `after` holds pages on. Shared
  * by the page and `/api/leases/list`.
  */
-export async function loadLeasePage(
+export async function getLeasePage(
   db: Db,
   query: BlockListQuery<"newest">,
 ): Promise<Result<BlockPage<LeaseRow>>> {
@@ -67,7 +67,7 @@ export async function getLeases(): Promise<BlockPage<LeaseRow> | null> {
     return null;
   }
 
-  const result = await loadLeasePage(db, leaseList.defaults);
+  const result = await getLeasePage(db, leaseList.defaults);
 
   if (!result.ok) {
     throw new Error(result.error.message);

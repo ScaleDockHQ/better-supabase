@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  readMigrations,
+  getMigrations,
   worldPostgresVersion,
 } from "../../../scripts/gen-workflow-ddl.ts";
 import {
@@ -12,7 +12,7 @@ import {
 describe("workflow-sdk DDL", () => {
   it("matches the installed @workflow/world-postgres migrations", async () => {
     expect(await worldPostgresVersion()).toBe(WORLD_POSTGRES_VERSION);
-    const installed = await readMigrations();
+    const installed = await getMigrations();
     expect(installed.map(({ tag, sha256 }) => ({ tag, sha256 }))).toEqual(
       WORLD_POSTGRES_MIGRATIONS,
     );

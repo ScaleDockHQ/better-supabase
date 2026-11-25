@@ -6,7 +6,7 @@ import {
   BROADCAST_ONCE_SQL,
   dedupeTrigger,
 } from "../../src/cli/broadcast-once.ts";
-import { loadLite } from "../../src/lite/runtime.ts";
+import { getLite } from "../../src/lite/runtime.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
 
 const changes = defineTopic("org:{organizationId}:changes");
@@ -88,7 +88,7 @@ describe(
     };
 
     beforeAll(async () => {
-      const lite = await loadLite();
+      const lite = await getLite();
 
       if (lite === undefined) {
         throw new Error("@supabase/lite is a devDependency of these tests");

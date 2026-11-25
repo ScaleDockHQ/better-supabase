@@ -43,7 +43,7 @@ const GUEST_ONLY = new Set(["/login", "/signup", "/forgot-password"]);
  * pull in the shell block set and the flag adapter, which every other request
  * the proxy handles never uses (a lazy chunk, not part of the proxy's start).
  */
-const loadFlags = () => import("./flags");
+const getFlags = () => import("./flags");
 
 /**
  * The locale and the path inside it. With `localePrefix: "as-needed"` a path
@@ -91,7 +91,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   // their values is served; `precompute` signs them with FLAGS_SECRET.
   if (path === "/pricing") {
     const code = env.FLAGS_SECRET
-      ? await precompute((await loadFlags()).pricingFlags)
+      ? await precompute((await getFlags()).pricingFlags)
       : "default";
 
     return NextResponse.rewrite(
@@ -112,7 +112,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
     path.startsWith("/store/");
 
   if (session.kind !== "user") {
-    if (path === "/signup" && (await (await loadFlags()).signupWaitlist())) {
+    if (path === "/signup" && (await (await getFlags()).signupWaitlist())) {
       return NextResponse.rewrite(
         new URL(`/${locale}/waitlist${search}`, request.url),
       );

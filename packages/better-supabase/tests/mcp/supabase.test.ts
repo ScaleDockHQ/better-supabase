@@ -11,8 +11,8 @@ import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import {
-  loadSupabaseMcp,
-  loadSupabaseMcpPlatform,
+  getSupabaseMcp,
+  getSupabaseMcpPlatform,
 } from "../../src/core/supabase-mcp.ts";
 import { createMcpAuth, supabaseMcpHandler } from "../../src/mcp/sdk/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -82,7 +82,7 @@ function setup(token: string | null = "sbp_test") {
     },
     {
       server: async (): Promise<SupabaseMcpModule> => {
-        const real = await loadSupabaseMcp();
+        const real = await getSupabaseMcp();
 
         return {
           ...real,
@@ -100,7 +100,7 @@ function setup(token: string | null = "sbp_test") {
         };
       },
       platform: async () => {
-        const real = await loadSupabaseMcpPlatform();
+        const real = await getSupabaseMcpPlatform();
 
         return {
           createSupabaseApiPlatform: (options) => {

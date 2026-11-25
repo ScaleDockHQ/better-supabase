@@ -1,5 +1,5 @@
 import { API_BASE_PATH, apiResources } from "@/features/api/api-resources";
-import { loadTables } from "@/features/api/load-tables";
+import { getTables } from "@/features/api/load-tables";
 import { betterSupabaseApi } from "@/lib/supabase/api";
 import { bsbApi } from "@/lib/supabase/server-api";
 
@@ -10,7 +10,7 @@ import { bsbApi } from "@/lib/supabase/server-api";
  * is at `/api/v1/openapi.json`. The server is built from the api block set (ADR
  * 0636), not from every block.
  */
-await loadTables(betterSupabaseApi, Object.keys(apiResources));
+await getTables(betterSupabaseApi, Object.keys(apiResources));
 
 export const { GET, POST, PATCH, PUT, DELETE } = bsbApi.resources(
   apiResources,

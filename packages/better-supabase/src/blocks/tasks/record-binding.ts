@@ -51,7 +51,7 @@ export const taskChecklistBinding: RecordBinding<
   TaskChecklistOptimisticAction
 > = defineRecordBinding({
   permissions: { read: "read", write: "write" },
-  load: (client: Tasks, subject) => client.checklist(subject.id),
+  get: (client: Tasks, subject) => client.checklist(subject.id),
   events: ["task.updated"],
   optimistic: taskChecklistOptimistic,
 });

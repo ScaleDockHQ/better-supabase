@@ -9,8 +9,8 @@ import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { settle } from "@/features/crm/crm-queries";
 import { Link, toAppHref } from "@/i18n/navigation";
 
-import { loadMemberOptions } from "../member/member-queries";
-import { loadContract, loadStatement } from "../revenue/revenue-queries";
+import { getMemberOptions } from "../member/member-queries";
+import { getContract, loadStatement } from "../revenue/revenue-queries";
 import {
   addObligation,
   advanceStatement,
@@ -48,7 +48,7 @@ export async function ContractDetail({ id }: { id: string }) {
   const [t, loaded, fmtMoney, fmtDate, statusLabels, canWrite] =
     await Promise.all([
       getExtracted("sales"),
-      settle(() => loadContract(id)),
+      settle(() => getContract(id)),
       moneyFormatter(),
       dateFormatter(),
       contractStatusLabels(),
@@ -227,7 +227,7 @@ export async function StatementDetail({ id }: { id: string }) {
     settle(() => loadStatement(id)),
     moneyFormatter(),
     dateFormatter(),
-    loadMemberOptions(),
+    getMemberOptions(),
     holds("commissions.manage"),
   ]);
 

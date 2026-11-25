@@ -3,7 +3,7 @@ import { getExtracted } from "next-intl/server";
 import { settle } from "@/features/crm/crm-queries";
 import { getAuthors } from "@/features/records/records-queries";
 
-import { loadDeals } from "../pipeline/pipeline-queries";
+import { getDeals } from "../pipeline/pipeline-queries";
 import { AssignOwnersForm } from "./assign-owners-form";
 import { holds } from "./overview-support";
 
@@ -16,7 +16,7 @@ export async function AssignOwnersDialog() {
 
   const [t, loaded, authors] = await Promise.all([
     getExtracted("sales"),
-    settle(loadDeals),
+    settle(getDeals),
     getAuthors(),
   ]);
 

@@ -21,7 +21,7 @@ export const ENV_FILES: readonly string[] = [
   ".env.production.local",
 ];
 
-export async function readText(
+export async function getText(
   root: string,
   path: string,
 ): Promise<TextFile | undefined> {
@@ -37,12 +37,12 @@ export async function readText(
  * folder's up to the repository root (the folder with `.git`). An app in a
  * monorepo is covered by the root file's `.env*`.
  */
-export async function readGitignores(root: string): Promise<string> {
+export async function getGitignores(root: string): Promise<string> {
   const texts: string[] = [];
   let folder = resolve(root);
 
   for (;;) {
-    const file = await readText(folder, ".gitignore");
+    const file = await getText(folder, ".gitignore");
 
     if (file) {
       texts.push(file.text);

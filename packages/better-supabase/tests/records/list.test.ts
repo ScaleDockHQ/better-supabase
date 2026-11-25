@@ -12,7 +12,7 @@ import {
   defineRecordType,
   defineRecordList,
   defineRecordBinding,
-  loadTimeline,
+  getTimeline,
   timelineBindings,
 } from "../../src/records/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
@@ -53,7 +53,7 @@ const notesBlock = defineBlock({
   category: "collaboration",
   record: defineRecordBinding({
     permissions: { read: "read" },
-    load: (client: Notes, subject) => client.list(subject),
+    get: (client: Notes, subject) => client.list(subject),
     count: (client: Notes, subjects) => client.counts(subjects),
     timeline: (notes) =>
       notes.map((note) => ({
@@ -72,13 +72,13 @@ const labelsBlock = defineBlock({
   category: "collaboration",
   record: defineRecordBinding({
     permissions: { read: "view" },
-    load: (client: Labels, subject) => client.of(subject),
+    get: (client: Labels, subject) => client.of(subject),
   }),
 });
 
 const starsBinding = defineRecordBinding({
   permissions: { read: "view" },
-  load: () => resolved(0),
+  get: () => resolved(0),
   column: (_client: Labels, subjects) =>
     resolved(
       Object.fromEntries(
@@ -135,7 +135,7 @@ describe("defineRecordList", () => {
     const { db } = database([{ id: "c1" }, { id: "c2" }]);
 
     const page = await list
-      .load({ db, clients: { notes, labels, stars: labels } }, { q: "acme" })
+      .get({ db, clients: { notes, labels, stars: labels } }, { q: "acme" })
       .orThrow();
 
     expect(page.query).toMatchObject({ q: "acme", sort: "name" });
@@ -165,7 +165,7 @@ describe("defineRecordList", () => {
     const { db } = database([{ id: "bad" }]);
 
     const hidden = await list
-      .load(
+      .get(
         {
           db,
           clients: { notes, labels, stars: labels },
@@ -178,7 +178,7 @@ describe("defineRecordList", () => {
     expect(hidden.rows[0]?.cells.labels).toEqual({ kind: "hidden" });
 
     const settled = await list
-      .load({ db, clients: { notes, labels, stars: labels } }, undefined)
+      .get({ db, clients: { notes, labels, stars: labels } }, undefined)
       .orThrow();
 
     expect(settled.rows[0]?.cells.labels).toMatchObject({
@@ -191,13 +191,13 @@ describe("defineRecordList", () => {
     const { db } = database([{ id: "c1" }]);
 
     expect(
-      await list.load(
+      await list.get(
         { db, clients: { notes, labels, stars: labels } },
         { sort: "nope" },
       ),
     ).toMatchObject({ ok: false, error: { kind: "validation" } });
 
-    const page = await list.load({ db, clients: {} }, undefined).orThrow();
+    const page = await list.get({ db, clients: {} }, undefined).orThrow();
 
     expect(page.rows[0]?.cells.notes).toMatchObject({
       kind: "error",
@@ -214,7 +214,7 @@ describe("defineRecordList", () => {
     const { db } = database([{ id: "c1" }]);
 
     const page = await counted
-      .load({ db, clients: { notes, labels, stars: labels } }, undefined)
+      .get({ db, clients: { notes, labels, stars: labels } }, undefined)
       .orThrow();
 
     expect(page.rows[0]?.subject.id).toBe("x-c1");
@@ -242,7 +242,7 @@ describe("defineRecordList", () => {
       rows,
       { columns: { stars: "data" } },
     )
-      .load({ db: {}, clients: { stars: labels } }, undefined)
+      .get({ db: {}, clients: { stars: labels } }, undefined)
       .orThrow();
 
     expect(page.rows.map((row) => row.subject.id)).toEqual(["7", ""]);
@@ -250,7 +250,7 @@ describe("defineRecordList", () => {
   });
 });
 
-describe("loadTimeline", () => {
+describe("getTimeline", () => {
   const source = {
     blocks: feature.blocks,
     clients: { notes, labels, stars: labels },
@@ -261,7 +261,7 @@ describe("loadTimeline", () => {
   it("merges every timeline binding, newest first", async () => {
     expect(timelineBindings(feature.blocks)).toEqual(["notes"]);
 
-    const timeline = await loadTimeline(source, subject);
+    const timeline = await getTimeline(source, subject);
 
     expect(
       timeline.entries.map((entry) => [entry.binding, entry.id, entry.actor]),
@@ -271,12 +271,12 @@ describe("loadTimeline", () => {
     ]);
     expect(timeline.skipped).toEqual({});
     expect(
-      (await loadTimeline(source, subject, { limit: 1 })).entries,
+      (await getTimeline(source, subject, { limit: 1 })).entries,
     ).toHaveLength(1);
   });
 
   it("skips a hidden or failing binding", async () => {
-    const hidden = await loadTimeline(source, subject, { can: () => false });
+    const hidden = await getTimeline(source, subject, { can: () => false });
 
     expect(hidden).toEqual({
       entries: [],
@@ -285,7 +285,7 @@ describe("loadTimeline", () => {
 
     const broken = vi.fn(() => failed("Down"));
 
-    const failing = await loadTimeline(
+    const failing = await getTimeline(
       {
         blocks: feature.blocks,
         clients: { notes: { ...notes, list: broken } },
@@ -310,7 +310,7 @@ describe("loadTimeline", () => {
         ]),
     };
 
-    const timeline = await loadTimeline(
+    const timeline = await getTimeline(
       { blocks: feature.blocks, clients: { notes: twins, labels } },
       subject,
     );
@@ -327,7 +327,7 @@ describe("loadTimeline", () => {
 
     expect(timelineBindings({ bare, ...feature.blocks })).toEqual(["notes"]);
 
-    const timeline = await loadTimeline(source, subject, {
+    const timeline = await getTimeline(source, subject, {
       bindings: ["labels"],
     });
 

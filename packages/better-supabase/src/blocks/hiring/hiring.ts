@@ -357,7 +357,7 @@ export function createHiring<
       applicationOf,
     );
 
-  const readJob = (saved: Job): AsyncResult<Job<F>> =>
+  const getJob = (saved: Job): AsyncResult<Job<F>> =>
     AsyncResult.from(() => fields.read(saved.fields)).map((value) => ({
       ...saved,
       fields: value,
@@ -379,7 +379,7 @@ export function createHiring<
             jobOf,
           ),
         )
-        .andThen(readJob);
+        .andThen(getJob);
     },
     apply: ({ jobId, candidate, ...apply }) =>
       call(
@@ -451,7 +451,7 @@ export function createHiring<
         const read: Job<F>[] = [];
 
         for (const job of jobs) {
-          const result = await readJob(job);
+          const result = await getJob(job);
 
           if (!result.ok) {
             return result;

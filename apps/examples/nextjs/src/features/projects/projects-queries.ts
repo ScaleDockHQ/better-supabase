@@ -223,7 +223,7 @@ export async function getProjectHistory(
   projectId: string,
 ): Promise<readonly ProjectVersion[] | null> {
   const [{ bindings }, { db, session }] = await Promise.all([
-    projectPage.load(projectId, {
+    projectPage.get(projectId, {
       bindings: ["versions"],
       options: { versions: { pageSize: HISTORY_LIMIT } },
     }),

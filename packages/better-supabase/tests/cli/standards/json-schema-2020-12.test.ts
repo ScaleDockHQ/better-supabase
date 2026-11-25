@@ -12,7 +12,7 @@ import {
 import { CONFIG_SCHEMA_URL, resolveConfig } from "../../../src/config/index.ts";
 import { SPEC_PINS } from "../../../src/index.ts";
 import {
-  readJsonFixture,
+  getJsonFixture,
   snapshotFixture as fixture,
 } from "../fixtures/library.ts";
 import { metaSchema2020, problems } from "./validator.ts";
@@ -85,7 +85,7 @@ describe("JSON Schema 2020-12", () => {
 
   it("the generated table schemas are valid 2020-12 schemas", () => {
     // SAFETY: the jsonSchema() generator writes an object with $schema.
-    const generatedSchema = readJsonFixture("generated-camel.schema.json") as {
+    const generatedSchema = getJsonFixture("generated-camel.schema.json") as {
       $schema: string;
     };
 

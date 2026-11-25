@@ -8,7 +8,7 @@ import { postgres, userClaims } from "@/features/developer/postgres";
  * permission and put the tenant in `text` before calling; a failed read throws,
  * so a cache never keeps it.
  */
-export async function readAdminRows<Raw extends object>(
+export async function getAdminRows<Raw extends object>(
   session: AuthSession,
   text: string,
   params: readonly unknown[],
@@ -26,7 +26,7 @@ export async function readAdminRows<Raw extends object>(
  * Rows read as the caller, so RLS decides what the query returns. A failed read
  * throws, so a cache never keeps it.
  */
-export async function readUserRows<Raw extends object>(
+export async function getUserRows<Raw extends object>(
   session: AuthSession,
   text: string,
   params: readonly unknown[],

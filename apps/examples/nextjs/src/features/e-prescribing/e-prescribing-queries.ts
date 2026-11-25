@@ -31,7 +31,7 @@ export interface PrescriptionDetail {
  * The prescription; `undefined` when it does not exist, `null` without an
  * organization.
  */
-export async function loadPrescription(
+export async function getPrescription(
   id: string,
 ): Promise<PrescriptionDetail | undefined | null> {
   "use cache: private";

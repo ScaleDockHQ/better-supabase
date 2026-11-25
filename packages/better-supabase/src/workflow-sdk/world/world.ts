@@ -79,7 +79,7 @@ import {
   SIGNATURE_HEADER,
 } from "./types.ts";
 import { createVercelDelivery, timeoutOf } from "./vercel-delivery.ts";
-import { loadVercelQueue } from "./vercel-queue.ts";
+import { getVercelQueue } from "./vercel-queue.ts";
 
 /** The World plus the delivery helpers the tests and routes use. */
 export type SupabaseWorld = World &
@@ -225,7 +225,7 @@ export function createSupabaseWorld(
   );
 
   const vercelSdk = memoized(
-    async () => options.vercelQueue ?? loadVercelQueue(),
+    async () => options.vercelQueue ?? getVercelQueue(),
   );
 
   const keyRing = memoized(async () => {

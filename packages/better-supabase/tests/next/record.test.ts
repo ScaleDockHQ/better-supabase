@@ -67,7 +67,7 @@ const notesBlock = defineBlock({
   create: createNotes,
   record: defineRecordBinding({
     permissions: { read: "read", write: "create" },
-    load: (client: Notes, subject) => client.list(subject),
+    get: (client: Notes, subject) => client.list(subject),
     timeline: (rows: readonly Note[]) =>
       rows.map((row) => ({ id: row.id, kind: "note", at: row.at, row })),
     writes: {
@@ -176,7 +176,7 @@ const customer = recordServer(host, feature);
 
 describe("recordServer", () => {
   it("loads bindings as plain data with the caller's flags", async () => {
-    const view = await customer.load("7");
+    const view = await customer.get("7");
 
     expect(permissionsCall).toHaveBeenCalledWith({
       keys: ["notes.read", "notes.create", "notes.moderate"],
@@ -208,7 +208,7 @@ describe("recordServer", () => {
       feature,
     );
 
-    const view = await held.load("7");
+    const view = await held.get("7");
 
     expect(permissionsCall).not.toHaveBeenCalled();
     expect(view.can).toEqual({
@@ -224,13 +224,13 @@ describe("recordServer", () => {
       feature,
     );
 
-    await held.load("7");
+    await held.get("7");
 
     expect(permissionsCall).toHaveBeenCalledOnce();
   });
 
   it("settles a failed binding instead of throwing", async () => {
-    const view = await customer.load("bad", { bindings: ["notes"] });
+    const view = await customer.get("bad", { bindings: ["notes"] });
 
     expect(view.bindings.notes).toMatchObject({ kind: "error" });
   });
@@ -264,7 +264,7 @@ describe("recordServer", () => {
   it("builds the block clients with the caller's storage", async () => {
     createNotes.mockClear();
 
-    await customer.load("7", { bindings: ["notes"] });
+    await customer.get("7", { bindings: ["notes"] });
     await customer.actions.notes.add({ id: "7", input: { body: "Hi" } });
 
     expect(createNotes).toHaveBeenCalledTimes(2);
@@ -304,7 +304,7 @@ describe("recordServer without access or storage", () => {
       }),
     );
 
-    const view = await open.load("7", { options: {} });
+    const view = await open.get("7", { options: {} });
 
     expect(view.can).toEqual({
       notes: { read: true, add: true, remove: true },
@@ -331,7 +331,7 @@ describe("recordServer without access or storage", () => {
       }),
     );
 
-    const view = await closed.load("7");
+    const view = await closed.get("7");
 
     expect(view.permissionsError).toMatchObject({ message: "No access" });
     expect(view.can.notes.read).toBe(false);
@@ -394,7 +394,7 @@ describe("recordListServer", () => {
   );
 
   it("loads a page with its binding columns as plain data", async () => {
-    const view = await list.load({});
+    const view = await list.get({});
 
     expect(view).toMatchObject({
       ok: true,
@@ -419,7 +419,7 @@ describe("recordListServer", () => {
   });
 
   it("returns the error for bad URL state", async () => {
-    expect(await list.load({ page: "x" })).toMatchObject({
+    expect(await list.get({ page: "x" })).toMatchObject({
       ok: false,
       error: { kind: "validation" },
     });
@@ -435,7 +435,7 @@ describe("recordListServer", () => {
       ),
     );
 
-    expect(await open.load(undefined)).toMatchObject({
+    expect(await open.get(undefined)).toMatchObject({
       ok: true,
       data: { can: { notes: { read: true } } },
     });

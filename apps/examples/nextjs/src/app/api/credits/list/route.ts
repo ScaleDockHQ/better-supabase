@@ -1,4 +1,4 @@
-import { loadAdminList } from "../../../../features/admin-lists/admin-list-load";
+import { getAdminList } from "../../../../features/admin-lists/admin-list-load";
 import { creditList } from "../../../../features/credits/credits-list";
 import { creditEntrySource } from "../../../../features/credits/credits-source";
 import { bsbCore as bsb } from "../../../../lib/supabase/server-core";
@@ -9,7 +9,7 @@ export const GET = bsb.route(
     const query = creditList.parse(request.nextUrl.searchParams);
 
     return Response.json(
-      await loadAdminList({
+      await getAdminList({
         session,
         tenant,
         list: creditList,

@@ -18,7 +18,7 @@ import {
   reexportsIn,
 } from "../codemod-reexports.ts";
 import { applyCodemod, CODEMODS } from "../codemod.ts";
-import { databaseUrl, loadConfig } from "../config.ts";
+import { databaseUrl, getConfig } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import {
@@ -253,7 +253,7 @@ function tenantColumnsOf(config: ResolvedConfig): TenantColumnSkip {
  * imports resolve, or `undefined` when it still does not load. A 0.57 config
  * fails on the keys `naming` renames, so the column renames read this one.
  */
-async function loadRewritten(
+async function getRewritten(
   codemod: (typeof CODEMODS)[string],
   configFile: string,
 ): Promise<ResolvedConfig | undefined> {
@@ -272,7 +272,7 @@ async function loadRewritten(
   try {
     await writeFile(copy, rewritten);
 
-    return await loadConfig(dirname(configFile), copy);
+    return await getConfig(dirname(configFile), copy);
   } catch {
     return;
   } finally {
@@ -395,7 +395,7 @@ async function runWithSymbols(
     codemod.name === "naming" &&
     loadError !== undefined &&
     configFile !== undefined
-      ? await loadRewritten(codemod, configFile)
+      ? await getRewritten(codemod, configFile)
       : undefined;
 
   const config = rewritten ?? loadedConfig;

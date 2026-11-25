@@ -8,7 +8,7 @@ import { notNullPrecedence } from "../../../src/cli/gen/model-functions.ts";
 import { buildModel, generatorModel } from "../../../src/cli/gen/model.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { libraryFixture } from "../fixtures/library.ts";
-import { loadFixtureSnapshot } from "../fixtures/render.ts";
+import { getFixtureSnapshot } from "../fixtures/render.ts";
 
 const fixtures = fileURLToPath(libraryFixture(""));
 const config = resolveConfig({ gen: { casing: "camel" } }, fixtures);
@@ -16,7 +16,7 @@ const config = resolveConfig({ gen: { casing: "camel" } }, fixtures);
 async function withGenerator(
   change: (generator: Snapshot["generator"]) => void,
 ): Promise<Snapshot> {
-  const snapshot = structuredClone(await loadFixtureSnapshot());
+  const snapshot = structuredClone(await getFixtureSnapshot());
   change(snapshot.generator);
 
   return snapshot;
@@ -209,7 +209,7 @@ describe("block not-null results", () => {
 
 describe("generator model blocks", () => {
   it("lists the installed blocks with their final names", async () => {
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
 
     const blockConfig = resolveConfig(
       {

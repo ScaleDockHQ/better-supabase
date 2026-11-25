@@ -36,7 +36,7 @@ describe("defineRecordBinding", () => {
   it("adds apiVersion 1 and empty events", () => {
     const binding = defineRecordBinding({
       permissions: { read: "read" },
-      load: () => AsyncResult.from(() => Promise.resolve(ok([]))),
+      get: () => AsyncResult.from(() => Promise.resolve(ok([]))),
     });
 
     expect(binding.apiVersion).toBe(1);
@@ -138,7 +138,7 @@ describe("bindings of a renamed block", () => {
     }),
     record: defineRecordBinding({
       permissions: { read: "read" },
-      load: (client: WorkNotes, subject) => client.list(subject),
+      get: (client: WorkNotes, subject) => client.list(subject),
       count: (client: WorkNotes) => client.counts(),
       events: ["task.created"],
       optimistic: (
@@ -166,7 +166,7 @@ describe("bindings of a renamed block", () => {
     expect(binding.events).toEqual(["task.created"]);
 
     const loaded = await (
-      binding.load as (
+      binding.get as (
         client: unknown,
         subject: unknown,
         options: unknown,
@@ -197,7 +197,7 @@ describe("bindings of a renamed block", () => {
         category: "work",
         record: defineRecordBinding({
           permissions: { read: "read" },
-          load: () => AsyncResult.from(() => Promise.resolve(ok(1))),
+          get: () => AsyncResult.from(() => Promise.resolve(ok(1))),
         }),
       }),
       names,
@@ -222,15 +222,15 @@ describe("the document block bindings", () => {
       ({ list: () => AsyncResult.from(() => Promise.resolve(ok(rows))) }) as C;
 
     const attachments = await attachmentsBinding
-      .load(asClient([attachmentRow]), subject, undefined)
+      .get(asClient([attachmentRow]), subject, undefined)
       .orThrow();
 
     const requests = await signaturesBinding
-      .load(asClient([requestRow]), subject, undefined)
+      .get(asClient([requestRow]), subject, undefined)
       .orThrow();
 
     const versions = await versionsBinding
-      .load(asClient([versionRow]), subject, {})
+      .get(asClient([versionRow]), subject, {})
       .orThrow();
 
     expect(attachmentsBinding.timeline?.(attachments)).toMatchObject([

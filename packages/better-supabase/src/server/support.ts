@@ -430,7 +430,7 @@ function createSupport(
     }
   >({ max: CLAIMS_CACHE_SIZE });
 
-  const loadSession = (
+  const getSession = (
     id: string,
     auth: UserAuth,
     stats?: StatsRecorder,
@@ -663,7 +663,7 @@ function createSupport(
     let claims: Readonly<Record<string, unknown>>;
 
     try {
-      session = await loadSession(id, auth, stats);
+      session = await getSession(id, auth, stats);
 
       if (!session || session.expiresAt.epochMilliseconds <= Date.now()) {
         return;

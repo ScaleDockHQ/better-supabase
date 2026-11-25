@@ -234,7 +234,7 @@ export function createSpecs(meta: SchemaMeta): Record<string, unknown> {
 
   for (const table of new Set([
     ...Object.keys(meta.tables),
-    ...Object.keys(meta.tableLoaders ?? {}),
+    ...Object.keys(meta.tableGetters ?? {}),
   ])) {
     const methods: Record<string, unknown> = {};
 
@@ -400,7 +400,7 @@ export function specTables(meta: SchemaMeta, spec: QuerySpec): string[] {
   let tables: string[];
 
   try {
-    tables = readTables(meta, spec);
+    tables = getTables(meta, spec);
   } catch {
     // Not cached: a lazy schema may load the missing table later.
     return [spec.table];
@@ -458,7 +458,7 @@ function touchesRelations(table: TableMeta, where: unknown): boolean {
   return false;
 }
 
-function readTables(meta: SchemaMeta, spec: QuerySpec): string[] {
+function getTables(meta: SchemaMeta, spec: QuerySpec): string[] {
   const builder = builderFor(meta);
   const table = tableMeta(meta, spec.table);
   const args = specOptions(spec);

@@ -80,7 +80,7 @@ export async function runFinanceList(
  * doesn't read `searchParams`, so it stays in the instant App Shell; every
  * other URL state goes through the entity's list route.
  */
-async function readFirstPage(
+async function getFirstPage(
   entity: FinanceEntityKey,
 ): Promise<RecordListPage<FinanceRow> | null> {
   "use cache: private";
@@ -122,10 +122,10 @@ async function settle<T>(
 export function getFinanceFirstPage(
   entity: FinanceEntityKey,
 ): Promise<FinanceLoaded<RecordListPage<FinanceRow>>> {
-  return settle(() => readFirstPage(entity));
+  return settle(() => getFirstPage(entity));
 }
 
-async function readRecord(
+async function getRecord(
   entity: FinanceEntityKey,
   id: string,
 ): Promise<FinanceRecord | null> {
@@ -152,5 +152,5 @@ export function getFinanceRecord(
   entity: FinanceEntityKey,
   id: string,
 ): Promise<FinanceLoaded<FinanceRecord>> {
-  return settle(() => readRecord(entity, id));
+  return settle(() => getRecord(entity, id));
 }

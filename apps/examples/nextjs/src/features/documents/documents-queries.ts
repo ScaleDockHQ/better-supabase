@@ -73,7 +73,7 @@ export async function getDocuments(): Promise<
   }
 }
 
-async function loadTarget(
+async function getTarget(
   customerId: string,
 ): Promise<DocumentTarget | "not-found" | null> {
   "use cache: private";
@@ -117,7 +117,7 @@ export async function getDocumentTarget(
   let target: DocumentTarget | "not-found" | null;
 
   try {
-    target = await loadTarget(customerId);
+    target = await getTarget(customerId);
   } catch (error) {
     unstable_rethrow(error);
 

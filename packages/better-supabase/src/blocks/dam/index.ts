@@ -49,7 +49,7 @@ export {
   C2PA_AI_SOURCE_TYPES,
   c2paIsAiGenerated,
   c2paReaderOf,
-  readC2paManifest,
+  getC2paManifest,
   type C2paAction,
   type C2paIngredient,
   type C2paManifest,

@@ -9,7 +9,7 @@ import { unstable_rethrow } from "next/navigation";
 
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { orMissing } from "@/lib/or-missing";
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { CRM_TAG } from "./crm-cache";
@@ -78,9 +78,7 @@ export interface ContactDetailData extends ContactSummary {
 const PAGE = 200;
 
 /** The first 200 companies and the first 200 people, by name. */
-export async function loadContacts(): Promise<
-  readonly ContactSummary[] | null
-> {
+export async function getContacts(): Promise<readonly ContactSummary[] | null> {
   "use cache: private";
   const cached = await bsb.cached();
   cacheTag(CRM_TAG, CUSTOMERS_TAG);
@@ -129,7 +127,7 @@ export async function readContacts({
 }
 
 /** One company or person, `undefined` when it is gone or hidden. */
-export async function loadContact(
+export async function getContact(
   id: string,
 ): Promise<ContactDetailData | undefined | null> {
   "use cache: private";
@@ -225,7 +223,7 @@ export interface TimelineEntry {
 }
 
 /** A contact's calls, emails, meetings and notes, newest first. */
-export async function loadTimeline(
+export async function getTimeline(
   type: TimelineSubjectType,
   id: string,
 ): Promise<readonly TimelineEntry[] | null> {
@@ -279,7 +277,7 @@ export interface DealBoardData {
 }
 
 /** The default deal pipeline's columns and its open deals. */
-export async function loadDealBoard(): Promise<DealBoardData | null> {
+export async function getDealBoard(): Promise<DealBoardData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(CRM_TAG, CUSTOMERS_TAG);
@@ -291,7 +289,7 @@ export async function loadDealBoard(): Promise<DealBoardData | null> {
 
   const { pipelines, deals } = db;
 
-  const all = await readAllPages((page) =>
+  const all = await getAllPages((page) =>
     pipelines.page({
       organizationId: tenant,
       filters: { subjectType: ["deal"] },
@@ -359,7 +357,7 @@ export interface TargetRow {
 }
 
 /** The organization's targets running today, with their progress. */
-export async function loadTargets(): Promise<readonly TargetRow[] | null> {
+export async function getTargets(): Promise<readonly TargetRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(CRM_TAG, CUSTOMERS_TAG);
@@ -436,7 +434,7 @@ function quoteOf(quote: Quote): QuoteDetailData {
 }
 
 /** One quote, `undefined` when it is gone. */
-export async function loadQuote(
+export async function getQuote(
   id: string,
 ): Promise<QuoteDetailData | undefined | null> {
   "use cache: private";

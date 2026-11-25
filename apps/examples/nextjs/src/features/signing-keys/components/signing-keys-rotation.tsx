@@ -42,7 +42,7 @@ import { can } from "@/features/user/user-permissions";
 
 import type { SigningKeysOverview } from "../signing-keys-queries";
 
-import { loadSigningKeys } from "../signing-keys-queries";
+import { getSigningKeys } from "../signing-keys-queries";
 import { SIGNING_KEYS_PERMISSION } from "../signing-keys-server";
 import { RotateSigningKeyButton } from "./rotate-signing-key-button";
 
@@ -52,9 +52,9 @@ type SigningKeysState =
   | { readonly kind: "error" }
   | { readonly kind: "no-organization" };
 
-async function loadSigningKeysState(): Promise<SigningKeysState> {
+async function getSigningKeysState(): Promise<SigningKeysState> {
   try {
-    const overview = await loadSigningKeys();
+    const overview = await getSigningKeys();
 
     return overview ? { kind: "ok", overview } : { kind: "no-organization" };
   } catch (error) {
@@ -85,7 +85,7 @@ export async function SigningKeysRotation() {
     forbidden();
   }
 
-  const state = await loadSigningKeysState();
+  const state = await getSigningKeysState();
 
   if (state.kind === "no-organization") {
     return null;

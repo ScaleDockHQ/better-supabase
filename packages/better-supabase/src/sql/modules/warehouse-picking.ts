@@ -486,7 +486,7 @@ ${userGrant(`${fn("complete_pick_list")}(uuid)`)}
 `;
 }
 
-function readFunctions(ctx: BlockSqlContext, q: WarehouseSql): string {
+function getFunctions(ctx: BlockSqlContext, q: WarehouseSql): string {
   const { fn, w, p, waves, lists } = q;
   const idType = ctx.idType;
 
@@ -673,5 +673,5 @@ ${getFunction({
 export function warehousePicking(ctx: BlockSqlContext): string {
   const q = warehouseSql(ctx);
 
-  return `${viewFunction(q)}${taskFunction(ctx, q)}${createFunctions(ctx, q)}${pickFunctions(q)}${readFunctions(ctx, q)}`;
+  return `${viewFunction(q)}${taskFunction(ctx, q)}${createFunctions(ctx, q)}${pickFunctions(q)}${getFunctions(ctx, q)}`;
 }

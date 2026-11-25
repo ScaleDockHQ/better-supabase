@@ -1,5 +1,5 @@
 import { giftList } from "../../../../features/donations/donations-list";
-import { loadGiftPage } from "../../../../features/donations/donations-queries";
+import { getGiftPage } from "../../../../features/donations/donations-queries";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -13,7 +13,7 @@ export const GET = bsb.route(async (request, { db }) => {
     return Response.json({ issues: [] }, { status: 400 });
   }
 
-  const page = await loadGiftPage(db, query.value);
+  const page = await getGiftPage(db, query.value);
 
   return page.ok
     ? Response.json(page.data)

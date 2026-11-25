@@ -68,7 +68,7 @@ export function traceFunctions(ctx: BlockSqlContext): string {
   const lotJson = (alias: string): string =>
     `jsonb_build_object('lotId', ${alias}.${lt("id")}, 'code', ${alias}.${lt("code")}, 'variantId', ${alias}.${lt("variant")}, 'expiresOn', ${alias}.${lt("expiresOn")})`;
 
-  const loadLot = (
+  const getLot = (
     name: string,
   ): string => `select x.${lt("tenant")} into v_tenant from ${lots} x where x.${lt("id")} = ${name}.lot_id;
   if v_tenant is null or not ${q.allowed("v_tenant", q.read)} then
@@ -111,7 +111,7 @@ as $$
 declare
   v_tenant ${idType};
 begin
-  ${loadLot("lot_genealogy")}
+  ${getLot("lot_genealogy")}
   if lot_genealogy.direction is null or lot_genealogy.direction not in ('up', 'down') then
     ${q.orderInvalid("direction is up or down")}
   end if;
@@ -151,7 +151,7 @@ declare
   v_tenant ${idType};
   v_lots uuid[];
 begin
-  ${loadLot("lot_recall")}
+  ${getLot("lot_recall")}
   with recursive up(lot, level, path) as (
     select lot_recall.lot_id, 0, array[lot_recall.lot_id]
     union all

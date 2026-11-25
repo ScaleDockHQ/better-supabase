@@ -110,7 +110,7 @@ function startsWith(key: DataKey, prefix: DataKey): boolean {
 }
 
 /** The `DbError` a rejected load carries. */
-export function loadError(cause: unknown): DbError {
+export function getError(cause: unknown): DbError {
   return (
     dbErrorOf(cause) ??
     dbError(
@@ -331,7 +331,7 @@ export function memoryEngine(options: DataEngineOptions = {}): DataEngine {
       },
       (cause: unknown) => {
         if (run === record.run) {
-          set(record, { status: "error", error: loadError(cause) });
+          set(record, { status: "error", error: getError(cause) });
         }
 
         return cause;

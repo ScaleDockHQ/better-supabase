@@ -55,7 +55,7 @@ const notesBlock = defineBlock({
   record: defineRecordBinding({
     permissions: { read: "read", write: "create" },
     events: ["note.*"],
-    load: (client: Notes, subject) => client.list(subject),
+    get: (client: Notes, subject) => client.list(subject),
     writes: {
       add: {
         input: entitySchema<{ readonly body: string }>({

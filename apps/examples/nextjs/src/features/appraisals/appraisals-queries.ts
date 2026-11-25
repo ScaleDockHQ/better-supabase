@@ -3,7 +3,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { readMemberNames } from "@/features/people/member-names";
+import { getMemberNames } from "@/features/people/member-names";
 import { bsb } from "@/lib/supabase/server";
 
 import { APPRAISALS_TAG } from "./appraisals-cache";
@@ -57,7 +57,7 @@ async function loadAppraisals(): Promise<readonly AppraisalRow[] | null> {
 
   const [rows, names] = await Promise.all([
     db.appraisals.listAppraisals({ limit: 200 }).orThrow(),
-    readMemberNames(scope, tenant),
+    getMemberNames(scope, tenant),
   ]);
 
   return rows.map((row) => ({
@@ -138,7 +138,7 @@ async function loadAppraisal(
 
   const [cycles, names] = await Promise.all([
     db.appraisals.listCycles().orThrow(),
-    readMemberNames(scope, tenant),
+    getMemberNames(scope, tenant),
   ]);
 
   const name = (userId: string | undefined): string | null =>

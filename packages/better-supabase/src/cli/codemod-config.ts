@@ -17,7 +17,7 @@ import {
   openImports,
   ownerOf,
 } from "./config-document/index.ts";
-import { loadConfig } from "./config.ts";
+import { getConfig } from "./config.ts";
 import { mergeRestated, probeRestated } from "./restated-probe.ts";
 import { ownLayout } from "./sql-layout.ts";
 import { layoutFor } from "./sql/providers.ts";
@@ -251,7 +251,7 @@ async function withSqlApi(
   try {
     await writeFile(copy, document.text);
 
-    const after = await loadConfig(dirname(configFile), copy);
+    const after = await getConfig(dirname(configFile), copy);
 
     if (firstDifference(before, await renderedFiles(after)) === undefined) {
       return { text: document.text, review: [] };
@@ -362,7 +362,7 @@ async function prune(
     try {
       await writeFile(copy, withoutConfigPaths(baseText, paths).text);
 
-      const after = await loadConfig(dirname(configFile), copy);
+      const after = await getConfig(dirname(configFile), copy);
 
       return firstDifference(before, await renderedFiles(after)) === undefined;
     } catch {

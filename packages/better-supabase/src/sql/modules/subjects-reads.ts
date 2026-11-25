@@ -75,7 +75,7 @@ function collapseSeconds(ctx: BlockSqlContext): number {
  * The subjects whose reads are logged, or none when the `audit` module isn't
  * installed. A type with `auditReads` and no audit log is a config mistake.
  */
-function readLoggedSubjects(
+function getLoggedSubjects(
   ctx: BlockSqlContext,
   subjects: readonly RegisteredSubject[],
 ): readonly RegisteredSubject[] {
@@ -160,7 +160,7 @@ export function subjectReadsSql(
   ctx: BlockSqlContext,
   subjects: readonly RegisteredSubject[],
 ): string {
-  const audited = readLoggedSubjects(ctx, subjects);
+  const audited = getLoggedSubjects(ctx, subjects);
 
   if (audited.length === 0) {
     return "";

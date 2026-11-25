@@ -53,7 +53,7 @@ export const shareLinksBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "create" },
   module: "share-links",
-  load: (client: ShareLinks, subject) => client.list({ subject }),
+  get: (client: ShareLinks, subject) => client.list({ subject }),
   events: ["share_link.*"],
   writes: {
     create: {

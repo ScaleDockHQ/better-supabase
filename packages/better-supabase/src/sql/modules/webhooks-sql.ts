@@ -839,7 +839,7 @@ $$;
 ${grants(fn, "uuid", true)}`;
 }
 
-function readDelivery(ctx: BlockSqlContext, n: HookNames): string {
+function getDelivery(ctx: BlockSqlContext, n: HookNames): string {
   const fn = ctx.fn("get_webhook_delivery");
   const v = (logical: string) => n.col("deliveries", logical);
 
@@ -1070,7 +1070,7 @@ export function functions(ctx: BlockSqlContext, n: HookNames): string {
     claim(ctx, n),
     complete(ctx, n),
     redeliver(ctx, n),
-    readDelivery(ctx, n),
+    getDelivery(ctx, n),
     purge(ctx, n),
     secrets(ctx, n),
   ].join("\n");

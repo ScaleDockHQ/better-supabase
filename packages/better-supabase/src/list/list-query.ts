@@ -47,7 +47,7 @@ import {
   filterJsonSchema,
   filterWhere,
 } from "./filter-query.ts";
-import { facetCacheKey, loadFacetCounts, openListRun } from "./list-facets.ts";
+import { facetCacheKey, getFacetCounts, openListRun } from "./list-facets.ts";
 import {
   all,
   countsOf,
@@ -58,7 +58,7 @@ import {
   isSearchParams,
   listParser,
   MAX_FILTER_PARAM,
-  readRecord,
+  getRecord,
   toInt,
   UNSET,
   validTimeZone,
@@ -757,7 +757,7 @@ export function defineListQuery<
     }
 
     if (isSearchParams(input)) {
-      const record = readRecord(input);
+      const record = getRecord(input);
       const facetValues: Record<string, string[]> = {};
 
       for (const facet of facets) {
@@ -1133,7 +1133,7 @@ export function defineListQuery<
     const countable = facets.filter((facet) => !facet.relation);
     const related = facets.filter((facet) => facet.relation);
 
-    const counts = loadFacetCounts({
+    const counts = getFacetCounts({
       enabled: config.facetCounts === true,
       mode: loaded.facetCountMode ?? facetCountMode,
       facets: countable,

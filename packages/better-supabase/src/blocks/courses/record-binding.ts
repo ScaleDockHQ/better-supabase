@@ -31,7 +31,7 @@ export const courseLearnersBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "enroll", write: "enroll" },
   module: "courses",
-  load: (client: Courses, subject) => client.learners({ courseId: subject.id }),
+  get: (client: Courses, subject) => client.learners({ courseId: subject.id }),
   events: ["course.*", "course_lesson.*", "course_certificate.*"],
   writes: {
     enroll: {

@@ -8,7 +8,7 @@ import type { AsyncResult } from "../core/result.ts";
 
 import { MY_WORK_KINDS } from "../blocks/subjects/my-work-kinds.ts";
 
-/** What `loadMyWork` returns: the items, grouped by kind, and their counts. */
+/** What `getMyWork` returns: the items, grouped by kind, and their counts. */
 export interface MyWork {
   /** Every item, newest first. */
   readonly items: readonly MyTask[];
@@ -28,13 +28,13 @@ export interface LoadMyWorkOptions extends MyWorkOptions {
  * by kind with a count each, in one round trip.
  *
  * ```ts
- * const work = await loadMyWork(blocks.subjects, {
+ * const work = await getMyWork(blocks.subjects, {
  *   pageSize: 100,
  * }).orThrow();
  * work.groups.approval; // approvals the caller can decide
  * ```
  */
-export function loadMyWork(
+export function getMyWork(
   subjects: Pick<Subjects, "myWork">,
   options: LoadMyWorkOptions = {},
 ): AsyncResult<MyWork> {

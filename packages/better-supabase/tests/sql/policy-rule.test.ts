@@ -6,7 +6,7 @@ import {
   disallowedPolicyCalls,
   isRule,
   policyFunctionsSql,
-  readRulePolicies,
+  getRulePolicies,
   renderRule,
   renderRulePolicy,
   rulePolicy,
@@ -73,7 +73,7 @@ describe("rule policies", () => {
 
   it("reads the rules back from the comment", () => {
     const sql = `create table app.notes (id int);\n${renderRulePolicy(built)}\n`;
-    const [read] = readRulePolicies(sql);
+    const [read] = getRulePolicies(sql);
 
     expect(read?.using).toEqual(rule);
     expect(read?.inSync).toBe(true);
@@ -86,7 +86,7 @@ describe("rule policies", () => {
       "better_supabase.uid() =",
     );
 
-    const [read] = readRulePolicies(sql);
+    const [read] = getRulePolicies(sql);
 
     expect(read?.inSync).toBe(false);
   });
@@ -94,8 +94,8 @@ describe("rule policies", () => {
   it("ignores policies without a rule comment or with a bad one", () => {
     const plain = "create policy a on app.t for select using (true);";
 
-    expect(readRulePolicies(plain)).toEqual([]);
-    expect(readRulePolicies(`-- @bsb rule {oops\n${plain}`)).toEqual([]);
+    expect(getRulePolicies(plain)).toEqual([]);
+    expect(getRulePolicies(`-- @bsb rule {oops\n${plain}`)).toEqual([]);
   });
 });
 
@@ -161,9 +161,9 @@ describe("rule edge cases", () => {
   it("skips rule comments that are not objects or hold bad rules", () => {
     const plain = "create policy a on app.t for select using (true);";
 
-    expect(readRulePolicies(`-- @bsb rule [1]\n${plain}`)).toEqual([]);
+    expect(getRulePolicies(`-- @bsb rule [1]\n${plain}`)).toEqual([]);
     expect(
-      readRulePolicies(`-- @bsb rule {"using":{"kind":"x"}}\n${plain}`),
+      getRulePolicies(`-- @bsb rule {"using":{"kind":"x"}}\n${plain}`),
     ).toEqual([]);
   });
 
@@ -175,7 +175,7 @@ describe("rule edge cases", () => {
       check: { kind: "public" },
     });
 
-    const [read] = readRulePolicies(renderRulePolicy(built));
+    const [read] = getRulePolicies(renderRulePolicy(built));
 
     expect(read?.check).toEqual({ kind: "public" });
     expect(read?.using).toBeNull();

@@ -51,14 +51,14 @@ function validateMeta(meta: SchemaMeta): SchemaMeta {
     );
   }
 
-  if (meta.lazyTables !== true && meta.loadFunctions === undefined) {
+  if (meta.lazyTables !== true && meta.getFunctions === undefined) {
     return meta;
   }
 
   return {
     ...meta,
     ...(meta.lazyTables === true ? { tables: { ...meta.tables } } : {}),
-    ...(meta.loadFunctions === undefined
+    ...(meta.getFunctions === undefined
       ? {}
       : { functions: { ...meta.functions } }),
   };
@@ -113,7 +113,7 @@ export function addLazyTable(meta: SchemaMeta, table: TableMeta): boolean {
 }
 
 /**
- * Fills `functions` from `loadFunctions`. The object is the copy `defineSchema`
+ * Fills `functions` from `getFunctions`. The object is the copy `defineSchema`
  * made.
  */
 export function installFunctions(

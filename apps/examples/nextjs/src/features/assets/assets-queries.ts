@@ -32,7 +32,7 @@ const isStatus = (value: string): value is AssetRow["status"] =>
  * as one list filter and pages by the keyset cursor `after` holds. The page and
  * `/api/assets/list` share it.
  */
-export async function loadAssetPage(
+export async function getAssetPage(
   db: Db,
   query: AssetQuery,
 ): Promise<Result<BlockPage<AssetRow>>> {
@@ -77,7 +77,7 @@ export async function getAssets(): Promise<BlockPage<AssetRow> | null> {
     return null;
   }
 
-  const result = await loadAssetPage(db, assetList.defaults);
+  const result = await getAssetPage(db, assetList.defaults);
 
   if (!result.ok) {
     throw new Error(result.error.message);

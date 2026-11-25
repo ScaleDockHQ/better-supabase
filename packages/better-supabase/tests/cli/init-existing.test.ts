@@ -12,10 +12,10 @@ const snapshotFixture = join(
 
 vi.mock(import("../../src/cli/commands/snapshot.ts"), async (original) => ({
   ...(await original()),
-  loadSnapshot: vi.fn(async (_config, _env, source) => {
+  getSnapshot: vi.fn(async (_config, _env, source) => {
     const real = await original();
 
-    return real.loadSnapshot(_config, _env, {
+    return real.getSnapshot(_config, _env, {
       snapshotPath: source.snapshotPath ?? snapshotFixture,
     });
   }),

@@ -42,7 +42,7 @@ const noteInput = entitySchema<{ readonly body: string }>({
 
 const notesBinding = defineRecordBinding({
   permissions: { read: "read", write: "create" },
-  load: (client: Notes, subject) => client.list(subject),
+  get: (client: Notes, subject) => client.list(subject),
   writes: {
     add: {
       input: noteInput,
@@ -77,7 +77,7 @@ const labelsBlock = defineBlock({
   category: "collaboration",
   record: defineRecordBinding({
     permissions: { read: "view" },
-    load: () => resolved(1),
+    get: () => resolved(1),
   }),
 });
 

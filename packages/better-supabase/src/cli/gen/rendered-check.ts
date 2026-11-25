@@ -7,7 +7,7 @@ import type { BlockSqlFile } from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import { cacheEnabled, cacheRoot } from "../cache/store.ts";
-import { readFileFacts, SchemaReadFailure } from "../schema-reader/index.ts";
+import { getFileFacts, SchemaReadFailure } from "../schema-reader/index.ts";
 import { PG_PARSER_VERSION } from "../schema-reader/node-fields.generated.ts";
 import { layoutFor } from "../sql/providers.ts";
 import { renderBlocksCached } from "../sql/render-cache.ts";
@@ -73,7 +73,7 @@ export async function checkRenderedModules(
       }
 
       try {
-        await readFileFacts(file.contents, { path: file.path });
+        await getFileFacts(file.contents, { path: file.path });
       } catch (error) {
         if (error instanceof SchemaReadFailure) {
           return error;

@@ -25,8 +25,8 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
   blockFields,
-  readAllFields,
-  readFields,
+  getAllFields,
+  getFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";
@@ -452,17 +452,14 @@ export function createPipelines<
       pipelineList
         .page(page)
         .andThen((read) =>
-          readAllFields(fields, read.items).map((items) => ({
-            ...read,
-            items,
-          })),
+          getAllFields(fields, read.items).map((items) => ({ ...read, items })),
         ),
     facets: pipelineList.facets,
     count: pipelineList.count,
     // SAFETY: one row goes in, so one row comes out of the field read.
     get: (pipelineId) =>
       call("get_pipeline", { pipeline: pipelineId }, pipelineOf)
-        .andThen((row) => readAllFields(fields, [row]))
+        .andThen((row) => getAllFields(fields, [row]))
         .map(([first]) => first as Pipeline<F>),
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, subjectType, limit }) =>
@@ -474,7 +471,7 @@ export function createPipelines<
 
           return limit === undefined ? rows : rows.slice(0, limit);
         },
-      ).andThen((pipelines) => readAllFields(fields, pipelines)),
+      ).andThen((pipelines) => getAllFields(fields, pipelines)),
     upsert: ({ organizationId, input }) =>
       writeFields(fields, input.fields, (checked) =>
         call(
@@ -491,7 +488,7 @@ export function createPipelines<
           },
           pipelineOf,
         ),
-      ).andThen((pipeline) => readFields(fields, pipeline)),
+      ).andThen((pipeline) => getFields(fields, pipeline)),
     default: ({ organizationId, subjectType, scopeId }) =>
       hooked
         // oxlint-disable-next-line typescript/no-deprecated -- the pipeline lookups read the array method until 0.70 (ADR 1077)

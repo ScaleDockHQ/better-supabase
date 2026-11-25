@@ -104,15 +104,15 @@ export {
   recordWriteInput,
 } from "./record-type.ts";
 
-export { countBinding, loadBindings, bindingCan } from "./bindings.ts";
+export { countBinding, getBindings, bindingCan } from "./bindings.ts";
 
 export { defineRecordList } from "./list.ts";
 
-export { loadTimeline, timelineBindings } from "./timeline.ts";
+export { getTimeline, timelineBindings } from "./timeline.ts";
 
 export { copyBindings, copyableBindings } from "./copy.ts";
 
-export { loadMyWork } from "./my-work.ts";
+export { getMyWork } from "./my-work.ts";
 
 export { recordForm } from "./record-form.ts";
 

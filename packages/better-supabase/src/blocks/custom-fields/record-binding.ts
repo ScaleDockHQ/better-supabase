@@ -40,7 +40,7 @@ export const customFieldsBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "manage" },
   module: "custom-fields",
-  load: (client: CustomFields, subject) => client.readFields(subject),
+  get: (client: CustomFields, subject) => client.readFields(subject),
   copy: (client: CustomFields, from, to) =>
     client.readFields(from).andThen((values) =>
       AsyncResult.from(async () => {

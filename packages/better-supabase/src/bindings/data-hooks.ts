@@ -313,7 +313,7 @@ function writes<S extends DataSource>(
   };
 }
 
-function readController<S extends DataSource, T>(
+function getController<S extends DataSource, T>(
   target: DataTarget<S>,
   key: DataKey,
   load: () => Promise<unknown>,
@@ -393,7 +393,7 @@ export function createDataList<S extends DataSource>(
 ): Controller<DataState<DataRows<S>>, DataWrites<S>> {
   const list = verb(target.source, "list");
 
-  return readController(
+  return getController(
     target,
     [...target.scope, "list", args ?? null],
     () => unwrap(args === undefined ? list() : list(args)),
@@ -409,7 +409,7 @@ export function createDataPage<S extends DataSource>(
 ): Controller<DataState<unknown>, DataWrites<S>> {
   const page = verb(target.source, "page");
 
-  return readController(
+  return getController(
     target,
     [...target.scope, "page", args ?? null],
     () => unwrap(args === undefined ? page() : page(args)),
@@ -425,7 +425,7 @@ export function createDataOne<S extends DataSource>(
 ): Controller<DataState<DataRow<S>>, DataWrites<S>> {
   const get = verb(target.source, "get");
 
-  return readController(
+  return getController(
     target,
     [...target.scope, "get", id],
     () => unwrap(get(id)),

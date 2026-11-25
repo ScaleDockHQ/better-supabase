@@ -19,7 +19,7 @@ import {
   withProvider,
 } from "../fixtures/authorization-provider.ts";
 import { libraryFixture, snapshotPath } from "./fixtures/library.ts";
-import { loadFixtureSnapshot, renderFixtures } from "./fixtures/render.ts";
+import { getFixtureSnapshot, renderFixtures } from "./fixtures/render.ts";
 
 const fixtures = fileURLToPath(libraryFixture(""));
 
@@ -86,7 +86,7 @@ describe("fixtures", () => {
 describe("relations", () => {
   it("names a composite tenant foreign key after its own column", async () => {
     const model = buildModel(
-      await loadFixtureSnapshot(),
+      await getFixtureSnapshot(),
       resolveConfig({ gen: { casing: "camel" } }, fixtures),
     );
 
@@ -112,7 +112,7 @@ describe("relations", () => {
 describe("relations.nullableUnderRls", () => {
   const relation = async (nullableUnderRls: boolean, name: string) =>
     buildModel(
-      await loadFixtureSnapshot(),
+      await getFixtureSnapshot(),
       resolveConfig(
         { gen: { casing: "camel", relations: { nullableUnderRls } } },
         fixtures,
@@ -129,7 +129,7 @@ describe("relations.nullableUnderRls", () => {
 
 describe("relation names", () => {
   const withSimpleKeys = async (keys: readonly string[]) => {
-    const fixture = await loadFixtureSnapshot();
+    const fixture = await getFixtureSnapshot();
 
     const simple = (name: string) => ({
       foreign_key_name: name,
@@ -208,7 +208,7 @@ describe("relation names", () => {
 
 describe("storagePaths", () => {
   const model = async (config: BetterSupabaseConfig) =>
-    buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures));
+    buildModel(await getFixtureSnapshot(), resolveConfig(config, fixtures));
 
   const logo = (built: Awaited<ReturnType<typeof model>>) =>
     built.tables
@@ -250,7 +250,7 @@ describe("storagePaths", () => {
 
 describe("function results", () => {
   const model = async (config: BetterSupabaseConfig) =>
-    buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures));
+    buildModel(await getFixtureSnapshot(), resolveConfig(config, fixtures));
 
   const fn = (built: Awaited<ReturnType<typeof model>>, name: string) =>
     built.functions.find((entry) => entry.key === name);
@@ -312,7 +312,7 @@ describe("function result nullability", () => {
     config: BetterSupabaseConfig = {},
     functionComments?: Record<string, string>,
   ) => {
-    const fixture = await loadFixtureSnapshot();
+    const fixture = await getFixtureSnapshot();
 
     const template = fixture.generator.functions.find(
       (fn) => fn.name === "rs_workspace_summary",
@@ -484,7 +484,7 @@ describe("function result nullability", () => {
   });
 
   it("types a returns table column of a NOT NULL domain as non-null", async () => {
-    const fixture = await loadFixtureSnapshot();
+    const fixture = await getFixtureSnapshot();
     const domainId = 9_999_001;
 
     const snapshot = {
@@ -543,7 +543,7 @@ describe("function result nullability", () => {
   });
 
   it("names returns table functions with nullable columns and no notNull promise", async () => {
-    const fixture = await loadFixtureSnapshot();
+    const fixture = await getFixtureSnapshot();
 
     const notice = (config: BetterSupabaseConfig) =>
       buildModel(fixture, resolveConfig(config, fixtures)).notices.find(
@@ -559,7 +559,7 @@ describe("function result nullability", () => {
 
 describe("CHECK not null", () => {
   it("narrows the column in the row, insert and update shapes", async () => {
-    const fixture = await loadFixtureSnapshot();
+    const fixture = await getFixtureSnapshot();
 
     const snapshot = {
       ...fixture,
@@ -608,7 +608,7 @@ describe("CHECK not null", () => {
     change: (table: Record<string, unknown>) => Record<string, unknown>,
     config: BetterSupabaseConfig = {},
   ) => {
-    const fixture = await loadFixtureSnapshot();
+    const fixture = await getFixtureSnapshot();
 
     const snapshot = {
       ...fixture,
@@ -760,7 +760,7 @@ describe("CHECK not null", () => {
 describe("metadata module", () => {
   it("writes one line per table and function and parses back to the metadata", async () => {
     const model = buildModel(
-      await loadFixtureSnapshot(),
+      await getFixtureSnapshot(),
       resolveConfig({ gen: { casing: "camel" } }, fixtures),
     );
 
@@ -798,7 +798,7 @@ describe("extension flags", () => {
       fixtures,
     );
 
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
     expect(() => buildModel(snapshot, config)).toThrow(
       "blocks.trash.options.deletedAt: public.customers.name is text, but the trash extension writes a timestamp",
     );
@@ -806,7 +806,7 @@ describe("extension flags", () => {
 
   const flagsOf = async (config: BetterSupabaseConfig, key: string) =>
     buildModel(
-      await loadFixtureSnapshot(),
+      await getFixtureSnapshot(),
       resolveConfig(config, fixtures),
     ).tables.find((table) => table.key === key)?.meta.flags;
 
@@ -846,7 +846,7 @@ describe("extension flags", () => {
       fixtures,
     );
 
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
     expect(() => buildModel(snapshot, config)).toThrow(
       "subjects.customer.deletedAt: public.customers.name is text, but the trash extension writes a timestamp",
     );
@@ -855,7 +855,7 @@ describe("extension flags", () => {
 
 describe("codecs", () => {
   const createdAt = async (config: BetterSupabaseConfig) =>
-    buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures))
+    buildModel(await getFixtureSnapshot(), resolveConfig(config, fixtures))
       .tables.find((table) => table.key === "customers")
       ?.columns.find((column) => column.db === "created_at");
 

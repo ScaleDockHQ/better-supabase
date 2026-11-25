@@ -26,7 +26,7 @@ export interface CourseLearnersData {
 }
 
 /** The course's learners with their names, and the members who could join. */
-export async function loadCourseLearners(
+export async function getCourseLearners(
   courseId: string,
 ): Promise<CourseLearnersData | null> {
   "use cache: private";

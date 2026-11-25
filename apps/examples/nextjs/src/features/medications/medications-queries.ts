@@ -55,7 +55,7 @@ export interface CustomerChart {
   readonly orders: readonly ChartOrder[];
 }
 
-async function loadChart(
+async function getChart(
   customerId: string | undefined,
 ): Promise<CustomerChart | "no-customer" | null> {
   "use cache: private";
@@ -115,5 +115,5 @@ async function loadChart(
 export function getCustomerChart(
   customerId?: string,
 ): Promise<Loaded<CustomerChart | "no-customer">> {
-  return settle(() => loadChart(customerId));
+  return settle(() => getChart(customerId));
 }

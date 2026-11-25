@@ -104,7 +104,7 @@ export function parseConfigValidation(
 }
 
 /** Reads the CLI version and, from the floor on, validates the config with it. */
-export async function loadSupabaseCliCheck(
+export async function getSupabaseCliCheck(
   root: string,
   env: CliEnv,
 ): Promise<SupabaseCliCheck> {

@@ -662,7 +662,7 @@ describe("dispatch block", () => {
     const subject = { type: "customer", id: "c1" };
 
     const rows = await dispatchBinding
-      .load(dispatch, subject, undefined)
+      .get(dispatch, subject, undefined)
       .orThrow();
 
     await dispatchBinding.writes.create

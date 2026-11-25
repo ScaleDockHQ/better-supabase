@@ -47,7 +47,7 @@ function toRow(item: DataExport): ExportRow {
  * `data_lifecycle.export`, and the pending deletion. A failed read throws, so
  * it is never cached and Retry reads again.
  */
-export async function loadPrivacy(): Promise<PrivacyData> {
+export async function getPrivacy(): Promise<PrivacyData> {
   "use cache: private";
 
   const request = await bsb.cached();

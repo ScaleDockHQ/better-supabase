@@ -8,7 +8,7 @@ import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
 import { customFieldValueCheck } from "../format-checks.ts";
-import { readIfAny } from "../read-if-any.ts";
+import { getIfAny } from "../read-if-any.ts";
 import { fail, lockTable, userGrant } from "../shared.ts";
 import {
   boundRowSubject,
@@ -596,7 +596,7 @@ begin
   from ${values} v
   where v.${c("tenant")} = read_field_values.tenant
     and ${subjectMatch(ctx, "v", "read_field_values.subject_type", "read_field_values.subject_id")}
-    and ${readable};${readIfAny(
+    and ${readable};${getIfAny(
       ctx.read(
         "read_field_values.subject_type",
         "read_field_values.subject_id",

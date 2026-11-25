@@ -61,7 +61,7 @@ type Dashboard =
  * checks `metrics.read` on each read. It throws on a failed read, so a failure
  * is never cached and Retry reads again.
  */
-async function loadPanels(
+async function getPanels(
   organizationId: string,
 ): Promise<readonly MetricPanel[]> {
   "use cache: private";
@@ -99,9 +99,9 @@ async function loadPanels(
   );
 }
 
-async function loadDashboard(organizationId: string): Promise<Dashboard> {
+async function getDashboard(organizationId: string): Promise<Dashboard> {
   try {
-    return { kind: "ok", panels: await loadPanels(organizationId) };
+    return { kind: "ok", panels: await getPanels(organizationId) };
   } catch (error) {
     unstable_rethrow(error);
 
@@ -124,7 +124,7 @@ export async function MetricsDashboard() {
   }
 
   const [dashboard, t, format] = await Promise.all([
-    loadDashboard(organizationId),
+    getDashboard(organizationId),
     getExtracted("metrics"),
     getFormatter(),
   ]);

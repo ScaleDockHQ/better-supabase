@@ -4,11 +4,11 @@ import { getExtracted } from "next-intl/server";
 import { buttonVariants } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 
-import { readCart } from "../store-cart";
+import { getCart } from "../store-cart";
 
 /** The store's own header: a link to the catalog and the cart with its count. */
 export async function StoreNav({ slug }: { slug: string }) {
-  const [t, lines] = await Promise.all([getExtracted("store"), readCart(slug)]);
+  const [t, lines] = await Promise.all([getExtracted("store"), getCart(slug)]);
   const count = lines.reduce((sum, line) => sum + line.quantity, 0);
 
   return (

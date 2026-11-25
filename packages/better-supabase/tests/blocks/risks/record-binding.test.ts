@@ -25,7 +25,7 @@ describe("risksBinding", () => {
       transport: transport(calls),
     });
 
-    const loaded = await risksBinding.load(
+    const loaded = await risksBinding.get(
       client,
       { type: "project", id: "s1" },
       undefined,
@@ -51,7 +51,7 @@ describe("risksBinding", () => {
   it("fails without an organization", async () => {
     const client = createRisks({ transport: transport([]) });
 
-    const loaded = await risksBinding.load(
+    const loaded = await risksBinding.get(
       client,
       { type: "project", id: "s1" },
       undefined,

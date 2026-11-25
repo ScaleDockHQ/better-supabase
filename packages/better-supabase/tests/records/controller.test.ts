@@ -30,7 +30,7 @@ function setup() {
     category: "collaboration",
     record: defineRecordBinding({
       permissions: { read: "read" },
-      load: (_client: unknown, subject) => notes(subject),
+      get: (_client: unknown, subject) => notes(subject),
       events: ["note.created"],
     }),
   });
@@ -40,7 +40,7 @@ function setup() {
     category: "collaboration",
     record: defineRecordBinding({
       permissions: { read: "read" },
-      load: (_client: unknown, subject) => files(subject),
+      get: (_client: unknown, subject) => files(subject),
       events: ["file.*"],
     }),
   });

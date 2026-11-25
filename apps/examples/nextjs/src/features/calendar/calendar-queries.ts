@@ -88,7 +88,7 @@ export interface CalendarPage {
  * caller's reminders on them. Both cards read this entry, so the page makes one
  * database call for the calendar data instead of one per read.
  */
-async function loadCalendarPage(
+async function getCalendarPage(
   from: string,
   until: string,
 ): Promise<CalendarPage | null> {
@@ -193,11 +193,11 @@ async function loadCalendarPage(
 }
 
 /** The month part of `loadCalendarPage`. */
-export async function loadCalendarMonth(
+export async function getCalendarMonth(
   from: string,
   until: string,
 ): Promise<CalendarMonth | null> {
-  const page = await loadCalendarPage(from, until);
+  const page = await getCalendarPage(from, until);
 
   return page?.month ?? null;
 }
@@ -206,11 +206,11 @@ export async function loadCalendarMonth(
  * The next events in the coming two weeks, one entry per event (a series shows
  * once, at its next occurrence), with the caller's reminders on each.
  */
-export async function loadUpcomingReminders(
+export async function getUpcomingReminders(
   from: string,
   until: string,
 ): Promise<UpcomingReminders | null> {
-  const page = await loadCalendarPage(from, until);
+  const page = await getCalendarPage(from, until);
 
   return page?.upcoming ?? null;
 }

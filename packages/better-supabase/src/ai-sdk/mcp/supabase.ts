@@ -5,7 +5,7 @@ import type {
   SupabaseMcpScope,
 } from "../../core/supabase-mcp.ts";
 
-import { loadSupabaseMcp } from "../../core/supabase-mcp.ts";
+import { getSupabaseMcp } from "../../core/supabase-mcp.ts";
 
 /**
  * Input and output schemas by tool name, as `MCPClient.tools({ schemas })`
@@ -47,7 +47,7 @@ export interface SupabaseMcp {
  */
 export async function supabaseMcp(
   options: SupabaseMcpOptions = {},
-  load: () => Promise<SupabaseMcpModule> = loadSupabaseMcp,
+  load: () => Promise<SupabaseMcpModule> = getSupabaseMcp,
 ): Promise<SupabaseMcp> {
   const readOnly = options.readOnly ?? true;
   const url = new URL(options.url ?? SUPABASE_MCP_URL);

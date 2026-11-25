@@ -8,16 +8,16 @@ import { containsPlaceholder } from "./read-set.ts";
 import { AsyncResult } from "./result.ts";
 import { isQuerySpec } from "./spec.ts";
 
-type Loader = NonNullable<SchemaMeta["tableLoaders"]>[string];
+type Loader = NonNullable<SchemaMeta["tableGetters"]>[string];
 
 const tableLoads = new WeakMap<SchemaMeta, Map<string, Promise<void>>>();
 
 const functionLoads = new WeakMap<SchemaMeta, Promise<void>>();
 
-function loadTable(
+function getTable(
   meta: SchemaMeta,
   key: string,
-  load: NonNullable<SchemaMeta["tableLoaders"]>[string],
+  load: NonNullable<SchemaMeta["tableGetters"]>[string],
   register: (table: SchemaMeta["tables"][string]) => void,
 ): Promise<void> {
   let loads = tableLoads.get(meta);
@@ -56,7 +56,7 @@ export function lazyRepository<S>(
   meta: SchemaMeta,
   state: S,
   key: string,
-  load: NonNullable<SchemaMeta["tableLoaders"]>[string],
+  load: NonNullable<SchemaMeta["tableGetters"]>[string],
   build: (state: S, key: string) => Record<string, unknown>,
   register: (table: SchemaMeta["tables"][string]) => void,
 ): Record<string, unknown> {
@@ -77,7 +77,7 @@ export function lazyRepository<S>(
 
         return (...args: unknown[]) =>
           AsyncResult.from(async () => {
-            await loadTable(meta, key, load, register);
+            await getTable(meta, key, load, register);
 
             const repo = build(state, key);
             const method = repo[prop];
@@ -143,7 +143,7 @@ function missingTargets(
       if (target) {
         queue.push(target);
       } else {
-        const load = meta.tableLoaders?.[relation.table];
+        const load = meta.tableGetters?.[relation.table];
 
         if (load !== undefined) {
           missing.push([relation.table, load]);
@@ -178,7 +178,7 @@ export function withRelatedTables(
 
       while (missing.length > 0) {
         await Promise.all(
-          missing.map(([key, load]) => loadTable(meta, key, load, register)),
+          missing.map(([key, load]) => getTable(meta, key, load, register)),
         );
         missing = missingTargets(meta, table, names);
       }
@@ -193,16 +193,16 @@ export function withRelatedTables(
  * Loads `key` and the unloaded tables that the relations named in `value` reach
  * from it.
  */
-export async function loadReachedTables(
+export async function getReachedTables(
   meta: SchemaMeta,
   key: string,
   value: unknown,
   register: (table: SchemaMeta["tables"][string]) => void,
 ): Promise<void> {
-  const load = meta.tableLoaders?.[key];
+  const load = meta.tableGetters?.[key];
 
   if (meta.tables[key] === undefined && load !== undefined) {
-    await loadTable(meta, key, load, register);
+    await getTable(meta, key, load, register);
   }
 
   const table = meta.tables[key];
@@ -217,7 +217,7 @@ export async function loadReachedTables(
   while (missing.length > 0) {
     await Promise.all(
       missing.map(([target, loader]) =>
-        loadTable(meta, target, loader, register),
+        getTable(meta, target, loader, register),
       ),
     );
     missing = missingTargets(meta, table, names);
@@ -227,7 +227,7 @@ export async function loadReachedTables(
 /** Loads function metadata once, on the first `rpc` call. */
 export async function ensureFunctions(meta: SchemaMeta): Promise<void> {
   if (
-    meta.loadFunctions === undefined ||
+    meta.getFunctions === undefined ||
     Object.keys(meta.functions).length > 0
   ) {
     return;
@@ -236,7 +236,7 @@ export async function ensureFunctions(meta: SchemaMeta): Promise<void> {
   let pending = functionLoads.get(meta);
 
   if (pending === undefined) {
-    const load = meta.loadFunctions;
+    const load = meta.getFunctions;
 
     pending = load().then((functions) => {
       installFunctions(meta, functions);

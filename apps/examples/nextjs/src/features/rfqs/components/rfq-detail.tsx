@@ -6,7 +6,7 @@ import { RecordDetailTabs } from "@/components/record-detail/record-detail-tabs"
 import { Badge } from "@/components/reui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CrmLoadError } from "@/features/crm/components/crm-load-error";
-import { loadContacts, settle } from "@/features/crm/crm-queries";
+import { getContacts, settle } from "@/features/crm/crm-queries";
 import { ActionButton } from "@/features/sales/components/action-button";
 import { ActionDialog } from "@/features/sales/components/action-dialog";
 import {
@@ -19,7 +19,7 @@ import {
   moneyFormatter,
   requirePermission,
 } from "@/features/sales/components/overview-support";
-import { loadLookups } from "@/features/warehouse/warehouse-queries";
+import { getLookups } from "@/features/warehouse/warehouse-queries";
 import { Link } from "@/i18n/navigation";
 
 import {
@@ -78,8 +78,8 @@ export async function RfqDetail({ id, tab }: { id: string; tab: string }) {
     dateFormatter(),
     moneyFormatter(),
     rfqStatusLabels(),
-    settle(loadContacts),
-    settle(loadLookups),
+    settle(getContacts),
+    settle(getLookups),
     holds("rfqs.write"),
     holds("rfqs.manage"),
   ]);

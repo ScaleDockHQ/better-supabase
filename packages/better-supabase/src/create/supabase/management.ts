@@ -43,7 +43,7 @@ function text(
   return typeof value === "string" ? value : undefined;
 }
 
-const readOrganization: Reader<SupabaseOrganization> = (value) => {
+const getOrganization: Reader<SupabaseOrganization> = (value) => {
   if (!isRecord(value)) {
     return;
   }
@@ -57,7 +57,7 @@ const readOrganization: Reader<SupabaseOrganization> = (value) => {
     : { id, slug, name };
 };
 
-const readProject: Reader<SupabaseProject> = (value) => {
+const getProject: Reader<SupabaseProject> = (value) => {
   if (!isRecord(value)) {
     return;
   }
@@ -77,7 +77,7 @@ const readProject: Reader<SupabaseProject> = (value) => {
     : { ref, name, organization_slug, region, status };
 };
 
-const readHealthy: Reader<boolean> = (value) =>
+const getHealthy: Reader<boolean> = (value) =>
   Array.isArray(value)
     ? value.some(
         (service) =>
@@ -87,7 +87,7 @@ const readHealthy: Reader<boolean> = (value) =>
       )
     : undefined;
 
-const readLint: Reader<SupabaseLint> = (value) => {
+const getLint: Reader<SupabaseLint> = (value) => {
   if (!isRecord(value)) {
     return;
   }
@@ -113,10 +113,10 @@ const readLint: Reader<SupabaseLint> = (value) => {
   };
 };
 
-const readLints: Reader<SupabaseLint[]> = (value) =>
-  isRecord(value) ? arrayOf(readLint)(value["lints"]) : undefined;
+const getLints: Reader<SupabaseLint[]> = (value) =>
+  isRecord(value) ? arrayOf(getLint)(value["lints"]) : undefined;
 
-const readTableCount: Reader<number> = (value) => {
+const getTableCount: Reader<number> = (value) => {
   if (!Array.isArray(value)) {
     return;
   }
@@ -222,9 +222,9 @@ export function managementClient(
   }
 
   return {
-    organizations: () => call("/v1/organizations", arrayOf(readOrganization)),
+    organizations: () => call("/v1/organizations", arrayOf(getOrganization)),
 
-    projects: () => call("/v1/projects", arrayOf(readProject)),
+    projects: () => call("/v1/projects", arrayOf(getProject)),
 
     createProject: (input: {
       name: string;
@@ -232,7 +232,7 @@ export function managementClient(
       region: SmartRegion;
       dbPass: string;
     }) =>
-      call("/v1/projects", readProject, {
+      call("/v1/projects", getProject, {
         method: "POST",
         body: {
           name: input.name,
@@ -243,18 +243,18 @@ export function managementClient(
       }),
 
     project: (ref: string) =>
-      call(`/v1/projects/${encodeURIComponent(ref)}`, readProject),
+      call(`/v1/projects/${encodeURIComponent(ref)}`, getProject),
 
     databaseHealthy: async (ref: string): Promise<boolean> =>
       call(
         `/v1/projects/${encodeURIComponent(ref)}/health?services=db`,
-        readHealthy,
+        getHealthy,
       ),
 
     publicTableCount: async (ref: string): Promise<number> =>
       call(
         `/v1/projects/${encodeURIComponent(ref)}/database/query/read-only`,
-        readTableCount,
+        getTableCount,
         { method: "POST", body: { query: PUBLIC_TABLES } },
       ),
 
@@ -273,7 +273,7 @@ export function managementClient(
     securityLints: async (ref: string): Promise<readonly SupabaseLint[]> =>
       call(
         `/v1/projects/${encodeURIComponent(ref)}/advisors/security`,
-        readLints,
+        getLints,
       ),
   };
 }

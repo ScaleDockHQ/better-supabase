@@ -15,8 +15,8 @@ import type { UndoCall, UndoToken } from "../undo/undo.ts";
 
 import {
   blockFields,
-  readAllFields,
-  readFields,
+  getAllFields,
+  getFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";
@@ -331,7 +331,7 @@ export function createRelations<
                 fields: rowFields(row["fields"]),
               };
             },
-          ).andThen((result) => readFields(fields, result)),
+          ).andThen((result) => getFields(fields, result)),
         ),
       ),
     unlink: ({ source, target, input }) =>
@@ -380,13 +380,13 @@ export function createRelations<
               createdAt: instantOf(row["createdAt"]),
               fields: rowFields(row["fields"]),
             })),
-        ).andThen((relations) => readAllFields(fields, relations)),
+        ).andThen((relations) => getAllFields(fields, relations)),
       ),
     edges: (kind) =>
       tenant().andThen((organizationId) =>
         call("relations_by_kind", { tenant: organizationId, kind }, (value) =>
           recordsOf(value, "relations_by_kind").map(edgeOf),
-        ).andThen((edges) => readAllFields(fields, edges)),
+        ).andThen((edges) => getAllFields(fields, edges)),
       ),
     ancestors: ({ subject, kind }) =>
       tenant().andThen((organizationId) =>

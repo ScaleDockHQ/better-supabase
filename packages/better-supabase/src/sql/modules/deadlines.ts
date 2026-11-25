@@ -346,7 +346,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     )
     .map(([type]) => sqlString(type));
 
-  const readGate = (check: string, type: string, tenant: string): string =>
+  const getGate = (check: string, type: string, tenant: string): string =>
     rowRead.length === 0
       ? check
       : `(${check} or (${type} in (${rowRead.join(", ")}) and ${tenant} in (select ${ctx.scope.members()})))`;
@@ -443,7 +443,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       name: sqlIdent(`${deadlinesName}_read`),
       command: "select",
       roles: ["authenticated"],
-      using: `${readGate(ctx.scope.check(d("tenant"), read), own("subjectType"), own("tenant"))} and ${subjects.length === 0 ? "true" : rowReadable.using({ type: own("subjectType"), id: own("subjectId"), tenant: own("tenant") })}`,
+      using: `${getGate(ctx.scope.check(d("tenant"), read), own("subjectType"), own("tenant"))} and ${subjects.length === 0 ? "true" : rowReadable.using({ type: own("subjectType"), id: own("subjectId"), tenant: own("tenant") })}`,
     }),
     { target: deadlines },
   );
@@ -927,7 +927,7 @@ declare
   v_row ${deadlines};
 begin
   select * into v_row from ${deadlines} x where x.${d("id")} = satisfy_deadline.deadline_id for update;
-  if not found or not ${readGate(allowed(`v_row.${d("tenant")}`, read), `v_row.${d("subjectType")}`, `v_row.${d("tenant")}`)}
+  if not found or not ${getGate(allowed(`v_row.${d("tenant")}`, read), `v_row.${d("subjectType")}`, `v_row.${d("tenant")}`)}
     or not ${visible(`v_row.${d("subjectType")}`, `v_row.${d("subjectId")}`, `v_row.${d("tenant")}`)} then
     ${missing}
   end if;

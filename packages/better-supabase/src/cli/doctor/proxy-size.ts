@@ -29,7 +29,7 @@ const TRACES = [
  * The proxy's file trace from the last `next build`, or `undefined` when the
  * project has not been built or has no proxy.
  */
-export async function readProxyTrace(
+export async function getProxyTrace(
   root: string,
 ): Promise<ProxyTrace | undefined> {
   const path = TRACES.find((trace) => existsSync(resolve(root, trace)));
