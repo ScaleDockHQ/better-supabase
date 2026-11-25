@@ -221,6 +221,27 @@ end;
 $$;
 ${userGrant(`${fn("close_accounting_period")}(uuid)`)}
 
+-- Closes a period when nothing blocks it, in one call (ADR 1235). A blocked
+-- period is not an error: { closed: false, blockers } changes nothing. It calls
+-- the checks above, so each keeps its permission check.
+create or replace function ${fn("close_accounting_period_if_clear")}(period_id uuid)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_blockers text[];
+begin
+  v_blockers := ${fn("accounting_period_close_blockers")}(close_accounting_period_if_clear.period_id);
+  if cardinality(v_blockers) > 0 then
+    return jsonb_build_object('closed', false, 'blockers', to_jsonb(v_blockers));
+  end if;
+  return jsonb_build_object('closed', true, 'period', ${fn("close_accounting_period")}(close_accounting_period_if_clear.period_id));
+end;
+$$;
+${userGrant(`${fn("close_accounting_period_if_clear")}(uuid)`)}
+
 -- Reopens a closed period with a reason. A period on or before the lock date
 -- stays closed; move the lock date first.
 create or replace function ${fn("reopen_accounting_period")}(period_id uuid, reason text)

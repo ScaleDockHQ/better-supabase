@@ -2693,7 +2693,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@8 managed
--- @bsb-hash sha256:5f93b1b75cfe01a8ec071cfc53abfd6561594699f7a3d9255aa4f97697ab778a
+-- @bsb-hash sha256:675e8915a5cd60671c3bb93919e1ea7fac4bac34548ad1e97575c697232250f8
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5666,6 +5666,27 @@ create policy bsb_tasks_receive on realtime.messages
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'tasks:%'
         and substr((select realtime.topic()), 7) in (select x::text from better_supabase.tenant_ids_with('tasks.read') x));
+
+-- Creates a work item (attrs and assignees as create_task) and starts its SLA
+-- clocks on subject_type, at priority, in one transaction. Returns { task,
+-- clocks }.
+create or replace function "better_supabase"."create_task_with_sla"(tenant uuid, attrs jsonb, assignees uuid[], subject_type text, priority text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_task jsonb;
+  v_clocks jsonb;
+begin
+  v_task := "better_supabase"."create_task"(create_task_with_sla.tenant, create_task_with_sla.attrs, create_task_with_sla.assignees);
+  v_clocks := "better_supabase"."start_sla_clocks"(create_task_with_sla.subject_type, v_task ->> 'id', create_task_with_sla.priority);
+  return jsonb_build_object('task', v_task, 'clocks', v_clocks);
+end;
+$$;
+revoke execute on function "better_supabase"."create_task_with_sla"(uuid, jsonb, uuid[], text, text) from public, anon;
+grant execute on function "better_supabase"."create_task_with_sla"(uuid, jsonb, uuid[], text, text) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

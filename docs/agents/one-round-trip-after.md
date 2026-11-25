@@ -119,14 +119,19 @@ Admin, `next start`, calls and waves per action (`actions.spec.ts`):
 
 Admin, `next start`, `actions.spec.ts`. After the composite is one call, the rest of an action's calls are the page re-render that `refresh()` starts (members, roles, teams, `entitlement_value`, shell).
 
-| Action            | Calls before | Calls after | Waves before to after | Commit     |
-| ----------------- | ------------ | ----------- | --------------------- | ---------- |
-| inviteWithinSeats | 10           | 7           | 6 to 3                | aca51816e  |
-| offboardEmployee  | 12           | 8           | 4 to 2                | 181affa563 |
-| reconcileAccount  | 11           | 2           | 3 to 2                | 7b60090543 |
-| onboardEmployee   | 10           | 8           | 3 to 2                | fbdbda00cd |
-| bookWithReminder  | 9            | 8           | 2 to 2                | eab25f2535 |
-| payDueBills       | 7            | 6           | 4 to 4                | (next)     |
+| Action                | Calls before | Calls after | Waves before to after | Commit     |
+| --------------------- | ------------ | ----------- | --------------------- | ---------- |
+| inviteWithinSeats     | 10           | 7           | 6 to 3                | aca51816e  |
+| offboardEmployee      | 12           | 8           | 4 to 2                | 181affa563 |
+| reconcileAccount      | 11           | 2           | 3 to 2                | 7b60090543 |
+| onboardEmployee       | 10           | 8           | 3 to 2                | fbdbda00cd |
+| bookWithReminder      | 9            | 8           | 2 to 2                | eab25f2535 |
+| payDueBills           | 7            | 6           | 4 to 4                | 4a9a637725 |
+| openTicket            | 6            | 4           | 3 to 2                | a93d8063fc |
+| closeAccountingPeriod | 4            | 2           | 3 to 2                | 61760799cd |
+| discussCase (kept)    | 5            | 4           | 2 to 2                | none       |
+
+`discussCase` stays as is. The app passes no tags, so `collaboration.discuss` is one `create_comment` call already; the measured drop from 5 to 4 calls comes from the shell work, not from the composite. A SQL function would only pay off for a caller that attaches tags, where it replaces one `attach` call per tag.
 
 ## Cache tiers and invalidation (ADRs 1240, 1241, 1244, 1245)
 

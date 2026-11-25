@@ -209,7 +209,7 @@ function clockOf(value: unknown): SlaClock {
   });
 }
 
-const clocks = (value: unknown): SlaClock[] =>
+export const clocks = (value: unknown): SlaClock[] =>
   recordsOf(value, "sla clocks").map(clockOf);
 
 /**

@@ -30,7 +30,7 @@ import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { applyTemporal, blockCall, textOf } from "../shared.ts";
+import { applyTemporal, blockCall, recordOf, textOf } from "../shared.ts";
 import {
   accountOf,
   balanceSheetOf,
@@ -213,6 +213,11 @@ export interface AccountingJournalInput {
 }
 
 /** A month of a fiscal year. */
+/** What `accounting.closePeriodIfClear` returns. */
+export type PeriodCloseResult =
+  | { readonly closed: true; readonly period: AccountingPeriod }
+  | { readonly closed: false; readonly blockers: readonly string[] };
+
 export interface AccountingPeriod {
   readonly id: string;
   readonly organizationId: string;
@@ -633,6 +638,13 @@ export interface Accounting<F extends object = Record<never, never>>
   closeBlockers(periodId: string): AsyncResult<readonly string[]>;
   /** Needs `accounting.close`. */
   closePeriod(periodId: string): AsyncResult<AccountingPeriod>;
+  /**
+   * Closes the period when nothing blocks it, in one call
+   * (`close_accounting_period_if_clear`, ADR 1235). A blocked period is not an
+   * error: the result lists the blockers and changes nothing. Needs
+   * `accounting.close`.
+   */
+  closePeriodIfClear(periodId: string): AsyncResult<PeriodCloseResult>;
   /** Needs `accounting.close` and a reason. */
   reopenPeriod(input: {
     periodId: string;
@@ -966,6 +978,28 @@ export function createAccounting<
         "close_accounting_period",
         { period_id: periodId },
         period("close_accounting_period"),
+      ),
+    closePeriodIfClear: (periodId) =>
+      call(
+        "close_accounting_period_if_clear",
+        { period_id: periodId },
+        (value) => {
+          const row = recordOf(value, "close_accounting_period_if_clear");
+
+          return row["closed"] === true
+            ? {
+                closed: true as const,
+                period: period("close_accounting_period_if_clear")(
+                  row["period"],
+                ),
+              }
+            : {
+                closed: false as const,
+                blockers: Array.isArray(row["blockers"])
+                  ? row["blockers"].map(textOf)
+                  : [],
+              };
+        },
       ),
     reopenPeriod: ({ periodId, reason }) =>
       call(

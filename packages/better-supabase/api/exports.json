@@ -8965,6 +8965,7 @@
       "OpeningBalance",
       "OpeningBalanceInput",
       "OpeningBalances",
+      "PeriodCloseResult",
       "ProfitAndLoss",
       "ReportLine",
       "RpcClient",
