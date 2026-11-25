@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:a45ca1551d10900ffba5e464a5c8b1767472c73b90e91a65e7c47f062c6d7d47
+-- @bsb-hash sha256:45d4d488bd397a93b1008d9bc241b88f479082f0d2ca3c6e526c05057c163dc3
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1727,7 +1727,7 @@ begin
   select true, l."organization_id" into found_entry, owner from "centrakit"."audit_logs" l where l."id"::text = entry;
   if found_entry is null or not (
     (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
-    or (select coalesce(better_supabase.is_platform('platform.users.manage'), false))
+    or (select coalesce(better_supabase.is_platform('audit.view'), false))
     or (owner is not null and coalesce(better_supabase.member_can(auth.uid(), owner, 'audit.view'), false))
   ) then
     raise exception 'No audit entry %', entry using errcode = 'P0002', hint = 'AUDIT_ENTRY_NOT_FOUND';
@@ -1769,7 +1769,7 @@ begin
   where l."id"::text = any (entries)
     and (
     (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
-    or (select coalesce(better_supabase.is_platform('platform.users.manage'), false))
+    or (select coalesce(better_supabase.is_platform('audit.view'), false))
     or (l."organization_id" is not null and coalesce(better_supabase.member_can(auth.uid(), l."organization_id", 'audit.view'), false))
     );
   select coalesce(jsonb_agg(jsonb_build_object('entry', v ->> 'entry', 'ip', d."ip_address", 'userAgent', d."user_agent", 'metadata', d."restricted_metadata")), '[]') into details
