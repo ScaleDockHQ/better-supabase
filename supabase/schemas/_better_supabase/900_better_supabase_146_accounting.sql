@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:4260ea9197ab88d7b91c89e3b4479299ad78a12eb428d9ec0427fea587a8a204
+-- @bsb-hash sha256:704fb9c613e6d6b1c51a30546937586c934e6b60e91e992f07e212745f612003
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3108,7 +3108,7 @@ begin
     raise exception 'an account item needs data' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    v_parent := coalesce(nullif(v_data ->> 'parentId', '')::uuid, (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and y."code" = v_data ->> 'parentCode'));
+    v_parent := (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and case when nullif(v_data ->> 'parentId', '') is not null then y."id" = nullif(v_data ->> 'parentId', '')::uuid else y."code" = v_data ->> 'parentCode' end);
     if nullif(v_data ->> 'parentCode', '') is not null and v_parent is null then
       raise exception 'the parent account code isn''t an account of the organization; import parents first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
@@ -3148,9 +3148,9 @@ begin
     raise exception 'a journal item needs data' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    v_default := coalesce(nullif(v_data ->> 'defaultAccountId', '')::uuid, (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and y."code" = v_data ->> 'defaultAccountCode'));
-    v_contra := coalesce(nullif(v_data ->> 'contraAccountId', '')::uuid, (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and y."code" = v_data ->> 'contraAccountCode'));
-    v_bank := coalesce(nullif(v_data ->> 'bankAccountId', '')::uuid, (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and y."code" = v_data ->> 'bankAccountCode'));
+    v_default := (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and case when nullif(v_data ->> 'defaultAccountId', '') is not null then y."id" = nullif(v_data ->> 'defaultAccountId', '')::uuid else y."code" = v_data ->> 'defaultAccountCode' end);
+    v_contra := (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and case when nullif(v_data ->> 'contraAccountId', '') is not null then y."id" = nullif(v_data ->> 'contraAccountId', '')::uuid else y."code" = v_data ->> 'contraAccountCode' end);
+    v_bank := (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and case when nullif(v_data ->> 'bankAccountId', '') is not null then y."id" = nullif(v_data ->> 'bankAccountId', '')::uuid else y."code" = v_data ->> 'bankAccountCode' end);
   exception
     when invalid_text_representation then
       raise exception 'a journal''s account ids are uuids' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
@@ -3231,9 +3231,9 @@ begin
     raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    v_journal := coalesce(nullif(v_data ->> 'journalId', '')::uuid,
-      (select y."id" from "better_supabase"."accounting_journals" y where y."tenant_id" = v_tenant and y."code" = v_data ->> 'journalCode'));
-    select jsonb_agg((e.value - 'accountCode') || jsonb_build_object('accountId', coalesce(nullif(e.value ->> 'accountId', '')::uuid, (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and y."code" = e.value ->> 'accountCode'))) order by e.ordinality),
+    v_journal := (select y."id" from "better_supabase"."accounting_journals" y where y."tenant_id" = v_tenant
+      and case when nullif(v_data ->> 'journalId', '') is not null then y."id" = nullif(v_data ->> 'journalId', '')::uuid else y."code" = v_data ->> 'journalCode' end);
+    select jsonb_agg((e.value - 'accountCode') || jsonb_build_object('accountId', (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and case when nullif(e.value ->> 'accountId', '') is not null then y."id" = nullif(e.value ->> 'accountId', '')::uuid else y."code" = e.value ->> 'accountCode' end)) order by e.ordinality),
       coalesce(sum((coalesce(nullif(e.value ->> 'debit', ''), '0'))::numeric), 0),
       coalesce(sum((coalesce(nullif(e.value ->> 'credit', ''), '0'))::numeric), 0)
     into v_lines, v_debit, v_credit
@@ -3287,7 +3287,7 @@ begin
     raise exception 'an opening balance needs a fiscalYear and an integer amount' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    v_account := coalesce(nullif(v_data ->> 'accountId', '')::uuid, (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and y."code" = v_data ->> 'accountCode'));
+    v_account := (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and case when nullif(v_data ->> 'accountId', '') is not null then y."id" = nullif(v_data ->> 'accountId', '')::uuid else y."code" = v_data ->> 'accountCode' end);
     return jsonb_build_object('subjectId', "better_supabase"."accounting_opening_write"(v_tenant, (v_data ->> 'fiscalYear')::integer, v_account,
       nullif(v_data ->> 'partyId', '')::uuid, (v_data ->> 'amount')::bigint));
   exception

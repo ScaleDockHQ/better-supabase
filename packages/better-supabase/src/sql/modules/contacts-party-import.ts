@@ -401,6 +401,43 @@ function personFields(ctx: BlockSqlContext, names: PartyNames): Field[] {
   ];
 }
 
+/**
+ * Whether `party` is a company or person of `tenant`. An import item may name a
+ * party by id, and the target writes as the definer, so the id must be the
+ * run's own organization's.
+ */
+function ownParty(
+  ctx: BlockSqlContext,
+  names: PartyNames,
+  tenant: string,
+  party: string,
+  kinds: readonly ("companies" | "people")[] = ["companies", "people"],
+): string {
+  const { t, c } = names;
+
+  const found = kinds
+    .filter((table) => ctx.hasTable(table))
+    .map(
+      (table) =>
+        `exists (select 1 from ${t(table)} p where p.${c(table, "id")} = ${party} and p.${c(table, "tenant")} = ${tenant})`,
+    );
+
+  return found.length === 0 ? "true" : `(${found.join(" or ")})`;
+}
+
+function ownPartyCheck(
+  ctx: BlockSqlContext,
+  names: PartyNames,
+  name: string,
+  party: string,
+  kinds?: readonly ("companies" | "people")[],
+): string {
+  return `
+  if not ${ownParty(ctx, names, `(${name}.item ->> 'tenant')::${ctx.idType}`, party, kinds)} then
+    ${fail("IMPORT_ITEM_INVALID", "the party isn't one of this organization", "22023")}
+  end if;`;
+}
+
 function linkTarget(ctx: BlockSqlContext, names: PartyNames): string {
   const { fn, t, c } = names;
   const li = (column: string): string => c("links", column);
@@ -428,7 +465,7 @@ declare
 begin
   if v_company is null or v_person is null then
     ${fail("IMPORT_ITEM_INVALID", "a party contact needs a company and a person", "22023")}
-  end if;
+  end if;${ownPartyCheck(ctx, names, "import_party_contact", "v_company", ["companies"])}${ownPartyCheck(ctx, names, "import_party_contact", "v_person", ["people"])}
   if exists (
     select 1 from ${t("links")} x
     where x.${li("company")} = v_company and x.${li("person")} = v_person
@@ -489,7 +526,7 @@ begin
   end if;
   if v_party is null or v_kind not in ('person', 'company') or v_channel not in ('email', 'phone', 'mobile', 'fax', 'whatsapp') or v_address is null then
     ${fail("IMPORT_ITEM_INVALID", "a contact method needs a party, a channel and an address", "22023")}
-  end if;
+  end if;${ownPartyCheck(ctx, names, "import_contact_method", "v_party")}
   select x.${ch("id")}, x.${ch("updatedAt")} into v_id, v_updated from ${t("channels")} x
   where x.${ch("tenant")} = (import_contact_method.item ->> 'tenant')::${ctx.idType}
     and x.${ch("party")} = v_party and x.${ch("channel")} = v_channel and x.${ch("address")} = v_address
@@ -569,7 +606,7 @@ declare
 begin
   if v_party is null then
     ${fail("IMPORT_ITEM_INVALID", "a location needs a party", "22023")}
-  end if;
+  end if;${ownPartyCheck(ctx, names, "import_party_location", "v_party")}
   if import_party_location.subject_id is not null then
     select x.${lo("id")}, x.${lo("updatedAt")}, ${fields.same} into v_id, v_updated, v_same
     from ${t("locations")} x
@@ -624,7 +661,7 @@ declare
 begin
   if v_party is null or not better_supabase.validate_iban(v_iban) then
     ${fail("IMPORT_ITEM_INVALID", "a bank account needs a party and a valid IBAN", "22023")}
-  end if;
+  end if;${ownPartyCheck(ctx, names, "import_party_bank_account", "v_party")}
   select x.${ba("id")}, x.${ba("updatedAt")} into v_id, v_updated from ${t("bankAccounts")} x
   where x.${ba("tenant")} = (import_party_bank_account.item ->> 'tenant')::${ctx.idType} and x.${ba("iban")} = v_iban
     and x.${ba("bic")} is not distinct from nullif(upper(btrim(v_data ->> 'bic')), '')
