@@ -16,6 +16,10 @@ import type {
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type {
+  Enrollment,
+  EnrollmentDates,
+} from "../enrollments/enrollments.ts";
 import type { RecordRef } from "../sales-shared.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
@@ -25,6 +29,7 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { datesArg, enrollmentOf } from "../enrollments/enrollments.ts";
 import { amountText, optionalMoneyOf } from "../money-codec.ts";
 import { compact, refOf } from "../sales-shared.ts";
 import {
@@ -285,6 +290,36 @@ export interface Employees<
       readonly reason?: string;
     },
   ): AsyncResult<Employee<F>>;
+  /**
+   * `offboard`, then cancels the employee's active enrollments and releases
+   * their assigned or requested shifts that start in the next `windowDays` days
+   * (30 by default), in one database call and one transaction
+   * (`offboard_with_work`, ADR 1235). Needs the enrollments and shifts modules.
+   * Returns the employee and how many of each it ended.
+   */
+  offboardWithWork(
+    input: { employeeId: string } & {
+      readonly endDate?: Temporal.PlainDate;
+      readonly reason?: string;
+      readonly windowDays?: number;
+    },
+  ): AsyncResult<{
+    employee: Employee<F>;
+    enrollments: number;
+    assignments: number;
+  }>;
+  /**
+   * `create`, then enrolls the employee in the onboarding `program` and sets
+   * the enrollment `dates`, in one database call and one transaction
+   * (`onboard_with_program`, ADR 1235). A failed enrollment rolls the employee
+   * back. Needs the enrollments module.
+   */
+  onboardWithProgram(input: {
+    organizationId: string;
+    input: EmployeeInput<F, St>;
+    program: string;
+    dates?: EnrollmentDates | undefined;
+  }): AsyncResult<{ employee: Employee<F>; enrollment: Enrollment }>;
   /**
    * Removes the employee for good, for one created by mistake, and moves the
    * reports as `offboard` does. `permissions.purge` gates it, falling back to
@@ -670,6 +705,54 @@ export function createEmployees<
         },
         employeeOf,
       ).andThen(parsed),
+    offboardWithWork: ({ employeeId, ...input }) =>
+      call(
+        "offboard_with_work",
+        {
+          employee: employeeId,
+          end_date: input.endDate?.toString() ?? null,
+          reason: input.reason ?? null,
+          window_days: input.windowDays ?? 30,
+        },
+        (value) => {
+          const row = recordOf(value, "offboard_with_work");
+
+          return {
+            employee: employeeOf(row["employee"]),
+            enrollments: Number(row["enrollments"]),
+            assignments: Number(row["assignments"]),
+          };
+        },
+      ).andThen(({ employee, ...counts }) =>
+        parsed(employee).map((read) => ({ employee: read, ...counts })),
+      ),
+    onboardWithProgram: ({ organizationId, input, program, dates }) =>
+      attrsOf(input)
+        .andThen((attrs) =>
+          call(
+            "onboard_with_program",
+            {
+              tenant: organizationId,
+              attrs,
+              program,
+              dates: dates === undefined ? null : datesArg(dates),
+            },
+            (value) => {
+              const row = recordOf(value, "onboard_with_program");
+
+              return {
+                employee: employeeOf(row["employee"]),
+                enrollment: enrollmentOf(
+                  row["enrollment"],
+                  "onboard_with_program",
+                ),
+              };
+            },
+          ),
+        )
+        .andThen(({ employee, enrollment }) =>
+          parsed(employee).map((read) => ({ employee: read, enrollment })),
+        ),
     purge: (employeeId) =>
       call("purge_employee", { employee: employeeId }, employeeOf).andThen(
         parsed,

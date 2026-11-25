@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:38152ecf4d09ea43e5251cd9d230044b4ed5fcfe379eaec9f6889c1a0216420a
+-- @bsb-hash sha256:95a3bc2a76e571ded68b705e5a0705a389fa330244fb3eff1c2366d1b76d2ece
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -858,6 +858,7 @@ $$;
 revoke execute on function "better_supabase"."reports_of"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."reports_of"(uuid, boolean) to authenticated, service_role;
 
+
 -- An employee's private details, or null when none are saved.
 create or replace function "better_supabase"."employee_private_details"(employee uuid)
 returns jsonb
@@ -1069,7 +1070,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:5f0fc4deb5cae2ff7d4b5a78b391449a0a94de5555d6d9061b86c245f73479c6
+-- @bsb-hash sha256:b0bc258106fe333e7e404c1f53541a4efa29175fcfa88b4cf0bc180e0c15a1c1
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1975,6 +1976,77 @@ $$;
 revoke execute on function "better_supabase"."employee_from_application"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."employee_from_application"(uuid, jsonb) to authenticated, service_role;
 
+-- Offboards the employee, cancels their active enrollments and releases their
+-- open shift assignments that start from today to window_days days ahead, in
+-- one transaction. Steps that are already done change nothing, so it can run
+-- again. Returns the employee, and how many enrollments and assignments it
+-- ended.
+create or replace function "better_supabase"."offboard_with_work"(employee uuid, end_date date, reason text, window_days integer default 30)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_employee jsonb;
+  v_user uuid;
+  v_id uuid;
+  v_enrollments integer := 0;
+  v_assignments integer := 0;
+begin
+  v_employee := "better_supabase"."offboard_employee"(offboard_with_work.employee, offboard_with_work.end_date, offboard_with_work.reason);
+  select x."user_id" into v_user from "better_supabase"."employees" x where x."id" = offboard_with_work.employee;
+  for v_id in
+    select x."id" from "better_supabase"."enrollments" x
+    where x."subject_type" = 'employee' and x."subject_id" = offboard_with_work.employee::text and x."status" = 'active'
+      and position(':' in x."program") = 0
+    order by x."id"
+  loop
+    perform "better_supabase"."cancel_enrollment"(v_id);
+    v_enrollments := v_enrollments + 1;
+  end loop;
+  if v_user is not null then
+    for v_id in
+      select x."id" from "better_supabase"."shift_assignments" x
+      where x."user_id" = v_user and x."status" in ('assigned', 'requested')
+        and x."starts_at" >= current_date and x."starts_at" < current_date + offboard_with_work.window_days
+      order by x."starts_at", x."id"
+    loop
+      perform "better_supabase"."unassign_shift"(v_id, offboard_with_work.reason);
+      v_assignments := v_assignments + 1;
+    end loop;
+  end if;
+  return jsonb_build_object('employee', v_employee, 'enrollments', v_enrollments, 'assignments', v_assignments);
+end;
+$$;
+revoke execute on function "better_supabase"."offboard_with_work"(uuid, date, text, integer) from public, anon;
+grant execute on function "better_supabase"."offboard_with_work"(uuid, date, text, integer) to authenticated, service_role;
+
+
+-- Creates the employee (attrs as create_employee), enrolls them in the program
+-- and sets the enrollment dates ({ startsAt?, endsAt? }, optional), in one
+-- transaction. Returns { employee, enrollment }.
+create or replace function "better_supabase"."onboard_with_program"(tenant uuid, attrs jsonb, program text, dates jsonb default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_employee jsonb;
+  v_enrollment jsonb;
+begin
+  v_employee := "better_supabase"."create_employee"(onboard_with_program.tenant, onboard_with_program.attrs);
+  v_enrollment := "better_supabase"."enroll"(onboard_with_program.tenant, onboard_with_program.program, 'employee', v_employee ->> 'id');
+  if onboard_with_program.dates is not null and jsonb_typeof(onboard_with_program.dates) = 'object' and onboard_with_program.dates <> '{}'::jsonb then
+    v_enrollment := "better_supabase"."set_enrollment_dates"((v_enrollment ->> 'id')::uuid, onboard_with_program.dates);
+  end if;
+  return jsonb_build_object('employee', v_employee, 'enrollment', v_enrollment);
+end;
+$$;
+revoke execute on function "better_supabase"."onboard_with_program"(uuid, jsonb, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."onboard_with_program"(uuid, jsonb, text, jsonb) to authenticated, service_role;
+
 -- An employee's private details, or null when none are saved.
 create or replace function "better_supabase"."employee_private_details"(employee uuid)
 returns jsonb
@@ -2285,7 +2357,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:3d743b64d67727d17dc11cba03c2897f9ca87d698be6bb609cbd7f18ed65829a
+-- @bsb-hash sha256:2f57f40e6a216978ed0ae1b99246edd1b3665f4a1326a35468d4e40c02c6035f
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3147,6 +3219,7 @@ $$;
 revoke execute on function "app_private"."reports_of"(uuid, boolean) from public, anon;
 grant execute on function "app_private"."reports_of"(uuid, boolean) to authenticated, service_role;
 
+
 -- An employee's private details, or null when none are saved.
 create or replace function "app_private"."employee_private_details"(employee uuid)
 returns jsonb
@@ -3358,7 +3431,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:e8509288409910130f068449462aa51efd07d7532b350d1504cb6e074006fce2
+-- @bsb-hash sha256:4209c08f49483720d65b42fdbb24fc9525fd44a058214a7356b4495c018f28d1
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4215,6 +4288,7 @@ $$;
 revoke execute on function "better_supabase"."reports_of"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."reports_of"(uuid, boolean) to authenticated, service_role;
 
+
 -- An employee's private details, or null when none are saved.
 create or replace function "better_supabase"."employee_private_details"(employee uuid)
 returns jsonb
@@ -4544,7 +4618,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:f2ba5cf86525db2d673af4579317e05b3b2311d833d0d87299d32cd22fb18ba7
+-- @bsb-hash sha256:5289b0ca97a44008049ac6e2700891e7d16939dbd1d6ff7abb121f034e12eba2
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5390,6 +5464,7 @@ $$;
 revoke execute on function "better_supabase"."reports_of"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."reports_of"(uuid, boolean) to authenticated, service_role;
 
+
 -- An employee's private details, or null when none are saved.
 create or replace function "better_supabase"."employee_private_details"(employee uuid)
 returns jsonb
@@ -5607,7 +5682,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:f45fc116e5860cd8a29e4b4126a2a1169bcc074835ec2b5929f8dbbda18ef83f
+-- @bsb-hash sha256:433de534d1ff93930918b4cd2ad184ac548429fad18ec26a7a590061ef322710
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6463,6 +6538,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."reports_of"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."reports_of"(uuid, boolean) to authenticated, service_role;
+
 
 -- An employee's private details, or null when none are saved.
 create or replace function "better_supabase"."employee_private_details"(employee uuid)

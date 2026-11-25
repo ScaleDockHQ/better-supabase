@@ -1,6 +1,6 @@
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:0b87c15056bb84257ec0deab620617f25a23275e1f10cb169a41b3e4b8dbcba0
+-- @bsb-hash sha256:cf05ffcb93633d2c8388fbcf3089d029367fb8850a89b7b2f124d50573065c3a
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1453,6 +1453,31 @@ revoke execute on function "better_supabase"."cancel_payment_batch"(uuid) from p
 grant execute on function "better_supabase"."cancel_payment_batch"(uuid) to authenticated, service_role;
 
 
+-- Creates a draft payment batch (input as create_payment_batch) and posts it,
+-- in one transaction. Returns { batch, accounts }; accounts (every bank
+-- account, archived ones included) only when with_accounts is true.
+create or replace function "better_supabase"."pay_payment_batch"(tenant uuid, input jsonb, with_accounts boolean default false)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_batch jsonb;
+begin
+  v_batch := "better_supabase"."create_payment_batch"(pay_payment_batch.tenant, pay_payment_batch.input);
+  v_batch := "better_supabase"."post_payment_batch"((v_batch ->> 'id')::uuid);
+  return jsonb_build_object(
+    'batch', v_batch,
+    'accounts', case when pay_payment_batch.with_accounts
+      then "better_supabase"."list_bank_accounts"(pay_payment_batch.tenant, true)
+      else '[]'::jsonb end);
+end;
+$$;
+revoke execute on function "better_supabase"."pay_payment_batch"(uuid, jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."pay_payment_batch"(uuid, jsonb, boolean) to authenticated, service_role;
+
+
 -- Matches a bank rule's filter tree against a transaction's fields (ADR 0046).
 create or replace function "better_supabase"."bank_rule_condition"(node jsonb, payload jsonb)
 returns boolean
@@ -2071,6 +2096,51 @@ revoke execute on function "better_supabase"."apply_bank_rules"(uuid) from publi
 grant execute on function "better_supabase"."apply_bank_rules"(uuid) to authenticated, service_role;
 
 
+-- Matches an account's unmatched transactions (newest first, line_limit of
+-- them, default 20) to their best open invoice, in one transaction. A
+-- transaction without a suggestion that scores min_score (default: any) is
+-- listed in unmatched; a match that fails is listed in failed and the rest go
+-- on. Returns { matched: [transaction], unmatched: [id], failed: [{
+-- transactionId, message }] }.
+create or replace function "better_supabase"."reconcile_bank_account"(account_id uuid, min_score numeric default null, line_limit integer default 20)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_line jsonb;
+  v_best jsonb;
+  v_matched jsonb := '[]'::jsonb;
+  v_unmatched jsonb := '[]'::jsonb;
+  v_failed jsonb := '[]'::jsonb;
+begin
+  for v_line in
+    select value from jsonb_array_elements("better_supabase"."list_bank_transactions"(
+      reconcile_bank_account.account_id,
+      jsonb_build_object('status', 'unmatched', 'limit', coalesce(reconcile_bank_account.line_limit, 20))))
+  loop
+    v_best := "better_supabase"."suggest_bank_matches"((v_line ->> 'id')::uuid) -> 0;
+    if v_best is null
+      or (reconcile_bank_account.min_score is not null and (v_best ->> 'score')::numeric < reconcile_bank_account.min_score) then
+      v_unmatched := v_unmatched || to_jsonb(v_line ->> 'id');
+      continue;
+    end if;
+    begin
+      v_matched := v_matched || "better_supabase"."match_bank_transaction"(
+        (v_line ->> 'id')::uuid,
+        jsonb_build_array(jsonb_build_object('targetType', 'invoice', 'targetId', v_best ->> 'targetId')));
+    exception when others then
+      v_failed := v_failed || jsonb_build_object('transactionId', v_line ->> 'id', 'message', sqlerrm);
+    end;
+  end loop;
+  return jsonb_build_object('matched', v_matched, 'unmatched', v_unmatched, 'failed', v_failed);
+end;
+$$;
+revoke execute on function "better_supabase"."reconcile_bank_account"(uuid, numeric, integer) from public, anon;
+grant execute on function "better_supabase"."reconcile_bank_account"(uuid, numeric, integer) to authenticated, service_role;
+
+
 -- An account's reconciliation page in one call: where it stands, and its latest
 -- transactions with the best invoice for each unmatched one. It runs as the
 -- caller and reads through the status and listing functions.
@@ -2414,6 +2484,15 @@ as $$ select "better_supabase"."cancel_payment_batch"($1) $$;
 revoke execute on function "api"."cancel_payment_batch"(uuid) from public, anon;
 grant execute on function "api"."cancel_payment_batch"(uuid) to authenticated, service_role;
 
+create or replace function "api"."pay_payment_batch"(tenant uuid, input jsonb, with_accounts boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."pay_payment_batch"($1, $2, $3) $$;
+revoke execute on function "api"."pay_payment_batch"(uuid, jsonb, boolean) from public, anon;
+grant execute on function "api"."pay_payment_batch"(uuid, jsonb, boolean) to authenticated, service_role;
+
 create or replace function "api"."suggest_bank_matches"(transaction_id uuid)
 returns jsonb
 language sql
@@ -2487,6 +2566,15 @@ set search_path = ''
 as $$ select "better_supabase"."apply_bank_rules"($1) $$;
 revoke execute on function "api"."apply_bank_rules"(uuid) from public, anon;
 grant execute on function "api"."apply_bank_rules"(uuid) to authenticated, service_role;
+
+create or replace function "api"."reconcile_bank_account"(account_id uuid, min_score numeric default null, line_limit integer default 20)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."reconcile_bank_account"($1, $2, $3) $$;
+revoke execute on function "api"."reconcile_bank_account"(uuid, numeric, integer) from public, anon;
+grant execute on function "api"."reconcile_bank_account"(uuid, numeric, integer) to authenticated, service_role;
 
 create or replace function "api"."bank_reconciliation_board"(account_id uuid, line_limit integer default 50)
 returns jsonb

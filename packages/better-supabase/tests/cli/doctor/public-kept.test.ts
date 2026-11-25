@@ -109,3 +109,43 @@ describe("BS645", () => {
     expect(findings).toEqual([]);
   });
 });
+
+describe("BS647", () => {
+  const rule = RULES.find((entry) => entry.code === "BS647")!;
+
+  const withSources = (...texts: string[]): DoctorContext => ({
+    ...context(base),
+    sources: texts.map((text, index) => ({ path: `src/f${index}.ts`, text })),
+  });
+
+  const KEPT = 'export const a = bsb.kept(async () => 1, { name: "a" });\n';
+
+  it("warns when no source sets kept.store", () => {
+    const findings = rule.check(withSources(KEPT));
+
+    expect(findings).toHaveLength(1);
+  });
+
+  it("warns when the store is the memory store", () => {
+    const findings = rule.check(
+      withSources(
+        KEPT,
+        "createNext(x, { kept: { store: memoryKeptStore() } });",
+      ),
+    );
+
+    expect(findings).toHaveLength(1);
+  });
+
+  it("is quiet with a durable store or without kept entries", () => {
+    expect(
+      rule.check(
+        withSources(
+          KEPT,
+          "createNext(x, { kept: { store: postgresKeptStore({ client }) } });",
+        ),
+      ),
+    ).toStrictEqual([]);
+    expect(rule.check(withSources("export const x = 1;\n"))).toStrictEqual([]);
+  });
+});

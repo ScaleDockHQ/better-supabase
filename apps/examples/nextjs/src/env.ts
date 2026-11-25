@@ -30,6 +30,7 @@ const {
   CONNECT_OUTLOOK_CONNECTOR,
   BSB_REMOTE_CACHE_DIR,
   BSB_DURABLE_USE_CACHE,
+  BSB_KEPT_STORE,
   BSB_REMOTE_CACHE_STORE,
   BSB_TAG_PROBE_SECRET,
   STRIPE_SECRET_KEY,
@@ -92,6 +93,15 @@ export const env = createEnv({
       v.picklist(["file", "postgres"]),
       "file",
     ),
+    // Where `bsb.kept()` keeps its entries (src/lib/supabase/kept-store.ts).
+    // `memory`: each instance on its own. `postgres`: the tables of
+    // `postgresCacheSql()`, shared by every instance and kept across a restart.
+    // `vercel`: the Vercel Runtime Cache, with a Postgres lease so one instance
+    // fills a missing key.
+    BSB_KEPT_STORE: v.optional(
+      v.picklist(["memory", "postgres", "vercel"]),
+      "memory",
+    ),
     // Turns on /api/probe/vercel-tags at 32 characters or more; the route
     // checks the length, since this schema also ships to the browser.
     BSB_TAG_PROBE_SECRET: v.optional(v.string()),
@@ -131,6 +141,7 @@ export const env = createEnv({
     CONNECT_OUTLOOK_CONNECTOR,
     BSB_REMOTE_CACHE_DIR,
     BSB_DURABLE_USE_CACHE,
+    BSB_KEPT_STORE,
     BSB_REMOTE_CACHE_STORE,
     BSB_TAG_PROBE_SECRET,
     STRIPE_SECRET_KEY,

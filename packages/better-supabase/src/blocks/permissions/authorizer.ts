@@ -1,3 +1,4 @@
+import type { PermissionCatalog } from "../../auth/permission-bitset.ts";
 import type {
   AuthorizationOutcome,
   AuthorizationRequest,
@@ -6,6 +7,7 @@ import type {
   RequestMemo,
 } from "../../core/authorizer.ts";
 
+import { permissionCatalog } from "../../auth/permission-bitset.ts";
 import { keysFromClaims } from "../../auth/permissions.ts";
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import { permissionMatches } from "./permissions-controller.ts";
@@ -22,6 +24,14 @@ export interface PermissionsAuthorizerOptions<Key extends string> {
    * table's `read`, `write`, `create`, `update` or `delete` key.
    */
   readonly permissions: PermissionMap<Key>;
+  /**
+   * The catalog the bitset form of the `permissions` claim is read over, from
+   * `permissionCatalog(permissionKeys)` with the generated `permissionKeys`. It
+   * must hold every key of the database catalog, so the default (the keys of
+   * the `permissions` map, which leaves out keys no block checks) only matches
+   * a hook that writes the key list.
+   */
+  readonly catalog?: PermissionCatalog;
   /**
    * The caller's keys in a tenant when the token can't answer (no claim, no
    * entry for the tenant, or the hook marked it truncated), for example
@@ -68,6 +78,14 @@ export function permissionsAuthorizer<Key extends string>(
 ): Authorizer<Key> {
   const claim = options.claim ?? DEFAULT_CLAIMS.permissions;
 
+  const catalog =
+    options.catalog ??
+    permissionCatalog(
+      Object.values(options.permissions).flatMap((owner) =>
+        Object.values(owner),
+      ),
+    );
+
   const keysFor = async (
     request: AuthorizationRequest<Key>,
     runtime: AuthorizerRuntime | undefined,
@@ -83,6 +101,7 @@ export function permissionsAuthorizer<Key extends string>(
       tenant,
       claim,
       options.truncatedClaim,
+      catalog,
     );
 
     if (fromToken !== undefined || options.load === undefined) {
@@ -164,11 +183,12 @@ function claimedKeys(
   tenant: string,
   claim: string,
   marker: string | undefined,
+  catalog: PermissionCatalog,
 ): readonly string[] | undefined {
   const claims = properties?.["claims"];
 
   return isRecord(claims)
-    ? keysFromClaims(claims, tenant, claim, marker)
+    ? keysFromClaims(claims, tenant, claim, marker, catalog)
     : undefined;
 }
 

@@ -42,8 +42,9 @@ export default defineConfig({
       tags: crud,
       customer_tags: crud,
       organizations: ["select"],
-      plans: ["select"],
-      plan_features: ["select"],
+      // The pricing page reads the plan catalog as a visitor.
+      plans: { anon: ["select"], authenticated: ["select"] },
+      plan_features: { anon: ["select"], authenticated: ["select"] },
       subscriptions: ["select"],
       // The bulk bar calls it over /rpc as the signed-in member.
       "work_bulk_state(uuid, text, text, jsonb)": {
@@ -793,6 +794,12 @@ export default defineConfig({
           islands: {
             function: "public.island_counts",
             tables: ["customers", "notes", "contacts", "tags", "tasks"],
+          },
+          // The page shell in one call: organizations, profile, the pending
+          // approvals count and the compact permissions (ADR 1232).
+          shell: {
+            function: "public.shell_bootstrap",
+            tables: ["organizations", "memberships", "profiles", "approvals"],
           },
         },
       },

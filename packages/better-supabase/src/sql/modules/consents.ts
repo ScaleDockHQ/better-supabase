@@ -198,6 +198,13 @@ const quoted = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
 function tables(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
+  const consentsReadable = registryReadable(
+    ctx,
+    layout,
+    "consents",
+    "consents_subject_readable",
+  );
+
   const q = consentsSql(ctx);
   const { p, c, has, purposes, consents } = q;
 
@@ -252,7 +259,7 @@ create index if not exists ${name("consents", "subject_idx")} on ${consents} (${
 create index if not exists ${name("consents", "purpose_idx")} on ${consents} (${c("purpose")});
 create index if not exists ${name("consents", "expiry_idx")} on ${consents} (${c("validUntil")}) where ${c("status")} = 'granted' and ${c("validUntil")} is not null;
 ${lockTable(consents, { read: true })}
-${renderPolicy(makePolicy({ table: consents, name: name("consents", "read"), command: "select", roles: ["authenticated"], using: `(${ctx.scope.check(c("tenant"), q.read)} and ${registryReadable(ctx, layout, "consents", { type: `${consents}.${c("subjectType")}`, id: `${consents}.${c("subjectId")}`, tenant: `${consents}.${c("tenant")}` })}) or ${c("givenByUser")} = (select auth.uid())` }), { target: consents })}
+${consentsReadable.sql}${renderPolicy(makePolicy({ table: consents, name: name("consents", "read"), command: "select", roles: ["authenticated"], using: `(${ctx.scope.check(c("tenant"), q.read)} and ${consentsReadable.using({ type: `${consents}.${c("subjectType")}`, id: `${consents}.${c("subjectId")}`, tenant: `${consents}.${c("tenant")}` })}) or ${c("givenByUser")} = (select auth.uid())` }), { target: consents })}
 `;
 }
 
@@ -344,7 +351,12 @@ function contract(): readonly BlockSqlContractFunction[] {
 }
 
 export const CONSENTS: BlockSqlDefinition = {
-  internal: ["parse_tc_string", "parse_gpp_string", "consent_missing"],
+  internal: [
+    "parse_tc_string",
+    "parse_gpp_string",
+    "consent_missing",
+    "consents_subject_readable",
+  ],
   name: "consents",
   scopes: ["tenant"],
   title: "Consents",

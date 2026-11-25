@@ -1,7 +1,9 @@
 import type { ClaimsRecord, ClaimsSource } from "./claims-source.ts";
+import type { PermissionCatalog } from "./permission-bitset.ts";
 
 import { DEFAULT_CLAIMS, truncatedMarker } from "../core/claims.ts";
 import { claimsFrom } from "./claims-source.ts";
+import { expandPermissionBitset } from "./permission-bitset.ts";
 import { tenantOf } from "./tenant.ts";
 
 export interface PermissionsOfOptions {
@@ -20,6 +22,11 @@ export interface PermissionsOfOptions {
    * out.
    */
   readonly tenantClaim?: string;
+  /**
+   * The catalog that expands the bitset form of the claim (`{ h, b }`), from
+   * `permissionCatalog`. Without it only a key list answers.
+   */
+  readonly catalog?: PermissionCatalog;
 }
 
 /**
@@ -58,6 +65,7 @@ export function permissionsOf<C, P>(
         id,
         options.claim ?? DEFAULT_CLAIMS.permissions,
         options.truncatedClaim,
+        options.catalog,
       );
 }
 
@@ -80,6 +88,7 @@ export function keysFromClaims(
   tenant: string,
   claim: string,
   marker?: string,
+  catalog?: PermissionCatalog,
 ): readonly string[] | undefined {
   if (isTruncated(claims, claim, { marker })) {
     return undefined;
@@ -93,7 +102,13 @@ export function keysFromClaims(
 
   const keys = byTenant[tenant];
 
-  return isKeyList(keys) ? keys : undefined;
+  if (isKeyList(keys)) {
+    return keys;
+  }
+
+  return catalog === undefined
+    ? undefined
+    : expandPermissionBitset(catalog, keys);
 }
 
 function isKeyList(value: unknown): value is readonly string[] {

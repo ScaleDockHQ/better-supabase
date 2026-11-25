@@ -6,6 +6,7 @@ import { createNext } from "better-supabase/next";
 
 import { env } from "@/env";
 
+import { catalog } from "../permission-catalog";
 import { betterSupabaseApi } from "./api";
 import { permissions } from "./blocks.config";
 import { sharedCounters } from "./session-counters";
@@ -15,13 +16,19 @@ const options: NextOptions = {
   auth: { cookie: { encode: "tokens-only" } },
   debug: {
     enabled: env.EXPOSE_TESTING_API === "1",
+    // First-request timings, read by the harness (`cold=` in the stats header).
+    coldStart: env.EXPOSE_TESTING_API === "1",
     budget: { calls: 8, waves: 2 },
     route: "/api/bs-stats",
   },
   replicas: { pinMs: 5000 },
   // The same counters as `server.ts`, so `/api/bs-sessions` counts every server.
   sessions: { counters: sharedCounters() },
-  authorizer: permissionsAuthorizer({ permissions, load: myPermissions }),
+  authorizer: permissionsAuthorizer({
+    permissions,
+    catalog,
+    load: myPermissions,
+  }),
 };
 
 /**

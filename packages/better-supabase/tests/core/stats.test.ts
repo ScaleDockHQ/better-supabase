@@ -6,6 +6,7 @@ import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import {
   EMPTY_STATS,
+  byteSizeOf,
   StatsRecorder,
   recordingFetch,
 } from "../../src/core/stats.ts";
@@ -47,6 +48,27 @@ describe("db.$stats()", () => {
       tables: ["customers", "notes", "tags", "customer_stats()"],
     });
     expect(stats.ms).toBeGreaterThan(0);
+  });
+
+  it("traces each call with its wave and phase", async () => {
+    const request = new StatsRecorder();
+    const db = createSupabase(schema).connect(executor, {}, { stats: request });
+
+    await Promise.all([db.customers.list(), db.notes.list()]);
+    request.setPhase("action");
+    await db.tags.list();
+    request.setPhase("render");
+    await db.customers.count();
+
+    const trace = request.snapshot().trace ?? [];
+    expect(trace.map((call) => [call.name, call.wave, call.phase])).toEqual([
+      ["customers", 1, "render"],
+      ["notes", 1, "render"],
+      ["tags", 2, "action"],
+      ["customers", 3, "render"],
+    ]);
+    expect(trace[0]?.startMs).toBe(0);
+    expect(trace.every((call) => call.endMs >= call.startMs)).toBe(true);
   });
 
   it("reports into a request-wide recorder", async () => {
@@ -93,6 +115,26 @@ describe("StatsRecorder verifications and admin calls", () => {
       verifications: 1,
       adminCalls: 1,
     });
+  });
+});
+
+describe("StatsRecorder cache details", () => {
+  it("keeps the expired tag names and reports them to the parent", () => {
+    const parent = new StatsRecorder();
+    const child = new StatsRecorder(parent);
+
+    child.tagCalls(2, ["bsb:a", "bsb:b"]);
+    child.tagCalls(1);
+
+    expect(parent.snapshot()).toMatchObject({
+      tagCalls: 3,
+      expiredTags: ["bsb:a", "bsb:b"],
+    });
+  });
+
+  it("measures a value as JSON bytes", () => {
+    expect(byteSizeOf({ a: "é" })).toBe(10);
+    expect(byteSizeOf(undefined)).toBeUndefined();
   });
 });
 

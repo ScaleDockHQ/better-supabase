@@ -34,7 +34,7 @@ Hiring lives in [`recruiting`](/docs/blocks/recruiting), which the `people` pres
 
 ## Helpers
 
-`onboard` and `offboard`: `onboard` creates the employee and enrolls them in an onboarding program. `offboard` ends the employment, cancels the listed enrollments and unassigns the listed shifts, stopping at the first failure.
+`onboard` and `offboard`: `onboard` creates the employee and enrolls them in an onboarding program, in one database call and one transaction (`employees.onboardWithProgram`): a failed enrollment rolls the employee back, so retry the whole `onboard`, and the TypeScript hooks of `employees.create` and `enrollments.enroll` do not fire. `offboard` ends the employment, cancels the listed enrollments and unassigns the listed shifts, stopping at the first failure. Without `enrollmentIds` and `assignmentIds`, `offboard` makes one database call (`employees.offboardWithWork`): it also ends the employee's active enrollments and unassigns their shifts in the next `windowDays` days (30 by default) in one transaction, and the TypeScript hooks of the parts do not fire.
 
 ```ts
 await blocks.people.onboard({

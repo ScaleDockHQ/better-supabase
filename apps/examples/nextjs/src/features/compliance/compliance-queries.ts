@@ -5,10 +5,13 @@ import type { MoneyJson } from "better-supabase/commerce";
 
 import { moneyToJson } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
 import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
+
+import { COMPLIANCE_TAG } from "./compliance-cache";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -45,6 +48,7 @@ export interface RenewalRow {
 
 async function loadRenewals(): Promise<readonly RenewalRow[] | null> {
   "use cache: private";
+  cacheTag(COMPLIANCE_TAG);
   const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
@@ -102,6 +106,7 @@ export interface Posture {
 
 async function loadPosture(): Promise<Posture | null> {
   "use cache: private";
+  cacheTag(COMPLIANCE_TAG);
   const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
@@ -153,6 +158,7 @@ export interface PurposeRow {
 
 async function loadPurposes(): Promise<readonly PurposeRow[] | null> {
   "use cache: private";
+  cacheTag(COMPLIANCE_TAG);
   const { session, db } = await bsb.cached();
 
   if (!tenantOf(session)) {
@@ -200,6 +206,7 @@ async function loadFramework(
   frameworkId: string,
 ): Promise<FrameworkDetail | null> {
   "use cache: private";
+  cacheTag(COMPLIANCE_TAG);
   const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
@@ -242,4 +249,88 @@ export function getFramework(
   frameworkId: string,
 ): Promise<Loaded<FrameworkDetail>> {
   return settle(() => loadFramework(frameworkId));
+}
+
+/** A piece of evidence on a control, serializable. */
+export interface EvidenceRow {
+  readonly id: string;
+  readonly note: string | null;
+  readonly collectedAt: string;
+  readonly validUntil: string | null;
+  readonly valid: boolean;
+}
+
+/** An evidence task on a control, serializable. */
+export interface EvidenceTaskRow {
+  readonly id: string;
+  readonly title: string;
+  readonly intervalDays: number;
+  readonly dueOn: string;
+  readonly overdue: boolean;
+}
+
+export interface ControlDetailData extends ControlRow {
+  readonly frameworkId: string;
+  readonly description: string | null;
+  readonly evidence: readonly EvidenceRow[];
+  readonly tasks: readonly EvidenceTaskRow[];
+}
+
+async function loadControl(
+  controlId: string,
+): Promise<ControlDetailData | null> {
+  "use cache: private";
+  cacheTag(COMPLIANCE_TAG);
+  const { session, db } = await bsb.cached();
+
+  if (!tenantOf(session)) {
+    return null;
+  }
+
+  const found = await db.compliance.getControl(controlId);
+
+  if (!found.ok) {
+    if (found.error.code === "not_found") {
+      return null;
+    }
+
+    throw new Error(found.error.message);
+  }
+
+  const control = found.data;
+
+  return {
+    id: control.id,
+    frameworkId: control.frameworkId,
+    code: control.code,
+    title: control.title,
+    description: control.description ?? null,
+    status: control.status,
+    source: control.source ?? null,
+    jurisdiction: control.jurisdiction ?? null,
+    evidence: control.evidence.map((item) => ({
+      id: item.id,
+      note: item.note ?? null,
+      collectedAt: item.collectedAt.toString(),
+      validUntil: item.validUntil?.toString() ?? null,
+      valid: item.valid,
+    })),
+    tasks: control.tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      intervalDays: task.intervalDays,
+      dueOn: task.dueOn.toString(),
+      overdue: task.overdue,
+    })),
+  };
+}
+
+/**
+ * One control with its evidence and evidence tasks; `no-organization` also
+ * covers a missing control.
+ */
+export function getControl(
+  controlId: string,
+): Promise<Loaded<ControlDetailData>> {
+  return settle(() => loadControl(controlId));
 }

@@ -61,11 +61,13 @@ export interface KeptDeps<Ctx extends KeptContext<C, P>, C, P> {
   readonly userTags: (userId: string) => readonly string[];
   readonly waitUntil: (work: Promise<unknown>) => void;
   /** Records the store's tag calls on the current request. */
-  readonly onTagCalls?: (calls: number) => void;
+  readonly onTagCalls?: (calls: number, tags: readonly string[]) => void;
   /** Records how a call was served, on the request `source` came from. */
   readonly onEntry?: (
     record: CacheEntryStat,
     source: SessionHandle | undefined,
+    /** What the call returned, for its size. */
+    value: unknown,
   ) => void;
   /** The `anon` context a `share: "public"` entry fills with. */
   readonly publicScope: () => KeptScope<Ctx, C, P>;
@@ -149,7 +151,7 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
           const tags = cacheTagsOf(target);
 
           await attached.expireTags(tags);
-          deps.onTagCalls?.(batches(tags));
+          deps.onTagCalls?.(batches(tags), tags);
         },
       });
     }
@@ -171,7 +173,7 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
     cacheOf()
       .expireTags(tags)
       .then(() => {
-        deps.onTagCalls?.(batches(tags));
+        deps.onTagCalls?.(batches(tags), tags);
       })
       .catch((cause: unknown) => {
         deps.events.logger.warn("bsb.kept() could not expire its tags", {
@@ -328,6 +330,7 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
           ...(served.fillMs === undefined ? {} : { fillMs: served.fillMs }),
         },
         source,
+        served.value,
       );
 
       return served.value;

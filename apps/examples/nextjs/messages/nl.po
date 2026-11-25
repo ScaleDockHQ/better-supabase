@@ -431,6 +431,7 @@ msgid "Post ideas and questions, and vote on the ones you want."
 msgstr "Plaats ideeën en vragen, en stem op de ideeën die je wilt."
 
 #: src/app/[locale]/(app)/compliance/[framework]/page.tsx
+#: src/app/[locale]/(app)/compliance/controls/[id]/page.tsx
 msgctxt "compliance.jYMbbM"
 msgid "All frameworks"
 msgstr "Alle raamwerken"
@@ -757,6 +758,11 @@ msgctxt "dam.NZSq_3"
 msgid "Who may use your files, where, and until when."
 msgstr "Wie uw bestanden mag gebruiken, waar en tot wanneer."
 
+#: src/app/[locale]/(app)/deadlines/[id]/page.tsx
+msgctxt "work.FPdA2f"
+msgid "All deadlines"
+msgstr "Alle deadlines"
+
 #: src/app/[locale]/(app)/deadlines/page.tsx
 msgctxt "work.SxEfhc"
 msgid "Deadlines"
@@ -774,6 +780,7 @@ msgid "All documents"
 msgstr "Alle documenten"
 
 #: src/app/[locale]/(app)/documents/page.tsx
+#: src/features/documents/components/documents-overview.tsx
 msgctxt "documents.vBlT6y"
 msgid "Documents"
 msgstr "Documenten"
@@ -880,6 +887,16 @@ msgstr "Zendingen"
 msgctxt "field.7grP0Y"
 msgid "Track packages from label to delivery."
 msgstr "Volg pakketten van label tot bezorging."
+
+#: src/app/[locale]/(app)/finance/invoices/page.tsx
+msgctxt "finance.ulh3kf"
+msgid "Collections"
+msgstr "Incasso"
+
+#: src/app/[locale]/(app)/finance/invoices/page.tsx
+msgctxt "finance.VisrRr"
+msgid "How overdue sales invoices are reminded."
+msgstr "Hoe achterstallige verkoopfacturen worden herinnerd."
 
 #: src/app/[locale]/(app)/finance/page.tsx
 msgctxt "accounting.Fm3M-y"
@@ -1161,6 +1178,11 @@ msgstr "Medicatie"
 msgctxt "medications.ydg6xP"
 msgid "Today's medication chart: what each order gives and which doses are given, refused or missed."
 msgstr "Het medicatieoverzicht van vandaag: wat elk voorschrift geeft en welke doses gegeven, geweigerd of gemist zijn."
+
+#: src/app/[locale]/(app)/meetings/[id]/page.tsx
+msgctxt "meetings.eIYVw5"
+msgid "All meetings"
+msgstr "Alle vergaderingen"
 
 #: src/app/[locale]/(app)/meetings/page.tsx
 #: src/features/meetings/components/meeting-agenda.tsx
@@ -2115,6 +2137,7 @@ msgid "The list was cut off. Ask for a page instead."
 msgstr "De lijst is afgekapt. Vraag in plaats daarvan om een pagina."
 
 #: src/components/finance-pages/finance-pages.tsx
+#: src/features/dunning/components/collections-section.tsx
 msgctxt "finance.6dqYnF"
 msgid "Invoices"
 msgstr "Facturen"
@@ -4905,6 +4928,8 @@ msgid "Person"
 msgstr "Persoon"
 
 #: src/features/appraisals/components/appraisal-list.tsx
+#: src/features/appraisals/components/calibrate-dialog.tsx
+#: src/features/appraisals/components/write-review-dialog.tsx
 msgctxt "appraisals.ETRyBL"
 msgid "Rating"
 msgstr "Beoordeling"
@@ -4948,6 +4973,57 @@ msgstr "Open een beoordelingsronde met de mensen die je wilt beoordelen, en elk 
 msgctxt "appraisals.ZrWlbO"
 msgid "Read the appraisals guide"
 msgstr "Lees de gids over beoordelingen"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.H8PFXe"
+msgid "Appraisal calibrated"
+msgstr "Beoordeling gekalibreerd"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.0olBvz"
+msgid "Calibrate"
+msgstr "Kalibreren"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.ILukLY"
+msgid "The calibrated rating replaces the review average; the reason stays with it."
+msgstr "De gekalibreerde score vervangt het gemiddelde van de reviews; de reden blijft erbij bewaard."
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.AkCxS_"
+msgid "Reason"
+msgstr "Reden"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.Migr-m"
+msgid "Review submitted"
+msgstr "Review ingediend"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.BC1G69"
+msgid "Write review"
+msgstr "Review schrijven"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.iC6lit"
+msgid "Rate each competency from 1 to 5."
+msgstr "Geef elke competentie een score van 1 tot 5."
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.wCgTu5"
+msgid "Comments"
+msgstr "Opmerkingen"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.rJrHB6"
+msgid "Submit review"
+msgstr "Review indienen"
 
 #: src/features/approvals/components/approval-decision.tsx
 msgctxt "approvals.GkMwHf"
@@ -9009,6 +9085,42 @@ msgctxt "community.eKv7yX"
 msgid "Post"
 msgstr "Plaatsen"
 
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.KXQUKy"
+msgid "Evidence added"
+msgstr "Bewijs toegevoegd"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.kCPl0r"
+msgid "Collect"
+msgstr "Verzamelen"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.KcIDna"
+msgid "Add evidence"
+msgstr "Bewijs toevoegen"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.1EsE9r"
+msgid "The note answers this task and moves its due date."
+msgstr "De notitie beantwoordt deze taak en verschuift de vervaldatum."
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.NQbn_1"
+msgid "The note counts as evidence until it is removed."
+msgstr "De notitie telt als bewijs tot ze wordt verwijderd."
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.qMePPG"
+msgid "Note"
+msgstr "Notitie"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
 #: src/features/compliance/components/consent-register.tsx
 msgctxt "compliance.GlRxTV"
 msgid "Consent"
@@ -9057,6 +9169,7 @@ msgstr "De toestemmingsdoelen zijn niet geladen"
 
 #: src/features/compliance/components/consent-register.tsx
 #: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-detail.tsx
 #: src/features/compliance/components/control-posture.tsx
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.162kF7"
@@ -9065,6 +9178,7 @@ msgstr "Probeer het zo opnieuw."
 
 #: src/features/compliance/components/consent-register.tsx
 #: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-detail.tsx
 #: src/features/compliance/components/control-posture.tsx
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.62nsdy"
@@ -9107,6 +9221,7 @@ msgid "Lasts"
 msgstr "Geldig"
 
 #: src/features/compliance/components/consent-register.tsx
+#: src/features/compliance/components/control-detail.tsx
 msgctxt "compliance.6g7-6N"
 msgid "Evidence"
 msgstr "Bewijs"
@@ -9216,6 +9331,109 @@ msgctxt "compliance.NRVEF5"
 msgid "Renewal"
 msgstr "Verlenging"
 
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.s7eEy-"
+msgid "The control didn't load"
+msgstr "De beheersmaatregel is niet geladen"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/compliance/components/control-detail.tsx
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.aH4De2"
+msgid "Source"
+msgstr "Bron"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.eHi_1a"
+msgid "Jurisdiction"
+msgstr "Rechtsgebied"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.ZwRlCF"
+msgid "Evidence tasks"
+msgstr "Bewijstaken"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.pum3VA"
+msgid "An overdue task fails the control until evidence answers it."
+msgstr "Een achterstallige taak laat de beheersmaatregel falen tot bewijs haar beantwoordt."
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.KyVqPd"
+msgid "No task collects evidence for this control."
+msgstr "Geen taak verzamelt bewijs voor deze beheersmaatregel."
+
+#: src/features/compliance/components/control-detail.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.0wJ7N-"
+msgid "Task"
+msgstr "Taak"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.JE2YVb"
+msgid "Every"
+msgstr "Elke"
+
+#: src/features/compliance/components/control-detail.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.g9pEhE"
+msgid "Due"
+msgstr "Verschuldigd"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.UA5qaX"
+msgid "{days, plural, one {# day} other {# days}}"
+msgstr "{days, plural, one {# dag} other {# dagen}}"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.M0vCGv"
+msgid "Overdue"
+msgstr "Achterstallig"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.pxvvd-"
+msgid "Valid evidence passes the control; expired evidence fails it."
+msgstr "Geldig bewijs laat de beheersmaatregel slagen; verlopen bewijs laat haar falen."
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.RodRmI"
+msgid "No evidence yet."
+msgstr "Nog geen bewijs."
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.DKZAKD"
+msgid "Collected"
+msgstr "Verzameld"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.C3Fz7P"
+msgid "Valid until"
+msgstr "Geldig tot"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.eLCAEP"
+msgid "Attachment"
+msgstr "Bijlage"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.GwMpla"
+msgid "No end"
+msgstr "Geen einde"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.RahCRH"
+msgid "Expired"
+msgstr "Verlopen"
+
 #: src/features/compliance/components/control-posture.tsx
 msgctxt "compliance.F1fkR9"
 msgid "The control posture didn't load"
@@ -9282,45 +9500,35 @@ msgid "Every evidence task is on schedule."
 msgstr "Elke bewijstaak ligt op schema."
 
 #: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.0wJ7N-"
-msgid "Task"
-msgstr "Taak"
-
-#: src/features/compliance/components/control-posture.tsx
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.NZ9-vv"
 msgid "Control"
 msgstr "Beheersmaatregel"
 
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.g9pEhE"
-msgid "Due"
-msgstr "Verschuldigd"
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.rFsne8"
+msgid "Passing"
+msgstr "Voldoet"
+
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.tKELc3"
+msgid "Failing"
+msgstr "Voldoet niet"
+
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.xTTP0x"
+msgid "Not started"
+msgstr "Niet gestart"
+
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.61zy45"
+msgid "Not applicable"
+msgstr "Niet van toepassing"
 
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.x5gHeJ"
 msgid "The framework didn't load"
 msgstr "Het raamwerk is niet geladen"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.rFsne8"
-msgid "Passing"
-msgstr "Voldoet"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.tKELc3"
-msgid "Failing"
-msgstr "Voldoet niet"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.xTTP0x"
-msgid "Not started"
-msgstr "Niet gestart"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.61zy45"
-msgid "Not applicable"
-msgstr "Niet van toepassing"
 
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.JW6TBv"
@@ -9341,11 +9549,6 @@ msgstr "Dit raamwerk heeft nog geen beheersmaatregelen."
 msgctxt "compliance.h2vipu"
 msgid "Code"
 msgstr "Code"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.aH4De2"
-msgid "Source"
-msgstr "Bron"
 
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.tzMNF3"
@@ -11859,6 +12062,7 @@ msgid "Done"
 msgstr "Klaar"
 
 #: src/features/deadlines/components/deadline-badges.tsx
+#: src/features/deadlines/components/deadline-detail.tsx
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.g9pEhE"
 msgid "Due"
@@ -11869,15 +12073,73 @@ msgctxt "work.5jeq8P"
 msgid "Unknown"
 msgstr "Onbekend"
 
-#: src/features/deadlines/components/deadline-overview.tsx
-msgctxt "work.BsCAMY"
-msgid "Deadlines didn't load"
-msgstr "De deadlines zijn niet geladen"
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.ZnUPBp"
+msgid "{group} in {jurisdiction}"
+msgstr "{group} in {jurisdiction}"
 
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/deadlines/components/deadline-detail.tsx
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.065UXh"
 msgid "No date"
 msgstr "Geen datum"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.ZpQ6us"
+msgid "Result"
+msgstr "Resultaat"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.RGfEbk"
+msgid "Evaluated on"
+msgstr "Beoordeeld op"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.XTdAcD"
+msgid "Rule"
+msgstr "Regel"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.7Y6Yvq"
+msgid "Record"
+msgstr "Dossier"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.wxw8HK"
+msgid "Citation"
+msgstr "Bronvermelding"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.7_uozC"
+msgid "Open questions"
+msgstr "Openstaande vragen"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.B0H4HM"
+msgid "A missing answer could still change this date."
+msgstr "Een ontbrekend antwoord kan deze datum nog wijzigen."
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.u841Br"
+msgid "Nothing can change this date."
+msgstr "Niets kan deze datum nog wijzigen."
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.J2U3Ow"
+msgid "Every fact the rule asks is known."
+msgstr "Alle gegevens die de regel vraagt zijn bekend."
+
+#: src/features/deadlines/components/deadline-overview.tsx
+msgctxt "work.BsCAMY"
+msgid "Deadlines didn't load"
+msgstr "De deadlines zijn niet geladen"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.9BRK8k"
@@ -11885,11 +12147,13 @@ msgid "provisional"
 msgstr "voorlopig"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
+#: src/features/deadlines/components/mark-deadline-done.tsx
 msgctxt "work.yjcwJc"
 msgid "Deadline marked done"
 msgstr "Deadline als afgerond gemarkeerd"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
+#: src/features/deadlines/components/mark-deadline-done.tsx
 msgctxt "work.tQpQon"
 msgid "Mark done"
 msgstr "Afronden"
@@ -11903,16 +12167,6 @@ msgstr "Deadline"
 msgctxt "work.HpoDwk"
 msgid "Group"
 msgstr "Groep"
-
-#: src/features/deadlines/components/deadline-record-list.tsx
-msgctxt "work.7Y6Yvq"
-msgid "Record"
-msgstr "Dossier"
-
-#: src/features/deadlines/components/deadline-record-list.tsx
-msgctxt "work.ZpQ6us"
-msgid "Result"
-msgstr "Resultaat"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
 #: src/features/work/components/work-item-grid.tsx
@@ -12371,6 +12625,31 @@ msgstr "Naar klanten"
 msgctxt "documents.PeEood"
 msgid "Customer updated"
 msgstr "Klant bijgewerkt"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.bhKIeh"
+msgid "One notes document per customer"
+msgstr "Eén notitiedocument per klant"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.I3JeAb"
+msgid "Edited in the last week"
+msgstr "Bewerkt in de afgelopen week"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.0a-4L_"
+msgid "Counted back from the latest edit"
+msgstr "Geteld vanaf de laatste bewerking"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.U7YmWe"
+msgid "Latest edit"
+msgstr "Laatste bewerking"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.FFUSSK"
+msgid "Of any document"
+msgstr "Van alle documenten"
 
 #: src/features/domains/components/domain-controls.tsx
 msgctxt "domains.NBobyu"
@@ -12884,6 +13163,16 @@ msgid "Downloads of {name} are allowed"
 msgstr "Downloads van {name} zijn toegestaan"
 
 #: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.N5riU8"
+msgid "Public link for {name} copied (valid for 7 days)"
+msgstr "Openbare link voor {name} gekopieerd (7 dagen geldig)"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.PySD5Q"
+msgid "Shared {name} with {shared} roles, {failed} refused"
+msgstr "{name} gedeeld met {shared} rollen, {failed} geweigerd"
+
+#: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.icI5MO"
 msgid "Actions for {name}"
 msgstr "Acties voor {name}"
@@ -12928,6 +13217,16 @@ msgstr "Naam wijzigen"
 msgctxt "drive.OKhRC6"
 msgid "Share"
 msgstr "Delen"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.nl3NW_"
+msgid "Share with members and admins"
+msgstr "Delen met leden en beheerders"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.kDdfK_"
+msgid "Copy public link"
+msgstr "Openbare link kopiëren"
 
 #: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.7uRmpM"
@@ -13099,6 +13398,107 @@ msgstr "Delen met"
 msgctxt "drive.qxg3uo"
 msgid "Access"
 msgstr "Toegang"
+
+#: src/features/dunning/components/apply-standard-levels.tsx
+msgctxt "finance.3PvOJp"
+msgid "Reminder levels saved"
+msgstr "Herinneringsniveaus opgeslagen"
+
+#: src/features/dunning/components/apply-standard-levels.tsx
+msgctxt "finance.HPPBYk"
+msgid "Use the standard levels"
+msgstr "Standaardniveaus gebruiken"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.uw2XV3"
+msgid "Collections didn't load"
+msgstr "Incasso is niet geladen"
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-list.tsx
+msgctxt "finance.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-list.tsx
+msgctxt "finance.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.r82ITf"
+msgid "No reminder levels yet"
+msgstr "Nog geen herinneringsniveaus"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.u_KWLM"
+msgid "Reminder levels decide when an overdue invoice gets a reminder and what fee it adds."
+msgstr "Herinneringsniveaus bepalen wanneer een achterstallige factuur een herinnering krijgt en welke kosten erbij komen."
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.VJKxru"
+msgid "No fee"
+msgstr "Geen kosten"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.71Hm2s"
+msgid "Reminder levels"
+msgstr "Herinneringsniveaus"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.R8qHC3"
+msgid "An overdue sales invoice climbs a level at each step."
+msgstr "Een achterstallige verkoopfactuur stijgt bij elke stap een niveau."
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.y1Qr81"
+msgid "Level"
+msgstr "Niveau"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.nvzEMZ"
+msgid "Days after due"
+msgstr "Dagen na vervaldatum"
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.uT4OlP"
+msgid "Fee"
+msgstr "Kosten"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.0QBqgR"
+msgid "Final notice"
+msgstr "Laatste aanmaning"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.4qFgpX"
+msgid "Reminder runs"
+msgstr "Herinneringsrondes"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance._cyA8S"
+msgid "The daily job raises each overdue invoice to its level."
+msgstr "De dagelijkse taak zet elke achterstallige factuur op haar niveau."
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.kUBOGb"
+msgid "No run has picked an invoice yet."
+msgstr "Nog geen ronde heeft een factuur opgepakt."
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.B8Zi2z"
+msgid "As of"
+msgstr "Per"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.TkYZBT"
+msgid "Customers"
+msgstr "Klanten"
 
 #: src/features/e-prescribing/components/prescription-detail.tsx
 msgctxt "prescriptions.JNXKgf"
@@ -14392,18 +14792,6 @@ msgid "The record did not load"
 msgstr "Het record kon niet worden geladen"
 
 #: src/features/finance-records/components/finance-detail.tsx
-#: src/features/finance-records/components/finance-list.tsx
-msgctxt "finance.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
-
-#: src/features/finance-records/components/finance-detail.tsx
-#: src/features/finance-records/components/finance-list.tsx
-msgctxt "finance.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/finance-records/components/finance-detail.tsx
 #: src/features/finance-records/components/finance-record-list.tsx
 msgctxt "finance.a5msuh"
 msgid "Yes"
@@ -14621,16 +15009,6 @@ msgstr "Herinneringen"
 msgctxt "finance.P7PLVj"
 msgid "Date"
 msgstr "Datum"
-
-#: src/features/finance-records/components/finance-detail.tsx
-msgctxt "finance.y1Qr81"
-msgid "Level"
-msgstr "Niveau"
-
-#: src/features/finance-records/components/finance-detail.tsx
-msgctxt "finance.uT4OlP"
-msgid "Fee"
-msgstr "Kosten"
 
 #: src/features/finance-records/components/finance-detail.tsx
 msgctxt "finance.m4vW-f"
@@ -14898,6 +15276,26 @@ msgstr "Vak"
 msgctxt "finance.MA_K-j"
 msgid "The return has no boxes."
 msgstr "De aangifte heeft geen vakken."
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.ot70TW"
+msgid "Close blockers"
+msgstr "Blokkades voor afsluiten"
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.mjXHSf"
+msgid "Blocker"
+msgstr "Blokkade"
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.h2E9rN"
+msgid "The period is closed."
+msgstr "De periode is afgesloten."
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.qiDOWf"
+msgid "Nothing blocks the close."
+msgstr "Niets houdt het afsluiten tegen."
 
 #: src/features/finance-records/components/finance-detail.tsx
 msgctxt "finance.Gz0Fja"
@@ -25172,6 +25570,36 @@ msgctxt "projects.dxuPgK"
 msgid "{hours} h tracked, {billable} h billable"
 msgstr "{hours} u geregistreerd, {billable} u factureerbaar"
 
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.5NRfCE"
+msgid "Time awaiting approval"
+msgstr "Uren die op goedkeuring wachten"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.Pb0ZlE"
+msgid "Approve a submitted week and invoice the unbilled time in one step."
+msgstr "Keur een ingediende week goed en factureer de nog niet gefactureerde uren in één stap."
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.y67OJt"
+msgid "No submitted week is waiting for approval."
+msgstr "Er wacht geen ingediende week op goedkeuring."
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.097bWr"
+msgid "Week of {week}"
+msgstr "Week van {week}"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.PuMdgs"
+msgid "Approve and invoice"
+msgstr "Goedkeuren en factureren"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.Rg9Z_g"
+msgid "Week approved and invoiced"
+msgstr "Week goedgekeurd en gefactureerd"
+
 #: src/features/projects/components/project-time-card.tsx
 msgctxt "projects.CeHomx"
 msgid "Time and budget"
@@ -26214,17 +26642,17 @@ msgstr "Annuleren"
 #: src/features/records/components/record-conversations.tsx
 msgctxt "records.1udzha"
 msgid "Conversations"
-msgstr ""
+msgstr "Gesprekken"
 
 #: src/features/records/components/record-conversations.tsx
 msgctxt "records.SKoJhi"
 msgid "Threads of the people linked to this record."
-msgstr ""
+msgstr "Gesprekken van de mensen die aan dit dossier gekoppeld zijn."
 
 #: src/features/records/components/record-conversations.tsx
 msgctxt "records.K3msCw"
 msgid "No conversation yet."
-msgstr ""
+msgstr "Nog geen gesprek."
 
 #: src/features/records/components/record-sections.tsx
 msgctxt "records.wCgTu5"
@@ -26309,17 +26737,17 @@ msgstr "{minutes} min ervoor"
 #: src/features/records/components/record-tasks.tsx
 msgctxt "records.yhU1et"
 msgid "Tasks"
-msgstr ""
+msgstr "Taken"
 
 #: src/features/records/components/record-tasks.tsx
 msgctxt "records.kXx2XK"
 msgid "Work linked to this record."
-msgstr ""
+msgstr "Werk dat aan dit dossier gekoppeld is."
 
 #: src/features/records/components/record-tasks.tsx
 msgctxt "records.rNMhN-"
 msgid "No task is linked to this record."
-msgstr ""
+msgstr "Er is geen taak aan dit dossier gekoppeld."
 
 #: src/features/records/components/record-timeline.tsx
 msgctxt "records.LgbKvU"
@@ -26374,17 +26802,17 @@ msgstr "Iemand"
 #: src/features/records/components/record-workflows.tsx
 msgctxt "records.qq5vr2"
 msgid "Workflow progress"
-msgstr ""
+msgstr "Voortgang van workflows"
 
 #: src/features/records/components/record-workflows.tsx
 msgctxt "records.X6V2eS"
 msgid "Runs started for this record."
-msgstr ""
+msgstr "Runs die voor dit dossier gestart zijn."
 
 #: src/features/records/components/record-workflows.tsx
 msgctxt "records.SbfMf4"
 msgid "No workflow has run for this record."
-msgstr ""
+msgstr "Er is geen workflow voor dit dossier uitgevoerd."
 
 #: src/features/records/components/related-items-panel.tsx
 msgctxt "records.ec6yww"
@@ -30052,6 +30480,11 @@ msgid "Go to"
 msgstr "Ga naar"
 
 #: src/features/search/components/command-center.tsx
+msgctxt "search.L_QYEd"
+msgid "Areas"
+msgstr "Gebieden"
+
+#: src/features/search/components/command-center.tsx
 msgctxt "search.wSAvhu"
 msgid "Assistant"
 msgstr "Assistent"
@@ -32611,6 +33044,11 @@ msgstr "Actief"
 msgctxt "signingKeys.JJNc3c"
 msgid "Previous"
 msgstr "Vorige"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.yIv4lB"
+msgid "Receivers read the public keys at"
+msgstr "Ontvangers lezen de publieke sleutels op"
 
 #: src/features/sso/components/sso-controls.tsx
 msgctxt "sso.VZTS3k"

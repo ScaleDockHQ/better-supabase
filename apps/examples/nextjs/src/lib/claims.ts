@@ -58,12 +58,21 @@ export const Claims = v.looseObject({
     v.looseObject({ tenant_id: v.optional(v.pipe(v.string(), v.uuid())) }),
   ),
   memberships: Memberships,
-  // `better_supabase.permission_claims()` through the hook: the permission
-  // keys of the active organization, keyed by its id. Past the hook's budget
-  // the record is empty and `permissions_truncated` is set; `permissionsOf()`
-  // then returns `undefined` and the app reads `my_permissions()`.
+  // `better_supabase.permission_claims_bitset()` through the hook: the
+  // active organization's id with a catalog hash and a bitset of its
+  // permissions. `permissionsOf()` expands it over `lib/permission-catalog.ts`
+  // and returns `undefined` for a hash it doesn't know, so the app reads
+  // `my_permissions()`. A list of keys is still accepted.
   permissions: v.fallback(
-    v.optional(v.record(v.string(), v.array(v.string()))),
+    v.optional(
+      v.record(
+        v.string(),
+        v.union([
+          v.array(v.string()),
+          v.object({ h: v.string(), b: v.string() }),
+        ]),
+      ),
+    ),
     undefined,
   ),
   permissions_truncated: v.optional(v.boolean()),

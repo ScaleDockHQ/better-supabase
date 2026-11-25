@@ -1,27 +1,15 @@
-import { tenantOf } from "better-supabase/next";
-import { cacheLife, cacheTag } from "next/cache";
-
 import { SidebarMenuBadge } from "@/components/ui/sidebar";
-import { APPROVALS_TAG } from "@/features/approvals/approvals-cache";
-import { bsb } from "@/lib/supabase/server";
+import { getShell } from "@/features/shell/shell-queries";
 
-/** Pending approval requests the caller can see; a short private cache. */
+/** Pending approval requests the caller can see, from the shell's one entry. */
 async function pendingApprovals(): Promise<number> {
-  "use cache: private";
-  cacheLife({ stale: 30, revalidate: 60, expire: 300 });
-  cacheTag(APPROVALS_TAG);
+  const shell = await getShell();
 
-  const { session, db } = await bsb.cached();
-
-  if (!tenantOf(session)) {
+  if (!shell.tenant) {
     return 0;
   }
 
-  const counted = await db.approvals.count({
-    filters: { status: ["pending"] },
-  });
-
-  return counted.ok ? counted.data.value : 0;
+  return shell.data?.approvals_pending ?? 0;
 }
 
 /**

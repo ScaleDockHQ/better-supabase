@@ -23,7 +23,9 @@ import {
 } from "./banking-batches.ts";
 import { bankingFunctions } from "./banking-functions.ts";
 import { bankingMatching } from "./banking-matching.ts";
+import { bankingPay } from "./banking-pay.ts";
 import { BANK_READS, bankingReads } from "./banking-reads.ts";
+import { bankingReconcile } from "./banking-reconcile.ts";
 import { linked } from "./banking-sql.ts";
 import { bankingTables } from "./banking-tables.ts";
 
@@ -197,7 +199,9 @@ ${bankingTables(ctx)}
 ${batchTablesSql(ctx)}
 ${bankingFunctions(ctx)}
 ${batchFunctions(ctx)}
+${bankingPay(ctx)}
 ${bankingMatching(ctx)}
+${bankingReconcile(ctx)}
 ${bankingReads(ctx)}
 ${linked(ctx, "accounting") ? accountingSourcesSql(ctx, bankingAccountingSources(ctx)) : ""}`;
 }
@@ -227,6 +231,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     {
       name: "match_bank_transaction",
       args: ["uuid", "jsonb"],
+      returns: "jsonb",
+    },
+    {
+      name: "reconcile_bank_account",
+      args: ["uuid", "numeric", "integer"],
       returns: "jsonb",
     },
     { name: "unmatch_bank_transaction", args: ["uuid"], returns: "jsonb" },

@@ -11,9 +11,11 @@ import {
   DownloadIcon,
   EllipsisIcon,
   LockIcon,
+  LinkIcon,
   LockOpenIcon,
   PencilIcon,
   Share2Icon,
+  UsersIcon,
   Trash2Icon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
@@ -42,6 +44,10 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  createPublicLink,
+  shareDriveWithRoles,
+} from "@/features/composites/composites-actions";
 import { useUndoToast } from "@/features/trash/components/undo-toast";
 import { toast } from "@/lib/toast";
 
@@ -130,6 +136,33 @@ export function DriveItemActions({
     },
   });
 
+  const publicLink = useAction(createPublicLink, {
+    onSuccess: ({ token }) => {
+      void navigator.clipboard.writeText(token);
+      toast.success(
+        t("Public link for {name} copied (valid for 7 days)", { name }),
+      );
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const shareRoles = useAction(shareDriveWithRoles, {
+    onSuccess: ({ shared, failed }) => {
+      toast.success(
+        t("Shared {name} with {shared} roles, {failed} refused", {
+          name,
+          shared: String(shared),
+          failed: String(failed),
+        }),
+      );
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
   return (
     <>
       <DropdownMenu>
@@ -204,6 +237,28 @@ export function DriveItemActions({
           >
             <Share2Icon />
             {t("Share")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={shareRoles.pending}
+            onClick={() => {
+              void shareRoles.run({
+                id,
+                roles: ["member", "admin"],
+                role: "viewer",
+              });
+            }}
+          >
+            <UsersIcon />
+            {t("Share with members and admins")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={publicLink.pending}
+            onClick={() => {
+              void publicLink.run({ id, days: 7 });
+            }}
+          >
+            <LinkIcon />
+            {t("Copy public link")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

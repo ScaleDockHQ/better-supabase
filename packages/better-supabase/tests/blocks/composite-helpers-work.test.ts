@@ -7,6 +7,7 @@ import { createEvents } from "../../src/blocks/events/index.ts";
 import { createGovernance } from "../../src/blocks/governance/index.ts";
 import { createLearning } from "../../src/blocks/learning/index.ts";
 import { createPeople } from "../../src/blocks/people/index.ts";
+import { createProcurement } from "../../src/blocks/procurement/index.ts";
 import { createProjects } from "../../src/blocks/projects/index.ts";
 import { createSaas } from "../../src/blocks/saas/index.ts";
 import { createService } from "../../src/blocks/service/index.ts";
@@ -30,45 +31,47 @@ const step = <T>(order: string[], name: string, value: T): AsyncResult<T> => {
 const parts = <T>(value: object): T => value as T;
 
 describe("saas.inviteWithinSeats", () => {
-  const build = (left: number | undefined) => {
-    const invite = vi.fn(() => done({ token: "t" }));
+  it("hands the invite to the one-call organizations method", async () => {
+    const inviteWithinSeats = vi.fn(() => done({ token: "t" }));
 
     const saas = createSaas(
-      parts({
-        parts: {
-          organizations: {
-            members: () => done([{ id: "a" }, { id: "b" }]),
-            invite,
-          },
-          entitlements: { seatsLeft: vi.fn(() => done(left)) },
-        },
-      }),
+      parts({ parts: { organizations: { inviteWithinSeats } } }),
     );
 
-    return { invite, saas };
-  };
+    const result = await saas.inviteWithinSeats({
+      organizationId: "o",
+      email: "a@b.c",
+      role: "member",
+    });
 
-  const input = { organizationId: "o", email: "a@b.c", role: "member" };
-
-  it("invites while a seat is left", async () => {
-    const { invite, saas } = build(1);
-
-    expect((await saas.inviteWithinSeats(input)).ok).toBe(true);
-    expect(invite).toHaveBeenCalledOnce();
+    expect(result.ok).toBe(true);
+    expect(inviteWithinSeats).toHaveBeenCalledExactlyOnceWith({
+      organizationId: "o",
+      email: "a@b.c",
+      role: "member",
+    });
   });
 
-  it("invites when the plan has no seat limit", async () => {
-    const { invite, saas } = build(undefined);
+  it("passes a custom validity and returns the refusal", async () => {
+    const inviteWithinSeats = vi.fn(() =>
+      Promise.resolve(err(dbError("invalid_request", "no seat"))),
+    );
 
-    expect((await saas.inviteWithinSeats(input)).ok).toBe(true);
-    expect(invite).toHaveBeenCalledOnce();
-  });
+    const saas = createSaas(
+      parts({ parts: { organizations: { inviteWithinSeats } } }),
+    );
 
-  it("refuses without a seat and sends nothing", async () => {
-    const { invite, saas } = build(0);
+    const result = await saas.inviteWithinSeats({
+      organizationId: "o",
+      email: "a@b.c",
+      role: "member",
+      validFor: "1 day",
+    });
 
-    expect((await saas.inviteWithinSeats(input)).ok).toBe(false);
-    expect(invite).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
+    expect(inviteWithinSeats).toHaveBeenCalledWith(
+      expect.objectContaining({ validFor: "1 day" }),
+    );
   });
 });
 
@@ -130,6 +133,23 @@ describe("support.openTicket", () => {
     expect(start).toHaveBeenCalledWith({
       subject: { type: "task", id: "t1" },
       priority: "high",
+    });
+  });
+
+  it("starts the SLA on the configured ticket subject", async () => {
+    const start = vi.fn(() => done([{ id: "c" }]));
+
+    const support = createSupport(
+      parts({
+        ticketSubject: "ticket",
+        parts: { tasks: { create: () => done({ id: "t1" }) }, sla: { start } },
+      }),
+    );
+
+    await support.openTicket({ organizationId: "o", ticket });
+
+    expect(start).toHaveBeenCalledWith({
+      subject: { type: "ticket", id: "t1" },
     });
   });
 
@@ -238,14 +258,16 @@ describe("service.completeVisit", () => {
 });
 
 describe("people", () => {
-  it("onboards by enrolling the new employee", async () => {
-    const enroll = vi.fn(() => done({ id: "e1" }));
+  it("onboards with one employees.onboardWithProgram call", async () => {
+    const onboardWithProgram = vi.fn(() =>
+      done({ employee: { id: "emp" }, enrollment: { id: "e1" } }),
+    );
 
     const people = createPeople(
       parts({
         parts: {
-          employees: { create: () => done({ id: "emp" }) },
-          enrollments: { enroll },
+          employees: { onboardWithProgram },
+          enrollments: {},
           shifts: {},
         },
       }),
@@ -258,9 +280,11 @@ describe("people", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(enroll).toHaveBeenCalledWith({
+    expect(onboardWithProgram).toHaveBeenCalledExactlyOnceWith({
+      organizationId: "o",
+      input: { name: "Ann" },
       program: "onboarding",
-      subject: { type: "employee", id: "emp" },
+      dates: undefined,
     });
   });
 
@@ -291,6 +315,38 @@ describe("people", () => {
       assignmentId: "x",
       reason: "left",
     });
+  });
+
+  it("ends the open work in one call without the id lists", async () => {
+    const offboardWithWork = vi.fn(() =>
+      done({ employee: { id: "emp" }, enrollments: 2, assignments: 1 }),
+    );
+
+    const cancel = vi.fn(() => done({}));
+
+    const people = createPeople(
+      parts({
+        parts: {
+          employees: { offboardWithWork },
+          enrollments: { cancel },
+          shifts: { unassign: vi.fn() },
+        },
+      }),
+    );
+
+    const result = await people.offboard({
+      employeeId: "emp",
+      reason: "left",
+      windowDays: 14,
+    });
+
+    expect(result.data).toMatchObject({ enrollments: 2, assignments: 1 });
+    expect(offboardWithWork).toHaveBeenCalledExactlyOnceWith({
+      employeeId: "emp",
+      reason: "left",
+      windowDays: 14,
+    });
+    expect(cancel).not.toHaveBeenCalled();
   });
 
   it("stops before the shifts when a cancel fails", async () => {
@@ -427,6 +483,25 @@ describe("cms.publishWithVersion", () => {
     });
   });
 
+  it("snapshots the content entry when no subject is given", async () => {
+    const snapshot = vi.fn(() => done({ id: "v1" }));
+
+    const cms = createCms(
+      parts({
+        parts: {
+          versions: { snapshot },
+          content: { publish: () => done({ id: "e" }) },
+        },
+      }),
+    );
+
+    await cms.publishWithVersion({ entryId: "e" });
+
+    expect(snapshot).toHaveBeenCalledWith({
+      subject: { type: "content_entry", id: "e" },
+    });
+  });
+
   it("does not publish when the snapshot fails", async () => {
     const publish = vi.fn(() => done({ id: "e" }));
 
@@ -531,5 +606,25 @@ describe("governance.exportSubject", () => {
       (await governance.exportSubject({ subjectType: "c", subjectId: "1" })).ok,
     ).toBe(false);
     expect(record).not.toHaveBeenCalled();
+  });
+});
+
+describe("procurement.payDueBills", () => {
+  it("pays with one banking.payBatch call", async () => {
+    const payBatch = vi.fn(() => done({ batch: { id: "b1" }, sepa: "<xml/>" }));
+
+    const procurement = createProcurement(
+      parts({ parts: { banking: { payBatch } } }),
+    );
+
+    const batch = { accountId: "a1", creditors: {} };
+
+    const result = await procurement.payDueBills({
+      batch: parts(batch),
+      sepa: {},
+    });
+
+    expect(result.data).toEqual({ batch: { id: "b1" }, sepa: "<xml/>" });
+    expect(payBatch).toHaveBeenCalledExactlyOnceWith({ ...batch, sepa: {} });
   });
 });

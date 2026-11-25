@@ -96,6 +96,51 @@ describe("bsb.kept()", () => {
     expect(fill).toHaveBeenCalledTimes(3);
   });
 
+  it("keeps one entry per organization of the same user", async () => {
+    await signIn(ALICE);
+
+    const shell = bsb.kept(
+      (ctx, org: string) =>
+        fill(ctx.auth.kind === "user" ? ctx.auth.user.id : null, org),
+      { name: "shell-by-org", tenant: (org) => org },
+    );
+
+    await shell("org-a");
+    await shell("org-b");
+    await shell("org-a");
+
+    // An organization switch reads another entry; going back finds the first.
+    expect(fill).toHaveBeenCalledTimes(2);
+  });
+
+  it("fills again for the member whose role changed, not for others", async () => {
+    const role = bsb.kept(
+      (ctx, id: string) =>
+        fill(ctx.auth.kind === "user" ? ctx.auth.user.id : null, id),
+      { name: "role-shell" },
+    );
+
+    await signIn(ALICE);
+    await role("r1");
+    await signIn(BOB);
+    await role("r1");
+    await new Promise((resolve) => {
+      setTimeout(resolve, 2);
+    });
+
+    // `memberChanged` evicts the member whose role changed.
+    await bsb.evictSession(BOB);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 2);
+    });
+
+    await role("r1");
+    await signIn(ALICE);
+    await role("r1");
+
+    expect(fill).toHaveBeenCalledTimes(3);
+  });
+
   it("fills again once a table tag expires", async () => {
     await signIn(ALICE);
     await read("c4");

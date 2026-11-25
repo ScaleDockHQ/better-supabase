@@ -128,6 +128,18 @@ export const ACTIONS: readonly ActionCase[] = [
   write(COMPOSITES, "exportRecordSubject", "/risks", async () => [
     { subjectType: "risk", subjectId: await firstRowId("risks") },
   ]),
+  write(
+    COMPOSITES,
+    "approveAndInvoiceTimesheet",
+    "/projects/portfolio",
+    async () => [{ timesheetId: MISSING_ID }],
+  ),
+  write(COMPOSITES, "shareDriveWithRoles", "/drive", async () => [
+    { id: MISSING_ID, roles: ["member"], role: "viewer" },
+  ]),
+  write(COMPOSITES, "createPublicLink", "/drive", async () => [
+    { id: MISSING_ID, days: 7 },
+  ]),
   write(COMPOSITES, "reconcileAccount", "/banking/accounts", async () => [
     { accountId: await firstRowId("bank_accounts") },
   ]),
@@ -198,6 +210,32 @@ export const ACTIONS: readonly ActionCase[] = [
   write(COMPOSITES, "closeAccountingPeriod", "/finance/periods", async () => [
     { periodId: MISSING_ID },
   ]),
+  write(
+    "features/compliance/compliance-actions.ts",
+    "addControlEvidence",
+    "/compliance/controls/[id]",
+    async () => [{ controlId: MISSING_ID, note: "Access review evidence" }],
+  ),
+  write(
+    "features/appraisals/appraisals-actions.ts",
+    "submitAppraisalReview",
+    "/appraisals/[id]",
+    async () => [{ reviewId: MISSING_ID, rating: "4" }],
+  ),
+  write(
+    "features/appraisals/appraisals-actions.ts",
+    "calibrateAppraisal",
+    "/appraisals/[id]",
+    async () => [
+      { appraisalId: MISSING_ID, rating: "4", reason: "Calibration session" },
+    ],
+  ),
+  write(
+    "features/dunning/dunning-actions.ts",
+    "applyStandardDunningLevels",
+    "/finance/invoices",
+    async () => [{}],
+  ),
   write(COMPOSITES, "payDueBills", "/finance/payables", async () => [
     {
       accountId: await firstRowId("bank_accounts"),

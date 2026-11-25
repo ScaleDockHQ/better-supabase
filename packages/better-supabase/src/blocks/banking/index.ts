@@ -34,6 +34,7 @@ export type {
   BankBoardStatus,
   BankBoardSuggestion,
   BankReads,
+  BankReconcileRun,
   BankReconciliationBoard,
 } from "./reads.ts";
 

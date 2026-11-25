@@ -21,7 +21,9 @@ export interface Scheduling {
   /**
    * Books a slot (`bookings.hold` with `confirm: true`), then sets the caller's
    * reminder on the booking: `reminder` minutes before it, or once at an
-   * instant. A failed reminder returns its error and leaves the booking
+   * instant. With minutes before, it is one call and one transaction
+   * (`bookings.holdWithReminder`): a failed reminder rolls the booking back.
+   * With an instant, a failed reminder returns its error and leaves the booking
    * confirmed, so retry it with `reminders.upsert`.
    */
   bookWithReminder(input: {
@@ -48,20 +50,26 @@ export function createScheduling(options: SchedulingOptions): Scheduling {
 
   const client: Scheduling = {
     bookWithReminder: ({ reminder, customer, ...slot }) =>
-      bookings
-        .hold({
-          ...slot,
-          ...(customer === undefined ? {} : { customer }),
-          confirm: true,
-        })
-        .andThen(async (booking) => {
-          const saved = await reminders.upsert({
-            subject: { type: "booking", id: booking.id },
-            when: reminder,
-          });
+      typeof reminder === "number"
+        ? bookings.holdWithReminder({
+            ...slot,
+            ...(customer === undefined ? {} : { customer }),
+            reminder,
+          })
+        : bookings
+            .hold({
+              ...slot,
+              ...(customer === undefined ? {} : { customer }),
+              confirm: true,
+            })
+            .andThen(async (booking) => {
+              const saved = await reminders.upsert({
+                subject: { type: "booking", id: booking.id },
+                when: reminder,
+              });
 
-          return saved.ok ? ok({ booking, reminder: saved.data }) : saved;
-        }),
+              return saved.ok ? ok({ booking, reminder: saved.data }) : saved;
+            }),
   };
 
   return withBlockHooks(client, options.hooks, {

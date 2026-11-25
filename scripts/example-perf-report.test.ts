@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildReport, formatLine, scaleLines } from "./example-perf-report.ts";
+import {
+  buildReport,
+  cacheLines,
+  formatLine,
+  scaleLines,
+} from "./example-perf-report.ts";
 
 describe("example-perf-report", () => {
   it("merges the baselines and the measurements of a route", () => {
@@ -57,5 +62,32 @@ describe("example-perf-report", () => {
         "# SCALE_MS list_first_page=12\nok 1\n# SCALE_CALLS list_first_page=2\nnoise",
       ),
     ).toEqual(["SCALE_MS list_first_page=12", "SCALE_CALLS list_first_page=2"]);
+  });
+
+  it("writes a Caching section with the hit ratio of the second hard load", () => {
+    const lines = cacheLines(
+      {
+        "/customers": {
+          hard1_calls: 5,
+          hard2_calls: 3,
+          user2_calls: 3,
+          restart_calls: 4,
+          hard1_remoteMisses: 1,
+          hard2_remoteHits: 1,
+          hard1_privateMisses: 4,
+          hard2_privateMisses: 1,
+        },
+      },
+      { saveCustomer: { expiredTags: 6 }, noop: { expiredTags: 0 } },
+    ).join("\n");
+
+    expect(lines).toContain("## Caching");
+    expect(lines).toContain("| hard2 | 3 | 100% | - | 75% | - | 0 |");
+    expect(lines).toContain("| saveCustomer | 6 |");
+    expect(lines).not.toContain("| noop |");
+  });
+
+  it("writes nothing without cache measurements", () => {
+    expect(cacheLines({}, undefined)).toEqual([]);
   });
 });

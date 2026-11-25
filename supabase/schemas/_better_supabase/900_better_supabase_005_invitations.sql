@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:1b55ee259dad833ddb35396b80d5a5aa80c38008d6875f648949231d2cf68f4b
+-- @bsb-hash sha256:850c96e2304c6beb9862165eaa009c163e361a0fec52dc612fd2d57d0cb2c419
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -358,6 +358,36 @@ begin
       from "better_supabase"."profiles" pr where pr."id" = updated."invited_by"),
     'token', token
   ) || "better_supabase"."invitation_extra"(updated."id"));
+end;
+$$;
+
+-- Invites like invite_member when the tenant has a seat left: members counted
+-- against the numeric `seats` entitlement, in one transaction. A plan without
+-- a numeric seats value has no cap. It runs with the caller's rights: the
+-- count sees the memberships the caller can read, the seats entitlement is
+-- the member's read, and invite_member checks the invite permission.
+create or replace function "better_supabase"."invite_within_seats"(
+  tenant uuid,
+  invitee_email text,
+  invitee_role text,
+  valid_for interval default '7 days'
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  used integer;
+  cap jsonb;
+begin
+  cap := "better_supabase"."entitlement_value"(tenant, 'seats');
+  select count(*) into used from "public"."memberships" m where m."organization_id" = tenant;
+  if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
+    raise exception 'The plan has no seat left' using errcode = '22023', hint = 'INVITATION_NO_SEAT';
+  end if;
+  return "better_supabase"."invite_member"(tenant, invitee_email, invitee_role, valid_for);
 end;
 $$;
 
@@ -1140,6 +1170,8 @@ $$;
 
 revoke execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) from public, anon;
 grant execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) from public, anon;
+grant execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) from public, anon;
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
@@ -1200,6 +1232,15 @@ set search_path = ''
 as $$ select "better_supabase"."invite_member"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."invite_member"(uuid, text, text, interval, jsonb) from public, anon;
 grant execute on function "api"."invite_member"(uuid, text, text, interval, jsonb) to authenticated, service_role;
+
+create or replace function "api"."invite_within_seats"(tenant uuid, invitee_email text, invitee_role text, valid_for interval default '7 days')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."invite_within_seats"($1, $2, $3, $4) $$;
+revoke execute on function "api"."invite_within_seats"(uuid, text, text, interval) from public, anon;
+grant execute on function "api"."invite_within_seats"(uuid, text, text, interval) to authenticated, service_role;
 
 create or replace function "api"."create_invitation"(organization uuid, invitee_email text, invitee_role text default 'member', valid_for interval default '7 days')
 returns text

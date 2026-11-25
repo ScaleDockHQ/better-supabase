@@ -307,6 +307,21 @@ export interface Bookings<F extends object = Record<never, never>> {
       customer?: (BookingCustomer & Partial<F>) | undefined;
     } & { readonly confirm?: boolean },
   ): AsyncResult<PlacedBooking & F>;
+  /**
+   * Books a slot (confirmed) and sets the caller's reminder `reminder` minutes
+   * before it, in one call and one transaction (`book_with_reminder`, needs the
+   * `reminders` block). A failed reminder rolls the booking back.
+   */
+  holdWithReminder(input: {
+    serviceId: string;
+    resourceId: string;
+    startsAt: Temporal.Instant;
+    customer?: (BookingCustomer & Partial<F>) | undefined;
+    reminder: number;
+  }): AsyncResult<{
+    booking: PlacedBooking & F;
+    reminder: { readonly id: string; readonly fields: Record<string, unknown> };
+  }>;
   confirm(bookingId: string): AsyncResult<Booking & F>;
   cancel(input: {
     bookingId: string;
@@ -679,6 +694,46 @@ export function createBookings<
         },
         customer,
       ),
+    holdWithReminder: ({
+      serviceId,
+      resourceId,
+      startsAt,
+      customer,
+      reminder,
+    }) =>
+      customerOf(customer)
+        .andThen((item) =>
+          call(
+            "book_with_reminder",
+            {
+              service: serviceId,
+              resource: resourceId,
+              starts_at: String(startsAt),
+              customer: item,
+              offset_minutes: reminder,
+            },
+            (value) => recordOf(value, "book_with_reminder"),
+          ),
+        )
+        .andThen((row) =>
+          AsyncResult.from(() =>
+            withFields(fields, row["booking"], placedOf(row["booking"])),
+          ).map((booking) => {
+            const saved = recordOf(row["reminder"], "reminder");
+            const extra = saved["fields"];
+
+            return {
+              booking,
+              reminder: {
+                id: textOf(saved["id"]),
+                fields:
+                  typeof extra === "object" && extra !== null
+                    ? { ...extra }
+                    : {},
+              },
+            };
+          }),
+        ),
     confirm: (bookingId) => one("confirm_booking", { booking: bookingId }),
     cancel: ({ bookingId, reason }) =>
       one("cancel_booking", { booking: bookingId, reason: reason ?? null }),

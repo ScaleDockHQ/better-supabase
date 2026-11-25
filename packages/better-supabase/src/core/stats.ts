@@ -22,8 +22,39 @@ export interface DbStats {
    * one per batch a store expires.
    */
   readonly tagCalls?: number;
+  /**
+   * The names of the tags those calls expired, in call order. A write that
+   * expires many tags shows which ones (and so which entries it refills).
+   */
+  readonly expiredTags?: readonly string[];
   /** One record per `bsb.kept` and `bsb.remote` call the request made. */
   readonly entries?: readonly CacheEntryStat[];
+  /**
+   * Every call in start order, with its wave and phase. Times are milliseconds
+   * from the first call's start.
+   */
+  readonly trace?: readonly TraceCall[];
+}
+
+/**
+ * One database call of a request. `phase` is `action` for a call made inside
+ * `bsb.action` and `render` for every other call, including the re-render a
+ * server action starts.
+ */
+export interface TraceCall {
+  readonly name: string;
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly wave: number;
+  readonly phase: "action" | "render";
+}
+
+interface OpenTrace {
+  readonly name: string;
+  readonly start: number;
+  readonly wave: number;
+  readonly phase: "action" | "render";
+  end: number;
 }
 
 /**
@@ -31,12 +62,45 @@ export interface DbStats {
  * instance ran; `fillMs` is the time the fill took on a miss.
  */
 export interface CacheEntryStat {
-  /** The kept function's `name`, or the remote function's name. */
+  /**
+   * The kept function's `name`, the remote function's name, or for a private or
+   * public entry its first table or tag.
+   */
   readonly id: string;
-  readonly kind: "remote" | "kept";
+  /**
+   * `private` and `public` entries (`bsb.cached()` and `bsb.public()`) record
+   * only a miss, when the wrapped body runs; a hit never runs it, so the
+   * harness counts hits as visits minus misses.
+   */
+  readonly kind: "remote" | "kept" | "private" | "public";
   readonly outcome: "hit" | "miss" | "stale" | "wait";
   readonly fillMs?: number;
+  /**
+   * The size of the cached value as JSON, in bytes. Recorded for `kept`
+   * entries; the value of a `remote`, `private` or `public` entry never reaches
+   * the recorder (the sample's remote handler counts its own bytes).
+   */
+  readonly bytes?: number;
 }
+
+// Created on first use: the root entry loads on runtimes without TextEncoder.
+let encoder: TextEncoder | undefined;
+
+/** The size of `value` as JSON in bytes, or `undefined` when it has none. */
+export function byteSizeOf(value: unknown): number | undefined {
+  try {
+    // `JSON.stringify` returns `undefined` for a function or `undefined`.
+    const json: unknown = JSON.stringify(value);
+
+    return typeof json === "string"
+      ? (encoder ??= new TextEncoder()).encode(json).length
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const round = (ms: number): number => Math.round(ms * 100) / 100;
 
 export const EMPTY_STATS: DbStats = {
   calls: 0,
@@ -46,7 +110,9 @@ export const EMPTY_STATS: DbStats = {
   verifications: 0,
   adminCalls: 0,
   tagCalls: 0,
+  expiredTags: [],
   entries: [],
+  trace: [],
 };
 
 /**
@@ -63,7 +129,10 @@ export class StatsRecorder {
   #verifications = 0;
   #adminCalls = 0;
   #tagCalls = 0;
+  readonly #expiredTags: string[] = [];
   readonly #entries: CacheEntryStat[] = [];
+  readonly #trace: OpenTrace[] = [];
+  #phase: "action" | "render" = "render";
   #inFlight = 0;
   #first: number | undefined;
   #last: number | undefined;
@@ -84,16 +153,26 @@ export class StatsRecorder {
     return this.#admin;
   }
 
+  /** Marks the phase the calls that start from now on belong to. */
+  setPhase(phase: "action" | "render"): void {
+    this.#phase = phase;
+  }
+
   /** Records one token verification (a session memo miss). */
   verification(): void {
     this.#verifications += 1;
     this.#parent?.verification();
   }
 
-  /** Records `count` cache tag calls. */
-  tagCalls(count: number): void {
+  /** Records `count` cache tag calls, and the tag names when they are known. */
+  tagCalls(count: number, tags?: readonly string[]): void {
     this.#tagCalls += count;
-    this.#parent?.tagCalls(count);
+
+    if (tags) {
+      this.#expiredTags.push(...tags);
+    }
+
+    this.#parent?.tagCalls(count, tags);
   }
 
   /** Records how one cached call was served. */
@@ -124,6 +203,16 @@ export class StatsRecorder {
 
     this.#tables.add(table);
     this.#first ??= started;
+
+    const traced: OpenTrace = {
+      name: table,
+      start: started,
+      wave: this.#waves,
+      phase: this.#phase,
+      end: started,
+    };
+
+    this.#trace.push(traced);
     let ended = false;
 
     return () => {
@@ -133,7 +222,8 @@ export class StatsRecorder {
 
       ended = true;
       this.#inFlight -= 1;
-      this.#last = Math.max(this.#last ?? 0, this.#now());
+      traced.end = this.#now();
+      this.#last = Math.max(this.#last ?? 0, traced.end);
       end?.();
     };
   }
@@ -151,7 +241,15 @@ export class StatsRecorder {
       verifications: this.#verifications,
       adminCalls: this.#adminCalls,
       tagCalls: this.#tagCalls,
+      expiredTags: [...this.#expiredTags],
       entries: [...this.#entries],
+      trace: this.#trace.map((call) => ({
+        name: call.name,
+        startMs: round(call.start - (this.#first ?? call.start)),
+        endMs: round(call.end - (this.#first ?? call.start)),
+        wave: call.wave,
+        phase: call.phase,
+      })),
     };
   }
 }

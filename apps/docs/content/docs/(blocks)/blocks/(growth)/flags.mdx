@@ -312,7 +312,10 @@ any flag type, or null for an unknown flag. It is granted to the service role.
 
 `createFlagsProvider` returns an object shaped like an OpenFeature server
 `Provider`. It loads every flag with `flag_definitions()` (service role only)
-and caches them for `ttl` milliseconds (default 30000). This package never
+and caches them for `ttl` milliseconds (default 30000). For `staleTtl`
+milliseconds after that (default 300000) it serves the previous definitions
+while one reload runs behind the evaluation, so no request waits on the Data
+API once the cache is warm; `staleTtl: 0` waits for every reload. This package never
 imports OpenFeature; pass its `ErrorCode` enum so the types match:
 
 ```ts title="lib/flags.ts"

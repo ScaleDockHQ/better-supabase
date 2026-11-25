@@ -16,7 +16,9 @@ import { CASES_TAG } from "@/features/cases/cases-cache";
 import { COURSES_TAG } from "@/features/courses/courses-cache";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { driveOf } from "@/features/drive/drive-client";
+import { DRIVE_ROLES } from "@/features/drive/drive-roles";
 import { FIELD_TAG } from "@/features/field/field-cache";
 import { FINANCE_RECORDS_TAG } from "@/features/finance-records/finance-records-cache";
 import { MAINTENANCE_TAG } from "@/features/maintenance/maintenance-cache";
@@ -27,6 +29,7 @@ import { PROJECTS_TAG } from "@/features/projects/projects-cache";
 import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { present } from "@/lib/present";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { blockSet } from "@/lib/supabase";
 import { bsb } from "@/lib/supabase/server";
 
 import {
@@ -104,6 +107,46 @@ export const createPublicLink = bsb.action(
 );
 
 /**
+ * Shares a drive item with each of the given membership roles and reports per
+ * role: `filespace.bulkShare`. A refused role lands in `failed` and the others
+ * still run.
+ */
+export const shareDriveWithRoles = bsb.action(
+  {
+    input: v.object({
+      id: Id,
+      roles: v.pipe(
+        v.array(v.pipe(v.string(), v.minLength(1))),
+        v.minLength(1),
+      ),
+      role: v.picklist(DRIVE_ROLES),
+    }),
+    requireTenant: true,
+    permission: "drive.read",
+  },
+  async ({ id, roles, role }, { db, auth }) => {
+    const report = await filespaceOf(db, driveOf(db)).bulkShare({
+      id,
+      principals: roles.map((each) => ({
+        principal: { type: "role", id: each },
+        role,
+      })),
+    });
+
+    if (!report.ok) {
+      return report;
+    }
+
+    await refreshCaller(auth, [DRIVE_TAG]);
+
+    return ok({
+      shared: report.data.succeeded.length,
+      failed: report.data.failed.length,
+    });
+  },
+);
+
+/**
  * Picks an owner for a contact from the assignment queues, with the contact's
  * segments as territory fields: `crm.route`.
  */
@@ -175,11 +218,9 @@ export const rotateKey = bsb.action(
 );
 
 /**
- * Invites a teammate when the plan has a seat left, the steps of
- * `saas.inviteWithinSeats`: count the members, read the `seats` entitlement and
- * only then invite. `createSaas` needs every part of `saas` typed against this
- * app's notification catalog, which it does not accept yet, so the steps run on
- * the three clients they use.
+ * Invites a teammate when the plan has a seat left, in one database call:
+ * `organizations.inviteWithinSeats` counts the members against the `seats`
+ * entitlement and writes the invitation in one transaction (ADR 1235).
  */
 export const inviteWithinSeats = bsb.action(
   {
@@ -191,30 +232,9 @@ export const inviteWithinSeats = bsb.action(
     permission: "members.invite",
   },
   async ({ email, role }, { db, tenant }) => {
-    const members = await db.$blocks.organizations.members(tenant);
-
-    if (!members.ok) {
-      return members;
-    }
-
-    const left = await db.entitlements.seatsLeft({
-      organizationId: tenant,
-      used: members.data.length,
-    });
-
-    if (!left.ok) {
-      return left;
-    }
-
-    if (left.data !== undefined && left.data <= 0) {
-      return err(dbError("invalid_request", "The plan has no seat left"));
-    }
-
-    const sent = await db.$blocks.organizations.invite({
-      organizationId: tenant,
-      email,
-      role,
-    });
+    const sent = await blockSet
+      .client(db, "organizations")
+      .inviteWithinSeats({ organizationId: tenant, email, role });
 
     if (!sent.ok) {
       return sent;
@@ -322,6 +342,58 @@ export const weekUtilization = bsb.action(
         billableUtilization: member.billableUtilization,
       })),
     );
+  },
+);
+
+/**
+ * Approves a submitted week and invoices the unbilled time. This app runs time
+ * entries with approvals on, where `projects.approveAndInvoice` (built on
+ * `timeEntries.approve`) refuses: the week's pending approval request is
+ * decided instead, and its final step locks the week. A refused approval
+ * invoices nothing.
+ */
+export const approveAndInvoiceTimesheet = bsb.action(
+  {
+    input: v.object({
+      timesheetId: Id,
+      title: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(120))),
+    }),
+    requireTenant: true,
+    permission: "time_entries.approve",
+  },
+  async ({ timesheetId, title }, { db, auth }) => {
+    const decided = await db.$blocks.approvals.decideForSubject({
+      subject: { type: "timesheet", id: timesheetId },
+      action: "approve",
+      decision: "approve",
+    });
+
+    if (!decided.ok) {
+      return decided;
+    }
+
+    if (decided.data.status !== "approved") {
+      const message =
+        "The week needs another approval step before it can be invoiced.";
+
+      return err(
+        invalidInput(message, [
+          { path: ["timesheetId"], code: "APPROVAL_PENDING", message },
+        ]),
+      );
+    }
+
+    const invoiced = await db.$blocks.billableTime.invoice(
+      title === undefined || title === "" ? undefined : { title },
+    );
+
+    if (!invoiced.ok) {
+      return invoiced;
+    }
+
+    await refreshCaller(auth, [PROJECTS_TAG, FINANCE_RECORDS_TAG]);
+
+    return ok({ timesheetId, invoiceId: invoiced.data.invoiceId });
   },
 );
 
@@ -815,9 +887,9 @@ export const onboardEmployee = bsb.action(
 );
 
 /**
- * Ends an employment: `people.offboard` sets the end date, then cancels the
+ * Ends an employment: `people.offboard` sets the end date, cancels the
  * employee's active onboarding runs and releases their open shifts of the next
- * month.
+ * month, in one database call (ADR 1235).
  */
 export const offboardEmployee = bsb.action(
   {
@@ -825,37 +897,7 @@ export const offboardEmployee = bsb.action(
     requireTenant: true,
     permission: "employees.write",
   },
-  async ({ employeeId, endDate, reason }, { db, auth, tenant }) => {
-    const employee = await db.employees.get(employeeId);
-
-    if (!employee.ok) {
-      return employee;
-    }
-
-    const today = Temporal.Now.plainDateISO();
-
-    const [runs, roster] = await Promise.all([
-      db.enrollments.enrollmentPage({
-        filters: { subjectType: ["employee"], subjectId: [employeeId] },
-        limit: 50,
-      }),
-      db.shifts.roster({
-        organizationId: tenant,
-        from: today,
-        until: today.add({ days: 30 }),
-      }),
-    ]);
-
-    if (!runs.ok) {
-      return runs;
-    }
-
-    if (!roster.ok) {
-      return roster;
-    }
-
-    const userId = employee.data.userId;
-
+  async ({ employeeId, endDate, reason }, { db, auth }) => {
     const offboarded = await peopleOf(db).offboard({
       employeeId,
       ...present({
@@ -863,22 +905,6 @@ export const offboardEmployee = bsb.action(
           endDate === undefined ? undefined : Temporal.PlainDate.from(endDate),
         reason,
       }),
-      enrollmentIds: runs.data.items
-        .filter((run) => run.status === "active")
-        .map((run) => run.id),
-      assignmentIds:
-        userId === undefined
-          ? []
-          : roster.data.flatMap((shift) =>
-              shift.assignments
-                .filter(
-                  (assignment) =>
-                    assignment.userId === userId &&
-                    (assignment.status === "assigned" ||
-                      assignment.status === "requested"),
-                )
-                .map((assignment) => assignment.id),
-            ),
     });
 
     if (!offboarded.ok) {

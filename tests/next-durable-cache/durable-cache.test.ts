@@ -25,6 +25,7 @@ interface Probe {
   readonly process: string;
   readonly public: { readonly filledBy: string };
   readonly remote: { readonly filledBy: string };
+  readonly kept: { readonly filledBy: string };
 }
 
 interface Durability {
@@ -39,6 +40,8 @@ interface Row {
   readonly codeHash: string;
   readonly public: boolean;
   readonly remote: boolean;
+  /** Whether a process other than this one filled the kept entry. */
+  readonly kept: boolean;
   readonly probeMs: number;
 }
 
@@ -93,6 +96,33 @@ function run(args: readonly string[], env: NodeJS.ProcessEnv): Promise<number> {
         fail(
           new Error(`next ${args.join(" ")} exited ${String(code)}\n${stderr}`),
         );
+      }
+    });
+  });
+}
+
+/**
+ * Creates and empties the cache tables the Postgres kept store reads, with the
+ * example's own setup file.
+ */
+function resetKeptStore(env: NodeJS.ProcessEnv): Promise<void> {
+  return new Promise((done, fail) => {
+    const child = spawn(
+      "node",
+      [
+        "--input-type=module",
+        "-e",
+        "const m = await import('./tests/support/postgres-cache-setup.ts'); await m.default();",
+      ],
+      { cwd: APP, env: { ...process.env, ...env }, stdio: "inherit" },
+    );
+
+    child.on("error", fail);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        done();
+      } else {
+        fail(new Error(`the kept store setup exited ${String(code)}`));
       }
     });
   });
@@ -199,6 +229,7 @@ describe.skipIf(!enabled || !existsSync(ENV_FILE))(
           ...appEnv(),
           BSB_DURABLE_USE_CACHE: "1",
           BSB_REMOTE_CACHE_DIR: dir,
+          BSB_KEPT_STORE: "postgres",
           BSB_TAG_PROBE_SECRET: SECRET,
         };
 
@@ -222,6 +253,7 @@ describe.skipIf(!enabled || !existsSync(ENV_FILE))(
             codeHash,
             public: answer.public.filledBy === previous,
             remote: answer.remote.filledBy === previous,
+            kept: answer.kept.filledBy !== answer.process,
             probeMs: ms,
           });
           previous = answer.process;
@@ -230,6 +262,8 @@ describe.skipIf(!enabled || !existsSync(ENV_FILE))(
         if (existsSync(NEXT)) {
           await rename(NEXT, kept);
         }
+
+        await resetKeptStore(env);
 
         try {
           await step("fill", true);
@@ -276,16 +310,20 @@ describe.skipIf(!enabled || !existsSync(ENV_FILE))(
         );
 
         const read = Object.fromEntries(
-          rows.map((row) => [row.scenario, [row.public, row.remote]]),
+          rows.map((row) => [row.scenario, [row.public, row.remote, row.kept]]),
         );
 
+        // The kept entry's key holds the schema hash and the library version,
+        // not the build: it survives a rebuild, an app code change and a
+        // restart, misses on a new schema hash, and is read again once the
+        // schema is back.
         expect(read).toEqual({
-          fill: [false, false],
-          "rebuild, no change": [true, true],
-          "migration and gen (a new enum value)": [false, false],
-          "better-supabase code change": [false, false],
-          "restart, a listed env var changed": [false, false],
-          "restart, per-deployment Vercel vars changed": [true, true],
+          fill: [false, false, false],
+          "rebuild, no change": [true, true, true],
+          "migration and gen (a new enum value)": [false, false, false],
+          "better-supabase code change": [false, false, true],
+          "restart, a listed env var changed": [false, false, true],
+          "restart, per-deployment Vercel vars changed": [true, true, true],
         });
         expect(envList.filter((name) => NOT_IN_KEY.has(name))).toEqual([]);
       },

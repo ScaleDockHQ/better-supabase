@@ -114,6 +114,11 @@ export interface FlagsSdkProjectOptions {
   readonly schema?: string;
   /** How long the definitions are cached, in milliseconds. Default 30000. */
   readonly ttl?: number;
+  /**
+   * How long past `ttl` stale definitions are served while a reload runs
+   * behind. Default 300000.
+   */
+  readonly staleTtl?: number;
   /** The `fetch` the calls go through. Default the global one. */
   readonly fetch?: (url: string, init: RequestInit) => Promise<Response>;
 }
@@ -288,6 +293,7 @@ function providerOf(
       transport: projectTransport(options),
       ...(options.schema !== undefined && { schema: options.schema }),
       ...(options.ttl !== undefined && { ttl: options.ttl }),
+      ...(options.staleTtl !== undefined && { staleTtl: options.staleTtl }),
     });
   }
 

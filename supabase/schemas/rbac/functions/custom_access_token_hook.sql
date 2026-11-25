@@ -35,29 +35,16 @@ begin
   claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims((event ->> 'user_id')::uuid));
   claims := jsonb_set(claims, '{features}', better_supabase.feature_claims((event ->> 'user_id')::uuid));
 
-  -- The permission keys for the active organization only, which
-  -- `permissionsOf()` and `permissionsAuthorizer()` read. Past the budget the
-  -- token says so, and the app reads `my_permissions()` instead.
+  -- The permissions of the active organization only, as a catalog hash and a
+  -- bitset (about 60 bytes for 413 keys), which `permissionsOf()` and
+  -- `permissionsAuthorizer()` read over the generated `permissionKeys`. A
+  -- hash the app doesn't know makes them read `my_permissions()` instead.
   if active_tenant ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
-    permission_keys := better_supabase.permission_claims((event ->> 'user_id')::uuid, active_tenant::uuid);
+    permission_keys := better_supabase.permission_claims_bitset((event ->> 'user_id')::uuid, active_tenant::uuid);
   end if;
 
-  if permission_keys ? active_tenant then
-    permission_keys := jsonb_build_object(active_tenant, to_jsonb(rbac.compact_permission_keys(
-      array(select jsonb_array_elements_text(permission_keys -> active_tenant))
-    )));
-  end if;
-
-  -- jsonb prints `", "` and `": "` with a space, and the token carries the
-  -- compact JSON, so the budget measures the compact form. An owner is 7.5 KB
-  -- of keys, 2.0 KB compacted and 2,040 bytes in the token.
-  if octet_length(replace(replace(permission_keys::text, '", "', '","'), '": [', '":[')) > 2048 then
-    claims := jsonb_set(claims, '{permissions}', '{}'::jsonb);
-    claims := jsonb_set(claims, '{permissions_truncated}', 'true'::jsonb);
-  else
-    claims := jsonb_set(claims, '{permissions}', permission_keys);
-    claims := claims - 'permissions_truncated';
-  end if;
+  claims := jsonb_set(claims, '{permissions}', permission_keys);
+  claims := claims - 'permissions_truncated';
 
   return jsonb_set(event, '{claims}', claims);
 end;

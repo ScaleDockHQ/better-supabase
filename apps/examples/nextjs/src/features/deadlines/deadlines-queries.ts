@@ -66,3 +66,51 @@ async function loadDeadlines(): Promise<RecordListPage<DeadlineRow> | null> {
 export function getDeadlines(): Promise<Loaded<RecordListPage<DeadlineRow>>> {
   return settle(loadDeadlines);
 }
+
+/** One deadline with the rule, the facts and the citation it rests on. */
+export interface DeadlineDetail extends DeadlineRow {
+  readonly ruleKey: string | null;
+  readonly ruleVersion: number | null;
+  readonly asOf: string;
+  readonly missingFacts: readonly string[];
+  readonly citation: {
+    readonly reference: string;
+    readonly url: string | null;
+    readonly text: string | null;
+  };
+  readonly satisfiedAt: string | null;
+}
+
+/** One deadline; `null` when it does not exist. */
+export async function getDeadline(id: string): Promise<DeadlineDetail | null> {
+  "use cache: private";
+  const { db } = await bsb.cached();
+  cacheTag(DEADLINES_TAG);
+
+  const deadline = await db.deadlines.get(id).orThrow();
+
+  return {
+    id: deadline.id,
+    subjectType: deadline.subjectType,
+    subjectId: deadline.subjectId,
+    kind: deadline.kind,
+    jurisdiction: deadline.jurisdiction,
+    groupKey: deadline.groupKey,
+    result: deadline.result,
+    dueOn: deadline.dueOn?.toString() ?? null,
+    provisional: deadline.provisional,
+    state: deadline.state,
+    missing: deadline.missing.length,
+    computedAt: deadline.computedAt.toString(),
+    ruleKey: deadline.ruleKey ?? null,
+    ruleVersion: deadline.ruleVersion ?? null,
+    asOf: deadline.asOf.toString(),
+    missingFacts: deadline.missing,
+    citation: {
+      reference: deadline.citation.reference,
+      url: deadline.citation.url ?? null,
+      text: deadline.citation.text ?? null,
+    },
+    satisfiedAt: deadline.satisfiedAt?.toString() ?? null,
+  };
+}

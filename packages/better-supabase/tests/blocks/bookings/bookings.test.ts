@@ -217,6 +217,44 @@ describe("bookings client", () => {
     expect(calls.at(-1)?.args["resource"]).toBeNull();
   });
 
+  it("books with a reminder in one call", async () => {
+    const { calls, bookings } = recorder({
+      book_with_reminder: {
+        booking: {
+          ...BOOKING,
+          status: "confirmed",
+          accessToken: "t".repeat(48),
+        },
+        reminder: { id: "rem1" },
+      },
+    });
+
+    const result = await bookings
+      .holdWithReminder({
+        serviceId: "s1",
+        resourceId: "r1",
+        startsAt: at("2030-03-04T08:00:00Z"),
+        customer: { name: "Bo" },
+        reminder: 60,
+      })
+      .orThrow();
+
+    expect(result.booking.id).toBe("b1");
+    expect(result.reminder).toEqual({ id: "rem1", fields: {} });
+    expect(calls).toEqual([
+      {
+        fn: "book_with_reminder",
+        args: {
+          service: "s1",
+          resource: "r1",
+          starts_at: "2030-03-04T08:00:00Z",
+          customer: { name: "Bo" },
+          offset_minutes: 60,
+        },
+      },
+    ]);
+  });
+
   it("fills in a missing seat count and cancel reason", async () => {
     const { seat: _seat, ...seatless } = BOOKING;
     const { seats: _seats, ...open } = SLOT;

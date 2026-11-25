@@ -12,6 +12,7 @@ import {
   FileTextIcon,
   HandshakeIcon,
   LanguagesIcon,
+  LayoutGridIcon,
   MonitorIcon,
   MoonIcon,
   PlusIcon,
@@ -20,10 +21,12 @@ import {
   StarIcon,
   SunIcon,
   UserPlusIcon,
+  ZapIcon,
 } from "lucide-react";
 import { hasLocale, useExtracted, useLocale } from "next-intl";
 import { useState } from "react";
 
+import type { AreaCommand } from "@/features/areas/area-commands";
 import type { CommandSearchItem } from "@/hooks/use-search";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
@@ -62,6 +65,15 @@ const API_SCHEMA = searchConfig.api;
 
 /** Pages listed before the user types; typing searches all of them. */
 const PAGES_WHEN_EMPTY = 6;
+
+/** Area entries listed for a query; the hub page lists the rest. */
+const AREA_ENTRIES_SHOWN = 8;
+
+const AREA_ICONS = {
+  area: LayoutGridIcon,
+  step: CompassIcon,
+  action: ZapIcon,
+} as const satisfies Record<AreaCommand["kind"], LucideIcon>;
 
 const LOCALE_NAMES = { en: "English", nl: "Nederlands" } as const;
 
@@ -104,9 +116,11 @@ interface CommandAction {
  */
 export function CommandCenter({
   pages,
+  areas,
   canCreate,
 }: {
   pages: readonly CommandPage[];
+  areas: readonly AreaCommand[];
   canCreate: CommandCreate;
 }) {
   const t = useExtracted("search");
@@ -257,6 +271,14 @@ export function CommandCenter({
     query === ""
       ? pages.slice(0, PAGES_WHEN_EMPTY)
       : pages.filter((page) => matches(query, page.label, page.href));
+
+  // Areas answer a query only, so the empty palette stays short.
+  const shownAreas =
+    query === ""
+      ? []
+      : areas
+          .filter((entry) => matches(query, entry.area, entry.label))
+          .slice(0, AREA_ENTRIES_SHOWN);
 
   const waiting = search.loading && search.results.length === 0;
   const noMatches = query !== "" && !search.loading;
@@ -435,6 +457,38 @@ export function CommandCenter({
               </>
             )}
 
+            {shownAreas.length === 0 ? null : (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading={t("Areas")}>
+                  {shownAreas.map((entry) => {
+                    const Icon = AREA_ICONS[entry.kind];
+
+                    return (
+                      <CommandItem
+                        key={entry.id}
+                        value={`area:${entry.id}`}
+                        onPointerEnter={() => {
+                          router.prefetch(toAppHref(entry.href));
+                        }}
+                        onSelect={() => {
+                          go(entry.href);
+                        }}
+                      >
+                        <Icon />
+                        <span className="truncate">
+                          {entry.kind === "area"
+                            ? entry.area
+                            : `${entry.area}: ${entry.label}`}
+                        </span>
+                        <ArrowRightIcon className="ml-auto opacity-50" />
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+              </>
+            )}
+
             {query === "" ? null : (
               <>
                 <CommandSeparator />
@@ -455,7 +509,8 @@ export function CommandCenter({
             {noMatches &&
             search.results.length === 0 &&
             shownActions.length === 0 &&
-            shownPages.length === 0 ? (
+            shownPages.length === 0 &&
+            shownAreas.length === 0 ? (
               <p className="px-3 py-4 text-center text-sm text-muted-foreground">
                 {t("No records match. Ask the assistant or see all results.")}
               </p>

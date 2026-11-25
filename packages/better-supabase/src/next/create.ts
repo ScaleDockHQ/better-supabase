@@ -50,7 +50,7 @@ import { isReadSet, readSetTables } from "../core/read-set.ts";
 import { err } from "../core/result.ts";
 import { isFunctionSpec, isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
-import { EMPTY_STATS } from "../core/stats.ts";
+import { byteSizeOf, EMPTY_STATS } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
 import { ACCOUNT_PARTS } from "../server/account-parts.ts";
 import { adapterBase } from "../server/adapter-base.ts";
@@ -169,14 +169,14 @@ export function createNext<
   } = proxyRuntime(betterSupabase, options);
 
   const recording = requestRecording(collector);
-  const { statsForId, statsForHandle, recordOn } = recording;
+  const { statsForId, statsForHandle, recordOn, missed } = recording;
 
   const statsFor = (request: Request): ContextOptions =>
     statsForId(collector && requestIdOf(request.headers));
 
-  const recordTagCalls = (calls: number): void => {
+  const recordTagCalls = (calls: number, tags: readonly string[]): void => {
     recordOn(undefined, (recorder) => {
-      recorder.tagCalls(calls);
+      recorder.tagCalls(calls, tags);
     });
   };
 
@@ -580,6 +580,7 @@ export function createNext<
     tenant: string | undefined,
     entry: CachedOptions,
   ): void => {
+    missed(scope, entry);
     applyCacheEntry({
       ctx,
       view,
@@ -609,9 +610,11 @@ export function createNext<
 
   const kept = keptBinding<ServerContext<M, F, E, C, P, B>, C, P>({
     tenantShare,
-    onEntry: (record, handle) => {
+    onEntry: (record, handle, value) => {
       recordOn(handle, (recorder) => {
-        recorder.entry(record);
+        const bytes = byteSizeOf(value);
+
+        recorder.entry(bytes === undefined ? record : { ...record, bytes });
       });
     },
     onTagCalls: recordTagCalls,
@@ -835,6 +838,7 @@ export function createNext<
     locale: () => rootParam(options.rootParams?.locale),
     brand: () => rootParam(options.rootParams?.brand),
     tenant: () => rootParam(options.rootParams?.tenant),
+    heldPermissions: options.heldPermissions,
 
     async liveCount(spec, db) {
       const runner = db ?? (await current()).db;
@@ -1017,16 +1021,13 @@ export function createNext<
           return mapped({ ok: false, data: null, error: denied });
         }
 
-        const checkedBound = await validateBound(
-          actionOptions.bound,
-          boundArgs,
-        );
+        const boundCheck = await validateBound(actionOptions.bound, boundArgs);
 
-        if (!checkedBound.ok) {
-          return mapped({ ok: false, data: null, error: checkedBound.error });
+        if (!boundCheck.ok) {
+          return mapped({ ok: false, data: null, error: boundCheck.error });
         }
 
-        const bound = checkedBound.data;
+        const bound = boundCheck.data;
 
         let parsed: unknown =
           input instanceof FormData ? formDataObject(input) : input;
@@ -1067,16 +1068,15 @@ export function createNext<
           return mapped({ ok: false, data: null, error: refused });
         }
 
-        const scope = ctx;
         let settled: Settled;
 
         try {
           // SAFETY: parsed is the validated input, or the raw input when the
           // action has no schema; requireTenant refused a missing tenant.
-          settled = await settle(() =>
+          settled = await recording.settleIn("action", () =>
             fn(
               parsed as never,
-              withExtra(scope, caller) as never,
+              withExtra(ctx, caller) as never,
               bound as never,
             ),
           );

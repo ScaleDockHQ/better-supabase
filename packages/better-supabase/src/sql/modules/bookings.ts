@@ -36,6 +36,7 @@ import {
   reminderMirror,
   slotsJson,
 } from "./bookings-public.ts";
+import { bookWithReminder } from "./bookings-reminder.ts";
 import {
   SERIES_TABLES,
   seriesFunctions,
@@ -935,7 +936,7 @@ function build(ctx: BlockSqlContext): string {
   };
 
   return `${schemaPreamble(ctx)}
-${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${catalogLists(p)}${customerList(p)}${bookingPages(p)}${publicBooking(p)}${recurringOn(ctx) ? seriesFunctions(p) : ""}`;
+${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${catalogLists(p)}${customerList(p)}${bookingPages(p)}${publicBooking(p)}${recurringOn(ctx) ? seriesFunctions(p) : ""}${bookWithReminder(ctx)}`;
 }
 
 export const BOOKINGS: BlockSqlDefinition = {

@@ -8,7 +8,7 @@ import type { CompositeOptions } from "../define-block.ts";
 import type { FinanceParts } from "./manifest.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult as Async, ok } from "../../core/result.ts";
+import { AsyncResult as Async } from "../../core/result.ts";
 
 /** What `finance.closePeriod` returns. */
 export type PeriodClose =
@@ -37,12 +37,13 @@ export interface Finance {
    */
   closePeriod(periodId: string): AsyncResult<PeriodClose>;
   /**
-   * Matches an account's unmatched bank transactions to their best open
-   * invoice: reads `banking.reviewQueue`, then calls `banking.acceptBestMatch`
-   * for each transaction that has a suggestion scoring at least `minScore`
-   * (default 1), which records the invoice payment. A transaction that fails to
-   * match is listed in `failed` and the run goes on, so only a failed queue
-   * read returns an error. Run `closePeriod` afterwards.
+   * Matches an account's unmatched bank transactions to their best open invoice
+   * with `banking.reconcile`: one database call and one transaction (ADR 1235)
+   * that records the invoice payment of each transaction with a suggestion
+   * scoring at least `minScore`. A transaction that fails to match is listed in
+   * `failed` and the run goes on. The TypeScript hooks of the banking steps do
+   * not fire; the hook of `finance.reconcile` does. Run `closePeriod`
+   * afterwards.
    */
   reconcile(input: {
     accountId: string;
@@ -75,48 +76,7 @@ export function createFinance(options: FinanceOptions): Finance {
                 .closePeriod(periodId)
                 .map((period) => ({ closed: true, period })),
         ),
-    reconcile: ({ accountId, minScore, limit }) =>
-      Async.from<ReconcileRun>(async () => {
-        const queue = await banking.reviewQueue({
-          accountId,
-          ...(limit === undefined ? {} : { limit }),
-        });
-
-        if (!queue.ok) {
-          return queue;
-        }
-
-        const matched: BankTransaction[] = [];
-        const unmatched: string[] = [];
-        const failed: { transactionId: string; message: string }[] = [];
-
-        for (const { transaction, suggestion } of queue.data) {
-          if (
-            suggestion === undefined ||
-            (minScore !== undefined && suggestion.score < minScore)
-          ) {
-            unmatched.push(transaction.id);
-            continue;
-          }
-
-          // One match at a time: each records a payment against the invoice.
-          const accepted = await banking.acceptBestMatch({
-            transactionId: transaction.id,
-            ...(minScore === undefined ? {} : { minScore }),
-          });
-
-          if (accepted.ok) {
-            matched.push(accepted.data);
-          } else {
-            failed.push({
-              transactionId: transaction.id,
-              message: accepted.error.message,
-            });
-          }
-        }
-
-        return ok({ matched, unmatched, failed });
-      }),
+    reconcile: (input) => banking.reconcile(input),
   };
 
   return withBlockHooks(client, options.hooks, {

@@ -159,7 +159,7 @@ An app status such as `offboarding` that `values` maps next to a label is accept
 
 ## Offboarding
 
-`offboard(employeeId, { endDate, reason })` sets the status to `offboarded`, the end date (today by default) and the reason, and moves the employee's reports to their manager. Offboarding again returns the employee unchanged. Set `options.offboarding: { reports: "keep" }` to leave the reports with the offboarded employee, for an app that reassigns them itself.
+`offboard(employeeId, { endDate, reason })` sets the status to `offboarded`, the end date (today by default) and the reason, and moves the employee's reports to their manager. Offboarding again returns the employee unchanged. When `enrollments` is installed, `onboardWithProgram({ organizationId, input, program, dates })` creates the employee, enrolls them in the program and sets the enrollment dates in one call and one transaction (`onboard_with_program`), and returns the employee and the enrollment. When `enrollments` and `shifts` are installed, `offboardWithWork({ employeeId, endDate, reason, windowDays })` does the same and also cancels the employee's active enrollments and unassigns their open shifts in the next `windowDays` days (30 by default), in one call and one transaction (`offboard_with_work`). It returns the employee and the counts of `enrollments` and `assignments` it ended. Set `options.offboarding: { reports: "keep" }` to leave the reports with the offboarded employee, for an app that reassigns them itself.
 
 Offboarding is how an employment is archived: the employee stays in the table
 with the status `offboarded`, drops out of the org chart and `reportsOf`, and

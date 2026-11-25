@@ -167,4 +167,85 @@ begin
 end
 $shop$;
 
+-- Content: a held board meeting with its agenda and decisions, so /meetings/[id]
+-- has a seeded row to open.
+insert into better_supabase.meetings (id, tenant_id, kind, title, location, starts_at, ends_at, status, held_at, summary, created_by) values
+  ('00000000-0000-4000-8000-0000005e0001', '00000000-0000-4000-8000-000000000001', 'board', 'Q3 board meeting', 'Boardroom',
+   now() - interval '7 days', now() - interval '7 days' + interval '2 hours', 'held', now() - interval '7 days',
+   'The board approved the Q3 budget and asked for a hiring plan.', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000005e0002', '00000000-0000-4000-8000-000000000001', 'meeting', 'Weekly operations sync', null,
+   now() + interval '2 days', now() + interval '2 days' + interval '1 hour', 'planned', null, null, '00000000-0000-4000-8000-0000000000a1')
+on conflict (id) do nothing;
+
+insert into better_supabase.meeting_agenda_items (id, tenant_id, meeting_id, ordinal, title, status, outcome) values
+  ('00000000-0000-4000-8000-0000005e0101', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005e0001', 1, 'Q3 budget', 'covered', 'Approved'),
+  ('00000000-0000-4000-8000-0000005e0102', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005e0001', 2, 'Hiring plan', 'covered', 'Draft by next meeting'),
+  ('00000000-0000-4000-8000-0000005e0103', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005e0002', 1, 'Open incidents', 'open', null)
+on conflict (id) do nothing;
+
+insert into better_supabase.meeting_decisions (id, tenant_id, meeting_id, agenda_item_id, title, status, decided_by, decided_at) values
+  ('00000000-0000-4000-8000-0000005e0201', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005e0001',
+   '00000000-0000-4000-8000-0000005e0101', 'Approve the Q3 budget', 'passed', '00000000-0000-4000-8000-0000000000a1', now() - interval '7 days')
+on conflict (id) do nothing;
+
+select set_config('request.jwt.claims', '', false);
+
+-- Governance: an ISO 27001 framework with four controls, so /compliance and
+-- /compliance/controls/[id] show a rollup. Access control passes on valid
+-- evidence, backups fail on expired evidence, the incident plan fails on an
+-- overdue evidence task, and physical security does not apply. The overdue
+-- task counts as notified, so a run of notify_overdue_evidence_tasks only
+-- picks up tasks that fall overdue later.
+insert into better_supabase.control_frameworks (id, tenant_id, key, name, kind, version, description) values
+  ('00000000-0000-4000-8000-0000005f0001', '00000000-0000-4000-8000-000000000001', 'iso27001', 'ISO/IEC 27001', 'standard', '2022',
+   'Information security management controls for Acme.')
+on conflict (id) do nothing;
+
+insert into better_supabase.controls (id, tenant_id, framework_id, code, title, description, owner_id, applicable, source) values
+  ('00000000-0000-4000-8000-0000005f0101', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0001',
+   'A.5.15', 'Access control', 'Access to information follows the roles each member holds, reviewed every quarter.',
+   '00000000-0000-4000-8000-0000000000a1', true, 'Annex A'),
+  ('00000000-0000-4000-8000-0000005f0102', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0001',
+   'A.8.13', 'Information backup', 'Backups run daily and a restore is tested every month.',
+   '00000000-0000-4000-8000-0000000000a1', true, 'Annex A'),
+  ('00000000-0000-4000-8000-0000005f0103', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0001',
+   'A.5.24', 'Incident management planning', 'A written plan names who responds to a security incident and how.',
+   '00000000-0000-4000-8000-0000000000a2', true, 'Annex A'),
+  ('00000000-0000-4000-8000-0000005f0104', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0001',
+   'A.7.1', 'Physical security perimeters', 'The team works remotely and keeps no office.',
+   null, false, 'Annex A')
+on conflict (id) do nothing;
+
+insert into better_supabase.evidence_tasks (id, tenant_id, control_id, title, assignee_id, interval_days, due_on, last_collected_at, notified_for) values
+  ('00000000-0000-4000-8000-0000005f0201', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0101',
+   'Quarterly access review', '00000000-0000-4000-8000-0000000000a1', 90, current_date + 60, now() - interval '30 days', null),
+  ('00000000-0000-4000-8000-0000005f0202', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0102',
+   'Monthly restore test', '00000000-0000-4000-8000-0000000000a1', 30, current_date + 5, now() - interval '25 days', null),
+  ('00000000-0000-4000-8000-0000005f0203', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0103',
+   'Review the incident response plan', '00000000-0000-4000-8000-0000000000a2', 365, current_date - 10, null, current_date - 10)
+on conflict (id) do nothing;
+
+insert into better_supabase.control_evidence (id, tenant_id, control_id, task_id, note, collected_by, collected_at, valid_until) values
+  ('00000000-0000-4000-8000-0000005f0301', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0101',
+   '00000000-0000-4000-8000-0000005f0201', 'Access review signed off: 2 role changes, no stale accounts.',
+   '00000000-0000-4000-8000-0000000000a1', now() - interval '30 days', current_date + 60),
+  ('00000000-0000-4000-8000-0000005f0302', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0102',
+   '00000000-0000-4000-8000-0000005f0202', 'Restore of the October backup took 14 minutes.',
+   '00000000-0000-4000-8000-0000000000a1', now() - interval '55 days', current_date - 25)
+on conflict (id) do nothing;
+
+-- Collections: three reminder levels and one run over the overdue sales
+-- invoices, so the collections section on /finance/invoices has levels and a run.
+select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a1"}', false);
+
+select better_supabase.set_invoice_dunning_levels('00000000-0000-4000-8000-000000000001', '[
+  {"daysAfterDue": 7, "templateKey": "dunning.reminder"},
+  {"daysAfterDue": 21, "templateKey": "dunning.second-reminder", "fee": "1500"},
+  {"daysAfterDue": 45, "templateKey": "dunning.final-notice", "fee": "4000", "final": true}
+]'::jsonb)
+where not exists (select 1 from better_supabase.invoice_dunning_levels where tenant_id = '00000000-0000-4000-8000-000000000001');
+
+select better_supabase.run_invoice_dunning('00000000-0000-4000-8000-000000000001', null)
+where not exists (select 1 from better_supabase.invoice_dunning_runs where tenant_id = '00000000-0000-4000-8000-000000000001');
+
 select set_config('request.jwt.claims', '', false);

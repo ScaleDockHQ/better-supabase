@@ -22,6 +22,8 @@ export interface SigningKeysOverview {
   readonly active: SigningKeyRow | null;
   /** Retired keys still published until the tokens they signed expire. */
   readonly previous: readonly SigningKeyRow[];
+  /** Where receivers fetch the public keys. */
+  readonly jwksPath: string;
 }
 
 /**
@@ -57,5 +59,9 @@ export async function loadSigningKeys(): Promise<SigningKeysOverview | null> {
 
   const [active, ...previous] = rows;
 
-  return { active: active ?? null, previous };
+  return {
+    active: active ?? null,
+    previous,
+    jwksPath: `/.well-known/jwks/${tenant}`,
+  };
 }

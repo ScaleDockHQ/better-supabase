@@ -43,7 +43,7 @@ Employees with or without an account, a manager, team, job title, employment typ
 - Client: `employeesBlock` from `better-supabase/blocks/employees`
 - Modes: `managed`, `custom`
 - Requires: `memberships`, `permissions`
-- Works with: `outbox`, `relations`, `hiring`, `time-entries`, `approvals`, `teams`
+- Works with: `outbox`, `relations`, `hiring`, `time-entries`, `approvals`, `teams`, `enrollments`, `shifts`
 - Entities: `employee`
 - Tables: `employees`
 - Permission keys: `employees.read`, `employees.write`, `employees.read_sensitive`

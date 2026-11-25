@@ -7,6 +7,8 @@ import { createClient } from "@supabase/supabase-js";
 import { postgresCacheHandler } from "better-supabase/cache-postgres";
 import process from "node:process";
 
+import { countingCacheHandler } from "./counting.ts";
+
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SECRET_KEY;
 
@@ -16,10 +18,12 @@ if (!url || !key) {
   );
 }
 
-export default postgresCacheHandler({
-  client: createClient(url, key, { auth: { persistSession: false } }),
-  development: process.env.NODE_ENV === "development",
-  onError: (error) => {
-    console.warn(error.message);
-  },
-});
+export default countingCacheHandler(
+  postgresCacheHandler({
+    client: createClient(url, key, { auth: { persistSession: false } }),
+    development: process.env.NODE_ENV === "development",
+    onError: (error) => {
+      console.warn(error.message);
+    },
+  }),
+);

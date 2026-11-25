@@ -41,6 +41,7 @@ import {
   resendInvitations,
   updateInvitation,
 } from "./invitations-rows.ts";
+import { inviteWithinSeats } from "./invitations-seats.ts";
 import {
   PLATFORM_COLUMNS,
   openFilter,
@@ -938,8 +939,9 @@ function invitationsSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
 
   return `${schemaPreamble(ctx)}
-${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invitationExtra(ctx)}${invite(ctx)}${resendInvitations(ctx, sqlString(ctx.text("validFor", "7 days")))}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${acceptingInvitation(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
+${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invitationExtra(ctx)}${invite(ctx)}${inviteWithinSeats(ctx)}${resendInvitations(ctx, sqlString(ctx.text("validFor", "7 days")))}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${acceptingInvitation(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
 ${grant("invite_member", `${id}, text, text, interval, jsonb${extraFieldsArg(tenantTable(ctx).extras).type}${onAcceptParam(ctx).type}`, "authenticated, service_role")}
+${grant("invite_within_seats", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}
 ${grant("resend_invitations", "uuid[], interval", "authenticated, service_role")}
@@ -962,7 +964,7 @@ export const INVITATIONS: BlockSqlDefinition = {
   description:
     "invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.",
   requires: ["memberships", "permissions", "updated-at"],
-  integrates: ["organizations", "profiles", "teams"],
+  integrates: ["entitlements", "organizations", "profiles", "teams"],
   providerFunctions: ["idsWithFor", "isPlatformFor", "canAssignFor"],
   target: "schema",
   version: 2,
@@ -980,6 +982,11 @@ export const INVITATIONS: BlockSqlDefinition = {
         ...extraFieldsArg(tenantTable(ctx).extras).contract,
         ...(onAcceptParam(ctx).type === "" ? [] : ["jsonb"]),
       ],
+      returns: "jsonb",
+    },
+    {
+      name: "invite_within_seats",
+      args: ["{id}", "text", "text", "interval"],
       returns: "jsonb",
     },
     { name: "accept_invitation", args: ["text"], returns: "{id}" },

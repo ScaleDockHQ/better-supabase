@@ -688,6 +688,23 @@ where not exists (
   select 1 from better_supabase.time_entries t where t.subject_id = e.project and t.note = e.note
 );
 
+-- A member's submitted week, waiting on its approval request, so the portfolio's
+-- "Time awaiting approval" card has a week to approve and invoice.
+select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a2"}', false);
+
+insert into better_supabase.time_entries (tenant_id, user_id, subject_type, subject_id, started_at, ended_at, billable, rate, rate_currency, note)
+select '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', 'project', '00000000-0000-4000-8000-00000000b002',
+  date_trunc('week', current_date - 14) + time '09:00', date_trunc('week', current_date - 14) + time '14:00', true, 8500, 'EUR', 'Portal wireframes'
+where not exists (select 1 from better_supabase.time_entries t where t.note = 'Portal wireframes');
+
+select better_supabase.submit_timesheet('00000000-0000-4000-8000-000000000001', (current_date - 14)::date, 'Portal wireframes week')
+where not exists (
+  select 1 from better_supabase.timesheets s
+  where s.user_id = '00000000-0000-4000-8000-0000000000a2' and s.week = date_trunc('week', current_date - 14)::date
+);
+
+select set_config('request.jwt.claims', '', false);
+
 -- The content story: one live post, one scheduled page and a draft that
 -- the entry page publishes with a version.
 insert into better_supabase.content_entries (id, tenant_id, type, locale, slug, title, summary, body, status, publish_at, published_at, author_id, created_by) values

@@ -386,7 +386,9 @@ function openStepOf(value: unknown, fn: string): EnrollmentOpenStep {
   };
 }
 
-function datesArg(dates: EnrollmentDates): Record<string, string | null> {
+export function datesArg(
+  dates: EnrollmentDates,
+): Record<string, string | null> {
   return {
     ...optional("startsAt", instantArg(dates.startsAt)),
     ...optional("endsAt", instantArg(dates.endsAt)),
@@ -423,7 +425,7 @@ function progressOf(value: unknown, fn: string): EnrollmentProgress {
   };
 }
 
-function enrollmentOf(value: unknown, fn: string): Enrollment {
+export function enrollmentOf(value: unknown, fn: string): Enrollment {
   const row = recordOf(value, fn);
   const version = row["programVersion"];
 

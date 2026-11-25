@@ -7,26 +7,39 @@ import { createPostgres } from "better-supabase/postgres";
 import { createServer, sqlSupportStore } from "better-supabase/server";
 
 import { env } from "@/env";
+import { getPermissions } from "@/features/user/permission-snapshot";
 
+import { catalog } from "../permission-catalog";
 import { permissions } from "./blocks.generated";
 import { betterSupabase } from "./index";
+import { keptStore } from "./kept-store";
 import { sharedCounters } from "./session-counters";
 
 const options: NextOptions = {
+  // Record pages read their `can` flags from the token or the shell's one call.
+  heldPermissions: getPermissions,
   // The browser client in `client.ts` sets the same `cookies.encode`.
   auth: { cookie: { encode: "tokens-only" } },
   debug: {
     // The testing build checks each navigation's budget against `next start`.
     enabled: env.EXPOSE_TESTING_API === "1",
+    // First-request timings, read by the harness (`cold=` in the stats header).
+    coldStart: env.EXPOSE_TESTING_API === "1",
     budget: { calls: 8, waves: 2 },
     // Matches `src/app/api/bs-stats/route.ts`, where `bsb.debugRoute()` is mounted.
     route: "/api/bs-stats",
   },
+  // `BSB_KEPT_STORE`: memory per instance, Postgres, or the Vercel Runtime Cache.
+  kept: { store: keptStore() },
   // Applies when SUPABASE_READ_URL is set: reads stay on the primary this long after a write.
   replicas: { pinMs: 5000 },
   // `permission` on actions, routes and resources: granted from the token's
   // `permissions` claim, and from `my_permissions` when the token can't say.
-  authorizer: permissionsAuthorizer({ permissions, load: myPermissions }),
+  authorizer: permissionsAuthorizer({
+    permissions,
+    catalog,
+    load: myPermissions,
+  }),
 };
 
 const counters = sharedCounters();

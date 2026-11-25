@@ -196,11 +196,14 @@ function permissionScopesPath(config: Pick<ResolvedConfig, "output">): string {
 }
 
 /**
- * `permission-scopes.ts`: `apiKeyScopes` (every tenant key) and `oauthScopes`
- * (the same without the `manage` keys, which no OAuth client holds), for the
+ * `permission-scopes.ts`: `permissionKeys` (the whole catalog, which the bitset
+ * claim is read over), `apiKeyScopes` (every tenant key) and `oauthScopes` (the
+ * same without the `manage` keys, which no OAuth client holds), for the
  * `scopes` of `api-keys` and the scopes an `oauth-server` client may request.
  */
 export function emitPermissionScopes(config: CatalogConfig): GeneratedFile {
+  const all = permissionCatalogKeys(config).map((entry) => entry.key);
+
   const tenant = permissionCatalogKeys(config)
     .filter((entry) => entry.scope === "tenant")
     .map((entry) => entry.key);
@@ -214,6 +217,10 @@ export function emitPermissionScopes(config: CatalogConfig): GeneratedFile {
     path: permissionScopesPath(config),
     contents: [
       GENERATED_HEADER,
+      "/* oxlint-disable eslint/max-lines -- one key per line; a large catalog exceeds 1,000 lines. */",
+      "",
+      "/** Every key of the permission catalog, tenant and platform, as the migration writes them. */",
+      `export const permissionKeys = ${list(all)} as const;`,
       "",
       "/** The keys an API key may hold, from the permission catalog. */",
       `export const apiKeyScopes = ${list(tenant)} as const;`,

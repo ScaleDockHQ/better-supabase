@@ -689,6 +689,31 @@ Outside a request, `bsb.contextFromSession(snapshot)` builds the same
 context from a `SessionSnapshot` you already have (`bsb.getClaims()`),
 without verifying the token again. `null` gives the signed-out context.
 
+### Record pages without `my_permissions`
+
+`bsb.record(type).load()`, `.timeline()` and `recordListServer` need the
+caller's keys for their `can` flags. By default they call `my_permissions` with
+the keys the record type checks, once per call. Pass `heldPermissions` to
+`createNext` to give them a source that costs no database call, such as the
+snapshot above. It returns the caller's full set of keys in the active tenant,
+or `null` when it has none, and then the loader asks `my_permissions` as before.
+
+```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { createNext } from "better-supabase/next";
+
+import { getPermissions } from "@/features/user/permission-snapshot";
+
+import { betterSupabase } from "./index";
+
+export const bsb = createNext(betterSupabase, {
+  heldPermissions: getPermissions,
+});
+```
+
+In the Next.js example, `/customers/[id]` stops making six `my_permissions`
+calls per render and loads in two waves instead of three.
+
 ### What one scope costs
 
 Each island that misses its private cache resolves the caller again. A
@@ -893,10 +918,15 @@ export const GET = bsb.debugRoute();
   `bsb.statsFetch(fetch)` as its `global.fetch`, and its PostgREST, RPC,
   Storage and Edge Function requests count for the current request.
 - Each `bsb.kept` and `bsb.remote` call adds an entry record to the stats
-  route's `entries`: `{ id, kind, outcome, fillMs }`, where `kind` is
+  route's `entries`: `{ id, kind, outcome, fillMs, bytes }`, where `kind` is
   `kept` or `remote`, `outcome` is `hit`, `miss`, `stale` or `wait`, and
   `fillMs` is the fill time of a miss. A `bsb.remote` call is a `miss` when
-  its fill ran in this process during the call, and a `hit` otherwise.
+  its fill ran in this process during the call, and a `hit` otherwise. A
+  `bsb.kept` entry also carries `bytes`, the size of its value as JSON. The
+  entries of `bsb.cached()` and `bsb.public()` have the kinds `private` and
+  `public` and record only a miss, when their body runs; a hit is a visit
+  without a miss. `expiredTags` lists the names of the tags the request's
+  writes expired, next to the `tagCalls` count.
 - In development, a render that goes over `budget` logs a warning once its
   calls have been idle for 250 ms. A private-cache hit makes no call, so
   warm navigations cost 0.
@@ -923,7 +953,7 @@ export const GET = bsb.debugRoute();
   Set `debug.enabled` for e2e runs against `next start`.
 
 In code, `ctx.stats()` and `db.$stats()` return the same numbers for one
-context: `{ calls, waves, tables, ms, verifications, adminCalls, tagCalls, entries }`. The proxy's
+context: `{ calls, waves, tables, ms, verifications, adminCalls, tagCalls, expiredTags, entries }`. The proxy's
 verification is counted on the document response header; the totals of the
 render itself come from the stats route.
 

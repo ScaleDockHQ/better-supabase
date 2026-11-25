@@ -124,13 +124,16 @@ export { sessionIdTag, sessionTag, tableTags } from "../server/cache-tags.ts";
 /** The next read waits for fresh data instead of serving the stale entry. */
 const EXPIRE_NOW = { expire: 0 } as const;
 
-const tagCallListeners = new Set<(calls: number) => void>();
+type TagCallListener = (calls: number, tags: readonly string[]) => void;
+
+const tagCallListeners = new Set<TagCallListener>();
 
 /**
  * Calls `listener` with the number of `updateTag` and `revalidateTag` calls
- * each `invalidateAll` made. Returns a function that removes it.
+ * each `invalidateAll` made and the tags it expired. Returns a function that
+ * removes it.
  */
-export function onTagCalls(listener: (calls: number) => void): () => void {
+export function onTagCalls(listener: TagCallListener): () => void {
   tagCallListeners.add(listener);
 
   return () => {
@@ -138,14 +141,14 @@ export function onTagCalls(listener: (calls: number) => void): () => void {
   };
 }
 
-function reportTagCalls(calls: number): void {
+function reportTagCalls(calls: number, tags: readonly string[]): void {
   if (calls === 0) {
     return;
   }
 
   for (const listener of tagCallListeners) {
     try {
-      listener(calls);
+      listener(calls, tags);
     } catch {
       // A stats listener never fails an invalidation.
     }
@@ -168,7 +171,7 @@ export function invalidateAll(
       updateTag(tags[index]!);
     }
 
-    reportTagCalls(index);
+    reportTagCalls(index, tags.slice(0, index));
 
     return;
   } catch {
@@ -183,7 +186,7 @@ export function invalidateAll(
     // Outside a Next.js request (jobs, scripts): nothing to invalidate.
   }
 
-  reportTagCalls(index);
+  reportTagCalls(index, tags.slice(0, index));
 }
 
 /**

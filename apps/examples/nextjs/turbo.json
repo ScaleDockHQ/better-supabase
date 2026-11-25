@@ -7,6 +7,7 @@
       "env": [
         "BSB_BUILD_SCOPE",
         "BSB_DURABLE_USE_CACHE",
+        "BSB_KEPT_STORE",
         "BSB_REMOTE_CACHE_DIR",
         "BSB_REMOTE_CACHE_STORE",
         "BSB_TAG_PROBE_SECRET",
@@ -56,7 +57,15 @@
     },
     "test": {
       "dependsOn": ["$TURBO_EXTENDS$", "^build"],
-      "env": ["$TURBO_EXTENDS$", "BSB_PERF_DIR", "BSB_PERF_USER"]
+      "env": [
+        "$TURBO_EXTENDS$",
+        "BSB_DB_ADMIN_URL",
+        "BSB_DB_TIME_TIER",
+        "BSB_DB_TIME_UPDATE",
+        "BSB_EXPLAIN_ROUTES",
+        "BSB_PERF_DIR",
+        "BSB_PERF_USER"
+      ]
     },
     "dev:portless": {
       "passThroughEnv": [

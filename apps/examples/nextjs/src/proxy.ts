@@ -18,6 +18,7 @@ import { env } from "@/env";
 import { requiredPermission } from "./features/navigation/nav-items";
 import { pricingFlags, signupWaitlist, VISITOR_COOKIE } from "./flags";
 import { localizedPath, routing } from "./i18n/routing";
+import { catalog } from "./lib/permission-catalog";
 import { app } from "./lib/supabase/app";
 
 const intl = createMiddleware(routing);
@@ -126,7 +127,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   }
 
   const needed = requiredPermission(path);
-  const keys = permissionsOf(session);
+  const keys = permissionsOf(session, undefined, { catalog });
 
   if (
     needed !== undefined &&
@@ -146,6 +147,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
 const handle = createProxy(app, {
   debug: {
     enabled: env.EXPOSE_TESTING_API === "1",
+    coldStart: env.EXPOSE_TESTING_API === "1",
     budget: { calls: 8, waves: 2 },
     route: "/api/bs-stats",
   },
@@ -184,8 +186,9 @@ export const proxy = (request: NextRequest) => handle(request);
 
 export const config = {
   matcher: [
-    // The workflow, Flags Explorer and MCP metadata routes answer without a
-    // session; the proxy would redirect them to a locale or the sign-in page.
-    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|\\.well-known/oauth-protected-resource|.*\\.(?:svg|png|jpg|webp|ico|txt|js|html|webmanifest)$).*)",
+    // The workflow, Flags Explorer, MCP metadata and JWKS routes answer
+    // without a session; the proxy would redirect them to a locale or the
+    // sign-in page.
+    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|\\.well-known/oauth-protected-resource|\\.well-known/jwks/|.*\\.(?:svg|png|jpg|jpeg|gif|avif|webp|ico|css|map|woff|woff2|ttf|otf|txt|js|html|webmanifest)$).*)",
   ],
 };

@@ -108,6 +108,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "updated-at"
       ],
       "integrates": [
+        "entitlements",
         "organizations",
         "profiles",
         "teams"
@@ -2872,7 +2873,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "hiring",
         "time-entries",
         "approvals",
-        "teams"
+        "teams",
+        "enrollments",
+        "shifts"
       ],
       "modes": [
         "managed",

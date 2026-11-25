@@ -592,6 +592,52 @@ describe("createFlagsProvider", () => {
     expect(call).toHaveBeenCalledTimes(3);
   });
 
+  it("serves stale definitions past ttl while one reload runs behind", async () => {
+    let clock = 0;
+    let release: (rows: unknown[]) => void = () => undefined;
+
+    const row = (variant: string) => ({
+      key: "f",
+      variants: { on: true, off: false },
+      default_variant: variant,
+    });
+
+    const call = vi
+      .fn()
+      .mockResolvedValueOnce([row("on")])
+      .mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            release = done;
+          }),
+      );
+
+    const provider = createFlagsProvider({
+      transport: { call },
+      schema: "flags",
+      ttl: 1000,
+      staleTtl: 5000,
+      now: () => clock,
+    });
+
+    const read = async () =>
+      (await provider.resolveBooleanEvaluation("f", false, {})).value;
+
+    expect(await read()).toBe(true);
+    clock = 1500;
+    expect(await read()).toBe(true);
+    expect(await read()).toBe(true);
+    expect(call).toHaveBeenCalledTimes(2);
+    release([row("off")]);
+    await new Promise((done) => {
+      setTimeout(done, 0);
+    });
+    expect(await read()).toBe(false);
+    clock = 20_000;
+    call.mockResolvedValueOnce([row("on")]);
+    expect(await read()).toBe(true);
+  });
+
   it("uses the error codes it is given", async () => {
     const provider = createFlagsProvider({
       definitions: [],

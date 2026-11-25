@@ -96,6 +96,49 @@ describe("createOrganizations", () => {
     ]);
   });
 
+  it("invites within the seats in one call", async () => {
+    const { transport, calls } = fake({ invite_within_seats: invitationRow });
+    const canInvite = vi.fn(() => true);
+
+    const result = await createOrganizations({
+      transport,
+      canInvite,
+    }).inviteWithinSeats({
+      organizationId: "org-1",
+      email: "ada@example.com",
+      role: "member",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(canInvite).toHaveBeenCalledOnce();
+    expect(calls).toEqual([
+      {
+        schema: "better_supabase",
+        fn: "invite_within_seats",
+        args: {
+          tenant: "org-1",
+          invitee_email: "ada@example.com",
+          invitee_role: "member",
+          valid_for: undefined,
+        },
+      },
+    ]);
+  });
+
+  it("maps a full plan to invalid_request", async () => {
+    const { transport } = fake({
+      invite_within_seats: pgError("22023", "INVITATION_NO_SEAT"),
+    });
+
+    expect(
+      await createOrganizations({ transport }).inviteWithinSeats({
+        organizationId: "org-1",
+        email: "ada@example.com",
+        role: "member",
+      }),
+    ).toMatchObject({ ok: false, error: { hint: "INVITATION_NO_SEAT" } });
+  });
+
   it("passes the owner for the service role", async () => {
     const { transport, calls } = fake({ create_organization: "org-1" });
     await createOrganizations({ transport }).create({

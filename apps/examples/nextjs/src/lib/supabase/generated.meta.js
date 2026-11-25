@@ -17,6 +17,6 @@ export default {
   },
   "bootstrap": {
     "schema": "api",
-    "tables": {"islands":["customers","notes","contacts","tags","tasks"]}
+    "tables": {"islands":["customers","notes","contacts","tags","tasks"],"shell":["organizations","memberships","profiles","approvals"]}
   }
 };

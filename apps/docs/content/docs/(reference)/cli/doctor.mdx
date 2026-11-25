@@ -58,8 +58,8 @@ pnpm better-supabase doctor --only BS103,BS106,BS430
 
 Some checks need the database itself: the advisors (BS100 and BS200) and the
 checks that read statistics, plans, settings or live rows (BS208, BS209,
-BS212, BS225, BS236, BS238, BS241, BS242, BS245, BS363, BS399, BS638 and
-BS639). When a run includes one of them and no database answers, doctor stops
+BS212, BS225, BS236, BS238, BS241, BS242, BS245, BS363, BS399, BS638, BS639 and
+BS732). When a run includes one of them and no database answers, doctor stops
 and names them, so you can leave them out with `--ignore` or `--only`. The
 flags `--stats`, `--explain`, `--explain-write`, `--as` and `--yes` always
 need the database.
@@ -3260,6 +3260,18 @@ migration, keep one cache handler per Supabase project, or use `bsb.kept()`
 with a `version`. See
 [durable use cache entries](/docs/frameworks/next-cache-components#durable-use-cache-entries).
 
+### BS647
+
+**Warning: `bsb.kept` runs on the memory store.** A source calls `bsb.kept()`
+and no source gives createNext a `kept: { store }`, or one sets it to
+`memoryKeptStore()`. The entries then live in each instance's memory: a second
+instance fills its own copy, and a write on one instance never expires the
+others. Pass `postgresKeptStore({ client })` or
+`vercelRuntimeCacheAdapter(getCache, { lease })` when the app runs more than one
+instance. Doctor can't see the instance count, so it reports every app that
+keeps entries without a durable store. See
+[Keep reads across requests and deploys](/docs/concepts/caching#keep-reads-across-requests-and-deploys).
+
 ### BS633
 
 **Info: an app row trigger has no `importing()` guard.** An import writes many
@@ -3607,3 +3619,18 @@ policies or functions skip it, and `gen` stops on it. Doctor names the file,
 the line and column, the parser's message and the Postgres version whose
 grammar rejected it. Fix the statement, or set `db.major_version` when the file
 uses syntax of another version.
+
+### BS732
+
+**Warning: a slow statement in `pg_stat_statements`.** A statement the API roles
+(`authenticated`, `anon`, `service_role`) ran at least five times has a mean
+execution time of 100 ms or more, or a function in the `public` or
+`better_supabase` schema has the same mean in `pg_stat_user_functions`, which
+needs `track_functions` set to `pl` or `all`. The planning and executor start-up
+of a SQL function body count toward the call that runs it, so an RPC that is
+slow here often has a policy or a function inside it that is. Run `explain
+(analyze, buffers)` as the signed-in role with its claims set, or use
+`better-supabase doctor --explain`. The check reads statistics from the running
+database, reports nothing when `pg_stat_statements` is not installed, and a
+saved snapshot skips it. Reset the statistics with `select
+pg_stat_statements_reset()` after a fix to see the new means.

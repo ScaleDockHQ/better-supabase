@@ -385,7 +385,7 @@ export interface BlockNameRegistry {
       readonly "batches": "id" | "tenant" | "account" | "reference" | "messageId" | "currency" | "dueBy" | "executionOn" | "total" | "itemCount" | "status" | "transaction" | "createdBy" | "createdAt" | "postedAt" | "reconciledAt";
       readonly "batchItems": "id" | "tenant" | "batch" | "invoice" | "party" | "creditorName" | "creditorIban" | "creditorBic" | "amount" | "discount" | "currency" | "endToEndId" | "remittance" | "status";
     };
-    readonly functions: "apply_bank_rules" | "bank_mod97" | "bank_reconciliation_board" | "bank_reconciliation_status" | "bank_reference" | "bank_rule_condition" | "delete_bank_rule" | "get_bank_transaction" | "ignore_bank_transaction" | "import_bank_statement" | "list_bank_accounts" | "list_bank_rules" | "list_bank_statements" | "list_bank_transactions" | "match_bank_transaction" | "page_bank_accounts" | "save_bank_account" | "save_bank_rule" | "suggest_bank_matches" | "unmatch_bank_transaction";
+    readonly functions: "apply_bank_rules" | "bank_mod97" | "bank_reconciliation_board" | "bank_reconciliation_status" | "bank_reference" | "bank_rule_condition" | "delete_bank_rule" | "get_bank_transaction" | "ignore_bank_transaction" | "import_bank_statement" | "list_bank_accounts" | "list_bank_rules" | "list_bank_statements" | "list_bank_transactions" | "match_bank_transaction" | "page_bank_accounts" | "reconcile_bank_account" | "save_bank_account" | "save_bank_rule" | "suggest_bank_matches" | "unmatch_bank_transaction";
     readonly actions: "read" | "import" | "reconcile" | "manage";
     readonly hooks: "after_bank_statement_import" | "before_bank_transaction_match" | "after_bank_transaction_match";
     readonly entities: {
@@ -1318,7 +1318,7 @@ export interface BlockNameRegistry {
       readonly "invitations": "id" | "email" | "role" | "tokenHash" | "invitedBy" | "createdAt" | "updatedAt" | "expiresAt" | "acceptedAt" | "acceptedBy" | "declinedAt" | "revokedAt" | "tenant" | "prefill";
       readonly "platformInvitations": "id" | "email" | "role" | "tokenHash" | "invitedBy" | "createdAt" | "updatedAt" | "expiresAt" | "acceptedAt" | "acceptedBy" | "declinedAt" | "revokedAt";
     };
-    readonly functions: "accept_invitation" | "accept_invitation_by_id" | "accepting_invitation" | "create_invitation" | "decline_invitation" | "decline_invitation_by_id" | "invitation_extra" | "invitation_preview" | "invitation_tenant_ids" | "invite_member" | "my_invitations" | "resend_invitation" | "resend_invitations" | "revoke_invitation" | "update_invitation";
+    readonly functions: "accept_invitation" | "accept_invitation_by_id" | "accepting_invitation" | "create_invitation" | "decline_invitation" | "decline_invitation_by_id" | "invitation_extra" | "invitation_preview" | "invitation_tenant_ids" | "invite_member" | "invite_within_seats" | "my_invitations" | "resend_invitation" | "resend_invitations" | "revoke_invitation" | "update_invitation";
     readonly actions: "invite" | "revoke" | "read" | "invitePlatform";
     readonly hooks: "before_invitation_create" | "after_invitation_accept" | "invitation_preview_extra";
     readonly entities: {};

@@ -416,6 +416,19 @@ export interface Organizations<
    */
   overview(organizationId: string): AsyncResult<OrganizationOverview>;
   invite(request: InviteRequest<I, R>): AsyncResult<InvitationSent<I>>;
+  /**
+   * `invite` when the plan has a seat left, in one database call: the members
+   * are counted against the `seats` entitlement and the invitation is written
+   * in the same transaction (`invite_within_seats`). A plan without a numeric
+   * `seats` value has no cap. `fields`, `prefill` and `onAccept` are not
+   * available here; use `invite` for those.
+   */
+  inviteWithinSeats(
+    request: Pick<
+      InviteRequest<I, R>,
+      "organizationId" | "email" | "role" | "validFor"
+    >,
+  ): AsyncResult<InvitationSent<I>>;
   resendInvitation(input: {
     invitationId: string;
     validFor?: string | undefined;
@@ -1166,6 +1179,29 @@ function organizationsClient<
               : { on_accept: request.onAccept }),
           },
           (value) => sent(value, "invite_member", false),
+        );
+      });
+    },
+    inviteWithinSeats(request) {
+      return AsyncResult.from(async () => {
+        if (options.canInvite && !(await options.canInvite(request))) {
+          return err(
+            dbError("forbidden", "The invitation was refused", {
+              hint: "INVITATION_FORBIDDEN",
+            }),
+          );
+        }
+
+        return run(
+          "invitations",
+          "invite_within_seats",
+          {
+            tenant: request.organizationId,
+            invitee_email: request.email,
+            invitee_role: request.role,
+            valid_for: request.validFor,
+          },
+          (value) => sent(value, "invite_within_seats", false),
         );
       });
     },

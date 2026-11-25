@@ -1,9 +1,12 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
 import { readMemberNames } from "@/features/people/member-names";
 import { bsb } from "@/lib/supabase/server";
+
+import { APPRAISALS_TAG } from "./appraisals-cache";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -43,6 +46,7 @@ export interface AppraisalRow {
 
 async function loadAppraisals(): Promise<readonly AppraisalRow[] | null> {
   "use cache: private";
+  cacheTag(APPRAISALS_TAG);
   const scope = await bsb.cached();
   const { session, db } = scope;
   const tenant = tenantOf(session);
@@ -86,9 +90,13 @@ export interface AppraisalDetailData {
     readonly average: string | null;
     readonly calibrated: number | null;
   }[];
+  /** The cycle's rubric; empty when the cycle rates one overall rating. */
+  readonly rubric: readonly { readonly key: string; readonly name: string }[];
   readonly reviews: readonly {
     readonly id: string;
     readonly kind: string;
+    /** The caller writes this review. */
+    readonly mine: boolean;
     readonly reviewerName: string | null;
     readonly rating: number | null;
     readonly comments: string | null;
@@ -106,6 +114,7 @@ async function loadAppraisal(
   id: string,
 ): Promise<AppraisalDetailData | "not-found" | null> {
   "use cache: private";
+  cacheTag(APPRAISALS_TAG);
   const scope = await bsb.cached();
   const { session, db } = scope;
   const tenant = tenantOf(session);
@@ -125,6 +134,7 @@ async function loadAppraisal(
   }
 
   const appraisal = found.data;
+  const userId = session.kind === "user" ? session.user.id : null;
 
   const [cycles, names] = await Promise.all([
     db.appraisals.listCycles().orThrow(),
@@ -151,9 +161,14 @@ async function loadAppraisal(
       average: competency.average ?? null,
       calibrated: competency.calibrated ?? null,
     })),
+    rubric: appraisal.rubric.map((competency) => ({
+      key: competency.key,
+      name: competency.name,
+    })),
     reviews: appraisal.reviews.map((review) => ({
       id: review.id,
       kind: review.kind,
+      mine: userId !== null && review.reviewerId === userId,
       reviewerName: name(review.reviewerId),
       rating: review.rating ?? null,
       comments: review.comments ?? null,

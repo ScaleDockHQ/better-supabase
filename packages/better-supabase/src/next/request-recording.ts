@@ -1,11 +1,13 @@
 import { headers } from "next/headers.js";
 
 import type { CacheEntryStat, StatsRecorder } from "../core/stats.ts";
+import type { Settled } from "../server/respond.ts";
 import type { ContextOptions } from "../server/server-types.ts";
 import type { CollectorView } from "./collector.ts";
-import type { RemoteCacheKey } from "./types.ts";
+import type { CacheScope, RemoteCacheKey } from "./types.ts";
 
 import { recordingFetch } from "../core/stats.ts";
+import { settle } from "../server/respond.ts";
 import { requestIdOf } from "./collector.ts";
 import { fillsOf, handoffRequestId } from "./remote-handoff.ts";
 
@@ -25,6 +27,11 @@ export interface RequestRecording {
   ) => void;
   /** The current request's debug id, `undefined` without debug. */
   readonly currentId: () => Promise<string | undefined>;
+  /** Settles `run` with the request's calls marked as `phase`, then `render`. */
+  readonly settleIn: (
+    phase: "action" | "render",
+    run: () => unknown,
+  ) => Promise<Settled>;
   /**
    * Starts timing a `bsb.remote()` call under `key`; the returned function
    * records it as a hit or, when a fill ran meanwhile, a miss.
@@ -35,6 +42,18 @@ export interface RequestRecording {
     requestId: string | undefined,
   ) => () => void;
   readonly statsFetch: (base?: typeof globalThis.fetch) => typeof fetch;
+  /**
+   * Records that a private or public entry's body ran, which is a miss. A
+   * remote entry (`bsb.remote()`) records itself through `remoteCall`.
+   */
+  readonly missed: (scope: CacheScope, entry: EntryOptions) => void;
+}
+
+/** The part of an entry's options that names it. */
+interface EntryOptions {
+  readonly scope?: "private" | "remote";
+  readonly tables?: readonly string[];
+  readonly tags?: readonly string[];
 }
 
 const roundMs = (ms: number): number => Math.round(ms * 100) / 100;
@@ -48,29 +67,56 @@ export function requestRecording(
   const statsForId = (id: string | undefined): ContextOptions =>
     collector && id ? { stats: collector.recorderFor(id) } : {};
 
+  const recordOn: RequestRecording["recordOn"] = (handle, record) => {
+    if (!collector) {
+      return;
+    }
+
+    const fromHandle = handle ? handoffRequestId(handle) : undefined;
+
+    (fromHandle ? Promise.resolve(fromHandle) : currentId())
+      .then((found) => {
+        if (found) {
+          record(collector.recorderFor(found));
+        }
+      })
+      .catch(() => {
+        // Outside a request there is no request to record on.
+      });
+  };
+
   return {
     statsForId,
     statsForHandle: (handle) => statsForId(handoffRequestId(handle)),
+    recordOn,
+    currentId,
+    settleIn: async (phase, run) => {
+      const id = await currentId();
+      const recorder = collector && id ? collector.recorderFor(id) : undefined;
 
-    recordOn: (handle, record) => {
-      if (!collector) {
-        return;
+      recorder?.setPhase(phase);
+
+      try {
+        return await settle(run);
+      } finally {
+        recorder?.setPhase("render");
       }
-
-      const fromHandle = handle ? handoffRequestId(handle) : undefined;
-
-      (fromHandle ? Promise.resolve(fromHandle) : currentId())
-        .then((found) => {
-          if (found) {
-            record(collector.recorderFor(found));
-          }
-        })
-        .catch(() => {
-          // Outside a request there is no request to record on.
-        });
     },
 
-    currentId,
+    missed: (scope, entry) => {
+      const kind =
+        scope === "remote" ? (entry.scope ? undefined : "public") : "private";
+
+      if (kind) {
+        recordOn(undefined, (recorder) => {
+          recorder.entry({
+            id: entry.tables?.[0] ?? entry.tags?.[0] ?? kind,
+            kind,
+            outcome: "miss",
+          });
+        });
+      }
+    },
 
     remoteCall: (key, id, requestId) => {
       if (!collector || !requestId) {

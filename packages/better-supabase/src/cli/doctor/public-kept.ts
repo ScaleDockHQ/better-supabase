@@ -161,7 +161,74 @@ function publicKeptTables(context: DoctorContext): FindingInput[] {
   );
 }
 
+// `kept: { store: ... }` in the options of createNext.
+const KEPT_STORE_OPTION = /\bkept\s*:\s*\{[^}]*\bstore\b/s;
+const MEMORY_STORE_OPTION = /\bstore\s*:\s*memoryKeptStore\s*\(/;
+
+/**
+ * `bsb.kept` calls whose entries live in the memory store (BS647): the app
+ * names no `kept.store`, or names `memoryKeptStore()`. Each instance then fills
+ * and expires its own copy, so a second instance misses what the first kept and
+ * a write on one never expires the others.
+ */
+function keptOnMemoryStore(context: DoctorContext): FindingInput[] {
+  const configured = context.sources.some((source) =>
+    KEPT_STORE_OPTION.test(source.text),
+  );
+
+  const memory = context.sources.find((source) =>
+    MEMORY_STORE_OPTION.test(source.text),
+  );
+
+  if (configured && !memory) {
+    return [];
+  }
+
+  for (const source of context.sources) {
+    if (!source.text.includes(".kept(")) {
+      continue;
+    }
+
+    let line: number | undefined;
+
+    walk(parseSource(source.text).program, {
+      enter(node) {
+        if (
+          line === undefined &&
+          node.type === "CallExpression" &&
+          node.callee.type === "MemberExpression" &&
+          !node.callee.computed &&
+          node.callee.property.type === "Identifier" &&
+          node.callee.property.name === "kept"
+        ) {
+          line = lineColumn(source.text, node.start).line;
+        }
+      },
+    });
+
+    if (line !== undefined) {
+      return [
+        {
+          message: `${source.path} calls \`bsb.kept()\`, and ${memory ? `${memory.path} sets` : "no source sets"} \`kept.store\` ${memory ? "to `memoryKeptStore()`" : "in createNext"}. The entries then live in each instance's memory: a second instance fills its own copy, and a write on one instance never expires the others. Pass \`kept: { store: postgresKeptStore({ client }) }\` or \`vercelRuntimeCacheAdapter(getCache, { lease })\` to createNext when the app runs more than one instance.`,
+          target: `${source.path}:kept`,
+          location: { file: source.path, line },
+        },
+      ];
+    }
+  }
+
+  return [];
+}
+
 export const PUBLIC_KEPT_RULES: readonly Rule[] = [
+  {
+    code: "BS647",
+    severity: "warning",
+    title: "bsb.kept runs on the memory store",
+    description:
+      "`bsb.kept()` keeps entries in `memoryKeptStore()` unless createNext gets `kept: { store }`. With more than one instance, each one fills and expires its own copy: a second instance misses what the first kept, and a write on one never expires the others. Doctor reports a source that calls `bsb.kept()` while no source sets `kept.store`, or one sets it to `memoryKeptStore()`.",
+    check: keptOnMemoryStore,
+  },
   {
     code: "BS645",
     severity: "warning",

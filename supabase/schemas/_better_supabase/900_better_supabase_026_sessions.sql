@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:94c52c2941a5d619b8846f79d543a3d2f5756bf1a8fbe9ad835c970ccdff58d4
+-- @bsb-hash sha256:ae42b2755cdf53166ab41bfd9c797e391bc94d9898d4ceeb46139068e24998ba
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -594,6 +594,36 @@ $$;
 revoke execute on function better_supabase.bootstrap_islands(jsonb) from public, anon;
 grant execute on function better_supabase.bootstrap_islands(jsonb) to authenticated;
 
+create or replace function better_supabase.bootstrap_shell(args jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if not (select better_supabase.session_active()) then
+    return jsonb_build_object(
+      'session_active', false,
+      'end_reason', better_supabase.session_end_reason(),
+      'authz_version', auth.jwt() -> 'authz_ver',
+      'token_authz_version', auth.jwt() -> 'authz_ver',
+      'tenant', args ->> 'tenant',
+      'data', null
+    );
+  end if;
+  return jsonb_build_object(
+    'session_active', true,
+    'authz_version', to_jsonb(better_supabase.caller_authz_version()),
+    'token_authz_version', auth.jwt() -> 'authz_ver',
+    'tenant', args ->> 'tenant',
+    'data', to_jsonb(public.shell_bootstrap(args))
+  );
+end;
+$$;
+
+revoke execute on function better_supabase.bootstrap_shell(jsonb) from public, anon;
+grant execute on function better_supabase.bootstrap_shell(jsonb) to authenticated;
+
 -- blocks.sessions.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -696,3 +726,12 @@ set search_path = ''
 as $$ select "better_supabase"."bootstrap_islands"($1) $$;
 revoke execute on function "api"."bootstrap_islands"(jsonb) from public, anon, service_role;
 grant execute on function "api"."bootstrap_islands"(jsonb) to authenticated;
+
+create or replace function "api"."bootstrap_shell"(args jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."bootstrap_shell"($1) $$;
+revoke execute on function "api"."bootstrap_shell"(jsonb) from public, anon, service_role;
+grant execute on function "api"."bootstrap_shell"(jsonb) to authenticated;

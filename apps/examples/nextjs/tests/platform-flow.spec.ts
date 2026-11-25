@@ -156,6 +156,34 @@ test("a member opens instantly with the seat view", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("the signing keys page links the public JWK Set, which answers without a session", async ({
+  page,
+  playwright,
+}) => {
+  await page.goto("/settings/signing-keys");
+
+  const link = page
+    .getByRole("main")
+    .getByRole("link", { name: /^\/\.well-known\/jwks\// });
+
+  const path = await link.getAttribute("href");
+
+  expect(path).not.toBeNull();
+
+  const anonymous = await playwright.request.newContext({
+    baseURL: new URL(page.url()).origin,
+  });
+
+  const response = await anonymous.get(path ?? "");
+
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("json");
+  expect((await response.json()) as unknown).toMatchObject({
+    keys: expect.any(Array) as unknown,
+  });
+  await anonymous.dispose();
+});
+
 // oxlint-disable-next-line vitest/prefer-each -- Playwright has no test.each (1 finding)
 for (const [path, label] of [
   ["/settings/signing-keys", "Active key"],

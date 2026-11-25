@@ -35,8 +35,16 @@ export interface PortfolioRow {
   readonly billableHours: number;
 }
 
+/** A submitted week that waits for a decision and an invoice. */
+export interface AwaitingTimesheet {
+  readonly id: string;
+  readonly userId: string;
+  readonly week: string;
+}
+
 export interface Portfolio {
   readonly rows: readonly PortfolioRow[];
+  readonly awaiting: readonly AwaitingTimesheet[];
   readonly utilization: number;
   readonly weekHours: number;
 }
@@ -106,7 +114,7 @@ export async function loadPortfolio(): Promise<Portfolio | null> {
 
   const projects = projectsOf(db);
 
-  const [list, week] = await Promise.all([
+  const [list, week, submitted] = await Promise.all([
     db.projects
       .list({
         select: ["id", "name", "budgetMinor", "currency"],
@@ -118,6 +126,7 @@ export async function loadPortfolio(): Promise<Portfolio | null> {
     projects
       .utilization({ weekOf: Temporal.Now.plainDateISO("UTC") })
       .orThrow(),
+    db.timeEntries.timesheets({ status: "submitted", pageSize: 10 }).orThrow(),
   ]);
 
   const rows = await Promise.all(
@@ -140,8 +149,15 @@ export async function loadPortfolio(): Promise<Portfolio | null> {
 
   const capacity = week.capacityHours * Math.max(week.members.length, 1);
 
+  const awaiting = submitted.flatMap((sheet) =>
+    sheet.id === undefined
+      ? []
+      : [{ id: sheet.id, userId: sheet.userId, week: sheet.week.toString() }],
+  );
+
   return {
     rows,
+    awaiting,
     weekHours: seconds / SECONDS_PER_HOUR,
     utilization: capacity === 0 ? 0 : seconds / SECONDS_PER_HOUR / capacity,
   };

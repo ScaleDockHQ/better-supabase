@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:4173770eb21ccf4f14aca14ad8f4fc109791d19180353fb555ec3ec193a2e5e5
+-- @bsb-hash sha256:5c769957ce009411af707bb5033877c9a49e293575a8eb383f882cadeac11dd5
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -163,7 +163,7 @@ grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -475,11 +475,7 @@ as $$
         'under', greatest(a."units" - s.used, 0)
       ) order by s.start)
       from (
-        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, (
-          select coalesce(sum(x."units"), 0) from "better_supabase"."funding_deliveries" x
-          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
-            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
-        ) as used
+        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, u.used
         from (
           select pg_catalog.generate_series(
             (case a."period" when 'week' then date_trunc('week', a."starts_on")::date when 'month' then date_trunc('month', a."starts_on")::date else a."starts_on" end)::timestamp,
@@ -490,6 +486,14 @@ as $$
           union all
           select a."starts_on" where a."period" = 'total'
         ) g
+        -- A lateral aggregate: a scalar subquery in the select list is copied into
+        -- every reference of `s.used` when the planner flattens `s`, which ran the
+        -- deliveries policy three times per period.
+        cross join lateral (
+          select coalesce(sum(x."units"), 0) as used from "better_supabase"."funding_deliveries" x
+          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
+            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
+        ) u
       ) s
     ), '[]'::jsonb)
   )
@@ -1169,7 +1173,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
@@ -1231,7 +1235,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:58f36e0a18bc2765f1dbd21da71ea312b4aa74eaa8a669f8c0f1e9d436f1978d
+-- @bsb-hash sha256:4bdac6862620b41cdb113d33cdcf7d9b99c28ecc8c78db7ab1d6c83671c00083
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1393,7 +1397,7 @@ grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -1732,11 +1736,7 @@ as $$
         'under', greatest(a."units" - s.used, 0)
       ) order by s.start)
       from (
-        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, (
-          select coalesce(sum(x."units"), 0) from "better_supabase"."funding_deliveries" x
-          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
-            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
-        ) as used
+        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, u.used
         from (
           select pg_catalog.generate_series(
             (case a."period" when 'week' then date_trunc('week', a."starts_on")::date when 'month' then date_trunc('month', a."starts_on")::date else a."starts_on" end)::timestamp,
@@ -1747,6 +1747,14 @@ as $$
           union all
           select a."starts_on" where a."period" = 'total'
         ) g
+        -- A lateral aggregate: a scalar subquery in the select list is copied into
+        -- every reference of `s.used` when the planner flattens `s`, which ran the
+        -- deliveries policy three times per period.
+        cross join lateral (
+          select coalesce(sum(x."units"), 0) as used from "better_supabase"."funding_deliveries" x
+          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
+            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
+        ) u
       ) s
     ), '[]'::jsonb)
   )
@@ -2682,7 +2690,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
@@ -2751,7 +2759,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:f44006a9dff345182f719d3c407c17691cd991827afecbcd626158c50cc3ec00
+-- @bsb-hash sha256:829b072a4c3fd035abb0923d095676e6fbc4ebe66cf76a425d20ec62608d450d
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2918,7 +2926,7 @@ grant select on "app_private"."funding_deliveries" to authenticated;
 grant all on "app_private"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "app_private"."funding_deliveries"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "app_private"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "app_private"."funding_awards" x where x."tenant_id" = "app_private"."funding_deliveries"."tenant_id" and x."id" = "app_private"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -3230,11 +3238,7 @@ as $$
         'under', greatest(a."units" - s.used, 0)
       ) order by s.start)
       from (
-        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, (
-          select coalesce(sum(x."units"), 0) from "app_private"."funding_deliveries" x
-          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
-            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
-        ) as used
+        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, u.used
         from (
           select pg_catalog.generate_series(
             (case a."period" when 'week' then date_trunc('week', a."starts_on")::date when 'month' then date_trunc('month', a."starts_on")::date else a."starts_on" end)::timestamp,
@@ -3245,6 +3249,14 @@ as $$
           union all
           select a."starts_on" where a."period" = 'total'
         ) g
+        -- A lateral aggregate: a scalar subquery in the select list is copied into
+        -- every reference of `s.used` when the planner flattens `s`, which ran the
+        -- deliveries policy three times per period.
+        cross join lateral (
+          select coalesce(sum(x."units"), 0) as used from "app_private"."funding_deliveries" x
+          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
+            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
+        ) u
       ) s
     ), '[]'::jsonb)
   )
@@ -3924,7 +3936,7 @@ create policy bsb_tenant_scope_select on "app_private"."funding_deliveries" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "app_private"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "app_private"."funding_awards" x where x."tenant_id" = "app_private"."funding_deliveries"."tenant_id" and x."id" = "app_private"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "app_private"."funding_deliveries" as restrictive
   for insert to public
@@ -3986,7 +3998,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:428001f95cb284be1530f2ced897e7ff680b76e77edfcd3b76aed990c22dab97
+-- @bsb-hash sha256:d72eefcac07a3dd40f338b3539d714a005fbcdcc997940afeb29d9ff1b785859
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4148,7 +4160,7 @@ grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -4460,11 +4472,7 @@ as $$
         'under', greatest(a."units" - s.used, 0)
       ) order by s.start)
       from (
-        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, (
-          select coalesce(sum(x."units"), 0) from "better_supabase"."funding_deliveries" x
-          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
-            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
-        ) as used
+        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, u.used
         from (
           select pg_catalog.generate_series(
             (case a."period" when 'week' then date_trunc('week', a."starts_on")::date when 'month' then date_trunc('month', a."starts_on")::date else a."starts_on" end)::timestamp,
@@ -4475,6 +4483,14 @@ as $$
           union all
           select a."starts_on" where a."period" = 'total'
         ) g
+        -- A lateral aggregate: a scalar subquery in the select list is copied into
+        -- every reference of `s.used` when the planner flattens `s`, which ran the
+        -- deliveries policy three times per period.
+        cross join lateral (
+          select coalesce(sum(x."units"), 0) as used from "better_supabase"."funding_deliveries" x
+          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
+            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
+        ) u
       ) s
     ), '[]'::jsonb)
   )
@@ -5154,7 +5170,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
@@ -5379,7 +5395,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:d6a5668f97179ba763003d87333a3f23a18482a36416a8d89dae4f712b67a727
+-- @bsb-hash sha256:9acbce83edb1fe8afc368c07c54629c75b7835cb32dcff2a79f8720e097c03b1
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5508,7 +5524,7 @@ grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -5820,11 +5836,7 @@ as $$
         'under', greatest(a."units" - s.used, 0)
       ) order by s.start)
       from (
-        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, (
-          select coalesce(sum(x."units"), 0) from "better_supabase"."funding_deliveries" x
-          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
-            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
-        ) as used
+        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, u.used
         from (
           select pg_catalog.generate_series(
             (case a."period" when 'week' then date_trunc('week', a."starts_on")::date when 'month' then date_trunc('month', a."starts_on")::date else a."starts_on" end)::timestamp,
@@ -5835,6 +5847,14 @@ as $$
           union all
           select a."starts_on" where a."period" = 'total'
         ) g
+        -- A lateral aggregate: a scalar subquery in the select list is copied into
+        -- every reference of `s.used` when the planner flattens `s`, which ran the
+        -- deliveries policy three times per period.
+        cross join lateral (
+          select coalesce(sum(x."units"), 0) as used from "better_supabase"."funding_deliveries" x
+          where x."tenant_id" = a."tenant_id" and x."award_id" = a."id" and x."status" <> 'rejected'
+            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
+        ) u
       ) s
     ), '[]'::jsonb)
   )
@@ -6514,7 +6534,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
@@ -6576,7 +6596,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:eeb0846ea24b8626eeb1a4d200264da78b388eed1fe23157bfaf3a89dcef561d
+-- @bsb-hash sha256:682ba9044db9a36aa76584e28284741c7eb91343f45f983a629818865e9ebbe5
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6738,7 +6758,7 @@ grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."org_id" = "org_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."org_id" = "better_supabase"."funding_deliveries"."org_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -7050,11 +7070,7 @@ as $$
         'under', greatest(a."units" - s.used, 0)
       ) order by s.start)
       from (
-        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, (
-          select coalesce(sum(x."units"), 0) from "better_supabase"."funding_deliveries" x
-          where x."org_id" = a."org_id" and x."award_id" = a."id" and x."status" <> 'rejected'
-            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
-        ) as used
+        select g.start, (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end) as finish, u.used
         from (
           select pg_catalog.generate_series(
             (case a."period" when 'week' then date_trunc('week', a."starts_on")::date when 'month' then date_trunc('month', a."starts_on")::date else a."starts_on" end)::timestamp,
@@ -7065,6 +7081,14 @@ as $$
           union all
           select a."starts_on" where a."period" = 'total'
         ) g
+        -- A lateral aggregate: a scalar subquery in the select list is copied into
+        -- every reference of `s.used` when the planner flattens `s`, which ran the
+        -- deliveries policy three times per period.
+        cross join lateral (
+          select coalesce(sum(x."units"), 0) as used from "better_supabase"."funding_deliveries" x
+          where x."org_id" = a."org_id" and x."award_id" = a."id" and x."status" <> 'rejected'
+            and x."delivered_on" >= g.start and x."delivered_on" < (case a."period" when 'week' then (g.start + 7) when 'month' then (g.start + interval '1 month')::date else coalesce(a."ends_on" + 1, 'infinity'::date) end)
+        ) u
       ) s
     ), '[]'::jsonb)
   )
@@ -7744,7 +7768,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" 
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."org_id" = "org_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."org_id" = "better_supabase"."funding_deliveries"."org_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public

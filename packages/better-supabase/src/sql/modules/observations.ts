@@ -158,6 +158,13 @@ const NAMES: BlockSqlNames = {
 };
 
 function tables(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
+  const observationsReadable = registryReadable(
+    ctx,
+    layout,
+    "observations",
+    "observations_subject_readable",
+  );
+
   const definitions = ctx.table("definitions");
   const observations = ctx.table("observations");
   const d = (column: string): string => ctx.col("definitions", column);
@@ -301,7 +308,7 @@ create index if not exists ${name("observations", "replaces_idx")} on ${observat
 create index if not exists ${name("observations", "submission_idx")} on ${observations} (${o("submission")}) where ${o("submission")} is not null;
 create ${partitioned ? "" : "unique "}index if not exists ${name("observations", "external_key")} on ${observations} (${o("tenant")}, ${o("externalId")}) where ${o("externalId")} is not null;
 ${lockModuleTable(ctx, "observations", { read: true })}
-${readPolicy("observations", `${ctx.scope.check(o("tenant"), read)} and ${registryReadable(ctx, layout, "observations", { type: `${observations}.${o("subjectType")}`, id: `${observations}.${o("subjectId")}`, tenant: `${observations}.${o("tenant")}` })}`)}${partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(observations)}` : ""}
+${observationsReadable.sql}${readPolicy("observations", `${ctx.scope.check(o("tenant"), read)} and ${observationsReadable.using({ type: `${observations}.${o("subjectType")}`, id: `${observations}.${o("subjectId")}`, tenant: `${observations}.${o("tenant")}` })}`)}${partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(observations)}` : ""}
 `;
 }
 
@@ -416,5 +423,5 @@ export const OBSERVATIONS: BlockSqlDefinition = {
   contract,
   build,
   data: vitalsData,
-  internal: ["observation_submission_trigger"],
+  internal: ["observation_submission_trigger", "observations_subject_readable"],
 };

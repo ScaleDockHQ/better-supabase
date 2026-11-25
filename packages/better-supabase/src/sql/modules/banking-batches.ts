@@ -583,6 +583,11 @@ export function batchContract(
     },
     { name: "page_payment_batches", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "post_payment_batch", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "pay_payment_batch",
+      args: ["{id}", "jsonb", "boolean"],
+      returns: "jsonb",
+    },
     { name: "cancel_payment_batch", args: ["uuid"], returns: "jsonb" },
   ];
 }
