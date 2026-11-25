@@ -1,5 +1,112 @@
 # better-supabase
 
+## 0.86.0
+
+### Minor Changes
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`eab25f2`](https://github.com/ScaleDockHQ/better-supabase/commit/eab25f2535f7e9eaf6e51fcdbdfd861dd43ae4be) Thanks [@martijn00](https://github.com/martijn00)! - `scheduling.bookWithReminder` with a reminder in minutes and the new `bookings.holdWithReminder` run as one database call. The `book_with_reminder` function books and confirms the slot and saves the reminder in one transaction, so a failed reminder now rolls the booking back. The TypeScript hooks of `bookings.hold` and `reminders.upsert` no longer fire inside it; the composite's own hook does. A reminder at an instant keeps the two-call path.
+
+- [#1161](https://github.com/ScaleDockHQ/better-supabase/pull/1161) [`6176079`](https://github.com/ScaleDockHQ/better-supabase/commit/61760799cdb2a6fb4616c788b6dcfccb0d91a150) Thanks [@martijn00](https://github.com/martijn00)! - `finance.closePeriod` and the new `accounting.closePeriodIfClear` run as one database call. The `close_accounting_period_if_clear` function checks the blockers and closes the period in one transaction, and a blocked period returns its blockers. The TypeScript hooks of `accounting.closeBlockers` and `accounting.closePeriod` no longer fire inside `finance.closePeriod`; the composite's own hook does.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`5f4f0a9`](https://github.com/ScaleDockHQ/better-supabase/commit/5f4f0a9d4cb439efda941533eaf9090e3082779c) Thanks [@martijn00](https://github.com/martijn00)! - `cms.publishWithVersion` snapshots `{ type: "content_entry", id: entryId }` when you pass no `subject`, and `createSupport` takes a `ticketSubject` option (default `"task"`) for the subject type of the ticket's SLA clocks.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`28fdb68`](https://github.com/ScaleDockHQ/better-supabase/commit/28fdb68448cea883d4a1eb4da7e7c4ed4dd3feb1) Thanks [@martijn00](https://github.com/martijn00)! - `DbStats` now carries a `trace` of every database call with its name, start and end in milliseconds, wave and phase (`action` inside `bsb.action`, `render` for every other call). The stats endpoint of the testing API returns it, so a harness can name each call of a page or action.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`1364b6a`](https://github.com/ScaleDockHQ/better-supabase/commit/1364b6ab2129b5802e85dd592301d71ceeb7037d) Thanks [@martijn00](https://github.com/martijn00)! - `doctor` warns with BS732 about statements that `authenticated`, `anon` and `service_role` ran at least 5 times with a mean of 100 ms or more, read from `pg_stat_statements` (and from `pg_stat_user_functions` when `track_functions` is on). It reports nothing when the extension is not installed.
+
+- [#1155](https://github.com/ScaleDockHQ/better-supabase/pull/1155) [`13eb8e0`](https://github.com/ScaleDockHQ/better-supabase/commit/13eb8e01a81e93ed610d5d86262fb720ed6424a9) Thanks [@martijn00](https://github.com/martijn00)! - `RemoteCacheKey`, which `bsb.remote()` and `bsb.sessionHandle()` return, has two new fields: `schema`, a hash of the generated schema meta, and `library`, the better-supabase version. A `bsb.kept()` key carries the version too. An entry filled before a migration and `gen`, or by another release, is then never read, also when Next.js's `experimental.durableUseCacheEntries` keeps `"use cache"` entries across deploys. Every remote and kept entry starts again once after the upgrade.
+  
+  Doctor rule BS646 warns when `next.config` turns that flag on and the app fills shared entries with `bsb.public()` or the remote scope: their key doesn't follow the database's policies or the Supabase project. The Cache Components page has a new section on when to use the flag and when `bsb.kept()`, from `tests/next-durable-cache`, which builds the example with the flag and checks which reader reads the previous build's entry.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`aca5181`](https://github.com/ScaleDockHQ/better-supabase/commit/aca51816e0eb94f2e1800a169d2e9618ede1408b) Thanks [@martijn00](https://github.com/martijn00)! - `organizations.inviteWithinSeats` and `saas.inviteWithinSeats` run as one database call. The new `invite_within_seats` function checks the invite permission, counts the members against the `seats` entitlement and invites in one transaction. The parts' TypeScript hooks (`organizations.members`, `entitlements.seatsLeft`, `organizations.invite`) no longer fire inside the composite; the composite's own hook does. A full plan answers `invalid_request` instead of `quota_exceeded`.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`181affa`](https://github.com/ScaleDockHQ/better-supabase/commit/181affa56310f077faf91090423671a16bf04da6) Thanks [@martijn00](https://github.com/martijn00)! - `people.offboard` without id lists, and the new `employees.offboardWithWork`, run as one database call. The `offboard_with_work` function offboards the employee, cancels their active enrollments and unassigns their open shifts in one transaction. The parts' TypeScript hooks (`employees.offboard`, `enrollments.cancel`, `shifts.unassign`) no longer fire on that path; the composite's own hook does. `invite_within_seats` now runs with the caller's rights.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`fbdbda0`](https://github.com/ScaleDockHQ/better-supabase/commit/fbdbda00cd89a9f80d7fe29017a55301386d5fe8) Thanks [@martijn00](https://github.com/martijn00)! - `people.onboard` and the new `employees.onboardWithProgram` run as one database call. The `onboard_with_program` function creates the employee, enrolls them and sets the enrollment dates in one transaction, so a failed enrollment now rolls the employee back instead of leaving them created. The TypeScript hooks of `employees.create` and `enrollments.enroll` no longer fire inside `people.onboard`; the composite's own hook does.
+
+- [#1161](https://github.com/ScaleDockHQ/better-supabase/pull/1161) [`6176079`](https://github.com/ScaleDockHQ/better-supabase/commit/61760799cdb2a6fb4616c788b6dcfccb0d91a150) Thanks [@martijn00](https://github.com/martijn00)! - `support.openTicket` and the new `tasks.createWithSla` run as one database call. The create function makes the task and starts its SLA clocks in one transaction, so a failed clock start no longer leaves an open ticket behind. The TypeScript hooks of `tasks.create` and `sla.start` no longer fire inside `openTicket`; the composite's own hook does.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`4a9a637`](https://github.com/ScaleDockHQ/better-supabase/commit/4a9a6377259527f270ec3953d71329f1da55cec8) Thanks [@martijn00](https://github.com/martijn00)! - `procurement.payDueBills` and the new `banking.payBatch` run as one database call. The `pay_payment_batch` function creates the batch and posts it in one transaction, and the client writes the SEPA file from the bank accounts the call returns. A bill that needs approval now leaves no draft batch behind. The TypeScript hooks of `createPaymentBatch`, `postPaymentBatch` and `exportSepaCreditTransfer` no longer fire inside `payDueBills`; the composite's own hook does.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`5bd8ba9`](https://github.com/ScaleDockHQ/better-supabase/commit/5bd8ba9b8bf24a6076bb77c120e10e75c25f6641) Thanks [@martijn00](https://github.com/martijn00)! - The `permissions` claim can carry a bitset per tenant (`{ h, b }`, about 60 bytes for 300 keys) instead of the key list. The built-in roles and catalog models generate `better_supabase.permission_claims_bitset(user, tenant)` for the access token hook, `permissionCatalog` in `better-supabase/claims` builds the catalog that expands it, and `permissionsOf`, `permissionsAuthorizer` and `permissionsShareKey` read it. A catalog that differs from the hook's returns `undefined`, so the caller reads `my_permissions()`.
+  
+  `gen` also writes `permissionKeys`, the catalog key list, to `permission-scopes.ts`.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`7b60090`](https://github.com/ScaleDockHQ/better-supabase/commit/7b600905439955d2fe725c922312cdff96d338b8) Thanks [@martijn00](https://github.com/martijn00)! - `finance.reconcile` and the new `banking.reconcile` run as one database call. The `reconcile_bank_account` function reads the account's unmatched transactions and matches each to its best open invoice in one transaction, listing the ones that fail. The TypeScript hooks of `banking.reviewQueue` and `banking.acceptBestMatch` no longer fire inside `finance.reconcile`; the composite's own hook does.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`bf97768`](https://github.com/ScaleDockHQ/better-supabase/commit/bf977689f4d21665b11e9bc0810c0457788ae893) Thanks [@martijn00](https://github.com/martijn00)! - `createNext` takes `heldPermissions`, a function that returns the caller's keys without a database call. Record loaders and `recordListServer` read their `can` flags from it and call `my_permissions` only when it returns `null`.
+
+- [#1155](https://github.com/ScaleDockHQ/better-supabase/pull/1155) [`196fcdd`](https://github.com/ScaleDockHQ/better-supabase/commit/196fcdd474963498a04507350d3a2a24fabee5f5) Thanks [@martijn00](https://github.com/martijn00)! - Doctor BS430 reports every reason a shared function can't run in a
+  `share: "tenant"` fill, numbered in one finding, and checks the functions it
+  calls the same way. It matches `sharedFunctions` on `schema.name`, so listing
+  `public.x` no longer admits a call to `private.x`. A call to a
+  `better_supabase` helper that passes the check on its own needs no listing;
+  the doctor page lists those helpers.
+  
+  `better-supabase config functions --shareable 'public.*_payload'` runs the
+  check on functions you haven't listed yet and prints each verdict with its
+  reasons and the functions it calls.
+  
+  Authorization providers can declare `permissionFilters`: helpers that return
+  the tenants where the caller holds a permission, with the argument that holds
+  the key. A shared function may call one with a literal key that the entry's
+  `permissions` list, so it can filter the way a tenant table's select policy
+  does.
+  
+  With an authorization provider set, the snapshot also keeps the bodies of the
+  `language sql`, security invoker, non-volatile functions in the read schemas,
+  so BS430 and `--shareable` can read them. On the repo's own schema that adds
+  0.4 MB to `supabase/snapshot.json`.
+
+- [#1163](https://github.com/ScaleDockHQ/better-supabase/pull/1163) [`c1e8b1c`](https://github.com/ScaleDockHQ/better-supabase/commit/c1e8b1c01389eaaf7ab764ed82386f1bbbca4b3c) Thanks [@martijn00](https://github.com/martijn00)! - The Workflow SDK block and `better-supabase/workflow-sdk/world` move to Workflow 5.8 and `@workflow/world-postgres` 5.5, and `better-supabase/eve` to eve 1.5. The World speaks `@workflow/world` 5.4.0, so the peer ranges become `workflow >=5.8.0 <6`, `@workflow/world >=5.4.0 <5.5`, `@workflow/world-postgres >=5.5.0 <5.6` and `eve >=1.5.0 <2`. The `workflow-sdk` SQL module is at version 10: it adds `workflow.workflow_rate_limits` (world-postgres migration 0033), closed to the API roles.
+  
+  The other peer floors move to the releases the repo tests, among them `ai >=7.0.181 <8`, `@ai-sdk/react >=4.0.186 <5`, `@ai-sdk/workflow >=2.0.113 <3`, `@orpc/server >=2.0.0-beta.53 <3`, `@nestjs/common >=12.6.0 <13`, `astro >=7.4.13 <8`, `hono >=4.13.21 <5`, `nuxt >=4.7.0 <5`, `react-router >=8.5.2 <9`, `@sveltejs/kit >=3.4.0 <4`, `@tanstack/react-start >=1.169.7 <2`, `stripe >=23.2.0 <24`, `redis >=6.4.0 <7` and `undici >=8.13.1 <9`.
+  
+  Behaviour changes to check:
+  
+  - Run `better-supabase upgrade` (or apply the `workflow-sdk` version 10 migration) before you deploy world-postgres 5.5.0.
+  - `assertWorldMigrations`, which the World runs at startup, throws on a `@workflow/world-postgres` older than 5.5.0.
+  - The World's `capabilities` report `rateLimits: false` and `rateEventsInBatch: false`. It mints spec 8 runs, so world-postgres 5.5's rate limits stay off and the new table stays empty.
+  - `EveAuthRejection` carries eve 1.5's error lineage, so eve's `HttpError.is` accepts it and `routeAuth` answers with its response. Under eve 1.4 the check matched by name.
+  - The React hooks write their latest-callback refs in a layout effect instead of during render, which the React Compiler requires. A test that mocks `react` has to provide `useLayoutEffect`.
+  - `signIn` returns a `redirectTo` that is not a valid URL unchanged, and Supabase Auth rejects it, instead of throwing. An eve connection whose callback URL is not a valid URL fails with `ConnectionAuthorizationFailedError` (`reason: "invalid_callback_url"`) instead of a `TypeError`.
+
+### Patch Changes
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`68606fe`](https://github.com/ScaleDockHQ/better-supabase/commit/68606fe7dd5635e21a39b51cb5f45bc33ceb5122) Thanks [@martijn00](https://github.com/martijn00)! - The request stats list the names of the tags a request expired (`expiredTags`) and record the size of each `bsb.kept` entry in bytes.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`5c757dd`](https://github.com/ScaleDockHQ/better-supabase/commit/5c757dd47bd8207d111a7a0a2f411d6ec9b796f4) Thanks [@martijn00](https://github.com/martijn00)! - The request stats record a miss for `bsb.cached()` and `bsb.public()` entries when their body runs, with the new entry kinds `private` and `public`.
+
+- [#1155](https://github.com/ScaleDockHQ/better-supabase/pull/1155) [`b2f736d`](https://github.com/ScaleDockHQ/better-supabase/commit/b2f736d864b44ee5d9d3b48762326981127b50be) Thanks [@martijn00](https://github.com/martijn00)! - `createNext` takes `debug: { coldStart: true }`, which reports the first request of a process: how long `better-supabase/next` took to evaluate, when it was ready, and the first `createNext`, `warm()`, `getClaims` and query. The stats header gets a `cold=eval:…,ready:…,create:…,warm:…,claims:…,query:…` field while a step is new, and the first query logs one `bsb.cold` line, so an app can tell which part of a slow first request is the library's. It uses only `performance.now()`, so it runs on every runtime, and it collects request stats outside development like `debug.enabled`.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`8f7dbe0`](https://github.com/ScaleDockHQ/better-supabase/commit/8f7dbe0269740a364cdb57d12dc916146af64154) Thanks [@martijn00](https://github.com/martijn00)! - Doctor warns (BS647) when the app calls `bsb.kept()` and sets no `kept.store` in `createNext`, or sets `memoryKeptStore()`, because each instance then keeps its own copy of every entry.
+
+- [#1155](https://github.com/ScaleDockHQ/better-supabase/pull/1155) [`c4a8121`](https://github.com/ScaleDockHQ/better-supabase/commit/c4a81214a3ce8436827ea05eebaba8491d1ad339) Thanks [@martijn00](https://github.com/martijn00)! - `doctor` runs without a database. When none runs and none is configured, the
+  checks that read the schema use the saved snapshot (`source.snapshot`, else
+  `supabase/snapshot.json` from `gen --save-snapshot`) and doctor says so on
+  stderr. When the run includes checks that need the database itself, such as
+  the advisors or BS208, the error names them so you can leave them out with
+  `--ignore` or `--only`.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`c68aaf9`](https://github.com/ScaleDockHQ/better-supabase/commit/c68aaf91dc604473a3691bc2c0963ca26f48fed7) Thanks [@martijn00](https://github.com/martijn00)! - `createFlagsProvider` and `createBetterSupabaseAdapter` take `staleTtl` (default 300000 ms). After `ttl` the previous flag definitions keep serving while one reload runs behind the evaluation, so one request per 30 seconds no longer waits on the Data API. A reload that fails keeps the old definitions until `staleTtl` passes; `staleTtl: 0` restores the earlier behaviour.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`4ae2611`](https://github.com/ScaleDockHQ/better-supabase/commit/4ae2611689a5cc0ba669c33a3d082e9bbc8c072a) Thanks [@martijn00](https://github.com/martijn00)! - `funding_award_usage` reads the deliveries of each period once. A scalar subquery in the select list was copied into every use of `s.used` when the planner flattened the query, so the deliveries policy ran three times per period. On the example's award the call went from 478 ms and 23,361 buffers to 145 ms and 16,627 buffers.
+
+- [#1157](https://github.com/ScaleDockHQ/better-supabase/pull/1157) [`3ca4e8d`](https://github.com/ScaleDockHQ/better-supabase/commit/3ca4e8d2ba322d087d765fb50f04afb98a1bb239) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/config` exports the `AuthorizationPermissionFilter` type, the shape of one `AuthorizationProvider.permissionFilters` entry, so a provider can name it.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`1d87f74`](https://github.com/ScaleDockHQ/better-supabase/commit/1d87f74b7e447a8b1e13f41a3eb0129e1906b679) Thanks [@martijn00](https://github.com/martijn00)! - The read policies of `funding`, `medications`, `observations`, `consents`, `field-history`, `pipelines`, `sla` and `deadlines` check a registry subject's permission as a set and call one generated function per module for the row check, so a signed-in read plans in about 2 ms instead of 15 to 20 ms. Run `better-supabase upgrade` and apply the new migration; each module adds a `*_subject_readable` function (`deadline_subject_row_readable` for deadlines) and replaces its read policies. The `funding_deliveries` read policy now compares the award's tenant with the delivery's tenant.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`3d4ab1f`](https://github.com/ScaleDockHQ/better-supabase/commit/3d4ab1ff5e4d199f8b035ac60f039d54decf1519) Thanks [@martijn00](https://github.com/martijn00)! - The `counters` option of `createServer({ sessions })` no longer gives a server a private session memo. The counters attach to the one memo of the process, so a token the proxy verified and seeded after a refresh is a hit in the render instead of a second verification. The session cookie is also decoded once per distinct cookie value, not once per request scope. A clock, `max` or `ttlMs` still gives a private memo.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`5bd8ba9`](https://github.com/ScaleDockHQ/better-supabase/commit/5bd8ba9b8bf24a6076bb77c120e10e75c25f6641) Thanks [@martijn00](https://github.com/martijn00)! - `parseDbStats` reads the `x-bsb-db-calls` header when `debug.coldStart` appends its `cold=` field. Before, the extra field made every number `NaN` and the parser returned `undefined`.
+
+- [#1165](https://github.com/ScaleDockHQ/better-supabase/pull/1165) [`f35fb6c`](https://github.com/ScaleDockHQ/better-supabase/commit/f35fb6c42e0a4a655ea3cd5bc7afaad7db4ceb9b) Thanks [@martijn00](https://github.com/martijn00)! - `dev stack prune` and the baseline teardown select stacks with `--stack <id>`, because Supabase CLI 3.3.0 removed `--stack-id`. Doctor passes `--remote=<url>` to `supabase db advisors` on CLI 3.0.0 and later, and BS710 now reports a CLI older than 3.3.0.
+
+- [#1156](https://github.com/ScaleDockHQ/better-supabase/pull/1156) [`2c649fb`](https://github.com/ScaleDockHQ/better-supabase/commit/2c649fb95a82941a17e32fa81fcc0b7f4105953e) Thanks [@martijn00](https://github.com/martijn00)! - The skill's UI recipes are current again. The command search recipe lists
+  the app's areas and their actions, and the signing keys rotation recipe links
+  the published JWK Set. The signing keys docs show `jwksResponse` with the
+  object argument it takes.
+
 ## 0.85.1
 
 ### Patch Changes
