@@ -57,6 +57,15 @@ for (const [view, content] of [
       (url) => url.searchParams.get("view") === view.toLowerCase(),
     );
 
+    if (view === "Calendar") {
+      // The seed closes the deal 12 days after the reset, which can fall in
+      // the next month, and the grid opens on the current one.
+      const close = new Date(Date.now() + 12 * 24 * 60 * 60 * 1000);
+      const month = close.toISOString().slice(0, 7);
+
+      await page.goto(`/crm/deals?view=calendar&month=${month}`);
+    }
+
     await expect(page.getByText(content).first()).toBeVisible();
   });
 }

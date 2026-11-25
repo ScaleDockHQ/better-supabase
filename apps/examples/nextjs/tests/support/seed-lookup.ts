@@ -17,6 +17,7 @@ const TABLE_OF_ROUTE = {
   "/crm/commissions/statements/[id]": "commission_statements",
   "/crm/sequences/[id]": "sequences",
   "/shop/orders/[id]": "orders",
+  "/shop/products/[id]": "products",
   "/shop/donations/[id]": "donations",
   "/shop/warranty/[id]": "warranty_claims",
   "/shop/reviews/[id]": "reviews",
