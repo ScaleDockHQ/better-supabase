@@ -2,6 +2,42 @@
 
 Measured the same way as [the before numbers](one-round-trip-before.md): production build, testing API, local stack. Counts are the budget; milliseconds are indicative.
 
+## Summary (pull request text)
+
+Final numbers, taken on the merged tree (`feat/one-round-trip-ship` on top of `main` after #1156), production build, testing API, fresh local stack at the seed tier. Counts are the budget; milliseconds are indicative and vary with machine load.
+
+| Measure (admin, warm render)            | Before            | After                                                                              |
+| --------------------------------------- | ----------------- | ---------------------------------------------------------------------------------- |
+| Routes measured                         | 190               | 227 with a database call                                                           |
+| Database calls, all routes              | 1016              | 566                                                                                |
+| Median calls per route                  | 5                 | 2                                                                                  |
+| Median waves per route                  | 1                 | 1                                                                                  |
+| Median warm render                      | n/a               | 136 ms                                                                             |
+| Median client navigation after prefetch | n/a               | 29 ms                                                                              |
+| Admin token, cookie, chunks             | 4035 B, 5567 B, 2 | 1494 B, 2179 B, 1                                                                  |
+| `/care/[clientId]` calls                | 21                | 18                                                                                 |
+| `/customers/[id]` calls                 | 13                | 14 (deferred sections start earlier; `my_permissions` calls went from six to none) |
+| `/crm/deals` calls                      | 16                | 13                                                                                 |
+| `(proxy)` entry, raw bytes              | 1,258,956         | 854,495                                                                            |
+
+Composites (calls to waves): `inviteWithinSeats` 6 to 3 waves, `offboardEmployee` 8 calls in 2 waves, `reconcileAccount` 2 calls, `onboardEmployee` 8 calls, `bookWithReminder` 8 calls, `payDueBills` 6 calls, `openTicket` 4 calls in 2 waves, `closeAccountingPeriod` 2 calls in 2 waves. The generated report in [example-perf.md](example-perf.md) holds every row.
+
+What changed: the shared session memo and bitset permission claim, the shell bootstrap with a kept entry, `heldPermissions` for record loaders, the `funding_award_usage` lateral aggregate, the proxy trim, and the composites as SQL functions (migrations 082 through 085; the merge moved them up by one because `main` already carries `period_close_blockers` at 081).
+
+Verification on the merged tree:
+
+- `pnpm verify`: every task passes except `typecheck:perf`, whose generation timing gates fail (cold `gen` 3.9 s against a 0.5 s baseline). The same run on `origin/main` gives 4.0 s, so the cause is on `main`, not in this branch: inside the repository `gen` parses the 30 MB of migrations with `pg-parser`. It needs its own fix and a retaken baseline.
+- Size baselines: `blocks/tasks` rose from 63,336 to 68,129 bytes gzip because `createTaskWithSla` ships its SQL function. The next-build baselines were regenerated from the current build (the update never raises a number).
+- Playwright, full suite, ports 3400 and 3401, after `supabase:reset` and a fresh `resolve-urls`: 1547 passed, 121 failed, 19 did not run. 116 of the failures are the generated detail routes (`instant-routes`, `budgets`, `cold-warm`, `measure-pages`, `db-time`): the page renders its record but the title is not a level-1 heading, so the specs find no `h1`. The same four routes I re-ran on `origin/main` fail the same way, so it predates this branch (Track 8, "23 detail routes without an `h1`", is still open). Five others were not compared against `main` and need a look: `setProductStatus` (no openable page bundles it), the eval run page, the API key page and the work order page (browser context closed under load), and the deals calendar view.
+- The machine carried a load average of 8 to 27 from other agents during the run, so the failures that name a closed browser context are not conclusive.
+
+Manual steps for the maintainer:
+
+1. Apply the migrations to the hosted project (`20270120010082` through `20270120010085`, plus the earlier plan grant `20270120010080`).
+2. Set `BSB_KEPT_STORE=vercel` in the Development, Preview and Production environments, then run the kept-entry probe against a preview. A kept read after a deploy is untested on Vercel.
+3. Apply the plans anon-read migration (`20270120010074` and `20270120010080`) before the plan catalog read as `anon` goes out.
+4. Adopters run `better-supabase upgrade` to pick up the composite functions and the bitset claim; a part's TypeScript hooks no longer fire inside a composite, the composite's own hook does.
+
 ## Token and cookie size
 
 The access token hook writes the `permissions` claim as a bitset (ADR 1231).

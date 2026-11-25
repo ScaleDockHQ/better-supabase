@@ -4,75 +4,37 @@ Numbers of the Next.js example, taken on the production build with the testing A
 
 ## Pages as admin
 
-238 routes measured, 1360 database calls in total for one warm render of each.
+239 routes measured, 656 database calls in total for one warm render of each.
 
 Most database calls:
 
 | Route                  | Calls |
 | ---------------------- | ----- |
-| /care/[clientId]       | 21    |
-| /crm/deals             | 16    |
-| /crm/deals/[id]        | 16    |
-| /inbox/[conversation]  | 16    |
-| /field/dispatch/[id]   | 15    |
-| /people/leave          | 13    |
-| /finance/invoices/[id] | 13    |
-| /customers/[id]        | 13    |
-| /finance/payables/[id] | 13    |
-| /people/hiring/[id]    | 12    |
-
-Slowest warm renders (ms, wall time):
-
-| Route                     | Ms  |
-| ------------------------- | --- |
-| /funding                  | 975 |
-| /settings/billing/account | 792 |
-| /finance/accounting       | 704 |
-| /care-plans               | 697 |
-| /announcements/[id]       | 689 |
-| /care/[clientId]          | 671 |
-| /customers                | 561 |
-| /beta                     | 515 |
-| /crm/deals/[id]           | 510 |
-| /finance/expenses/[id]    | 478 |
-
-Routes with more than one token verification: none.
-
-Routes with service-role calls: none.
-
-## Pages as member
-
-226 routes measured, 1406 database calls in total for one warm render of each.
-
-Most database calls:
-
-| Route                  | Calls |
-| ---------------------- | ----- |
-| /inbox/[conversation]  | 20    |
-| /crm/deals             | 17    |
-| /finance/invoices/[id] | 14    |
-| /finance/payables/[id] | 14    |
+| /care/[clientId]       | 18    |
 | /customers/[id]        | 14    |
-| /people/leave          | 14    |
-| /people/hiring/[id]    | 13    |
-| /care/[clientId]       | 12    |
-| /field/dispatch/[id]   | 12    |
-| /content               | 11    |
+| /crm/deals             | 13    |
+| /inbox/[conversation]  | 13    |
+| /field/dispatch/[id]   | 13    |
+| /crm/deals/[id]        | 13    |
+| /finance/invoices/[id] | 11    |
+| /finance/payables/[id] | 11    |
+| /people/leave          | 10    |
+| /people/hiring/[id]    | 9     |
 
 Slowest warm renders (ms, wall time):
 
-| Route                    | Ms  |
-| ------------------------ | --- |
-| /funding                 | 913 |
-| /medications             | 457 |
-| /funding/[id]            | 424 |
-| /shop/kitchen/board      | 179 |
-| /settings/roles/[roleId] | 174 |
-| /care/[clientId]         | 155 |
-| /documents               | 153 |
-| /care-plans              | 150 |
-| /work/grid               | 150 |
-| /customers/[id]          | 149 |
+| Route                     | Ms   |
+| ------------------------- | ---- |
+| /crm/deals                | 1260 |
+| /crm/sequences            | 972  |
+| /people/encryption        | 941  |
+| /crm/companies            | 841  |
+| /announcements            | 838  |
+| /crm/quotes               | 812  |
+| /settings/billing/account | 690  |
+| /care-plans/[id]          | 620  |
+| /crm/pipelines/[id]       | 605  |
+| /crm/segments/[id]        | 543  |
 
 Routes with more than one token verification: none.
 
@@ -80,67 +42,78 @@ Routes with service-role calls: none.
 
 ## Actions as admin
 
-| Action                         | Calls | Waves | Ms     | Tables |
-| ------------------------------ | ----- | ----- | ------ | ------ |
-| loadMyOrganizations            | 6     | 2     | 44.95  | 5      |
-| loadMembers                    | 9     | 3     | 133.26 | 8      |
-| loadPlanCatalog                | 8     | 3     | 75.42  | 6      |
-| loadInboxes                    | 5     | 2     | 201.75 | 5      |
-| loadTeams                      | 0     | 0     | 0      | 0      |
-| loadMacros                     | 0     | 0     | 0      | 0      |
-| loadDrafts                     | 0     | 0     | 0      | 0      |
-| loadScheduled                  | 0     | 0     | 0      | 0      |
-| loadInboundEvents              | 4     | 1     | 27.69  | 4      |
-| loadConversations              | 4     | 1     | 49.63  | 4      |
-| searchKnowledge                | 5     | 2     | 47.58  | 5      |
-| addObligation                  | 7     | 2     | 96.56  | 5      |
-| refreshSegment                 | 6     | 2     | 57.85  | 5      |
-| closeDealLost                  | 0     | 0     | 0      | 0      |
-| acceptQuote                    | 0     | 0     | 0      | 0      |
-| payAndFulfilOrder              | 0     | 0     | 0      | 0      |
-| publishEntryWithVersion        | 0     | 0     | 0      | 0      |
-| prescribeMedicationWithConsent | 0     | 0     | 0      | 0      |
-| publishCarePlan                | 0     | 0     | 0      | 0      |
-| archiveCarePlan                | 0     | 0     | 0      | 0      |
-| signPrescription               | 0     | 0     | 0      | 0      |
-| cancelPrescription             | 0     | 0     | 0      | 0      |
-| exportRecordSubject            | 0     | 0     | 0      | 0      |
-| reconcileAccount               | 13    | 3     | 95.06  | 6      |
-| rotateKey                      | 0     | 0     | 0      | 0      |
-| inviteWithinSeats              | 11    | 5     | 314.39 | 10     |
-| decideApprovals                | 0     | 0     | 0      | 0      |
-| decideApproval                 | 0     | 0     | 0      | 0      |
-| redeliverWebhook               | 3     | 1     | 24.31  | 3      |
-| completeVisit                  | 0     | 0     | 0      | 0      |
-| openTicket                     | 8     | 3     | 108.93 | 8      |
-| discussCase                    | 7     | 2     | 231.96 | 7      |
-| hireApplication                | 0     | 0     | 0      | 0      |
-| onboardEmployee                | 12    | 3     | 158.88 | 8      |
-| offboardEmployee               | 14    | 4     | 88.64  | 10     |
-| assignCourse                   | 0     | 0     | 0      | 0      |
-| bookWithReminder               | 11    | 2     | 28.18  | 7      |
-| completeOnboardingStep         | 0     | 0     | 0      | 0      |
-| closeAccountingPeriod          | 6     | 3     | 63.77  | 6      |
-| payDueBills                    | 9     | 4     | 165.36 | 8      |
-| requestOrderReturn             | 0     | 0     | 0      | 0      |
-| settleReturn                   | 0     | 0     | 0      | 0      |
-| releaseProductionOrder         | 0     | 0     | 0      | 0      |
-| completeProductionOrder        | 0     | 0     | 0      | 0      |
-| raiseFindingCase               | 0     | 0     | 0      | 0      |
-| closeInspection                | 0     | 0     | 0      | 0      |
-| setProductStatus               | 0     | 0     | 0      | 0      |
+| Action                                                                        | Calls | Waves | Ms     | Tables |
+| ----------------------------------------------------------------------------- | ----- | ----- | ------ | ------ |
+| loadMyOrganizations                                                           | 3     | 3     | 63.63  | 3      |
+| loadMembers                                                                   | 6     | 3     | 106.58 | 5      |
+| loadPlanCatalog                                                               | 5     | 3     | 61.93  | 3      |
+| loadInboxes                                                                   | 2     | 2     | 44.94  | 2      |
+| loadTeams                                                                     | 13    | 4     | 139.35 | 10     |
+| loadMacros                                                                    | 14    | 5     | 71.27  | 11     |
+| loadDrafts                                                                    | 13    | 4     | 95.02  | 10     |
+| loadScheduled                                                                 | 13    | 4     | 114.51 | 10     |
+| loadInboundEvents                                                             | 1     | 1     | 28.1   | 1      |
+| loadConversations                                                             | 1     | 1     | 28.03  | 1      |
+| searchKnowledge                                                               | 2     | 2     | 39.66  | 2      |
+| addObligation                                                                 | 4     | 2     | 80.63  | 2      |
+| refreshSegment                                                                | 3     | 2     | 77.37  | 2      |
+| closeDealLost                                                                 | 6     | 3     | 164.49 | 6      |
+| acceptQuote                                                                   | 5     | 2     | 72.4   | 5      |
+| payAndFulfilOrder                                                             | 5     | 2     | 40.3   | 5      |
+| prescribeMedicationWithConsent                                                | 5     | 2     | 48.86  | 5      |
+| publishCarePlan                                                               | 7     | 4     | 43.09  | 7      |
+| archiveCarePlan                                                               | 7     | 4     | 118.67 | 7      |
+| signPrescription                                                              | 3     | 3     | 71.43  | 3      |
+| cancelPrescription                                                            | 4     | 4     | 40.23  | 3      |
+| exportRecordSubject                                                           | 7     | 4     | 110.39 | 7      |
+| approveAndInvoiceTimesheet                                                    | 6     | 3     | 62.43  | 4      |
+| shareDriveWithRoles                                                           | 3     | 2     | 46.76  | 3      |
+| createPublicLink                                                              | 3     | 2     | 30.46  | 3      |
+| reconcileAccount                                                              | 2     | 2     | 101.23 | 2      |
+| rotateKey                                                                     | 6     | 3     | 109.65 | 6      |
+| inviteWithinSeats                                                             | 6     | 3     | 230.73 | 6      |
+| decideApprovals                                                               | 5     | 4     | 51.23  | 4      |
+| decideApproval                                                                | 0     | 0     | 0      | 0      |
+| redeliverWebhook                                                              | 0     | 0     | 0      | 0      |
+| completeVisit                                                                 | 6     | 3     | 65.14  | 6      |
+| openTicket                                                                    | 4     | 2     | 128.8  | 4      |
+| discussCase                                                                   | 4     | 2     | 114.2  | 4      |
+| hireApplication                                                               | 7     | 4     | 174.46 | 7      |
+| onboardEmployee                                                               | 8     | 2     | 69.43  | 4      |
+| offboardEmployee                                                              | 8     | 2     | 64.38  | 4      |
+| assignCourse                                                                  | 6     | 3     | 150.28 | 6      |
+| bookWithReminder                                                              | 8     | 2     | 61.19  | 4      |
+| completeOnboardingStep                                                        | 0     | 0     | 0      | 0      |
+| closeAccountingPeriod                                                         | 2     | 2     | 36.65  | 2      |
+| addControlEvidence                                                            | 2     | 2     | 27.37  | 2      |
+| submitAppraisalReview                                                         | 4     | 3     | 51.3   | 4      |
+| calibrateAppraisal                                                            | 4     | 3     | 35.28  | 4      |
+| applyStandardDunningLevels                                                    | 4     | 2     | 84.31  | 4      |
+| payDueBills                                                                   | 6     | 4     | 101.84 | 5      |
+| requestOrderReturn                                                            | 5     | 2     | 50.6   | 5      |
+| settleReturn                                                                  | 5     | 2     | 47.55  | 5      |
+| releaseProductionOrder                                                        | 7     | 3     | 52.8   | 7      |
+| completeProductionOrder                                                       | 7     | 3     | 95.58  | 7      |
+| raiseFindingCase                                                              | 3     | 2     | 41.92  | 3      |
+| closeInspection                                                               | 3     | 2     | 42.38  | 3      |
+| features/assistant/assistant-slot/assistant-slot-actions.ts#loadAssistantSlot | 4     | 1     | 18.94  | 3      |
+| features/inbox/inbox-actions.ts#loadMessage                                   | 4     | 1     | 19.98  | 3      |
+| features/inbox/inbox-actions.ts#loadThread                                    | 4     | 1     | 8.22   | 3      |
+| features/drive/drive-actions.ts#loadDriveSharing                              | 2     | 1     | 4.31   | 2      |
+| features/people/people-actions.ts#getPrivateDetails                           | 0     | 0     | 0      | 0      |
+| features/workflows/builder/builder-actions.ts#loadVersionGraph                | 1     | 1     | 9.1    | 1      |
 
 ## Cold, warm and client navigation (admin)
 
-238 routes. Median first hit after a server start 162 ms, second hit 116 ms, client navigation after prefetch 25 ms. Slowest first hits:
+239 routes. Median first hit after a server start 198 ms, second hit 136 ms, client navigation after prefetch 29 ms. Slowest first hits:
 
-| Route                     | Cold ms |
-| ------------------------- | ------- |
-| /funding                  | 1135    |
-| /settings/billing/account | 929     |
-| /assistant/activity       | 850     |
-| /care/[clientId]          | 765     |
-| /banking/accounts         | 764     |
+| Route                            | Cold ms |
+| -------------------------------- | ------- |
+| /maintenance/meters/[id]         | 1070    |
+| /advisories/vulnerabilities/[id] | 963     |
+| /advisories/vulnerabilities      | 854     |
+| /manufacturing                   | 830     |
+| /people/leave/[id]               | 795     |
 
 ## First-load JavaScript
 
@@ -159,19 +132,34 @@ Routes with service-role calls: none.
 | /finance/billable-time      | 1644879 |
 | /finance/billable-time/[id] | 1644879 |
 
-Actions in the build: 543; measured: 46; not measured: 497.
+Actions in the build: 549; measured: 59; not measured: undefined.
+
+## Caching
+
+7 routes, each loaded as a hard load, a second hard load, a second user of the organization and on a restarted server (tests/cache.spec.ts). Calls are database calls summed over the routes; a ratio is the share of lookups a tier served.
+
+| Scenario | Calls | Remote | Kept | Private | Public | Remote bytes read |
+| -------- | ----- | ------ | ---- | ------- | ------ | ----------------- |
+| hard1    | 25    | 0%     | 100% | 0%      | -      | 0                 |
+| hard2    | 24    | 100%   | 100% | 0%      | -      | 325               |
+| user2    | 25    | 0%     | 100% | 0%      | -      | 0                 |
+| restart  | 25    | 0%     | 100% | 0%      | -      | 0                 |
+
+Calls saved by the second hard load, by route:
+
+| Route                 | Hard 1 | Hard 2 | User 2 | Restart | Kept bytes |
+| --------------------- | ------ | ------ | ------ | ------- | ---------- |
+| /                     | 2      | 2      | 2      | 2       | 8294       |
+| /customers            | 4      | 4      | 4      | 4       | 8250       |
+| /crm/deals            | 13     | 13     | 13     | 13      | 8250       |
+| /finance/invoices     | 3      | 3      | 3      | 3       | 8250       |
+| /settings/roles       | 1      | 1      | 1      | 1       | 8250       |
+| /announcements        | 1      | 1      | 1      | 1       | 8250       |
+| /islands?scope=remote | 1      | 0      | 1      | 1       | 0          |
+
+No measured action expired a tag.
 
 ## Authentication and permissions
 
-| Scenario                      | Wall ms | Calls | Verifications | Proxy ms | Auth ms |
-| ----------------------------- | ------- | ----- | ------------- | -------- | ------- |
-| sign-in admin                 | 293     | -     | -             | 0.3      | 0.3     |
-| warm / admin                  | 638     | 5     | 0             | 0.3      | 0.2     |
-| warm /customers admin         | 680     | 7     | 0             | 0.2      | 0.2     |
-| warm /finance/invoices admin  | 711     | 4     | 0             | 0.4      | 0.3     |
-| refresh /customers admin      | 652     | 7     | 2             | 0.4      | 0.3     |
-| sign-in member                | 161     | -     | -             | 0.2      | 0.2     |
-| warm / member                 | 637     | 6     | 0             | 0.2      | 0.2     |
-| warm /customers member        | 688     | 8     | 0             | 0.4      | 0.3     |
-| warm /finance/invoices member | 631     | 5     | 0             | 0.3      | 0.2     |
-| refresh /customers member     | 659     | 8     | 2             | 0.6      | 0.4     |
+| Scenario | Wall ms | Calls | Verifications | Proxy ms | Auth ms |
+| -------- | ------- | ----- | ------------- | -------- | ------- |
