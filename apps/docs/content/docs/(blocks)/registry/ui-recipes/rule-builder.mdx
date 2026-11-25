@@ -277,7 +277,9 @@ export function RuleBuilder({
     <EditorContext value={editor}>
       <Card data-recipe="rule-builder">
         <CardHeader>
-          <CardTitle>{t("When a lead is saved")}</CardTitle>
+          <CardTitle>
+            <h1>{t("When a lead is saved")}</h1>
+          </CardTitle>
           <CardDescription>
             {t(
               "The rule matches when its conditions hold for the saved customer.",

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { ROUTES } from "./routes.manifest";
-import { recordUrl, signIn } from "./support/example-session";
+import { forgetUrl, recordUrl, signIn } from "./support/example-session";
 import { seededUrl } from "./support/seed-lookup";
 
 // Finds a seeded URL for every route whose manifest `url` is null by following
@@ -98,6 +98,7 @@ for (const entry of ROUTES.filter((route) => route.url === null)) {
       return;
     }
 
+    forgetUrl(entry.route);
     test
       .info()
       .annotations.push({ type: "unresolved", description: entry.route });

@@ -114,7 +114,9 @@ export async function LessonPlayer({
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
-            <CardTitle>{lesson.title}</CardTitle>
+            <CardTitle>
+              <h1>{lesson.title}</h1>
+            </CardTitle>
             <Badge variant="outline">{kindLabels[lesson.kind]}</Badge>
             {lesson.done ? (
               <Badge variant="success-light">{t("Done")}</Badge>
