@@ -57,7 +57,8 @@ export interface CacheEntryStat {
   readonly bytes?: number;
 }
 
-const encoder = new TextEncoder();
+// Created on first use: the root entry loads on runtimes without TextEncoder.
+let encoder: TextEncoder | undefined;
 
 /** The size of `value` as JSON in bytes, or `undefined` when it has none. */
 export function byteSizeOf(value: unknown): number | undefined {
@@ -65,7 +66,9 @@ export function byteSizeOf(value: unknown): number | undefined {
     // `JSON.stringify` returns `undefined` for a function or `undefined`.
     const json: unknown = JSON.stringify(value);
 
-    return typeof json === "string" ? encoder.encode(json).length : undefined;
+    return typeof json === "string"
+      ? (encoder ??= new TextEncoder()).encode(json).length
+      : undefined;
   } catch {
     return undefined;
   }
