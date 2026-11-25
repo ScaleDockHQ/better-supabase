@@ -195,8 +195,9 @@ export const proxy = (request: NextRequest) => handle(request);
 
 export const config = {
   matcher: [
-    // The workflow, Flags Explorer and MCP metadata routes answer without a
-    // session; the proxy would redirect them to a locale or the sign-in page.
-    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|\\.well-known/oauth-protected-resource|.*\\.(?:svg|png|jpg|jpeg|gif|avif|webp|ico|css|map|woff|woff2|ttf|otf|txt|js|html|webmanifest)$).*)",
+    // The workflow, Flags Explorer, MCP metadata and JWKS routes answer
+    // without a session; the proxy would redirect them to a locale or the
+    // sign-in page.
+    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|\\.well-known/oauth-protected-resource|\\.well-known/jwks/|.*\\.(?:svg|png|jpg|jpeg|gif|avif|webp|ico|css|map|woff|woff2|ttf|otf|txt|js|html|webmanifest)$).*)",
   ],
 };

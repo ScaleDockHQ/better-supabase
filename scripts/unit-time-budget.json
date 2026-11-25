@@ -2102,6 +2102,7 @@
   "slowTests": {
     "tests/cli/cache/module-store.test.ts > the disk module store > renders every registered module from a store a full render filled": 15590,
     "tests/cli/cli.test.ts > fixtures > are in sync with the generator": 12743,
+    "tests/cli/doctor/rules.test.ts > soft-delete columns reactions read (BS213) > leaves out a subject's deletedAt column": 11238,
     "tests/cli/init-existing.test.ts > init on an existing project > treats a --from that is not a url as --preset, and refuses both": 15621,
     "tests/cli/schema-reader/corpus.test.ts > the schema reader over the repository's own SQL > splits every file into as many statements as the parser reads": 66910,
     "tests/cli/schema-reader/index.test.ts > scanSql > scans a text once while it fits the cache, and again once larger texts pushed it out": 15142,

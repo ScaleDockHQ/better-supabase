@@ -193,7 +193,9 @@ select set_config('request.jwt.claims', '', false);
 -- Governance: an ISO 27001 framework with four controls, so /compliance and
 -- /compliance/controls/[id] show a rollup. Access control passes on valid
 -- evidence, backups fail on expired evidence, the incident plan fails on an
--- overdue evidence task, and physical security does not apply.
+-- overdue evidence task, and physical security does not apply. The overdue
+-- task counts as notified, so a run of notify_overdue_evidence_tasks only
+-- picks up tasks that fall overdue later.
 insert into better_supabase.control_frameworks (id, tenant_id, key, name, kind, version, description) values
   ('00000000-0000-4000-8000-0000005f0001', '00000000-0000-4000-8000-000000000001', 'iso27001', 'ISO/IEC 27001', 'standard', '2022',
    'Information security management controls for Acme.')
@@ -214,13 +216,13 @@ insert into better_supabase.controls (id, tenant_id, framework_id, code, title, 
    null, false, 'Annex A')
 on conflict (id) do nothing;
 
-insert into better_supabase.evidence_tasks (id, tenant_id, control_id, title, assignee_id, interval_days, due_on, last_collected_at) values
+insert into better_supabase.evidence_tasks (id, tenant_id, control_id, title, assignee_id, interval_days, due_on, last_collected_at, notified_for) values
   ('00000000-0000-4000-8000-0000005f0201', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0101',
-   'Quarterly access review', '00000000-0000-4000-8000-0000000000a1', 90, current_date + 60, now() - interval '30 days'),
+   'Quarterly access review', '00000000-0000-4000-8000-0000000000a1', 90, current_date + 60, now() - interval '30 days', null),
   ('00000000-0000-4000-8000-0000005f0202', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0102',
-   'Monthly restore test', '00000000-0000-4000-8000-0000000000a1', 30, current_date + 5, now() - interval '25 days'),
+   'Monthly restore test', '00000000-0000-4000-8000-0000000000a1', 30, current_date + 5, now() - interval '25 days', null),
   ('00000000-0000-4000-8000-0000005f0203', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005f0103',
-   'Review the incident response plan', '00000000-0000-4000-8000-0000000000a2', 365, current_date - 10, null)
+   'Review the incident response plan', '00000000-0000-4000-8000-0000000000a2', 365, current_date - 10, null, current_date - 10)
 on conflict (id) do nothing;
 
 insert into better_supabase.control_evidence (id, tenant_id, control_id, task_id, note, collected_by, collected_at, valid_until) values

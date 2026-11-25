@@ -4928,6 +4928,8 @@ msgid "Person"
 msgstr "Person"
 
 #: src/features/appraisals/components/appraisal-list.tsx
+#: src/features/appraisals/components/calibrate-dialog.tsx
+#: src/features/appraisals/components/write-review-dialog.tsx
 msgctxt "appraisals.ETRyBL"
 msgid "Rating"
 msgstr "Rating"
@@ -4971,6 +4973,57 @@ msgstr "Open a review cycle with the people to review, and each gets an appraisa
 msgctxt "appraisals.ZrWlbO"
 msgid "Read the appraisals guide"
 msgstr "Read the appraisals guide"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.H8PFXe"
+msgid "Appraisal calibrated"
+msgstr "Appraisal calibrated"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.0olBvz"
+msgid "Calibrate"
+msgstr "Calibrate"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.ILukLY"
+msgid "The calibrated rating replaces the review average; the reason stays with it."
+msgstr "The calibrated rating replaces the review average; the reason stays with it."
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.AkCxS_"
+msgid "Reason"
+msgstr "Reason"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.Migr-m"
+msgid "Review submitted"
+msgstr "Review submitted"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.BC1G69"
+msgid "Write review"
+msgstr "Write review"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.iC6lit"
+msgid "Rate each competency from 1 to 5."
+msgstr "Rate each competency from 1 to 5."
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.wCgTu5"
+msgid "Comments"
+msgstr "Comments"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.rJrHB6"
+msgid "Submit review"
+msgstr "Submit review"
 
 #: src/features/approvals/components/approval-decision.tsx
 msgctxt "approvals.GkMwHf"
@@ -32991,6 +33044,11 @@ msgstr "Active"
 msgctxt "signingKeys.JJNc3c"
 msgid "Previous"
 msgstr "Previous"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.yIv4lB"
+msgid "Receivers read the public keys at"
+msgstr "Receivers read the public keys at"
 
 #: src/features/sso/components/sso-controls.tsx
 msgctxt "sso.VZTS3k"
