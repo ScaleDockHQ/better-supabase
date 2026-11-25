@@ -11,7 +11,6 @@ import type { CompositeOptions } from "../define-block.ts";
 import type { ProcurementParts } from "./manifest.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult as Async } from "../../core/result.ts";
 
 /** What `procurement.payDueBills` returns. */
 export interface PaidBills {
@@ -24,8 +23,10 @@ export interface PaidBills {
 export interface Procurement {
   /**
    * Batches the bills due by `dueBy`, posts the batch to the books, and with
-   * `sepa` exports the bank file. A bill that needs approval refuses the batch
-   * before anything posts.
+   * `sepa` exports the bank file, in one database call and one transaction
+   * (`banking.payBatch`, ADR 1235). A bill that needs approval refuses the
+   * batch and nothing is created. The TypeScript hooks of the single steps do
+   * not fire.
    */
   payDueBills(input: {
     batch: PaymentBatchInput;
@@ -47,17 +48,7 @@ export function createProcurement(options: ProcurementOptions): Procurement {
   const { banking } = options.parts;
 
   const client: Procurement = {
-    payDueBills: ({ batch, sepa }) =>
-      banking
-        .createPaymentBatch(batch)
-        .andThen((created) => banking.postPaymentBatch(created.id))
-        .andThen<PaidBills>((posted) =>
-          sepa === undefined
-            ? Async.ok({ batch: posted, sepa: null })
-            : banking
-                .exportSepaCreditTransfer({ batchId: posted.id, ...sepa })
-                .map((file) => ({ batch: posted, sepa: file })),
-        ),
+    payDueBills: ({ batch, sepa }) => banking.payBatch({ ...batch, sepa }),
   };
 
   return withBlockHooks(client, options.hooks, {

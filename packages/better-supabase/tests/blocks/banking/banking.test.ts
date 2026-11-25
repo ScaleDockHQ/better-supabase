@@ -633,6 +633,46 @@ describe("payment batches", () => {
     expect(xml).toContain('<InstdAmt Ccy="EUR">98.00</InstdAmt>');
   });
 
+  it("creates, posts and exports a batch in one call", async () => {
+    const t = fieldsTransport({
+      pay_payment_batch: () => ({
+        batch: { ...BATCH, status: "posted" },
+        accounts: [ACCOUNT],
+      }),
+    });
+
+    const banking = createBanking({ transport: t, tenant: "org-1" });
+
+    const paid = await banking
+      .payBatch({
+        accountId: "a1",
+        dueBy: Temporal.PlainDate.from("2026-11-05"),
+        creditors: { c1: { name: "Bakker", iban: "NL02ABNA0123456789" } },
+        sepa: {},
+      })
+      .orThrow();
+
+    expect(paid.batch.status).toBe("posted");
+    expect(paid.sepa).toContain("<MsgId>BATCH-1</MsgId>");
+    expect(t.calls).toHaveLength(1);
+    expect(t.calls[0]?.[1]).toMatchObject({
+      tenant: "org-1",
+      with_accounts: true,
+      input: { accountId: "a1", dueBy: "2026-11-05" },
+    });
+
+    const without = await banking
+      .payBatch({
+        accountId: "a1",
+        dueBy: Temporal.PlainDate.from("2026-11-05"),
+        creditors: {},
+      })
+      .orThrow();
+
+    expect(without.sepa).toBeNull();
+    expect(t.calls[1]?.[1]).toMatchObject({ with_accounts: false });
+  });
+
   it("lists, posts and cancels batches and passes every option", async () => {
     const t = fieldsTransport({
       create_payment_batch: () => BATCH,

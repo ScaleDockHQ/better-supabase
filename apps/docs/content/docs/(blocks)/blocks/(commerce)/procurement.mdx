@@ -30,7 +30,7 @@ Installing `procurement` installs these blocks. Each stays an ordinary block in 
 
 ## Helpers
 
-`payDueBills({ batch, sepa })` batches the bills due by the date in `batch`, posts the batch to the books, and with `sepa` exports the bank file. A bill that needs approval refuses the batch before anything posts. It returns the batch and the SEPA file or `null`.
+`payDueBills({ batch, sepa })` batches the bills due by the date in `batch`, posts the batch to the books, and with `sepa` exports the bank file. It runs as one database call and one transaction (`banking.payBatch`, the `pay_payment_batch` function): a bill that needs approval refuses the batch and nothing is created, and the TypeScript hooks of `createPaymentBatch`, `postPaymentBatch` and `exportSepaCreditTransfer` do not fire. It returns the batch and the SEPA file or `null`.
 
 ```ts
 const paid = await blocks.procurement

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:0a7aba7783cb6a7d439411878dd0636137e3be683fb721d3aa628a6f910d68e9
+-- @bsb-hash sha256:13bc6b59a381fb93727ae91acf993c6f24f24b1acb9fb1fd5772a8320597295a
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -916,6 +916,7 @@ grant execute on function "better_supabase"."bank_reconciliation_status"(uuid, d
 
 
 
+
 -- Matches a bank rule's filter tree against a transaction's fields (ADR 0046).
 create or replace function "better_supabase"."bank_rule_condition"(node jsonb, payload jsonb)
 returns boolean
@@ -1548,7 +1549,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:c85e79d7d5bf5c6269c510c104a80c12dae065f2d5ccf8ad2746cbef0d605954
+-- @bsb-hash sha256:84346db808569f9c42952c3452c7c5a16fffd0bdd1d1a6138d02e9511a9c8bdb
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3001,6 +3002,31 @@ revoke execute on function "better_supabase"."cancel_payment_batch"(uuid) from p
 grant execute on function "better_supabase"."cancel_payment_batch"(uuid) to authenticated, service_role;
 
 
+-- Creates a draft payment batch (input as create_payment_batch) and posts it,
+-- in one transaction. Returns { batch, accounts }; accounts (every bank
+-- account, archived ones included) only when with_accounts is true.
+create or replace function "better_supabase"."pay_payment_batch"(tenant uuid, input jsonb, with_accounts boolean default false)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_batch jsonb;
+begin
+  v_batch := "better_supabase"."create_payment_batch"(pay_payment_batch.tenant, pay_payment_batch.input);
+  v_batch := "better_supabase"."post_payment_batch"((v_batch ->> 'id')::uuid);
+  return jsonb_build_object(
+    'batch', v_batch,
+    'accounts', case when pay_payment_batch.with_accounts
+      then "better_supabase"."list_bank_accounts"(pay_payment_batch.tenant, true)
+      else '[]'::jsonb end);
+end;
+$$;
+revoke execute on function "better_supabase"."pay_payment_batch"(uuid, jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."pay_payment_batch"(uuid, jsonb, boolean) to authenticated, service_role;
+
+
 -- Matches a bank rule's filter tree against a transaction's fields (ADR 0046).
 create or replace function "better_supabase"."bank_rule_condition"(node jsonb, payload jsonb)
 returns boolean
@@ -3878,7 +3904,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:39bcac64d50a01e82e9e9d18d636912b2a2a9c41c7b556ecaeeacaeff8dd1a02
+-- @bsb-hash sha256:e6bb97ab6177f1886ccc890863b50583fa19e771295c20473c97bb3f71c9dbcd
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4798,6 +4824,7 @@ grant execute on function "app_private"."bank_reconciliation_status"(uuid, date)
 
 
 
+
 -- Matches a bank rule's filter tree against a transaction's fields (ADR 0046).
 create or replace function "app_private"."bank_rule_condition"(node jsonb, payload jsonb)
 returns boolean
@@ -5430,7 +5457,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:b07b38c8f3c2f987ca53fba2ac22b5d598433e1f7bfc8cb5aa21132ba23936bc
+-- @bsb-hash sha256:979129baa5370cb2518d4ee2e0a1ede30157398b7f447e95b6bbe7651c0c39cc
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6345,6 +6372,7 @@ grant execute on function "better_supabase"."bank_reconciliation_status"(uuid, d
 
 
 
+
 -- Matches a bank rule's filter tree against a transaction's fields (ADR 0046).
 create or replace function "better_supabase"."bank_rule_condition"(node jsonb, payload jsonb)
 returns boolean
@@ -7152,7 +7180,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:37180576c791d8ee5ae4fe3fa0c886e515b85df95d48cc230445c9b1e76ae487
+-- @bsb-hash sha256:158eea585277c61a0fa75afc6f59640dd2423e6941360232806cd2b0b1393ba8
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8029,6 +8057,7 @@ grant execute on function "better_supabase"."bank_reconciliation_status"(uuid, d
 
 
 
+
 -- Matches a bank rule's filter tree against a transaction's fields (ADR 0046).
 create or replace function "better_supabase"."bank_rule_condition"(node jsonb, payload jsonb)
 returns boolean
@@ -8661,7 +8690,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:be89d33688d0f7811763b76f310cf82c0b781cc8bb391a79e219b0f93ed81604
+-- @bsb-hash sha256:2c12d7c98938a8e67059fd3df265dc3a98f1532b18acd2e02aa3164470a2db5b
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9573,6 +9602,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."bank_reconciliation_status"(uuid, date) from public, anon;
 grant execute on function "better_supabase"."bank_reconciliation_status"(uuid, date) to authenticated, service_role;
+
 
 
 

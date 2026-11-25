@@ -125,7 +125,8 @@ Admin, `next start`, `actions.spec.ts`. After the composite is one call, the res
 | offboardEmployee  | 12           | 8           | 4 to 2                | 181affa563 |
 | reconcileAccount  | 11           | 2           | 3 to 2                | 7b60090543 |
 | onboardEmployee   | 10           | 8           | 3 to 2                | fbdbda00cd |
-| bookWithReminder  | 9            | 8           | 2 to 2                | (next)     |
+| bookWithReminder  | 9            | 8           | 2 to 2                | eab25f2535 |
+| payDueBills       | 7            | 6           | 4 to 4                | (next)     |
 
 ## Cache tiers and invalidation (ADRs 1240, 1241, 1244, 1245)
 
@@ -193,3 +194,36 @@ three of them on purpose. The rest, by reason:
 tag passed to `refreshCaller` must be carried by a read, and an action that
 writes a table with a domain tag of its own must pass that tag. It starts at
 zero findings and a call that drops `CUSTOMERS_TAG` fails it.
+
+## Follow-up pass: measurements and skips
+
+### Auth memo (Track 1)
+
+The shared session memo, its counters (ADR 1230), the sign-in seeding, the JWKS warm and the single cookie parse are in place and verified by their tests. Parsing the `ssrSession` cookie and verifying its token costs about 34 µs unmemoized and 0.8 µs memoized on a laptop. The 34 µs figure uses a locally cached JWKS; a cold JWKS fetch is a network call and is what the warm step removes.
+
+### Unexplained calls (Track 0)
+
+`DbStats.trace` (a stats field, with a changeset) records each call with its start, end, wave and phase (`action` or `render`). `tests/explain-calls.spec.ts` writes one trace per route to `perf-results/example-perf/explain-<user>-<route>.json` (set `BSB_EXPLAIN_ROUTES` to choose routes). Use them to attribute the extra calls on `/customers/[id]`, `/crm/deals` and the bench-scope verifications to a phase and a wave.
+
+The db-time spec's "failing detail routes" were stale ids: `resolve-urls.spec` writes `urls.json`, and a database reseed makes every id in it dangle, so the detail page renders its error boundary and has no `h1`. Run `resolve-urls` before `db-time`; the nightly workflow does.
+
+### Database time (nightly and doctor)
+
+`.github/workflows/example-db-time.yml` runs `resolve-urls` and `db-time` every night and on demand. `db-time.spec.ts` compares each route's buffers with `tests/db-time.baseline.<tier>.json` (growth of 25 percent plus 64 buffers). Without a baseline file the spec only records. Write the baseline on a quiet machine with `BSB_DB_TIME_UPDATE=1`. The local attempt in this pass was skipped: the machine had a load average above 20 and the 248 routes did not finish before the server stopped answering, so no number would have been trustworthy.
+
+Doctor rule BS732 (ADR 1246) warns about statements from the API roles and functions that average more than 100 ms over at least five calls, and says when `pg_stat_statements` is not installed.
+
+### JWT size
+
+The header size check already exists, so there is nothing to add.
+
+### Skipped, with the reason
+
+| Item                                        | Reason                                                                                                                                 |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Dependent entry, keyset page entry          | The page spike finds no route where one call beats the parallel calls. A keyset cursor entry fails at compile time ("Invalid cursor"). |
+| Page rollout, tenant-shared `bsb.kept`      | No gain in the spike, so no kit rollout and no shared reference data.                                                                  |
+| Lazy Supabase client parts                  | The client is one 235 KB chunk; splitting it needs an upstream change.                                                                 |
+| Per-area block sets, finance pages split    | Not measured to pay off before the baselines can be regenerated on a quiet machine.                                                    |
+| Lazy kanban and drag and drop (about 50 KB) | Left for the bundle pass; the pages that use them are not the chatty ones.                                                             |
+| Instant lock on search params               | `@next/playwright` cannot lock a navigation that only changes search params.                                                           |
