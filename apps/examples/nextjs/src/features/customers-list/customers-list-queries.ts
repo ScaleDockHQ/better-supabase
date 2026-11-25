@@ -15,7 +15,12 @@ import { readCustomerRows } from "./customers-reads";
  */
 export async function getCustomers() {
   "use cache: private";
-  const { db } = await bsb.cached({ tables: ["customers", "notes"] });
+
+  const { db } = await bsb.cached({
+    tables: ["customers", "notes"],
+    keep: { name: "customers-list" },
+  });
+
   cacheTag(CUSTOMERS_TAG);
 
   return readCustomerRows(db, {});
@@ -24,7 +29,13 @@ export async function getCustomers() {
 /** One customer with its notes; `null` when RLS hides it or it is gone. */
 export async function getCustomer(id: string) {
   "use cache: private";
-  const { db } = await bsb.cached({ tables: ["customers", "notes"], id });
+
+  const { db } = await bsb.cached({
+    tables: ["customers", "notes"],
+    id,
+    keep: { name: "customer" },
+  });
+
   cacheTag(CUSTOMERS_TAG);
 
   const customer = await db.customers

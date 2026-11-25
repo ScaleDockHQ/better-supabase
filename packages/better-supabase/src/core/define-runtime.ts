@@ -178,6 +178,7 @@ class Connector {
     recorder: unknown,
     tuning: RequestTuning = {},
     events: EventHubType = this.events,
+    outer?: (executor: Executor) => Executor,
   ): object {
     const context = this.#derive(given, plugins);
     let executor = base;
@@ -190,6 +191,8 @@ class Connector {
 
     const wrapped = executor;
     executor = extras ? extras.record(executor, recorder) : executor;
+    // A cache in front: a hit never reaches the plugins or the call counts.
+    executor = outer ? outer(executor) : executor;
     const errorMappers = this.#errorMappersFor(plugins);
 
     const runner = new OperationRunner({
@@ -275,6 +278,8 @@ class Connector {
 
             return error;
           }),
+      $wrapExecutor: (wrap: (executor: Executor) => Executor) =>
+        this.#db(source, base, given, plugins, recorder, tuning, events, wrap),
       $with: (extra: RequestContext) =>
         this.#db(
           source,

@@ -213,6 +213,42 @@ enclosing entry, so a write expires both. In a scope that can't read the
 request, pass the handle from `bsb.sessionHandle()`:
 `openInvoices.as(session)(customerId)`.
 
+### Keep the reads of a cached function
+
+Pass `keep` to `bsb.cached()` and every read of `ctx.db` in that function goes
+through the kept store, so a cold page or a fresh instance answers it without
+calling the database:
+
+```ts
+export async function getCustomer(id: string) {
+  "use cache: private";
+  const { db } = await bsb.cached({
+    tables: ["customers", "notes"],
+    id,
+    keep: { name: "customer" },
+  });
+
+  return db.customers.get({ id }, { optional: true }).orThrow();
+}
+```
+
+Each read gets its own entry, keyed on the user, the tenant, the operation and
+the schema version, and tagged with the table it reads, so a write to the table
+expires it like any other kept entry. Parallel renders of one page share a
+single fill. Writes, `db.$many()` batches, function sources and `$rpc()` calls
+always reach the database, and so does a read of a support session or of a
+token that failed to verify. Request stats count only the reads that miss, and
+`keptHits` counts the rest.
+
+### Keep a bootstrap answer
+
+`bsb.bootstrap({ rpc, kept: true })` keeps the wrapper's answer (data, reads,
+subject and permissions) per user, session and tenant. A write to a table the
+wrapper reads expires it. A session that ended is served from the store for at
+most `kept.life.revalidate` seconds (default 30), unless `bsb.evictSession()`
+ran for the user, which expires the entry at once. Leave `kept` off where a
+revoked session must stop on the next request.
+
 ### Expire kept entries from your own writes
 
 A `bsb.action` with `invalidates` and the repository writes expire the kept

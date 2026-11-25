@@ -145,6 +145,16 @@ adapters send at most 16 tags per call, the most Vercel accepts, and
 `invalidateByTag` is rate limited per project, so prefer table tags over a
 tag per row for a bulk write.
 
+### Runtime Cache operations per page view
+
+With `bsb.cached({ keep })` a page view makes one Runtime Cache read for each
+kept read it contains, and one write for each of those that missed. A write to
+a table adds one `expireTag` call per 16 tags. The request's stats show the
+numbers: `keptHits` plus `keptMisses` are the reads, `keptMisses` the writes,
+and `tagCalls` the expiry calls. Vercel meters the Runtime Cache by operation
+and size, so read the unit prices on your plan in the Vercel dashboard and
+multiply them by these counts.
+
 ## Next.js
 
 Next.js apps put `nextCache()` in the route's `caches`. For `'use cache'` reads
