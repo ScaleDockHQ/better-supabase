@@ -13,7 +13,11 @@ export default function ComplianceLayout({
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "acknowledgements"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "acknowledgements",
+        "compliance",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

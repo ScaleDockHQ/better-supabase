@@ -109,7 +109,9 @@ test("a failing control passes once evidence answers its task", async ({
 
   const main = page.getByRole("main");
 
-  await expect(main.getByText("Failing", { exact: true })).toBeVisible();
+  await expect(
+    main.getByText("Failing", { exact: true }).filter({ visible: true }),
+  ).toBeVisible();
   await expect(main.getByText("Expired", { exact: true })).toBeVisible();
 
   await main
@@ -125,7 +127,9 @@ test("a failing control passes once evidence answers its task", async ({
   await dialog.getByRole("button", { name: "Add evidence" }).click();
 
   await expect(page.getByText("Evidence added")).toBeVisible();
-  await expect(main.getByText("Passing", { exact: true })).toBeVisible();
+  await expect(
+    main.getByText("Passing", { exact: true }).filter({ visible: true }),
+  ).toBeVisible();
   await expect(
     main.getByText("Restore of the November backup took 12 minutes."),
   ).toBeVisible();
