@@ -2,7 +2,7 @@ import { posix } from "node:path";
 
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 
-import { permissionCatalog } from "../../auth/permission-bitset.ts";
+import { permissionCatalog } from "../../claims/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   DEFAULT_ROLES,

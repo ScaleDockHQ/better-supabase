@@ -4,8 +4,6 @@ import { dirname, relative, resolve } from "node:path";
 
 import type { Rule } from "./rules.ts";
 
-import { isRecord } from "../../core/guards.ts";
-
 /** The proxy's traced files, as `next build` listed them. */
 export interface ProxyTrace {
   /** The trace file, relative to the project root. */
@@ -42,14 +40,20 @@ export async function readProxyTrace(
 
   const absolute = resolve(root, path);
   const parsed: unknown = JSON.parse(await readFile(absolute, "utf-8"));
-  const listed = isRecord(parsed) ? parsed["files"] : undefined;
+
+  const listed: unknown =
+    typeof parsed === "object" && parsed !== null
+      ? Object.entries(parsed).find(([name]) => name === "files")?.[1]
+      : undefined;
 
   if (!Array.isArray(listed)) {
     return undefined;
   }
 
+  const names: readonly unknown[] = listed;
+
   const sizes = await Promise.all(
-    listed
+    names
       .filter((file): file is string => typeof file === "string")
       .map(async (file) => {
         const target = resolve(dirname(absolute), file);

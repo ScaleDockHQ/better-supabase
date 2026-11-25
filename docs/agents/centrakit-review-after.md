@@ -49,5 +49,5 @@ catalog from `lib/permission-catalog`.
    BSB_TAG_PROBE_SECRET=... node scripts/probe-vercel-tags.ts https://<preview>.vercel.app --second
    ```
 
-4. Run the PermDock dry run on CentraKit for BS428 and `tests/cache.spec.ts`
+4. Run the dry run on CentraKit for BS428 and `tests/cache.spec.ts`
    against the live stack.
