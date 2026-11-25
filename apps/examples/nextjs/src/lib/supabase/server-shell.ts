@@ -8,6 +8,7 @@ import { env } from "@/env";
 
 import { catalog } from "../permission-catalog";
 import { permissions } from "./blocks.config";
+import { keptStore } from "./kept-store";
 import { sharedCounters } from "./session-counters";
 import { betterSupabaseShell } from "./shell";
 
@@ -22,6 +23,7 @@ const options: NextOptions = {
     route: "/api/bs-stats",
   },
   replicas: { pinMs: 5000 },
+  kept: { store: keptStore() },
   // The same counters as `server.ts`, so `/api/bs-sessions` counts both.
   sessions: { counters: sharedCounters() },
   authorizer: permissionsAuthorizer({
