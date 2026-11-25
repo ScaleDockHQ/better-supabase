@@ -25,20 +25,26 @@ const isResize = (value: string): value is Resize =>
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
 
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      return;
+    }
+
+    setCopied(true);
+    setTimeout(() => {
+      setCopied(false);
+    }, 1500);
+  };
+
   return (
     <button
       type="button"
       className="rounded-md border px-2 py-1 text-xs transition-colors hover:bg-fd-accent"
       aria-label={label}
       onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => {
-          setCopied(true);
-          setTimeout(() => {
-            setCopied(false);
-          }, 1500);
-
-          return true;
-        });
+        void copy();
       }}
     >
       {copied ? "Copied" : "Copy"}

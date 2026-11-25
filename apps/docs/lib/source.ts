@@ -78,9 +78,12 @@ const docsLlms = llms(source, {
   async renderPage(page) {
     const description = page.data.description?.trim();
 
-    const processed = await page.data.getText("processed", {
-      components: markdownComponents,
-    });
+    const rendered =
+      source.getPage(page.slugs, {
+        props: { components: markdownComponents },
+      }) ?? page;
+
+    const processed = await rendered.data.getText("processed");
 
     return [
       `# ${page.data.title}`,
