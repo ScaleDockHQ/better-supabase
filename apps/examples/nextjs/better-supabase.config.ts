@@ -558,7 +558,10 @@ export default defineConfig({
       // argument (BS235, four findings); the client sends the new form.
       // `projects.sql` carries the search tag's `bsb_search_project_index`
       // trigger, which the search module file creates too (BS722, one finding).
-      ignore: ["BS235", "BS243", "BS244", "BS722"],
+      // The Vercel tag probe calls updateTag and revalidateTag on purpose, to
+      // measure them, and the role actions expire a Next-only organization
+      // snapshot tag, not a kept entry (BS648, three findings).
+      ignore: ["BS235", "BS243", "BS244", "BS648", "BS722"],
     },
   },
   auth: {

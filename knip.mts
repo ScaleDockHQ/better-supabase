@@ -100,9 +100,11 @@ const config: KnipConfig = {
     },
     "apps/examples/orpc-api": serverExample,
     "apps/examples/nextjs": {
+      // gen writes proxy-permissions.generated.ts; the example builds its own catalog.
       ...browserExample,
       ignore: [
         ...exampleIgnore,
+        "src/lib/supabase/proxy-permissions.generated.ts",
         "src/components/ui/**",
         "src/components/reui/**",
         "src/lib/supabase/records/**",

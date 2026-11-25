@@ -1,5 +1,4 @@
-import { cacheLife, io } from "next/cache.js";
-import { redirect } from "next/dist/client/components/redirect.js";
+import { io } from "next/cache.js";
 import { cookies } from "next/headers.js";
 import { cache } from "react";
 
@@ -93,9 +92,9 @@ import {
   tagCallCollectors,
 } from "./cache.ts";
 import { timeFirst } from "./cold-start.ts";
-import { logActionStats, requestIdOf } from "./collector.ts";
+import { debugRefusal, logActionStats, requestIdOf } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
-import { applyCacheEntry, awaitStage } from "./entry.ts";
+import { applyCacheEntry, awaitStage, endBootstrap } from "./entry.ts";
 import { incomingRequest } from "./incoming-request.ts";
 import { keptBinding } from "./kept.ts";
 import { proxyHandler } from "./proxy-handler.ts";
@@ -655,10 +654,13 @@ export function createNext<
     async cached(cachedOptions = {}) {
       await awaitStage(cachedOptions.stage, stageWarn);
 
-      const { ctx, view, scope, tenant } = await scopeOf(cachedOptions);
+      const resolved = await scopeOf(cachedOptions);
+      const { ctx, view, scope, tenant } = resolved;
       applyEntry(ctx, view, scope, tenant, cachedOptions);
 
-      return withExtra(ctx, { session: view });
+      const db = kept.keepDb(resolved, ctx.db, cachedOptions);
+
+      return withExtra(ctx, { session: view, db });
     },
 
     // `contextFor` takes the auth state it is given and never reads cookies or
@@ -753,7 +755,14 @@ export function createNext<
 
     kept: kept.kept,
 
+    async expireTags(tags, expireOptions = {}) {
+      invalidateAll(tags, expireOptions.revalidate);
+      await kept.expireTagsNow(tags);
+    },
+
     statsFetch: recording.statsFetch,
+
+    phase: recording.inPhase,
 
     async bootstrap<T, S extends ReadSet = ReadSet>(
       bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,
@@ -762,6 +771,12 @@ export function createNext<
 
       const { ctx, view, scope, tenant } = await scopeOf(bootstrapOptions);
       const calls = bootstrapCalls();
+
+      const readMemo = kept.keepMemo(
+        { ctx, view, scope, tenant },
+        bootstrapOptions,
+        mapBootstrapMemo(calls),
+      );
 
       const result = await bootstrapWith<C, P, T, S>(
         {
@@ -778,24 +793,11 @@ export function createNext<
         ctx,
         bootstrapOptions,
         tenant,
-        mapBootstrapMemo(calls),
+        readMemo,
       );
 
       if (result.session.kind === "user" && !result.sessionActive) {
-        cacheLife({ stale: 0, revalidate: 0, expire: 0 });
-
-        if (bootstrapOptions.redirect !== undefined) {
-          const reason =
-            result.endReason === "user_banned"
-              ? (bootstrapOptions.reasons?.banned ?? "user_banned")
-              : (bootstrapOptions.reasons?.ended ?? "session_not_found");
-
-          redirect(
-            `${bootstrapOptions.redirect}?reason=${encodeURIComponent(reason)}`,
-          );
-        }
-
-        return result;
+        return endBootstrap(result, bootstrapOptions);
       }
 
       const recorded =
@@ -967,12 +969,7 @@ export function createNext<
         const id = new URL(request.url).searchParams.get("id");
 
         if (!collector || !id) {
-          return Promise.resolve(
-            Response.json(
-              { error: collector ? "missing ?id=" : "debug is off" },
-              { status: 404, headers: { "cache-control": "no-store" } },
-            ),
-          );
+          return Promise.resolve(debugRefusal(collector !== undefined));
         }
 
         // A render served entirely from cache entries records nothing: it made

@@ -13,6 +13,7 @@ import type { ProjectSymbols } from "../typescript-symbols/index.ts";
 import type { AdvisorSource } from "./advisors.ts";
 import type { StackEnvCheck } from "./env.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
+import type { ProxyTrace } from "./proxy-size.ts";
 import type { LocalStackCheck } from "./stacks.ts";
 import type { SupabaseCliCheck } from "./supabase-cli.ts";
 import type { VercelEnvFile } from "./vercel-env.ts";
@@ -230,6 +231,8 @@ export interface DoctorContext {
    * (BS513 to BS515). An empty list means nothing was pulled.
    */
   readonly vercelEnv?: readonly VercelEnvFile[];
+  /** The proxy's file trace from the last `next build` (BS650). */
+  readonly proxyTrace?: ProxyTrace;
 }
 
 export interface Rule {

@@ -2408,8 +2408,10 @@ describe("native SessionProvider", () => {
     );
 
     expect(view.result).toBe("app");
-    expect(client.channel).toHaveBeenCalledWith(`authz:${USER}`, {
-      config: { private: true },
+    await vi.waitFor(() => {
+      expect(client.channel).toHaveBeenCalledWith(`authz:${USER}`, {
+        config: { private: true },
+      });
     });
 
     handlers[0]?.({ payload: { user_id: USER, version: 2 } });

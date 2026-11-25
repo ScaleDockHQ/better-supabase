@@ -99,6 +99,9 @@ export function startAuthzRefresh(options: AuthzRefreshOptions): () => void {
       ...(options.topic ? { topic: options.topic } : {}),
       ...(options.event ? { event: options.event } : {}),
       ...(options.schema ? { schema: options.schema } : {}),
+      ...(options.liveVersion === undefined
+        ? {}
+        : { liveVersion: options.liveVersion }),
       onError: report,
     });
 

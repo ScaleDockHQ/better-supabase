@@ -1,8 +1,7 @@
 import { after } from "next/server.js";
 
-import type { BetterSupabase } from "../core/define.ts";
+import type { EventHub } from "../core/events.ts";
 import type { DbStats } from "../core/stats.ts";
-import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { CollectorView } from "./collector.ts";
 import type { NextOptions } from "./types.ts";
 
@@ -29,16 +28,8 @@ export interface ProxyRuntime {
   readonly flushAfter: () => void;
 }
 
-export function proxyRuntime<
-  M extends AnyModels,
-  D,
-  F extends AnyFunctions,
-  E,
-  C,
-  P,
-  B,
->(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
+export function proxyRuntime(
+  betterSupabase: { readonly events: EventHub },
   options: Pick<NextOptions, "debug" | "devRoundTripBudget">,
 ): ProxyRuntime {
   const debug = options.debug;

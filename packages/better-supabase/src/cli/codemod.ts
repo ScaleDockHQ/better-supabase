@@ -21,6 +21,7 @@ import { blocksListCodemod } from "./codemod-blocks-list.ts";
 import { configCodemod } from "./codemod-config.ts";
 import { declaredRowsCodemod } from "./codemod-declared-rows.ts";
 import { doctorBaselineCodemod } from "./codemod-doctor-baseline.ts";
+import { reportExpireTags } from "./codemod-expire-tags.ts";
 import { extraColumnsCodemod } from "./codemod-extra-columns.ts";
 import { namingCodemod } from "./codemod-naming.ts";
 import { ownedColumnsCodemod } from "./codemod-owned-columns.ts";
@@ -165,6 +166,12 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "account-calls": accountCallsCodemod(),
   "server-imports": serverImportsCodemod(),
   generators: generatorsCodemod(),
+  "expire-tags": {
+    name: "expire-tags",
+    description:
+      "List updateTag and revalidateTag calls that bsb.expireTags replaces",
+    source: reportExpireTags,
+  },
   "read-many": {
     name: "read-many",
     description: "List Promise.all groups of reads that db.$many can load",

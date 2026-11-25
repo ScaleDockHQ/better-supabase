@@ -22,7 +22,7 @@ import { bindParams, checkParams, isReadSet } from "./read-set.ts";
 import { AsyncResult, err, ok } from "./result.ts";
 import { decodeRpcResult, rpcFunction } from "./rpc-result.ts";
 import { isFunctionSpec, isQuerySpec } from "./spec.ts";
-import { StatsRecorder, recordStats } from "./stats.ts";
+import { StatsRecorder, isAmbientClient, recordStats } from "./stats.ts";
 
 /** What the extras need from the db the connection runtime is building. */
 export interface ExtrasScope {
@@ -58,7 +58,7 @@ export interface ExtrasScope {
  */
 export interface DbExtras {
   /** A recorder for one connection. */
-  recorder(options: ConnectOptions): unknown;
+  recorder(options: ConnectOptions, client?: unknown): unknown;
   /** Wraps the executor so every call is counted. */
   record(executor: Executor, recorder: unknown): Executor;
   attach(scope: ExtrasScope): void;
@@ -414,8 +414,17 @@ function attach(scope: ExtrasScope, decodeEvents: () => EventHubType): void {
 /** The extras the full connection runtime installs. */
 export function dbExtras(): DbExtras {
   return {
-    recorder: (options) =>
-      new StatsRecorder(options.stats, undefined, options.admin === true),
+    recorder: (options, client) => {
+      const recorder = new StatsRecorder(
+        options.stats,
+        undefined,
+        options.admin === true,
+      );
+
+      recorder.covered = isAmbientClient(client);
+
+      return recorder;
+    },
     record: (executor, recorder) =>
       // SAFETY: recorder() above is the only source of recorders.
       recordStats(executor, recorder as StatsRecorder),

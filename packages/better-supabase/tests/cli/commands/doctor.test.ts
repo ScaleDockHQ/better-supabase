@@ -95,6 +95,44 @@ describe("doctor command", () => {
     );
   });
 
+  it("rejects an --out outside the project, or a directory, before opening the database", async () => {
+    const db = fakeSql([TEMP_FILES]);
+    const open = fakeConnect(db.pg);
+    await mkdir(join(root, "reports"));
+
+    const options = { connect: open.connect, dbUrl: "postgresql://u:pw@h/db" };
+
+    expect(
+      await usageError(() => doctor(["--out", "../escape.txt"], options)),
+    ).toContain("--out");
+
+    expect(await usageError(() => doctor(["--out", "reports"], options))).toBe(
+      "--out reports is a directory; name the file to write.",
+    );
+
+    expect(open.urls).toEqual([]);
+  });
+
+  it("times its phases in the JSON report", async () => {
+    const db = fakeSql([TEMP_FILES]);
+    const open = fakeConnect(db.pg);
+    const log: string[] = [];
+
+    const result = await doctor(["--only", "BS208", "--json"], {
+      connect: open.connect,
+      dbUrl: "postgresql://u:pw@h/db",
+      log: (line) => void log.push(line),
+    });
+
+    expect(
+      (result.data as { phases: { name: string }[] }).phases.map(
+        (phase) => phase.name,
+      ),
+    ).toEqual(["read the project", "run the rules"]);
+
+    expect(log.filter((line) => line.startsWith("doctor: "))).toHaveLength(2);
+  });
+
   it("rejects --claims without --explain instead of ignoring it", async () => {
     expect(
       await usageError(() => doctor(["--claims", '{"role":"authenticated"}'])),

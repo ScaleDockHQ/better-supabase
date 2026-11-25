@@ -262,6 +262,23 @@ export function formatStats(stats: DbStats): string {
   ].join(";");
 }
 
+/** ` phases=write:2,render:3 decodes=1`, or an empty string with nothing to add. */
+function describePhases(stats: DbStats): string {
+  const phases = Object.entries(stats.phases ?? {})
+    .map(([phase, calls]) => `${phase}:${calls}`)
+    .join(",");
+
+  const hits = Object.entries(stats.keptHits ?? {})
+    .map(([phase, count]) => `${phase}:${count}`)
+    .join(",");
+
+  return [
+    phases === "" ? "" : ` phases=${phases}`,
+    hits === "" ? "" : ` keptHits=${hits}`,
+    stats.decodes ? ` decodes=${stats.decodes}` : "",
+  ].join("");
+}
+
 /**
  * A server action answers with a serializable result, never a `Response`, so it
  * can't carry the stats header. This logs the header's value instead; the
@@ -277,11 +294,31 @@ export async function logActionStats(
   const stats = id === undefined ? undefined : collector?.get(id);
 
   if (stats) {
-    logger.info(`bsb.action ${header}: ${formatStats(stats)}`);
+    logger.info(
+      `bsb.action ${header}: ${formatStats(stats)}${describePhases(stats)}`,
+    );
   }
 }
 
 /** The development budget: `waves` round trips and no service-role call. */
 export function devBudget(waves: number | false): DbBudget | undefined {
   return waves === false ? undefined : { waves, adminCalls: 0 };
+}
+
+/** The 404 of `bsb.debugRoute()`, with the reason as JSON. */
+export function debugRefusal(on: boolean): Response {
+  return Response.json(
+    on
+      ? {
+          error: "missing ?id=",
+          reason:
+            "Pass the request id from the bsb-request-id response header, or the URL in bsb-stats-url.",
+        }
+      : {
+          error: "debug is off",
+          reason:
+            "Set createNext({ debug: { enabled: true } }); production needs it on explicitly, and the proxy must run for the page.",
+        },
+    { status: 404, headers: { "cache-control": "no-store" } },
+  );
 }

@@ -585,6 +585,15 @@ export interface DbHelpers<
   $rpc<N extends NoArgName<F>>(
     name: N,
   ): AsyncResult<OverloadReturns<F[N], Record<never, never>>>;
+  /**
+   * The same connection with `wrap` around its executor, outside the plugins
+   * and the call counts: a read `wrap` answers itself never reaches either. For
+   * caches such as `bsb.cached({ keep })`. `$with()` and `$withoutPlugins()` of
+   * the result drop the wrapper.
+   */
+  $wrapExecutor(
+    wrap: (executor: Executor) => Executor,
+  ): CoreDb<M, F, E, C, B, X>;
   /** Same connection with more context (for example a tenant). */
   $with(context: RequestContext): CoreDb<M, F, E, C, B, X>;
   /**

@@ -59,6 +59,12 @@ export interface AuthzTopicOptions {
    * `schema()`. Defaults to `api`, where the sessions module creates it.
    */
   readonly schema?: string;
+  /**
+   * The live authz version the server read for this page (the bootstrap's
+   * `authzVersion`). The first join reports it instead of calling
+   * `caller_authz_version()`; later joins, after a reconnect, still read it.
+   */
+  readonly liveVersion?: number | null;
 }
 
 /** A version from a broadcast payload or an RPC; `bigint` may arrive as text. */
@@ -96,12 +102,49 @@ export interface LiveVersionSource {
   ): () => void;
 }
 
+/** Waits for an idle moment so the join does not compete with the first render. */
+function whenIdle(run: () => void): () => void {
+  const idle =
+    "requestIdleCallback" in globalThis
+      ? globalThis.requestIdleCallback
+      : undefined;
+
+  if (typeof idle === "function") {
+    const id = idle(run, { timeout: 2000 });
+
+    return () => {
+      globalThis.cancelIdleCallback(id);
+    };
+  }
+
+  const timer = setTimeout(run, 1);
+
+  return () => {
+    clearTimeout(timer);
+  };
+}
+
+interface SharedChannel {
+  readonly listeners: Set<(version: number) => void>;
+  readonly joins: Set<() => void>;
+  refs: number;
+  joined: boolean;
+  cancelJoin: (() => void) | undefined;
+  channel: AuthzRefreshChannel | undefined;
+}
+
+/** One channel per client, topic and event, shared by every listener on it. */
+const SHARED = new WeakMap<object, Map<string, SharedChannel>>();
+
 /**
  * The default version source: broadcasts on the user's private topic, and
  * `caller_authz_version()` (in the `api` schema unless `schema` says otherwise)
- * for `current()`. Each time the channel joins (the first time and after a
- * reconnect), it reads the live version and reports it, so a change made while
- * the channel was down still arrives.
+ * for `current()`. The channel joins when the browser is idle, and one channel
+ * serves every source for the same client and topic, so listeners that overlap
+ * (a remounted provider, two providers) join once, and a join that is stopped
+ * before the idle moment never happens. The first join reports `liveVersion`
+ * when the server passed it in; every later join (after a reconnect) reads the
+ * live version, so a change made while the channel was down still arrives.
  */
 export function realtimeVersionSource(
   client: AuthzRefreshClient,
@@ -127,13 +170,49 @@ export function realtimeVersionSource(
     return versionFrom(data);
   };
 
+  const sharedOf = (key: string): SharedChannel => {
+    const byKey = SHARED.get(client) ?? new Map<string, SharedChannel>();
+    SHARED.set(client, byKey);
+
+    const existing = byKey.get(key);
+
+    if (existing) {
+      return existing;
+    }
+
+    const created: SharedChannel = {
+      listeners: new Set(),
+      joins: new Set(),
+      refs: 0,
+      joined: false,
+      cancelJoin: undefined,
+      channel: undefined,
+    };
+
+    byKey.set(key, created);
+
+    return created;
+  };
+
   return {
     current,
     subscribe(listener, onLive = listener) {
       const topic = (options.topic ?? authzUserTopic)(userId);
+      const event = options.event ?? AUTHZ_EVENT;
+      const key = `${topic}\u0000${event}`;
+      const shared = sharedOf(key);
       let stopped = false;
+      let joins = 0;
 
-      const catchUp = (): void => {
+      const onJoin = (): void => {
+        joins += 1;
+
+        if (joins === 1 && typeof options.liveVersion === "number") {
+          onLive(options.liveVersion);
+
+          return;
+        }
+
         current().then(
           (version) => {
             if (!stopped && version !== undefined) {
@@ -144,24 +223,51 @@ export function realtimeVersionSource(
         );
       };
 
-      const channel = client
-        .channel(topic, { config: { private: true } })
-        .on("broadcast", { event: options.event ?? AUTHZ_EVENT }, (message) => {
-          const version = payloadVersion(message.payload);
+      shared.refs += 1;
+      shared.listeners.add(listener);
+      shared.joins.add(onJoin);
 
-          if (version !== undefined) {
-            listener(version);
-          }
-        })
-        .subscribe((status) => {
-          if (status === "SUBSCRIBED") {
-            catchUp();
-          }
+      if (shared.joined) {
+        onJoin();
+      } else if (shared.channel === undefined && !shared.cancelJoin) {
+        shared.cancelJoin = whenIdle(() => {
+          shared.cancelJoin = undefined;
+          shared.channel = client
+            .channel(topic, { config: { private: true } })
+            .on("broadcast", { event }, (message) => {
+              const version = payloadVersion(message.payload);
+
+              if (version !== undefined) {
+                for (const each of shared.listeners) {
+                  each(version);
+                }
+              }
+            })
+            .subscribe((status) => {
+              if (status === "SUBSCRIBED") {
+                shared.joined = true;
+
+                for (const each of shared.joins) {
+                  each();
+                }
+              }
+            });
         });
+      }
 
       return () => {
         stopped = true;
-        channel.unsubscribe().catch((cause: unknown) => {
+        shared.listeners.delete(listener);
+        shared.joins.delete(onJoin);
+        shared.refs -= 1;
+
+        if (shared.refs > 0) {
+          return;
+        }
+
+        shared.cancelJoin?.();
+        SHARED.get(client)?.delete(key);
+        shared.channel?.unsubscribe().catch((cause: unknown) => {
           options.onError?.(errorOf(cause));
         });
       };

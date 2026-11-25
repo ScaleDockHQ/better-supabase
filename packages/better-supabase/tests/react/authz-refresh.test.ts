@@ -73,6 +73,8 @@ describe("startAuthzRefresh", () => {
       onChange,
     });
 
+    await settle();
+
     expect(fake.topics).toEqual(["authz:u1"]);
     fake.send({ user_id: "u1", version: "2" });
     fake.send({ user_id: "u1", version: 2 });
@@ -101,6 +103,8 @@ describe("startAuthzRefresh", () => {
       channel: "test:authz-2",
       onChange,
     });
+
+    await settle();
 
     for (const userId of ["u2", "u1"]) {
       const message = { type: "better-supabase:authz", userId, version: 5 };
@@ -138,6 +142,8 @@ describe("startAuthzRefresh", () => {
       onChange,
     });
 
+    await settle();
+
     fake.send({ version: 7 });
     await settle();
     expect(fake.refreshSession).not.toHaveBeenCalled();
@@ -165,6 +171,8 @@ describe("startAuthzRefresh", () => {
       onError,
     });
 
+    await settle();
+
     fake.send({ version: 3 });
     fake.send({ version: "x" });
     await settle();
@@ -185,6 +193,8 @@ describe("startAuthzRefresh", () => {
       tokenVersion: () => 3,
       onChange,
     });
+
+    await settle();
 
     await settle();
     expect(fake.rpc).toHaveBeenCalledWith("caller_authz_version");
@@ -255,6 +265,8 @@ describe("startAuthzRefresh", () => {
       onChange: vi.fn(),
     });
 
+    await settle();
+
     fake.send({ version: 2 });
     await settle();
     expect(fake.topics).toEqual(["acl:u1"]);
@@ -283,6 +295,8 @@ describe("startAuthzRefresh", () => {
       onChange: vi.fn(),
     });
 
+    await settle();
+
     for (const listener of listeners) {
       listener(1);
       listener(2);
@@ -293,5 +307,50 @@ describe("startAuthzRefresh", () => {
     expect(fake.refreshSession).toHaveBeenCalledOnce();
 
     stop();
+  });
+});
+
+describe("the shared channel", () => {
+  it("joins once for two listeners and skips the catch-up RPC with a live version", async () => {
+    const fake = fakeClient();
+    const rpc = vi.fn();
+    const client = { ...fake.client, rpc };
+    const onChange = vi.fn();
+
+    const options = {
+      client,
+      userId: "u1",
+      channel: false as const,
+      liveVersion: 3,
+      tokenVersion: () => 3,
+      onChange,
+    };
+
+    const first = startAuthzRefresh(options);
+    const second = startAuthzRefresh(options);
+    await settle();
+
+    expect(fake.topics).toEqual(["authz:u1"]);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(fake.refreshSession).not.toHaveBeenCalled();
+
+    first();
+    expect(fake.unsubscribe).not.toHaveBeenCalled();
+    second();
+    expect(fake.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it("never joins a listener that stops before the idle moment", async () => {
+    const fake = fakeClient();
+
+    startAuthzRefresh({
+      client: fake.client,
+      userId: "u1",
+      channel: false,
+      onChange: vi.fn(),
+    })();
+    await settle();
+
+    expect(fake.topics).toEqual([]);
   });
 });

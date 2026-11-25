@@ -44,6 +44,15 @@ Doctor never prints env values, only variable names and line numbers.
 
 Side effects: Reads the database, writes to the database with `--yes`, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
 
+## Large projects
+
+Doctor checks `--out` before it reads anything: a path outside the project, or
+a directory, stops the run at once. It logs how long each phase took (reading
+the project, running the rules) while it works, prints them under the text
+report, and lists them as `phases` in the JSON report. A text report of 20
+findings or more starts with one line per rule and its count, worst severity
+first, then the largest count.
+
 ## Without a database
 
 When no database runs and none is configured, doctor reads the schema from
@@ -2887,8 +2896,10 @@ awaits at least three repository, block client or `$rpc` calls in one
 PostgREST. A read set compiles the same reads into one stable database
 function, so the page waits on one round trip: `defineReadSet(db, "name", ...)`
 and `db.$many(readSet, params)`, or `bsb.bootstrap` for a page's first load.
-See [read sets](/docs/repository/read-sets). `tooling.doctor.parallelReads`
-sets the count (default 3).
+The finding prints the read set that replaces the reads: the same calls on the
+builder `s`, keyed by table, and the `db.$many` call. A value that comes from
+the page becomes a placeholder. See [read sets](/docs/repository/read-sets).
+`tooling.doctor.parallelReads` sets the count (default 3).
 
 ### BS634
 
@@ -3271,6 +3282,33 @@ others. Pass `postgresKeptStore({ client })` or
 instance. Doctor can't see the instance count, so it reports every app that
 keeps entries without a durable store. See
 [Keep reads across requests and deploys](/docs/concepts/caching#keep-reads-across-requests-and-deploys).
+
+### BS648
+
+**Warning: `updateTag` or `revalidateTag` beside `bsb.kept`.** A source calls
+one of them from `next/cache` and the app keeps reads with `bsb.kept()`. The
+call expires Next's cache and leaves the kept entry, which the store keeps for
+every instance until its life ends. Call `await bsb.expireTags([...])`, which
+expires both and resolves once the store has the tags.
+`better-supabase codemod expire-tags` lists each call with its replacement.
+
+### BS649
+
+**Info: `refresh()` without expiring tags beside `bsb.kept`.** A file calls
+`refresh()` from `next/cache`, writes, expires no tags, and the app keeps reads with
+`bsb.kept()`. The re-render reads the kept entries again, so the page shows the
+data from before the write. Expire what the write changed with
+`bsb.expireTags()` (or name `invalidates` on `bsb.action`), then refresh.
+
+### BS650
+
+**Info: the proxy bundle is large.** The last `next build` traced more than
+400 KB of files for `proxy.ts`, read from `.next/server/proxy.js.nft.json` (or
+`middleware.js.nft.json`). The proxy runs before every request, so the app
+definition, the generated schema or a block set in its imports slows each one.
+Build it with `createProxy({ auth })`, which needs no definition, and read
+permissions from the generated `proxy-permissions.generated.ts`. Doctor skips
+the rule when the project has not been built.
 
 ### BS633
 

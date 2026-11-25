@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { permissionCatalog } from "../../../src/auth/permission-bitset.ts";
 import {
   emitPermissionScopes,
+  emitProxyPermissions,
   grantMatches,
   permissionCatalogKeys,
   permissionCatalogSql,
@@ -107,5 +109,20 @@ describe("emitPermissionScopes", () => {
 
     expect(oauth).toContain('"leave.read",');
     expect(oauth).not.toContain('"leave.manage",');
+  });
+});
+
+describe("emitProxyPermissions", () => {
+  it("writes the catalog hash and keys in bit order", () => {
+    const file = emitProxyPermissions(config("catalog"));
+
+    expect(file.path).toMatch(/proxy-permissions\.generated\.ts$/);
+
+    const expected = permissionCatalog(
+      permissionCatalogKeys(config("catalog")).map((entry) => entry.key),
+    );
+
+    expect(file.contents).toContain(`hash: "${expected.hash}"`);
+    expect(file.contents).toContain(`"${expected.keys[0]}"`);
   });
 });

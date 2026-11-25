@@ -102,6 +102,12 @@ export interface SessionProviderProps {
    * `(session) => !supportOf(session)` keeps it off that user's topic.
    */
   readonly authzRefresh?: boolean | ((session: UserSession) => boolean);
+  /**
+   * The live authz version the server read for this page
+   * (`bootstrap.authzVersion`). The first join of the channel reports it
+   * instead of calling `caller_authz_version()`.
+   */
+  readonly liveVersion?: number | null;
   readonly onError?: (error: Error) => void;
   readonly children?: ReactNode;
 }
@@ -151,7 +157,16 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
   const version = useRef<number | null>(null);
   const user = useUser(store, version);
   const userId = user?.user.id;
-  const { client, source, topic, event, schema, authzRefresh = true } = props;
+
+  const {
+    client,
+    source,
+    topic,
+    event,
+    schema,
+    liveVersion,
+    authzRefresh = true,
+  } = props;
 
   const refreshes =
     user !== undefined &&
@@ -177,11 +192,22 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
       ...(topic ? { topic } : {}),
       ...(event ? { event } : {}),
       ...(schema ? { schema } : {}),
+      ...(liveVersion === undefined ? {} : { liveVersion }),
       tokenVersion: () => version.current,
       onChange: () => handlers.current.onAuthzChange?.(),
       onError: (error) => handlers.current.onError?.(error),
     });
-  }, [client, userId, refreshes, channel, source, topic, event, schema]);
+  }, [
+    client,
+    userId,
+    refreshes,
+    channel,
+    source,
+    topic,
+    event,
+    schema,
+    liveVersion,
+  ]);
 
   return createElement(
     SessionContext.Provider,

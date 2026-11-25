@@ -24,7 +24,7 @@ import type { KeptSkip, KeptStore } from "../core/kept-cache.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { FunctionSpec, QuerySpec } from "../core/spec.ts";
-import type { StatsRecorder } from "../core/stats.ts";
+import type { StatsPhase, StatsRecorder } from "../core/stats.ts";
 import type { TagOptions } from "../core/tags.ts";
 import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
 import type { BindingName } from "../records/bindings.ts";
@@ -582,6 +582,33 @@ export interface BetterNext<
    * ```
    */
   statsFetch(fetch?: typeof globalThis.fetch): typeof globalThis.fetch;
+  /**
+   * Expires `tags` in Next's cache (`updateTag` in a Server Action,
+   * `revalidateTag` in a Route Handler) and in the kept store, and resolves
+   * once the store has them, so another instance's next `bsb.kept()` read
+   * misses. Use it where you wrote `updateTag` or `revalidateTag` next to a
+   * `bsb.kept()` read: those calls alone leave the kept entry in place. Both
+   * calls count in the request's `tagCalls` and `expiredTags`.
+   *
+   * @example
+   *   await bsb.expireTags(["bsb:notes", `bsb:notes@${tenantId}`]);
+   */
+  expireTags(
+    tags: readonly string[],
+    options?: { readonly revalidate?: RevalidateProfile },
+  ): Promise<void>;
+  /**
+   * Marks the database calls `run` starts as `phase` in the request's stats and
+   * trace, so a wrapper (an authorization check, a write) shows its own share.
+   * Calls in `bsb.action` are `action` unless a wrapper inside says otherwise.
+   * Without debug it only runs `run`.
+   *
+   * @example
+   *   const allowed = await bsb.phase("authorization", () =>
+   *     can(user, "edit"),
+   *   );
+   */
+  phase<T>(phase: StatsPhase, run: () => Promise<T>): Promise<T>;
   /**
    * One call for a page's user data: runs the sessions module's
    * `bootstrap_<rpc>` wrapper, which checks `session_active()` and returns the
@@ -1254,6 +1281,28 @@ export interface KeptFunction<A extends readonly unknown[], R> {
   as(source: SessionHandle): (...args: A) => Promise<R>;
 }
 
+/**
+ * Options of `bsb.cached({ keep })`: the reads of `ctx.db` are kept in the kept
+ * store, so a cold page or a fresh instance answers them without calling the
+ * database.
+ */
+export interface KeepReadsOptions<T extends string = string> {
+  /**
+   * Names the reads in the key and in reports. Required, as for `bsb.kept()`;
+   * each table's reads add the table name.
+   */
+  readonly name: string;
+  /**
+   * Tables whose `db.$rpc()` reads are kept too, by tag. Without it a function
+   * call goes to the database. Table reads need no declaration.
+   */
+  readonly tables?: readonly T[];
+  /** As `KeptOptions.life`. */
+  readonly life?: { readonly revalidate?: number; readonly expire?: number };
+  /** As `KeptOptions.version`. */
+  readonly version?: string;
+}
+
 interface CachedEntryOptions<T extends string = string> {
   /**
    * `cacheLife` for the entry. Pass a permission snapshot's lifetime as `stale`
@@ -1292,6 +1341,12 @@ export interface PrivateCachedOptions<T extends string = string>
   extends ScopeOptions, CachedEntryOptions<T> {
   /** Defaults to `"private"`. */
   readonly scope?: "private";
+  /**
+   * Keeps the reads of `ctx.db` in the kept store (`bsb.kept()`'s store), per
+   * user, expired by writes to the table they read. Writes, `$many()` batches
+   * and raw SQL always reach the database.
+   */
+  readonly keep?: KeepReadsOptions<T>;
   /**
    * The handle `bsb.sessionHandle()` returned. The scope resolves the session
    * from it instead of reading the request.
@@ -1349,6 +1404,15 @@ export type BootstrapOptions<
      * Defaults to `session_not_found` and `user_banned`.
      */
     readonly reasons?: { readonly ended?: string; readonly banned?: string };
+    /**
+     * Keeps the wrapper's answer (data, reads, subject and permissions) in the
+     * kept store, per user, session and tenant, expired by writes to the tables
+     * the wrapper reads, so a cold page or a new instance skips the call. A
+     * session that ended is served from the store for at most `life.revalidate`
+     * seconds (default 30), unless `bsb.evictSession()` ran for the user. Needs
+     * a shared kept store to help across instances.
+     */
+    readonly kept?: true | { readonly life?: { readonly revalidate?: number } };
   };
 
 export type { Access, Bootstrap } from "../server/bootstrap.ts";

@@ -949,11 +949,33 @@ export const GET = bsb.debugRoute();
   Pages stream, so their headers leave before the render finishes; their
   totals are served by `bsb.debugRoute()` at the URL in the `x-bsb-stats`
   response header.
-- Outside development, collecting is off and the debug route answers 404.
-  Set `debug.enabled` for e2e runs against `next start`.
+- Outside development, collecting is off and the debug route answers 404 with
+  a JSON body that names the reason (`{ error, reason }`). Set `debug.enabled`
+  for e2e runs against `next start`.
+- A service that calls `betterSupabase.connect()` itself is counted too, with
+  no `{ stats }` option: `connect(supabase, { claims })`,
+  `connect({ executor: postgresExecutor(sql), storage })` and the client
+  `contextFromSession()` returns find the current request's recorder through
+  `headers()`. A connection with an explicit `{ stats }` reports to that
+  recorder only, and a call that runs where `headers()` isn't available (a
+  `bsb.public()` fill, a job) is not counted on a request.
+- `decodes` counts the session cookies the request parsed (a miss of the
+  parsed-cookie memo), next to `verifications`. `phases` counts calls per
+  phase: `action` inside `bsb.action`, `render` otherwise, and any name you
+  mark with `bsb.phase()`. The `bsb.action` log line ends with
+  `phases=write:2,render:3 keptHits=render:4 decodes=1`. `keptHits` counts the
+  kept entries that served a read without a fill, per phase, so an action shows
+  what its reads saved.
+
+```ts
+const allowed = await bsb.phase("authorization", () => can(user, "edit"));
+const saved = await bsb.phase("write", () =>
+  db.notes.update(id, patch).orThrow(),
+);
+```
 
 In code, `ctx.stats()` and `db.$stats()` return the same numbers for one
-context: `{ calls, waves, tables, ms, verifications, adminCalls, tagCalls, expiredTags, entries }`. The proxy's
+context: `{ calls, waves, tables, ms, verifications, decodes, phases, adminCalls, tagCalls, expiredTags, entries }`. The proxy's
 verification is counted on the document response header; the totals of the
 render itself come from the stats route.
 
