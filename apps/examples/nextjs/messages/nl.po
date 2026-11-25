@@ -431,6 +431,7 @@ msgid "Post ideas and questions, and vote on the ones you want."
 msgstr "Plaats ideeën en vragen, en stem op de ideeën die je wilt."
 
 #: src/app/[locale]/(app)/compliance/[framework]/page.tsx
+#: src/app/[locale]/(app)/compliance/controls/[id]/page.tsx
 msgctxt "compliance.jYMbbM"
 msgid "All frameworks"
 msgstr "Alle raamwerken"
@@ -886,6 +887,16 @@ msgstr "Zendingen"
 msgctxt "field.7grP0Y"
 msgid "Track packages from label to delivery."
 msgstr "Volg pakketten van label tot bezorging."
+
+#: src/app/[locale]/(app)/finance/invoices/page.tsx
+msgctxt "finance.ulh3kf"
+msgid "Collections"
+msgstr "Incasso"
+
+#: src/app/[locale]/(app)/finance/invoices/page.tsx
+msgctxt "finance.VisrRr"
+msgid "How overdue sales invoices are reminded."
+msgstr "Hoe achterstallige verkoopfacturen worden herinnerd."
 
 #: src/app/[locale]/(app)/finance/page.tsx
 msgctxt "accounting.Fm3M-y"
@@ -2126,6 +2137,7 @@ msgid "The list was cut off. Ask for a page instead."
 msgstr "De lijst is afgekapt. Vraag in plaats daarvan om een pagina."
 
 #: src/components/finance-pages/finance-pages.tsx
+#: src/features/dunning/components/collections-section.tsx
 msgctxt "finance.6dqYnF"
 msgid "Invoices"
 msgstr "Facturen"
@@ -9020,6 +9032,42 @@ msgctxt "community.eKv7yX"
 msgid "Post"
 msgstr "Plaatsen"
 
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.KXQUKy"
+msgid "Evidence added"
+msgstr "Bewijs toegevoegd"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.kCPl0r"
+msgid "Collect"
+msgstr "Verzamelen"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.KcIDna"
+msgid "Add evidence"
+msgstr "Bewijs toevoegen"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.1EsE9r"
+msgid "The note answers this task and moves its due date."
+msgstr "De notitie beantwoordt deze taak en verschuift de vervaldatum."
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.NQbn_1"
+msgid "The note counts as evidence until it is removed."
+msgstr "De notitie telt als bewijs tot ze wordt verwijderd."
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.qMePPG"
+msgid "Note"
+msgstr "Notitie"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
 #: src/features/compliance/components/consent-register.tsx
 msgctxt "compliance.GlRxTV"
 msgid "Consent"
@@ -9068,6 +9116,7 @@ msgstr "De toestemmingsdoelen zijn niet geladen"
 
 #: src/features/compliance/components/consent-register.tsx
 #: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-detail.tsx
 #: src/features/compliance/components/control-posture.tsx
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.162kF7"
@@ -9076,6 +9125,7 @@ msgstr "Probeer het zo opnieuw."
 
 #: src/features/compliance/components/consent-register.tsx
 #: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-detail.tsx
 #: src/features/compliance/components/control-posture.tsx
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.62nsdy"
@@ -9118,6 +9168,7 @@ msgid "Lasts"
 msgstr "Geldig"
 
 #: src/features/compliance/components/consent-register.tsx
+#: src/features/compliance/components/control-detail.tsx
 msgctxt "compliance.6g7-6N"
 msgid "Evidence"
 msgstr "Bewijs"
@@ -9227,6 +9278,109 @@ msgctxt "compliance.NRVEF5"
 msgid "Renewal"
 msgstr "Verlenging"
 
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.s7eEy-"
+msgid "The control didn't load"
+msgstr "De beheersmaatregel is niet geladen"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/compliance/components/control-detail.tsx
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.aH4De2"
+msgid "Source"
+msgstr "Bron"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.eHi_1a"
+msgid "Jurisdiction"
+msgstr "Rechtsgebied"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.ZwRlCF"
+msgid "Evidence tasks"
+msgstr "Bewijstaken"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.pum3VA"
+msgid "An overdue task fails the control until evidence answers it."
+msgstr "Een achterstallige taak laat de beheersmaatregel falen tot bewijs haar beantwoordt."
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.KyVqPd"
+msgid "No task collects evidence for this control."
+msgstr "Geen taak verzamelt bewijs voor deze beheersmaatregel."
+
+#: src/features/compliance/components/control-detail.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.0wJ7N-"
+msgid "Task"
+msgstr "Taak"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.JE2YVb"
+msgid "Every"
+msgstr "Elke"
+
+#: src/features/compliance/components/control-detail.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.g9pEhE"
+msgid "Due"
+msgstr "Verschuldigd"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.UA5qaX"
+msgid "{days, plural, one {# day} other {# days}}"
+msgstr "{days, plural, one {# dag} other {# dagen}}"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.M0vCGv"
+msgid "Overdue"
+msgstr "Achterstallig"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.pxvvd-"
+msgid "Valid evidence passes the control; expired evidence fails it."
+msgstr "Geldig bewijs laat de beheersmaatregel slagen; verlopen bewijs laat haar falen."
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.RodRmI"
+msgid "No evidence yet."
+msgstr "Nog geen bewijs."
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.DKZAKD"
+msgid "Collected"
+msgstr "Verzameld"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.C3Fz7P"
+msgid "Valid until"
+msgstr "Geldig tot"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.eLCAEP"
+msgid "Attachment"
+msgstr "Bijlage"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.GwMpla"
+msgid "No end"
+msgstr "Geen einde"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.RahCRH"
+msgid "Expired"
+msgstr "Verlopen"
+
 #: src/features/compliance/components/control-posture.tsx
 msgctxt "compliance.F1fkR9"
 msgid "The control posture didn't load"
@@ -9293,45 +9447,35 @@ msgid "Every evidence task is on schedule."
 msgstr "Elke bewijstaak ligt op schema."
 
 #: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.0wJ7N-"
-msgid "Task"
-msgstr "Taak"
-
-#: src/features/compliance/components/control-posture.tsx
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.NZ9-vv"
 msgid "Control"
 msgstr "Beheersmaatregel"
 
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.g9pEhE"
-msgid "Due"
-msgstr "Verschuldigd"
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.rFsne8"
+msgid "Passing"
+msgstr "Voldoet"
+
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.tKELc3"
+msgid "Failing"
+msgstr "Voldoet niet"
+
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.xTTP0x"
+msgid "Not started"
+msgstr "Niet gestart"
+
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.61zy45"
+msgid "Not applicable"
+msgstr "Niet van toepassing"
 
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.x5gHeJ"
 msgid "The framework didn't load"
 msgstr "Het raamwerk is niet geladen"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.rFsne8"
-msgid "Passing"
-msgstr "Voldoet"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.tKELc3"
-msgid "Failing"
-msgstr "Voldoet niet"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.xTTP0x"
-msgid "Not started"
-msgstr "Niet gestart"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.61zy45"
-msgid "Not applicable"
-msgstr "Niet van toepassing"
 
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.JW6TBv"
@@ -9352,11 +9496,6 @@ msgstr "Dit raamwerk heeft nog geen beheersmaatregelen."
 msgctxt "compliance.h2vipu"
 msgid "Code"
 msgstr "Code"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.aH4De2"
-msgid "Source"
-msgstr "Bron"
 
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.tzMNF3"
@@ -13207,6 +13346,107 @@ msgctxt "drive.qxg3uo"
 msgid "Access"
 msgstr "Toegang"
 
+#: src/features/dunning/components/apply-standard-levels.tsx
+msgctxt "finance.3PvOJp"
+msgid "Reminder levels saved"
+msgstr "Herinneringsniveaus opgeslagen"
+
+#: src/features/dunning/components/apply-standard-levels.tsx
+msgctxt "finance.HPPBYk"
+msgid "Use the standard levels"
+msgstr "Standaardniveaus gebruiken"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.uw2XV3"
+msgid "Collections didn't load"
+msgstr "Incasso is niet geladen"
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-list.tsx
+msgctxt "finance.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-list.tsx
+msgctxt "finance.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.r82ITf"
+msgid "No reminder levels yet"
+msgstr "Nog geen herinneringsniveaus"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.u_KWLM"
+msgid "Reminder levels decide when an overdue invoice gets a reminder and what fee it adds."
+msgstr "Herinneringsniveaus bepalen wanneer een achterstallige factuur een herinnering krijgt en welke kosten erbij komen."
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.VJKxru"
+msgid "No fee"
+msgstr "Geen kosten"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.71Hm2s"
+msgid "Reminder levels"
+msgstr "Herinneringsniveaus"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.R8qHC3"
+msgid "An overdue sales invoice climbs a level at each step."
+msgstr "Een achterstallige verkoopfactuur stijgt bij elke stap een niveau."
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.y1Qr81"
+msgid "Level"
+msgstr "Niveau"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.nvzEMZ"
+msgid "Days after due"
+msgstr "Dagen na vervaldatum"
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.uT4OlP"
+msgid "Fee"
+msgstr "Kosten"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.0QBqgR"
+msgid "Final notice"
+msgstr "Laatste aanmaning"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.4qFgpX"
+msgid "Reminder runs"
+msgstr "Herinneringsrondes"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance._cyA8S"
+msgid "The daily job raises each overdue invoice to its level."
+msgstr "De dagelijkse taak zet elke achterstallige factuur op haar niveau."
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.kUBOGb"
+msgid "No run has picked an invoice yet."
+msgstr "Nog geen ronde heeft een factuur opgepakt."
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.B8Zi2z"
+msgid "As of"
+msgstr "Per"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.TkYZBT"
+msgid "Customers"
+msgstr "Klanten"
+
 #: src/features/e-prescribing/components/prescription-detail.tsx
 msgctxt "prescriptions.JNXKgf"
 msgid "The prescription didn't load"
@@ -14499,18 +14739,6 @@ msgid "The record did not load"
 msgstr "Het record kon niet worden geladen"
 
 #: src/features/finance-records/components/finance-detail.tsx
-#: src/features/finance-records/components/finance-list.tsx
-msgctxt "finance.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
-
-#: src/features/finance-records/components/finance-detail.tsx
-#: src/features/finance-records/components/finance-list.tsx
-msgctxt "finance.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/finance-records/components/finance-detail.tsx
 #: src/features/finance-records/components/finance-record-list.tsx
 msgctxt "finance.a5msuh"
 msgid "Yes"
@@ -14728,16 +14956,6 @@ msgstr "Herinneringen"
 msgctxt "finance.P7PLVj"
 msgid "Date"
 msgstr "Datum"
-
-#: src/features/finance-records/components/finance-detail.tsx
-msgctxt "finance.y1Qr81"
-msgid "Level"
-msgstr "Niveau"
-
-#: src/features/finance-records/components/finance-detail.tsx
-msgctxt "finance.uT4OlP"
-msgid "Fee"
-msgstr "Kosten"
 
 #: src/features/finance-records/components/finance-detail.tsx
 msgctxt "finance.m4vW-f"
@@ -30207,6 +30425,11 @@ msgstr "Acties"
 msgctxt "search.xIoGG9"
 msgid "Go to"
 msgstr "Ga naar"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.L_QYEd"
+msgid "Areas"
+msgstr "Gebieden"
 
 #: src/features/search/components/command-center.tsx
 msgctxt "search.wSAvhu"
