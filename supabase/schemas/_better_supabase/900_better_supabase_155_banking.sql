@@ -1,6 +1,6 @@
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:884e742cba1d4b6264d0af04d68823bc1ca4c6c12ea9d660e6010991cce34b21
+-- @bsb-hash sha256:eaa16acea594f27148184c5e867185db8de46a96a824f65492eea34116dd75af
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1110,6 +1110,17 @@ begin
     raise exception 'no approved open bill is due by that date' using errcode = '22023', hint = 'PAYMENT_BATCH_EMPTY';
   end if;
   update "better_supabase"."payment_batches" y set "total" = v_total, "item_count" = v_count where y."id" = v_batch."id" returning * into v_batch;
+  perform "better_supabase".emit_event('payment_batch.created', jsonb_build_object('organizationId', v_batch."tenant_id", 'id', v_batch."id", 'accountId', v_batch."bank_account_id", 'total', v_batch."total"::text, 'currency', v_batch."currency", 'itemCount', v_batch."item_count", 'status', v_batch."status"), 'payment-batches/' || v_batch."id"::text, (v_batch."tenant_id")::text, null, 'better-supabase/banking');
+  perform better_supabase.audit_event(
+    event_type => 'payment_batch.created',
+    category => 'billing',
+    target_type => 'payment_batch',
+    record_id => v_batch."id"::text,
+    target_label => v_batch."reference",
+    summary => 'Payment batch created: ' || v_batch."item_count"::text || ' bill(s), ' || v_batch."total"::text || ' ' || v_batch."currency",
+    tenant => (v_batch."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_batch."tenant_id", 'id', v_batch."id", 'accountId', v_batch."bank_account_id", 'total', v_batch."total"::text, 'currency', v_batch."currency", 'itemCount', v_batch."item_count", 'status', v_batch."status")
+  );
   return jsonb_build_object('id', v_batch."id", 'organizationId', v_batch."tenant_id", 'accountId', v_batch."bank_account_id", 'reference', v_batch."reference", 'messageId', v_batch."message_id", 'currency', v_batch."currency", 'dueBy', v_batch."due_by", 'executionOn', v_batch."execution_on", 'total', v_batch."total"::text, 'itemCount', v_batch."item_count", 'status', v_batch."status", 'transactionId', v_batch."bank_transaction_id", 'createdBy', v_batch."created_by", 'createdAt', v_batch."created_at", 'postedAt', v_batch."posted_at", 'reconciledAt', v_batch."reconciled_at", 'items', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'invoiceId', y."invoice_id", 'partyId', y."party_id", 'creditorName', y."creditor_name", 'creditorIban', y."creditor_iban", 'creditorBic', y."creditor_bic", 'amount', y."amount"::text, 'discount', y."discount"::text, 'currency', y."currency", 'endToEndId', y."end_to_end_id", 'remittance', y."remittance", 'status', y."status") order by y."creditor_name", y."id") from "better_supabase"."payment_batch_items" y where y."batch_id" = v_batch."id"), '[]'::jsonb));
 end;
 $$;
@@ -1426,6 +1437,17 @@ begin
   end loop;
   update "better_supabase"."payment_batch_items" y set "status" = 'posted' where y."batch_id" = v_batch."id" and y."status" = 'open';
   update "better_supabase"."payment_batches" y set "status" = 'posted', "posted_at" = now() where y."id" = v_batch."id" returning * into v_batch;
+  perform "better_supabase".emit_event('payment_batch.posted', jsonb_build_object('organizationId', v_batch."tenant_id", 'id', v_batch."id", 'accountId', v_batch."bank_account_id", 'total', v_batch."total"::text, 'currency', v_batch."currency", 'itemCount', v_batch."item_count", 'status', v_batch."status"), 'payment-batches/' || v_batch."id"::text, (v_batch."tenant_id")::text, null, 'better-supabase/banking');
+  perform better_supabase.audit_event(
+    event_type => 'payment_batch.posted',
+    category => 'billing',
+    target_type => 'payment_batch',
+    record_id => v_batch."id"::text,
+    target_label => v_batch."reference",
+    summary => 'Payment batch posted: ' || v_batch."item_count"::text || ' bill(s), ' || v_batch."total"::text || ' ' || v_batch."currency",
+    tenant => (v_batch."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_batch."tenant_id", 'id', v_batch."id", 'accountId', v_batch."bank_account_id", 'total', v_batch."total"::text, 'currency', v_batch."currency", 'itemCount', v_batch."item_count", 'status', v_batch."status")
+  );
   return jsonb_build_object('id', v_batch."id", 'organizationId', v_batch."tenant_id", 'accountId', v_batch."bank_account_id", 'reference', v_batch."reference", 'messageId', v_batch."message_id", 'currency', v_batch."currency", 'dueBy', v_batch."due_by", 'executionOn', v_batch."execution_on", 'total', v_batch."total"::text, 'itemCount', v_batch."item_count", 'status', v_batch."status", 'transactionId', v_batch."bank_transaction_id", 'createdBy', v_batch."created_by", 'createdAt', v_batch."created_at", 'postedAt', v_batch."posted_at", 'reconciledAt', v_batch."reconciled_at", 'items', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'invoiceId', y."invoice_id", 'partyId', y."party_id", 'creditorName', y."creditor_name", 'creditorIban', y."creditor_iban", 'creditorBic', y."creditor_bic", 'amount', y."amount"::text, 'discount', y."discount"::text, 'currency', y."currency", 'endToEndId', y."end_to_end_id", 'remittance', y."remittance", 'status', y."status") order by y."creditor_name", y."id") from "better_supabase"."payment_batch_items" y where y."batch_id" = v_batch."id"), '[]'::jsonb));
 end;
 $$;
@@ -1456,6 +1478,17 @@ begin
   end if;
   update "better_supabase"."payment_batch_items" y set "status" = 'cancelled' where y."batch_id" = v_batch."id";
   update "better_supabase"."payment_batches" y set "status" = 'cancelled' where y."id" = v_batch."id" returning * into v_batch;
+  perform "better_supabase".emit_event('payment_batch.cancelled', jsonb_build_object('organizationId', v_batch."tenant_id", 'id', v_batch."id", 'accountId', v_batch."bank_account_id", 'total', v_batch."total"::text, 'currency', v_batch."currency", 'itemCount', v_batch."item_count", 'status', v_batch."status"), 'payment-batches/' || v_batch."id"::text, (v_batch."tenant_id")::text, null, 'better-supabase/banking');
+  perform better_supabase.audit_event(
+    event_type => 'payment_batch.cancelled',
+    category => 'billing',
+    target_type => 'payment_batch',
+    record_id => v_batch."id"::text,
+    target_label => v_batch."reference",
+    summary => 'Payment batch cancelled: ' || v_batch."item_count"::text || ' bill(s), ' || v_batch."total"::text || ' ' || v_batch."currency",
+    tenant => (v_batch."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_batch."tenant_id", 'id', v_batch."id", 'accountId', v_batch."bank_account_id", 'total', v_batch."total"::text, 'currency', v_batch."currency", 'itemCount', v_batch."item_count", 'status', v_batch."status")
+  );
   return jsonb_build_object('id', v_batch."id", 'organizationId', v_batch."tenant_id", 'accountId', v_batch."bank_account_id", 'reference', v_batch."reference", 'messageId', v_batch."message_id", 'currency', v_batch."currency", 'dueBy', v_batch."due_by", 'executionOn', v_batch."execution_on", 'total', v_batch."total"::text, 'itemCount', v_batch."item_count", 'status', v_batch."status", 'transactionId', v_batch."bank_transaction_id", 'createdBy', v_batch."created_by", 'createdAt', v_batch."created_at", 'postedAt', v_batch."posted_at", 'reconciledAt', v_batch."reconciled_at", 'items', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'invoiceId', y."invoice_id", 'partyId', y."party_id", 'creditorName', y."creditor_name", 'creditorIban', y."creditor_iban", 'creditorBic', y."creditor_bic", 'amount', y."amount"::text, 'discount', y."discount"::text, 'currency', y."currency", 'endToEndId', y."end_to_end_id", 'remittance', y."remittance", 'status', y."status") order by y."creditor_name", y."id") from "better_supabase"."payment_batch_items" y where y."batch_id" = v_batch."id"), '[]'::jsonb));
 end;
 $$;

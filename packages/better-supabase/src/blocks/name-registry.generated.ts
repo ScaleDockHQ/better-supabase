@@ -386,7 +386,7 @@ export interface BlockNameRegistry {
       readonly "batchItems": "id" | "tenant" | "batch" | "invoice" | "party" | "creditorName" | "creditorIban" | "creditorBic" | "amount" | "discount" | "currency" | "endToEndId" | "remittance" | "status";
     };
     readonly functions: "apply_bank_rules" | "bank_mod97" | "bank_reconciliation_board" | "bank_reconciliation_status" | "bank_reference" | "bank_rule_condition" | "delete_bank_rule" | "get_bank_transaction" | "ignore_bank_transaction" | "import_bank_statement" | "list_bank_accounts" | "list_bank_rules" | "list_bank_statements" | "list_bank_transactions" | "match_bank_transaction" | "page_bank_accounts" | "reconcile_bank_account" | "save_bank_account" | "save_bank_rule" | "suggest_bank_matches" | "unmatch_bank_transaction";
-    readonly actions: "read" | "import" | "reconcile" | "manage";
+    readonly actions: "read" | "import" | "reconcile" | "manage" | "createBatch" | "postBatch" | "cancelBatch";
     readonly hooks: "after_bank_statement_import" | "before_bank_transaction_match" | "after_bank_transaction_match";
     readonly entities: {
       readonly "bank_transaction": "id" | "tenant_id" | "account_id" | "statement_id" | "booked_on" | "value_on" | "amount" | "currency" | "counterparty_name" | "counterparty_iban" | "remittance" | "structured_reference" | "end_to_end_id" | "external_id" | "status" | "rule_id" | "matched_at" | "matched_by" | "created_at" | "updated_at";
@@ -919,7 +919,7 @@ export interface BlockNameRegistry {
       readonly "texts": "node" | "tenant" | "attachment" | "extractor" | "content" | "extractedAt";
     };
     readonly functions: "drive_access_approvers" | "drive_ancestors" | "drive_can" | "drive_can_comment" | "drive_can_download" | "drive_can_upload" | "drive_check_parent" | "drive_clean_name" | "drive_conflict" | "drive_create_folder" | "drive_delete" | "drive_download_blocked" | "drive_free_name" | "drive_get" | "drive_grant_access" | "drive_grants" | "drive_hold" | "drive_insert_node" | "drive_list" | "drive_lock" | "drive_lock_siblings" | "drive_move" | "drive_node_access" | "drive_node_held" | "drive_node_json" | "drive_node_moved" | "drive_node_path" | "drive_node_readable" | "drive_node_writable" | "drive_path" | "drive_readable_ids" | "drive_release_hold" | "drive_rename" | "drive_role" | "drive_search" | "drive_set_download_blocked" | "drive_share" | "drive_share_link_allowed" | "drive_shared" | "drive_subtree" | "drive_transfer_ownership" | "drive_unlock" | "drive_unshare";
-    readonly actions: "read" | "create" | "manage";
+    readonly actions: "read" | "create" | "manage" | "delete";
     readonly hooks: "before_drive_node_create" | "after_drive_node_create" | "before_drive_node_move" | "after_drive_node_move" | "before_drive_node_rename" | "after_drive_node_rename" | "before_drive_node_share" | "after_drive_node_share";
     readonly entities: {
       readonly "drive_node": "id" | "tenant_id" | "drive_id" | "parent_id" | "kind" | "name" | "attachment_id" | "path" | "rank" | "archived_at" | "source" | "external_id" | "external_metadata" | "legal_hold_expires_at" | "locked_by" | "lock_expires_at" | "lock_note" | "download_blocked" | "preview_pages" | "document_number" | "document_type" | "document_status" | "document_owner_id" | "effective_version_id" | "effective_at" | "review_interval_months" | "next_review_on" | "review_notified_for" | "created_by" | "created_at" | "updated_at";

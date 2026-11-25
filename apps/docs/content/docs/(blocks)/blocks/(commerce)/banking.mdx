@@ -305,9 +305,10 @@ returns.
 
 ## Events
 
-`bank_statement.imported`, `bank_transaction.matched` and
-`bank_transaction.unmatched`. The [events page](/docs/extending/events)
-lists their payloads.
+`bank_statement.imported`, `bank_transaction.matched`,
+`bank_transaction.unmatched`, `payment_batch.created`, `payment_batch.posted`
+and `payment_batch.cancelled`. The payment batch events also write an audit
+entry. The [events page](/docs/extending/events) lists their payloads.
 
 ## Berlin Group feed
 

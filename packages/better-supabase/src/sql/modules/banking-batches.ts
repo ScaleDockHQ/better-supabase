@@ -433,6 +433,7 @@ ${registeredIban(ctx)}    if v_iban !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' or ${
     raise exception 'no approved open bill is due by that date' using errcode = '22023', hint = 'PAYMENT_BATCH_EMPTY';
   end if;
   update ${batches} y set ${b("total")} = v_total, ${b("itemCount")} = v_count where y.${b("id")} = v_batch.${b("id")} returning * into v_batch;
+  ${recordBatch(ctx, b, "created")}
   return ${batchJson("v_batch")};
 end;
 $$;
@@ -532,6 +533,7 @@ begin
   end loop;
   update ${items} y set ${p("status")} = 'posted' where y.${p("batch")} = v_batch.${b("id")} and y.${p("status")} = 'open';
   update ${batches} y set ${b("status")} = 'posted', ${b("postedAt")} = now() where y.${b("id")} = v_batch.${b("id")} returning * into v_batch;
+  ${recordBatch(ctx, b, "posted")}
   return ${batchJson("v_batch")};
 end;
 $$;
@@ -558,6 +560,7 @@ begin
   end if;
   update ${items} y set ${p("status")} = 'cancelled' where y.${p("batch")} = v_batch.${b("id")};
   update ${batches} y set ${b("status")} = 'cancelled' where y.${b("id")} = v_batch.${b("id")} returning * into v_batch;
+  ${recordBatch(ctx, b, "cancelled")}
   return ${batchJson("v_batch")};
 end;
 $$;
@@ -593,6 +596,25 @@ function registeredIban(ctx: BlockSqlContext): string {
     end if;
 `;
 }
+
+const recordBatch = (
+  ctx: BlockSqlContext,
+  b: (column: string) => string,
+  verb: "created" | "posted" | "cancelled",
+): string =>
+  ctx.record({
+    type: `payment_batch.${verb}`,
+    payload: `jsonb_build_object('organizationId', v_batch.${b("tenant")}, 'id', v_batch.${b("id")}, 'accountId', v_batch.${b("account")}, 'total', v_batch.${b("total")}::text, 'currency', v_batch.${b("currency")}, 'itemCount', v_batch.${b("itemCount")}, 'status', v_batch.${b("status")})`,
+    subject: `'payment-batches/' || v_batch.${b("id")}::text`,
+    tenant: `v_batch.${b("tenant")}`,
+    audit: {
+      category: "billing",
+      targetType: "payment_batch",
+      recordId: `v_batch.${b("id")}::text`,
+      targetLabel: `v_batch.${b("reference")}`,
+      summary: `'Payment batch ${verb}: ' || v_batch.${b("itemCount")}::text || ' bill(s), ' || v_batch.${b("total")}::text || ' ' || v_batch.${b("currency")}`,
+    },
+  });
 
 /** The contract of the batch functions. */
 export function batchContract(

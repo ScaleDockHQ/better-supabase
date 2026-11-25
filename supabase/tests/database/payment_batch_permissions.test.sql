@@ -1,9 +1,9 @@
 -- Payment batches move money, so creating, posting and cancelling one checks
 -- the banking manage key (or the key an app sets per operation), not
 -- banking.reconcile. The member (…00a2) of Acme (…0001) holds
--- banking.reconcile but not banking.manage.
+-- banking.reconcile but not banking.manage. Each operation is audited.
 begin;
-select plan(3);
+select plan(4);
 
 insert into better_supabase.bank_accounts (id, tenant_id, name, iban, currency)
 values ('00000000-0000-4000-8000-0000000bba01', '00000000-0000-4000-8000-000000000001', 'Batch test', 'DE89370400440532013000', 'EUR');
@@ -27,6 +27,15 @@ select throws_ok(
 select throws_ok(
   $$select better_supabase.cancel_payment_batch('00000000-0000-4000-8000-0000000bb002')$$,
   'P0002', null, 'banking.reconcile does not cancel a payment batch'
+);
+
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}', true);
+select better_supabase.cancel_payment_batch('00000000-0000-4000-8000-0000000bb002');
+reset role;
+select is(
+  (select count(*)::int from better_supabase.audit_events
+   where event_type = 'payment_batch.cancelled' and record_id = '00000000-0000-4000-8000-0000000bb002'),
+  1, 'cancelling a payment batch writes an audit entry'
 );
 
 select * from finish();

@@ -4579,6 +4579,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "integrates": [
         "accounting",
+        "contacts",
         "invoices",
         "expenses",
         "attachments",

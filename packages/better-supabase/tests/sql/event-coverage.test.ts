@@ -72,6 +72,10 @@ const NOT_LITERAL = [
   "care-plans: care_plan.agreed",
   "cases: case_action.created",
   "inspections: inspection_finding.case_raised",
+  // Recorded when invoices is installed, which payment batches need.
+  "banking: payment_batch.created",
+  "banking: payment_batch.posted",
+  "banking: payment_batch.cancelled",
   // Recorded when dispatch is installed. The module render alone omits them.
   "maintenance: maintenance_plan.triggered",
   "maintenance: maintenance_plan.completed",
