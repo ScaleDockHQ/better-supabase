@@ -8,11 +8,11 @@
     "gzip": 5204
   },
   "en/customers.html": {
-    "raw": 28403,
+    "raw": 28059,
     "gzip": 5623
   },
   "en/projects.html": {
-    "raw": 28915,
+    "raw": 28571,
     "gzip": 5708
   }
 }
