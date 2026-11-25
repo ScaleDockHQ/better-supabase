@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:3d184e8599bd1562a776b7ef6e2753ba2a96e4e5cae601cf3d867090ff2baf85
+-- @bsb-hash sha256:ca031cb06e9cb4111835e72306afa392d4e505ec65ff21590d22fdc9452709bc
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,6 +23,23 @@ create index outbox_events_subject_idx on "better_supabase"."outbox_events" ("su
 create index outbox_events_type_idx on "better_supabase"."outbox_events" ("type", "position");
 create index outbox_events_created_idx on "better_supabase"."outbox_events" ("created_at");
 create index outbox_events_xid_idx on "better_supabase"."outbox_events" ("xid", "position");
+create or replace function "better_supabase"."outbox_stamp_xid"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    new."xid" := pg_current_xact_id();
+  else
+    new."xid" := old."xid";
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."outbox_stamp_xid"() from public, anon, authenticated;
+create trigger "bsb_outbox_stamp_xid" before insert or update of "xid" on "better_supabase"."outbox_events"
+for each row execute function "better_supabase"."outbox_stamp_xid"();
 alter table "better_supabase"."outbox_events" enable row level security;
 revoke all on "better_supabase"."outbox_events" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_events" to service_role;

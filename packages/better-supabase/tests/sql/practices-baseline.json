@@ -381,7 +381,8 @@
     "row-triggers": 12
   },
   "outbox": {
-    "security-definer-functions": 60
+    "security-definer-functions": 60,
+    "row-triggers": 6
   },
   "passes": {
     "security-definer-functions": 49

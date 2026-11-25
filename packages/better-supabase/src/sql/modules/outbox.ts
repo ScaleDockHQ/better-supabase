@@ -164,9 +164,42 @@ alter table ${n.t} add column if not exists ${n.e("xid")} xid8 not null default 
 create index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`;
 }
 
+/**
+ * The xid orders the outbox and decides when an event is settled, so a row
+ * always carries its writing transaction's id, whatever an insert names.
+ */
+function stampXid(ctx: BlockSqlContext, n: Names): string {
+  if (!n.has("xid")) {
+    return "";
+  }
+
+  const fn = ctx.fn("outbox_stamp_xid");
+  const trigger = ctx.trigger("outbox_stamp_xid");
+
+  return `
+create or replace function ${fn}()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    new.${n.e("xid")} := pg_current_xact_id();
+  else
+    new.${n.e("xid")} := old.${n.e("xid")};
+  end if;
+  return new;
+end;
+$$;
+${triggerGrant(`${fn}()`)}
+drop trigger if exists ${trigger} on ${n.t};
+create trigger ${trigger} before insert or update of ${n.e("xid")} on ${n.t}
+for each row execute function ${fn}();`;
+}
+
 function tables(ctx: BlockSqlContext, n: Names): string {
   if (!ctx.owns("events")) {
-    return `${adoptXid(n)}${consumersTable(n)}`;
+    return `${adoptXid(n)}${stampXid(ctx, n)}${consumersTable(n)}`;
   }
 
   const samePosition = n.e("position") === n.e("id");
@@ -241,7 +274,7 @@ create index if not exists outbox_events_created_idx on ${n.t} (${n.e("createdAt
     n.has("xid")
       ? `\ncreate index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`
       : ""
-  }
+  }${stampXid(ctx, n)}
 ${lockTable(n.t)}${
     n.partitioned
       ? `
