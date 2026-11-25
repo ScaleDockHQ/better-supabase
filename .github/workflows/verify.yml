@@ -35,7 +35,7 @@ jobs:
   static:
     name: static (${{ matrix.lane }})
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: ${{ matrix.timeout || 10 }}
     permissions:
       contents: read
       # OIDC token for the Vercel Remote Cache.
@@ -60,6 +60,8 @@ jobs:
             tasks: gen:check
           - lane: doctor
             tasks: doctor:sarif
+            # The doctor's database check alone takes about 7 minutes on a cache miss.
+            timeout: 15
           - lane: type matrix
             # The ts-7.1 leg runs the content mapper and runs nightly (nightly.yml); ts-6 and ts-7 gate every PR.
             tasks: typecheck:matrix --filter=!@better-supabase/types-ts71
@@ -139,11 +141,21 @@ jobs:
           # The library's unit tests run in the `unit` shards below, and the Next.js example's
           # build and size baselines in `next build`, which is the slowest task of this group.
           # The shadow-database sync suites run nightly (nightly.yml).
+          # The validation projects run with the time budget reporter, and their tests then go
+          # through the same half-timeout check as the library's (scripts/unit-durations.ts).
           - task: test
-            run: >-
-              pnpm exec turbo run test --filter=!better-supabase
-              --filter=!@better-supabase/next-build --filter=!@better-supabase/example-nextjs
-              $AFFECTED --log-file
+            run: |
+              set -o pipefail
+              pnpm exec turbo run test --filter=!better-supabase \
+                --filter=!@better-supabase/next-build --filter=!@better-supabase/example-nextjs \
+                --filter='!./tests/validation-*' $AFFECTED --log-file
+              pnpm exec turbo run test --filter='./tests/validation-*' $AFFECTED --log-file -- \
+                --reporter=default --reporter="$TIMES_REPORTER"
+              shopt -s nullglob
+              times=(tests/validation-*/unit-times.json)
+              if [ "${#times[@]}" -gt 0 ]; then
+                node scripts/unit-durations.ts --check-tests "${times[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+              fi
             timeout: 10
           - task: next build
             run: >-
@@ -170,6 +182,8 @@ jobs:
       - uses: $/.github/actions/setup
 
       - name: ${{ matrix.task }}
+        env:
+          TIMES_REPORTER: ${{ github.workspace }}/scripts/unit-durations.ts
         run: ${{ matrix.run }}
 
       - name: Upload the Turbo logs
@@ -299,3 +313,21 @@ jobs:
           name: unit-times
           path: packages/better-supabase/unit-times.json
           retention-days: 14
+
+  # One check that is green only when every shard and the coverage merge succeeded, so a required
+  # check can't pass on a skipped `coverage` after a shard failed.
+  unit-gate:
+    name: unit tests and coverage
+    needs: [unit, coverage]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require the shards and the coverage merge
+        env:
+          UNIT: ${{ needs.unit.result }}
+          COVERAGE: ${{ needs.coverage.result }}
+        run: |
+          echo "unit: $UNIT, coverage: $COVERAGE"
+          [ "$UNIT" = success ] && [ "$COVERAGE" = success ]

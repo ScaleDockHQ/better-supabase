@@ -24,9 +24,9 @@
     "PORTLESS*",
     "REUI_LICENSE_KEY",
     "GITHUB_ACTIONS",
-    "LEFTHOOK",
-    "TURBO_REMOTE_CACHE_SIGNATURE_KEY"
+    "LEFTHOOK"
   ],
+  "globalDependencies": [".node-version"],
   "remoteCache": {
     "enabled": true,
     "teamSlug": "scaledock",

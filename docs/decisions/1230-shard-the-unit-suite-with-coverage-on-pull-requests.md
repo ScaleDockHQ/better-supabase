@@ -30,15 +30,24 @@ job on a larger runner (`vars.UNIT_RUNNER`). That runner was never created, so t
   The longest file takes about 2.3 minutes, so more shards would not shorten the slowest one.
 - The `coverage` job merges the blob reports and checks the same thresholds on the same scope, so
   a pull request fails on coverage before it merges. A shard checks none.
-- The same job fails when a file runs twice and 5 seconds over its time in
-  `scripts/unit-time-budget.json`, or a test runs past half its own timeout and the budget does
-  not list it. It writes the 20 slowest files to the step summary. `scripts/unit-durations.ts`
-  is both the Vitest reporter that records the times, import time included, during the merge and
-  the check. Between four green runs a file's time moved by 1.25 times at p50, 1.62 at p90 and
-  1.82 at most with its shard neighbours, and a 50% limit failed every run on noise. So the
-  file limit is twice the slowest recorded run, the budget lists every test past 40% of its
-  timeout so one that hovers near half does not fail at random, and the budget stays apart from
-  the packing file; `docs/agents/tooling.md` says how to refresh both.
+- The same job checks a time budget, `scripts/unit-time-budget.json`, through
+  `scripts/unit-durations.ts`, which is both the Vitest reporter that records the times (import
+  time included) and the check. It fails when:
+  - a file runs twice and 5 seconds over its slowest recorded time. A file's time moved by 1.25
+    times at p50, 1.62 at p90 and 1.82 at most between green runs with its shard neighbours, and
+    a 50% limit failed every run on noise;
+  - the library's summed file time runs 15% over the slowest recorded total, which catches many
+    small slowdowns that no single file shows;
+  - a test runs past half its timeout, with the timeout capped at the unit project's 20 seconds so
+    raising a test's timeout does not raise its limit, unless the budget lists it and it did not
+    double. The budget lists every test past 80% of that limit, so a test that hovers near it does
+    not fail at random.
+    The validation projects run with the same reporter in `verify / test` and in the Integration
+    jobs, and their tests go through the same limit. The budget is written from cold runs only, as a
+    replayed blob repeats old times, and stays apart from the packing file;
+    `docs/agents/tooling.md` says how to refresh both.
+- A `unit tests and coverage` job runs after the shards and the merge whatever their result, and
+  fails unless all of them succeeded, so a required check can't pass on a skipped merge.
 - `main` reuses a pull request's shards through the Turbo Remote Cache when the merge commit has
   the same inputs as the pull request's merge ref, which holds when `main` did not move between
   the last CI run and the merge.
