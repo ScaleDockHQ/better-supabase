@@ -591,7 +591,7 @@ Deno.serve(bsb.fetch);
     ],
     next: [
       "List tables under `resources` to expose them as tools, e.g. `customers: true`.",
-      "Add `[functions.mcp] verify_jwt = false` and `[auth.oauth_server] enabled = true` to `supabase/config.toml`: the function verifies the OAuth token itself, so the gateway's JWT check would reject the MCP client first. Keep `verify_jwt` on for functions that use `auth: 'user'`.",
+      "Add `[functions.mcp] verify_jwt = false` and `[auth.oauth_server] enabled = true` to the Supabase config (`supabase/config.toml` or `config.jsonc`): the function verifies the OAuth token itself, so the gateway's JWT check would reject the MCP client first. Keep `verify_jwt` on for functions that use `auth: 'user'`.",
     ],
   },
 };

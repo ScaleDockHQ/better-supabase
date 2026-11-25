@@ -192,7 +192,10 @@ export async function supabaseCli(
  * The Supabase CLI release this version of better-supabase is built and tested
  * on.
  */
-export const SUPABASE_CLI_FLOOR = "3.2.0";
+export const SUPABASE_CLI_FLOOR = "3.3.0";
+
+/** The release the catalog pins and CI runs, which doctor suggests installing. */
+export const SUPABASE_CLI_TESTED = "3.4.0";
 
 const SEMVER = /\d+\.\d+\.\d+/u;
 

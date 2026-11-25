@@ -178,9 +178,22 @@ describe("a saved `supabase db advisors -o json` document", () => {
     expect(parseAdvisorOutput(lines)).toHaveLength(3);
   });
 
-  it("passes the type and level flags the CLI documents", async () => {
+  it("keeps --db-url for a CLI older than 3.0.0", async () => {
     const run = vi.fn((args: readonly string[]) =>
       Promise.resolve(args[0] === "--version" ? ok("2.122.0") : ok(saved)),
+    );
+
+    const source = await cliAdvisors({ run, dbUrl: LOCAL });
+
+    await source?.lints("performance");
+    expect(run).toHaveBeenLastCalledWith(
+      expect.arrayContaining(["--db-url", LOCAL]),
+    );
+  });
+
+  it("passes the type and level flags the CLI documents", async () => {
+    const run = vi.fn((args: readonly string[]) =>
+      Promise.resolve(args[0] === "--version" ? ok("3.4.0") : ok(saved)),
     );
 
     const source = await cliAdvisors({ run, dbUrl: LOCAL });
@@ -189,8 +202,7 @@ describe("a saved `supabase db advisors -o json` document", () => {
     expect(run).toHaveBeenLastCalledWith([
       "db",
       "advisors",
-      "--db-url",
-      LOCAL,
+      `--remote=${LOCAL}`,
       "--type",
       "performance",
       "--level",

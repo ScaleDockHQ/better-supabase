@@ -155,7 +155,7 @@ export async function startScratch(
     ...info,
     destroy: async () => {
       await ctx.supabase(
-        ["stack", "destroy", "--stack-id", info.id, "--yes"],
+        ["stack", "destroy", "--stack", info.id, "--yes"],
         ctx.root,
         ctx.env,
       );

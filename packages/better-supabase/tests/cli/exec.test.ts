@@ -168,13 +168,13 @@ describe("supabaseCliVersion and requireCli", () => {
     ).catch((cause: unknown) => cause);
 
     expect(error).toMatchObject({ code: "supabase_cli_too_old" });
-    expect(String(error)).toContain("3.2.0");
+    expect(String(error)).toContain("3.3.0");
     expect(String(error)).toContain("3.1.0");
   });
 
   it("passes at the minimum, and when the version is unreadable", async () => {
     await expect(
-      requireCli("stack prune", dir, await fake("3.2.0")),
+      requireCli("stack prune", dir, await fake("3.3.0")),
     ).resolves.toBeUndefined();
     await expect(
       requireCli("stack prune", dir, await fake("garbage")),

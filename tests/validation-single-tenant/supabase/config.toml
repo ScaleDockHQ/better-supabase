@@ -1,3 +1,4 @@
+#:schema https://supabase.com/schemas/config/v1.json
 project_id = "validation-single-tenant"
 
 [api]

@@ -199,7 +199,7 @@ Where the findings come from depends on what doctor reads:
   shows.
 - **A database on this machine** (the local stack or a loopback URL): `supabase db advisors`
   when the Supabase CLI is 2.81.3 or later. Doctor passes the URL with
-  `--db-url`, `--type` and `--level info`, and reads the JSON output (a list, an
+  `--remote=<url>` (`--db-url` before CLI 3.0), `--type` and `--level info`, and reads the JSON output (a list, an
   object with `lints`, or one lint per line). A missing or older CLI, a remote
   database, a failed run or an output shape it doesn't know falls back to
   splinter.
@@ -3434,16 +3434,17 @@ pnpm remove @supabase/pg-delta @supabase/pg-topo
 
 ### BS710
 
-**Warning: Supabase CLI older than 3.2.0.** The CLI the project runs
+**Warning: Supabase CLI older than 3.3.0.** The CLI the project runs
 (`$SUPABASE_BIN`, `node_modules/.bin/supabase`, then the `PATH`) is older than
-3.2.0, the release this version of better-supabase is built and tested on. It
-reads `config.json` and `config.jsonc`, runs `config validate` and `stack
-prune`, and expects the multi-file migrations 3.2.0 writes. Commands that need
-it fail with [`supabase_cli_too_old`](/docs/cli/errors#supabase_cli_too_old).
-Update it:
+3.3.0, the release this version of better-supabase is built on. It reads
+`config.json` and `config.jsonc`, runs `config validate` and `stack prune`,
+selects stacks with `--stack <id>` (3.3.0 removed `--stack-id`), and expects
+the multi-file migrations 3.3.0 writes. Commands that need it fail with
+[`supabase_cli_too_old`](/docs/cli/errors#supabase_cli_too_old). Update it to
+3.4.0, the release the repository tests:
 
 ```bash
-pnpm add -D supabase@3.2.0
+pnpm add -D supabase@3.4.0
 ```
 
 ### BS711

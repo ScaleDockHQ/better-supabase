@@ -2,7 +2,11 @@ import type { CliEnv } from "../env.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { errorText } from "../core/errors.ts";
-import { supabaseCli, SUPABASE_CLI_FLOOR } from "../exec.ts";
+import {
+  supabaseCli,
+  SUPABASE_CLI_FLOOR,
+  SUPABASE_CLI_TESTED,
+} from "../exec.ts";
 import { tomlGet } from "../supabase-config.ts";
 import { versionAtLeast } from "./cli-advisors.ts";
 
@@ -99,7 +103,7 @@ export function parseConfigValidation(
   };
 }
 
-/** Reads the CLI version and, from 3.2.0 on, validates the config with it. */
+/** Reads the CLI version and, from the floor on, validates the config with it. */
 export async function loadSupabaseCliCheck(
   root: string,
   env: CliEnv,
@@ -138,7 +142,7 @@ function belowFloor(context: DoctorContext): FindingInput[] {
 
   return [
     {
-      message: `The project runs Supabase CLI ${check.version}. This release of better-supabase is built and tested on ${SUPABASE_CLI_FLOOR}: it reads config.json and config.jsonc, runs \`config validate\` and \`stack prune\`, and writes migrations that the older CLI names differently. Update it: pnpm add -D supabase@${SUPABASE_CLI_FLOOR}`,
+      message: `The project runs Supabase CLI ${check.version}. This release of better-supabase is built and tested on ${SUPABASE_CLI_FLOOR}: it reads config.json and config.jsonc, runs \`config validate\` and \`stack prune\`, selects stacks with \`--stack <id>\`, and writes migrations that the older CLI names differently. Update it: pnpm add -D supabase@${SUPABASE_CLI_TESTED}`,
       target: "supabase",
     },
   ];
@@ -195,8 +199,8 @@ export const SUPABASE_CLI_RULES: readonly Rule[] = [
   {
     code: "BS710",
     severity: "warning",
-    title: "Supabase CLI older than 3.2.0",
-    description: `The project's Supabase CLI (\`$SUPABASE_BIN\`, \`node_modules/.bin/supabase\` or the one on the PATH) is older than ${SUPABASE_CLI_FLOOR}. better-supabase reads \`config.json\` and \`config.jsonc\`, runs \`config validate\` and \`stack prune\`, and expects the multi-file migrations of ${SUPABASE_CLI_FLOOR}. Update it with \`pnpm add -D supabase@${SUPABASE_CLI_FLOOR}\`.`,
+    title: "Supabase CLI older than 3.3.0",
+    description: `The project's Supabase CLI (\`$SUPABASE_BIN\`, \`node_modules/.bin/supabase\` or the one on the PATH) is older than ${SUPABASE_CLI_FLOOR}. better-supabase reads \`config.json\` and \`config.jsonc\`, runs \`config validate\` and \`stack prune\`, selects stacks with \`--stack <id>\` (3.3.0 removed \`--stack-id\`), and expects the multi-file migrations of ${SUPABASE_CLI_FLOOR}. Update it with \`pnpm add -D supabase@${SUPABASE_CLI_TESTED}\`.`,
     check: belowFloor,
   },
   {

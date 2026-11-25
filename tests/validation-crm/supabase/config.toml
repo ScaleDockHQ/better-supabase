@@ -1,3 +1,4 @@
+#:schema https://supabase.com/schemas/config/v1.json
 # The CRM schema lives in snapshot.json; this file makes the folder its own
 # Supabase project, so sql sync writes and checks the module files here.
 project_id = "validation-crm"

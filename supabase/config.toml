@@ -1,3 +1,4 @@
+#:schema https://supabase.com/schemas/config/v1.json
 project_id = "better-supabase"
 
 # No port keys: the CLI picks ports for each checkout or git worktree and

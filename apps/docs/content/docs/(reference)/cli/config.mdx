@@ -209,7 +209,7 @@ engine when `database.sql.workflow` is unset (`[experimental.pgdelta]` and
 installed, it parses the file, with `env()` values filled in the same way the
 Supabase CLI does. It's an optional peer (it needs `effect` and
 `@effect/platform-node`). Without it, a built-in parser reads the subset of
-TOML that `supabase init` writes.
+TOML that `supabase init` wrote before CLI 3.4, which writes `config.jsonc`.
 
 ## JSON configs
 
