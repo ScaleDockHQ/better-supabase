@@ -150,6 +150,13 @@ export function employeeFunctions(
     ${fail("EMPLOYEE_USER_NOT_MEMBER", "the user is not a member of this organization", "22023")}
   end if;`;
 
+  // A linked account reads its own private details and contracts, so only a
+  // caller who already reads them may set the link.
+  const linkable = (tenant: string, user: string): string => `
+  if ${user} is not null and not (${n.service} or (${ctx.scope.can(tenant, n.sensitive)} and ${ctx.scope.can(tenant, n.contractsRead)})) then
+    ${fail("EMPLOYEE_LINK_FORBIDDEN", "linking an employee to an account needs the sensitive read permission")}
+  end if;`;
+
   const settableStatuses = [
     ...new Set(
       ["preboarding", "active", "on_leave"].flatMap((label) => [
@@ -469,7 +476,7 @@ begin
       ${fail("EMPLOYEE_USER_TAKEN", "that user is already an employee of this organization", "23505")}
     when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
       ${fail("EMPLOYEE_ATTRS_INVALID", "an employee field has an invalid value", "22023")}
-  end;${typeCheck("v_row")}${member(`v_row.${e("tenant")}`, `v_row.${e("user")}`)}${link}
+  end;${typeCheck("v_row")}${member(`v_row.${e("tenant")}`, `v_row.${e("user")}`)}${linkable(`v_row.${e("tenant")}`, `v_row.${e("user")}`)}${link}
   ${record("employee.created", "v_row", `, 'managerId', v_row.${e("manager")}, 'status', v_row.${e("status")}`)}
   ${ctx.hook("after_employee_create", [["uuid", `v_row.${e("id")}`]])}
   return ${n.json("v_row")};
@@ -550,7 +557,8 @@ ${
         ${fail("EMPLOYEE_ATTRS_INVALID", "an employee needs a name", "23502")}
       end if;${typeCheck("v_row")}
       if v_field = 'userId' then${member(`v_row.${e("tenant")}`, `v_row.${e("user")}`)}
-        null;
+        if v_row.${e("user")} is distinct from v_was.${e("user")} then${linkable(`v_row.${e("tenant")}`, `v_row.${e("user")}`)}
+        end if;
       end if;
       if v_row.${e("manager")} is distinct from v_was.${e("manager")} then
         ${managerChanged("v_row", `v_was.${e("manager")}`)}

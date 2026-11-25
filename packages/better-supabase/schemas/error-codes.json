@@ -2066,6 +2066,10 @@
     "message": "other records still refer to this employee"
   },
   {
+    "code": "EMPLOYEE_LINK_FORBIDDEN",
+    "message": "linking an employee to an account needs the sensitive read permission"
+  },
+  {
     "code": "EMPLOYEE_MANAGER_CYCLE",
     "message": "an employee can"
   },

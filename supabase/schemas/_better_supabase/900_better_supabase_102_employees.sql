@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:02a0f37df7bf1b3ff486a7d8173a25a69e2a1234ef52b098ac3712e68676073c
+-- @bsb-hash sha256:8d29d64112bf8d07f0b59b22196fc949aac148687c7c5ad03b3981b7f3d16eb4
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -497,6 +497,9 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
   if v_row."origin_id" is not null then
     insert into "better_supabase"."relations" ("tenant_id", "kind", "source_type", "source_id", "target_type", "target_id", "created_by")
     select v_row."tenant_id", 'created_from', 'employee', v_row."id"::text, v_row."origin_type", v_row."origin_id", auth.uid()
@@ -623,7 +626,11 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
-        null;
+        if v_row."user_id" is distinct from v_was."user_id" then
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
+        end if;
       end if;
       if v_row."manager_id" is distinct from v_was."manager_id" then
         perform "better_supabase".emit_event('employee.manager_changed', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'userId', v_row."user_id", 'fromManagerId', v_was."manager_id", 'toManagerId', v_row."manager_id"), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');

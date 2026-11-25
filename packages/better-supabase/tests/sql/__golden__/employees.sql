@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:95a3bc2a76e571ded68b705e5a0705a389fa330244fb3eff1c2366d1b76d2ece
+-- @bsb-hash sha256:fd2fd070f2a9b16fbbf43f698505c667bac8ff7b339a11cd1774fb5e88fa7800
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -496,6 +496,9 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
   if v_row."origin_id" is not null then
     
   end if;
@@ -617,7 +620,11 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
-        null;
+        if v_row."user_id" is distinct from v_was."user_id" then
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
+        end if;
       end if;
       if v_row."manager_id" is distinct from v_was."manager_id" then
         null;
@@ -1070,7 +1077,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:b0bc258106fe333e7e404c1f53541a4efa29175fcfa88b4cf0bc180e0c15a1c1
+-- @bsb-hash sha256:1d56522645050939804385286b539759c239bb506dec3061c07b02f8a03b70fd
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1567,6 +1574,9 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
   if v_row."origin_id" is not null then
     insert into "better_supabase"."relations" ("tenant_id", "kind", "source_type", "source_id", "target_type", "target_id", "created_by")
     select v_row."tenant_id", 'created_from', 'employee', v_row."id"::text, v_row."origin_type", v_row."origin_id", auth.uid()
@@ -1693,7 +1703,11 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
-        null;
+        if v_row."user_id" is distinct from v_was."user_id" then
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
+        end if;
       end if;
       if v_row."manager_id" is distinct from v_was."manager_id" then
         perform "better_supabase".emit_event('employee.manager_changed', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'userId', v_row."user_id", 'fromManagerId', v_was."manager_id", 'toManagerId', v_row."manager_id"), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
@@ -2357,7 +2371,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:2f57f40e6a216978ed0ae1b99246edd1b3665f4a1326a35468d4e40c02c6035f
+-- @bsb-hash sha256:5f65a9d12b9c77288df5905502d7b1ef40c5b894b3641725b4839b6cb5d45fbb
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2857,6 +2871,9 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
   if v_row."origin_id" is not null then
     
   end if;
@@ -2978,7 +2995,11 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
-        null;
+        if v_row."user_id" is distinct from v_was."user_id" then
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
+        end if;
       end if;
       if v_row."manager_id" is distinct from v_was."manager_id" then
         null;
@@ -3431,7 +3452,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:4209c08f49483720d65b42fdbb24fc9525fd44a058214a7356b4495c018f28d1
+-- @bsb-hash sha256:251bafa9d9637a743725e57c03a4d6d43fba3ae78475cfc056388aa1a7ceca9d
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3926,6 +3947,9 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
   if v_row."origin_id" is not null then
     
   end if;
@@ -4047,7 +4071,11 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
-        null;
+        if v_row."user_id" is distinct from v_was."user_id" then
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
+        end if;
       end if;
       if v_row."manager_id" is distinct from v_was."manager_id" then
         null;
@@ -4618,7 +4646,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:5289b0ca97a44008049ac6e2700891e7d16939dbd1d6ff7abb121f034e12eba2
+-- @bsb-hash sha256:eecc454155f0ccff34c2880ab96fc763354d12122dda218d72fab14320fff640
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5102,6 +5130,9 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
   if v_row."origin_id" is not null then
     
   end if;
@@ -5223,7 +5254,11 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
-        null;
+        if v_row."user_id" is distinct from v_was."user_id" then
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
+        end if;
       end if;
       if v_row."manager_id" is distinct from v_was."manager_id" then
         null;
@@ -5682,7 +5717,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:433de534d1ff93930918b4cd2ad184ac548429fad18ec26a7a590061ef322710
+-- @bsb-hash sha256:c2ef10b72d10680b2bc9e0b3db5b7c31dd8aa82aadcfb88c8adf1ae216bc104a
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6177,6 +6212,9 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."org_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."org_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
   if v_row."origin_id" is not null then
     
   end if;
@@ -6298,7 +6336,11 @@ begin
   ) then
     raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'EMPLOYEE_USER_NOT_MEMBER';
   end if;
-        null;
+        if v_row."user_id" is distinct from v_was."user_id" then
+  if v_row."user_id" is not null and not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_row."org_id", 'employees.read_sensitive'), false) and coalesce(better_supabase.can('tenant', v_row."org_id", 'employees.read_sensitive'), false))) then
+    raise exception 'linking an employee to an account needs the sensitive read permission' using errcode = '42501', hint = 'EMPLOYEE_LINK_FORBIDDEN';
+  end if;
+        end if;
       end if;
       if v_row."manager_id" is distinct from v_was."manager_id" then
         null;
