@@ -3294,8 +3294,8 @@ expires both and resolves once the store has the tags.
 
 ### BS649
 
-**Warning: `refresh()` without expiring tags beside `bsb.kept`.** A file calls
-`refresh()` from `next/cache`, expires no tags, and the app keeps reads with
+**Info: `refresh()` without expiring tags beside `bsb.kept`.** A file calls
+`refresh()` from `next/cache`, writes, expires no tags, and the app keeps reads with
 `bsb.kept()`. The re-render reads the kept entries again, so the page shows the
 data from before the write. Expire what the write changed with
 `bsb.expireTags()` (or name `invalidates` on `bsb.action`), then refresh.

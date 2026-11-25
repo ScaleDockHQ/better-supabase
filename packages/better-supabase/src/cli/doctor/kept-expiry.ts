@@ -103,10 +103,14 @@ function tagCallsBesideKept(context: DoctorContext): FindingInput[] {
   );
 }
 
+/** A call that writes: a repository write, an RPC or a `bsb.action`. */
+const WRITES = /\.(?:insert|update|upsert|delete|rpc|\$rpc)\s*\(|\.action\s*\(/;
+
 /**
  * `refresh()` with no tag expiry in the same file, in an app that keeps reads
- * (BS649): the re-render reads the kept entries again, so a write that expired
- * nothing shows the old data.
+ * (BS649), when the file writes: a retry button that only re-renders has
+ * nothing to expire. The re-render reads the kept entries again, so a write
+ * that expired nothing shows the old data.
  */
 function refreshWithoutTags(context: DoctorContext): FindingInput[] {
   if (!keepsReads(context)) {
@@ -119,7 +123,8 @@ function refreshWithoutTags(context: DoctorContext): FindingInput[] {
     if (
       !calls.some((call) => call.name === "refresh") ||
       calls.some((call) => call.name !== "refresh") ||
-      file.text.includes("expireTags")
+      file.text.includes("expireTags") ||
+      !WRITES.test(file.text)
     ) {
       return [];
     }
@@ -148,7 +153,7 @@ export const KEPT_EXPIRY_RULES: readonly Rule[] = [
   },
   {
     code: "BS649",
-    severity: "warning",
+    severity: "info",
     title: "refresh() without expiring tags beside bsb.kept",
     description:
       "A file calls `refresh()` from `next/cache` and expires no tags while the app keeps reads with `bsb.kept()`. The re-render reads the kept entries again and shows the data from before the write. Expire the changed tags with `bsb.expireTags()`, then refresh.",

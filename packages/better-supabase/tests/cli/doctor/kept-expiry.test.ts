@@ -54,11 +54,23 @@ describe("BS648", () => {
 describe("BS649", () => {
   const refresh: TextFile = {
     path: "src/app/actions.ts",
-    text: 'import { refresh } from "next/cache";\nexport async function save() { refresh(); }',
+    text: 'import { refresh } from "next/cache";\nexport async function save() { await db.notes.insert({}); refresh(); }',
   };
 
   it("flags refresh() that expires nothing", () => {
     expect(run("BS649", [KEPT, refresh])).toHaveLength(1);
+  });
+
+  it("accepts a refresh with no write beside it", () => {
+    expect(
+      run("BS649", [
+        KEPT,
+        {
+          ...refresh,
+          text: 'import { refresh } from "next/cache";\nexport async function retry() { refresh(); }',
+        },
+      ]),
+    ).toEqual([]);
   });
 
   it("accepts a file that expires tags", () => {
