@@ -24,7 +24,7 @@ import type { KeptSkip, KeptStore } from "../core/kept-cache.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
 import type { FunctionSpec, QuerySpec } from "../core/spec.ts";
-import type { StatsRecorder } from "../core/stats.ts";
+import type { StatsPhase, StatsRecorder } from "../core/stats.ts";
 import type { TagOptions } from "../core/tags.ts";
 import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
 import type { BindingName } from "../records/bindings.ts";
@@ -582,6 +582,18 @@ export interface BetterNext<
    * ```
    */
   statsFetch(fetch?: typeof globalThis.fetch): typeof globalThis.fetch;
+  /**
+   * Marks the database calls `run` starts as `phase` in the request's stats and
+   * trace, so a wrapper (an authorization check, a write) shows its own share.
+   * Calls in `bsb.action` are `action` unless a wrapper inside says otherwise.
+   * Without debug it only runs `run`.
+   *
+   * @example
+   *   const allowed = await bsb.phase("authorization", () =>
+   *     can(user, "edit"),
+   *   );
+   */
+  phase<T>(phase: StatsPhase, run: () => Promise<T>): Promise<T>;
   /**
    * One call for a page's user data: runs the sessions module's
    * `bootstrap_<rpc>` wrapper, which checks `session_active()` and returns the

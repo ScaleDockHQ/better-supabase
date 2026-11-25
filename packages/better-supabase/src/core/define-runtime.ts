@@ -130,7 +130,7 @@ class Connector {
         ? source
         : postgrestExecutor(source, this.definition.executorOptions()));
 
-    const recorder = extras?.recorder(options);
+    const recorder = extras?.recorder(options, client);
 
     const tuning: RequestTuning = {
       ...(options.timeout === undefined ? {} : { timeout: options.timeout }),

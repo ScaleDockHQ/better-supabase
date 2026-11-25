@@ -93,7 +93,7 @@ import {
   tagCallCollectors,
 } from "./cache.ts";
 import { timeFirst } from "./cold-start.ts";
-import { logActionStats, requestIdOf } from "./collector.ts";
+import { debugRefusal, logActionStats, requestIdOf } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
 import { applyCacheEntry, awaitStage } from "./entry.ts";
 import { incomingRequest } from "./incoming-request.ts";
@@ -755,6 +755,8 @@ export function createNext<
 
     statsFetch: recording.statsFetch,
 
+    phase: recording.inPhase,
+
     async bootstrap<T, S extends ReadSet = ReadSet>(
       bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,
     ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>> {
@@ -967,12 +969,7 @@ export function createNext<
         const id = new URL(request.url).searchParams.get("id");
 
         if (!collector || !id) {
-          return Promise.resolve(
-            Response.json(
-              { error: collector ? "missing ?id=" : "debug is off" },
-              { status: 404, headers: { "cache-control": "no-store" } },
-            ),
-          );
+          return Promise.resolve(debugRefusal(collector !== undefined));
         }
 
         // A render served entirely from cache entries records nothing: it made

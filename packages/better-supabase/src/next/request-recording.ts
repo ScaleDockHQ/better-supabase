@@ -1,12 +1,16 @@
 import { headers } from "next/headers.js";
 
-import type { CacheEntryStat, StatsRecorder } from "../core/stats.ts";
+import type {
+  CacheEntryStat,
+  StatsPhase,
+  StatsRecorder,
+} from "../core/stats.ts";
 import type { Settled } from "../server/respond.ts";
 import type { ContextOptions } from "../server/server-types.ts";
 import type { CollectorView } from "./collector.ts";
 import type { CacheScope, RemoteCacheKey } from "./types.ts";
 
-import { recordingFetch } from "../core/stats.ts";
+import { recordingFetch, setAmbientStats } from "../core/stats.ts";
 import { settle } from "../server/respond.ts";
 import { requestIdOf } from "./collector.ts";
 import { fillsOf, handoffRequestId } from "./remote-handoff.ts";
@@ -25,11 +29,16 @@ export interface RequestRecording {
     handle: RemoteCacheKey | undefined,
     record: (recorder: StatsRecorder) => void,
   ) => void;
+  /**
+   * Runs `run` with the request's calls marked as `phase`, then puts the phase
+   * back. Without debug it only runs `run`.
+   */
+  readonly inPhase: <T>(phase: StatsPhase, run: () => Promise<T>) => Promise<T>;
   /** The current request's debug id, `undefined` without debug. */
   readonly currentId: () => Promise<string | undefined>;
   /** Settles `run` with the request's calls marked as `phase`, then `render`. */
   readonly settleIn: (
-    phase: "action" | "render",
+    phase: StatsPhase,
     run: () => unknown,
   ) => Promise<Settled>;
   /**
@@ -64,6 +73,18 @@ export function requestRecording(
   const currentId = async (): Promise<string | undefined> =>
     collector ? headers().then(requestIdOf, () => undefined) : undefined;
 
+  // A service that calls `connect()` itself has no recorder to pass; it finds
+  // the current request's through this.
+  setAmbientStats(
+    collector
+      ? async () => {
+          const id = await currentId();
+
+          return id ? collector.recorderFor(id) : undefined;
+        }
+      : undefined,
+  );
+
   const statsForId = (id: string | undefined): ContextOptions =>
     collector && id ? { stats: collector.recorderFor(id) } : {};
 
@@ -90,6 +111,29 @@ export function requestRecording(
     statsForHandle: (handle) => statsForId(handoffRequestId(handle)),
     recordOn,
     currentId,
+    inPhase: async (phase, run) => {
+      if (!collector) {
+        return run();
+      }
+
+      const id = await currentId();
+      const recorder = id ? collector.recorderFor(id) : undefined;
+
+      if (!recorder) {
+        return run();
+      }
+
+      const before = recorder.phase;
+
+      recorder.setPhase(phase);
+
+      try {
+        return await run();
+      } finally {
+        recorder.setPhase(before);
+      }
+    },
+
     settleIn: async (phase, run) => {
       const id = await currentId();
       const recorder = collector && id ? collector.recorderFor(id) : undefined;

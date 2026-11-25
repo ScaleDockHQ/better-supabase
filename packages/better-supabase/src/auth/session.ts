@@ -7,6 +7,8 @@ import {
   stringFromBase64URL,
 } from "@supabase/ssr";
 
+import { ambientStats } from "../core/stats.ts";
+
 export type { CookieOptions };
 
 /**
@@ -106,6 +108,17 @@ function rawKey(cookies: readonly CookieRecord[], name: string): string {
   return key;
 }
 
+/** Counts a parse on the current request's stats, when debug records them. */
+function countDecode(): void {
+  ambientStats()?.()
+    .then((recorder) => {
+      recorder?.decode();
+    })
+    .catch(() => {
+      // Outside a request there is no recorder to count on.
+    });
+}
+
 async function readStored(
   cookies: readonly CookieRecord[],
   name: string,
@@ -165,6 +178,7 @@ export function ssrSession(
 
   if (read === undefined) {
     read = readStored(cookies, cookieName);
+    countDecode();
 
     if (key !== "") {
       parsed.set(key, read);

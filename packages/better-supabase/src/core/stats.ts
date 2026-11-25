@@ -1,5 +1,11 @@
 import type { Executor } from "./executor.ts";
 
+/**
+ * What a call belongs to. `action` is inside `bsb.action`, `authorization` and
+ * `write` are what `bsb.phase()` marks, and `render` is everything else.
+ */
+export type StatsPhase = "action" | "authorization" | "write" | "render";
+
 /** Database work for one request (or one `db`). */
 export interface DbStats {
   /** Executor calls: repository operations and RPCs. */
@@ -15,6 +21,13 @@ export interface DbStats {
   readonly ms: number;
   /** Token verifications the request ran (memo misses), across its scopes. */
   readonly verifications: number;
+  /**
+   * Session cookies the request parsed (parse misses). A hit on the parsed
+   * cookie memo isn't counted, so this is what the decoding cost.
+   */
+  readonly decodes?: number;
+  /** Calls per phase, for the phases the request used. */
+  readonly phases?: Readonly<Partial<Record<StatsPhase, number>>>;
   /** Calls made with the service role while serving a user request. */
   readonly adminCalls: number;
   /**
@@ -46,14 +59,14 @@ export interface TraceCall {
   readonly startMs: number;
   readonly endMs: number;
   readonly wave: number;
-  readonly phase: "action" | "render";
+  readonly phase: StatsPhase;
 }
 
 interface OpenTrace {
   readonly name: string;
   readonly start: number;
   readonly wave: number;
-  readonly phase: "action" | "render";
+  readonly phase: StatsPhase;
   end: number;
 }
 
@@ -108,6 +121,8 @@ export const EMPTY_STATS: DbStats = {
   tables: [],
   ms: 0,
   verifications: 0,
+  decodes: 0,
+  phases: {},
   adminCalls: 0,
   tagCalls: 0,
   expiredTags: [],
@@ -127,12 +142,13 @@ export class StatsRecorder {
   #calls = 0;
   #waves = 0;
   #verifications = 0;
+  #decodes = 0;
   #adminCalls = 0;
   #tagCalls = 0;
   readonly #expiredTags: string[] = [];
   readonly #entries: CacheEntryStat[] = [];
   readonly #trace: OpenTrace[] = [];
-  #phase: "action" | "render" = "render";
+  #phase: StatsPhase = "render";
   #inFlight = 0;
   #first: number | undefined;
   #last: number | undefined;
@@ -153,9 +169,31 @@ export class StatsRecorder {
     return this.#admin;
   }
 
+  /** Whether the calls also report to a parent recorder. */
+  get linked(): boolean {
+    return this.#parent !== undefined;
+  }
+
+  /**
+   * Set when the connection's client already counts its own calls on the
+   * ambient request recorder, so the executor must not count them again.
+   */
+  covered = false;
+
   /** Marks the phase the calls that start from now on belong to. */
-  setPhase(phase: "action" | "render"): void {
+  setPhase(phase: StatsPhase): void {
     this.#phase = phase;
+  }
+
+  /** The phase calls that start now belong to. */
+  get phase(): StatsPhase {
+    return this.#phase;
+  }
+
+  /** Records one session cookie parse. */
+  decode(): void {
+    this.#decodes += 1;
+    this.#parent?.decode();
   }
 
   /** Records one token verification (a session memo miss). */
@@ -228,6 +266,16 @@ export class StatsRecorder {
     };
   }
 
+  #phaseCounts(): Partial<Record<StatsPhase, number>> {
+    const counts: Partial<Record<StatsPhase, number>> = {};
+
+    for (const call of this.#trace) {
+      counts[call.phase] = (counts[call.phase] ?? 0) + 1;
+    }
+
+    return counts;
+  }
+
   /** The totals so far. */
   snapshot(): DbStats {
     return {
@@ -239,6 +287,8 @@ export class StatsRecorder {
           ? 0
           : Math.round((this.#last - this.#first) * 100) / 100,
       verifications: this.#verifications,
+      decodes: this.#decodes,
+      phases: this.#phaseCounts(),
       adminCalls: this.#adminCalls,
       tagCalls: this.#tagCalls,
       expiredTags: [...this.#expiredTags],
@@ -314,15 +364,104 @@ export function recordingFetch(
   };
 }
 
+const AMBIENT = Symbol.for("better-supabase.ambientStats");
+
+/** Finds the recorder of the request the caller runs in, if there is one. */
+export type AmbientStats = () => Promise<StatsRecorder | undefined>;
+
+interface AmbientSlot {
+  [AMBIENT]?: AmbientStats;
+}
+
+/**
+ * Registers how a connection with no recorder of its own finds the current
+ * request's recorder. `createNext` does it when debug is on, so a service that
+ * calls `connect()` itself is counted in the request's stats.
+ */
+export function setAmbientStats(resolver: AmbientStats | undefined): void {
+  // SAFETY: the symbol key is this module's own slot on the global object.
+  const slot = globalThis as AmbientSlot;
+
+  if (resolver) {
+    slot[AMBIENT] = resolver;
+  } else {
+    delete slot[AMBIENT];
+  }
+}
+
+/** The registered resolver, `undefined` when no `createNext` has debug on. */
+export function ambientStats(): AmbientStats | undefined {
+  // SAFETY: the symbol key is this module's own slot on the global object.
+  return (globalThis as AmbientSlot)[AMBIENT];
+}
+
+const ambientRecorder = async (): Promise<StatsRecorder | undefined> => {
+  try {
+    return await ambientStats()?.();
+  } catch {
+    // Outside a request there is no recorder to find.
+    return undefined;
+  }
+};
+
+const ambientClients = new WeakSet<object>();
+
+/**
+ * Marks `client` as one whose fetch is `ambientFetch`, so `connect()` over it
+ * doesn't count its calls a second time.
+ */
+export function markAmbientClient<T extends object>(client: T): T {
+  ambientClients.add(client);
+
+  return client;
+}
+
+/** Whether `client` counts its own calls on the ambient recorder. */
+export const isAmbientClient = (client: unknown): boolean =>
+  typeof client === "object" && client !== null && ambientClients.has(client);
+
+/**
+ * A fetch that records each call on the current request's recorder, found per
+ * call, and sends it unchanged when there is none.
+ */
+export function ambientFetch(
+  base: () => typeof fetch = () => globalThis.fetch,
+): typeof fetch {
+  return async (input, init) => {
+    const request = await ambientRecorder();
+
+    return request
+      ? recordingFetch(request, base)(input, init)
+      : base()(input, init);
+  };
+}
+
 /** Wraps an executor so every call is recorded. */
 export function recordStats(
   executor: Executor,
   recorder: StatsRecorder,
 ): Executor {
+  // A connection with no parent also counts on the request it runs in.
+  const begin = async (name: string): Promise<() => void> => {
+    const own = recorder.begin(name);
+
+    if (recorder.linked || recorder.covered) {
+      return own;
+    }
+
+    const request = await ambientRecorder();
+    const mirrored = request?.begin(name);
+
+    return () => {
+      own();
+      mirrored?.();
+    };
+  };
+
   const wrapped: Executor = {
     name: executor.name,
     async execute(op, context) {
-      const end = recorder.begin(op.table.key);
+      const end = await begin(op.table.key);
 
       try {
         return await executor.execute(op, context);
@@ -338,7 +477,7 @@ export function recordStats(
     return {
       ...wrapped,
       async rpc(name, args, context) {
-        const end = recorder.begin(`${name}()`);
+        const end = await begin(`${name}()`);
 
         try {
           return await rpc(name, args, context);
