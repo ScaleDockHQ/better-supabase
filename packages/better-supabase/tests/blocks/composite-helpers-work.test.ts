@@ -7,6 +7,7 @@ import { createEvents } from "../../src/blocks/events/index.ts";
 import { createGovernance } from "../../src/blocks/governance/index.ts";
 import { createLearning } from "../../src/blocks/learning/index.ts";
 import { createPeople } from "../../src/blocks/people/index.ts";
+import { createProcurement } from "../../src/blocks/procurement/index.ts";
 import { createProjects } from "../../src/blocks/projects/index.ts";
 import { createSaas } from "../../src/blocks/saas/index.ts";
 import { createService } from "../../src/blocks/service/index.ts";
@@ -132,6 +133,23 @@ describe("support.openTicket", () => {
     expect(start).toHaveBeenCalledWith({
       subject: { type: "task", id: "t1" },
       priority: "high",
+    });
+  });
+
+  it("starts the SLA on the configured ticket subject", async () => {
+    const start = vi.fn(() => done([{ id: "c" }]));
+
+    const support = createSupport(
+      parts({
+        ticketSubject: "ticket",
+        parts: { tasks: { create: () => done({ id: "t1" }) }, sla: { start } },
+      }),
+    );
+
+    await support.openTicket({ organizationId: "o", ticket });
+
+    expect(start).toHaveBeenCalledWith({
+      subject: { type: "ticket", id: "t1" },
     });
   });
 
@@ -465,6 +483,25 @@ describe("cms.publishWithVersion", () => {
     });
   });
 
+  it("snapshots the content entry when no subject is given", async () => {
+    const snapshot = vi.fn(() => done({ id: "v1" }));
+
+    const cms = createCms(
+      parts({
+        parts: {
+          versions: { snapshot },
+          content: { publish: () => done({ id: "e" }) },
+        },
+      }),
+    );
+
+    await cms.publishWithVersion({ entryId: "e" });
+
+    expect(snapshot).toHaveBeenCalledWith({
+      subject: { type: "content_entry", id: "e" },
+    });
+  });
+
   it("does not publish when the snapshot fails", async () => {
     const publish = vi.fn(() => done({ id: "e" }));
 
@@ -569,5 +606,25 @@ describe("governance.exportSubject", () => {
       (await governance.exportSubject({ subjectType: "c", subjectId: "1" })).ok,
     ).toBe(false);
     expect(record).not.toHaveBeenCalled();
+  });
+});
+
+describe("procurement.payDueBills", () => {
+  it("pays with one banking.payBatch call", async () => {
+    const payBatch = vi.fn(() => done({ batch: { id: "b1" }, sepa: "<xml/>" }));
+
+    const procurement = createProcurement(
+      parts({ parts: { banking: { payBatch } } }),
+    );
+
+    const batch = { accountId: "a1", creditors: {} };
+
+    const result = await procurement.payDueBills({
+      batch: parts(batch),
+      sepa: {},
+    });
+
+    expect(result.data).toEqual({ batch: { id: "b1" }, sepa: "<xml/>" });
+    expect(payBatch).toHaveBeenCalledExactlyOnceWith({ ...batch, sepa: {} });
   });
 });

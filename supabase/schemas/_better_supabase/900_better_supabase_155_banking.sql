@@ -1,6 +1,6 @@
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:896c40cdab61b564c1d39237752ca8d1db007a5e445cc3d290b61e8ab01ce90a
+-- @bsb-hash sha256:cf05ffcb93633d2c8388fbcf3089d029367fb8850a89b7b2f124d50573065c3a
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1453,6 +1453,31 @@ revoke execute on function "better_supabase"."cancel_payment_batch"(uuid) from p
 grant execute on function "better_supabase"."cancel_payment_batch"(uuid) to authenticated, service_role;
 
 
+-- Creates a draft payment batch (input as create_payment_batch) and posts it,
+-- in one transaction. Returns { batch, accounts }; accounts (every bank
+-- account, archived ones included) only when with_accounts is true.
+create or replace function "better_supabase"."pay_payment_batch"(tenant uuid, input jsonb, with_accounts boolean default false)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_batch jsonb;
+begin
+  v_batch := "better_supabase"."create_payment_batch"(pay_payment_batch.tenant, pay_payment_batch.input);
+  v_batch := "better_supabase"."post_payment_batch"((v_batch ->> 'id')::uuid);
+  return jsonb_build_object(
+    'batch', v_batch,
+    'accounts', case when pay_payment_batch.with_accounts
+      then "better_supabase"."list_bank_accounts"(pay_payment_batch.tenant, true)
+      else '[]'::jsonb end);
+end;
+$$;
+revoke execute on function "better_supabase"."pay_payment_batch"(uuid, jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."pay_payment_batch"(uuid, jsonb, boolean) to authenticated, service_role;
+
+
 -- Matches a bank rule's filter tree against a transaction's fields (ADR 0046).
 create or replace function "better_supabase"."bank_rule_condition"(node jsonb, payload jsonb)
 returns boolean
@@ -2458,6 +2483,15 @@ set search_path = ''
 as $$ select "better_supabase"."cancel_payment_batch"($1) $$;
 revoke execute on function "api"."cancel_payment_batch"(uuid) from public, anon;
 grant execute on function "api"."cancel_payment_batch"(uuid) to authenticated, service_role;
+
+create or replace function "api"."pay_payment_batch"(tenant uuid, input jsonb, with_accounts boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."pay_payment_batch"($1, $2, $3) $$;
+revoke execute on function "api"."pay_payment_batch"(uuid, jsonb, boolean) from public, anon;
+grant execute on function "api"."pay_payment_batch"(uuid, jsonb, boolean) to authenticated, service_role;
 
 create or replace function "api"."suggest_bank_matches"(transaction_id uuid)
 returns jsonb

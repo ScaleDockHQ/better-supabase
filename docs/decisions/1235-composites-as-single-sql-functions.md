@@ -92,3 +92,13 @@ service. `scheduling.bookWithReminder` delegates to `bookings.holdWithReminder`
 for a reminder in minutes. A reminder at an instant keeps the two-call path,
 because `save_reminder` takes `remind_at` only when a subject registers an `at`
 column. The call is atomic: a failed reminder rolls the booking back.
+
+## payDueBills
+
+`pay_payment_batch(tenant, input, with_accounts)` sits in the `banking` module
+when payment batches are on. It calls `create_payment_batch` and
+`post_payment_batch`, and with `with_accounts` returns the bank accounts.
+`banking.payBatch` writes the SEPA file from them in TypeScript, since the file
+is a pure function of the batch and the account. `procurement.payDueBills`
+delegates to it. The call is atomic: a bill that needs approval refuses the
+post and no draft batch is left.
