@@ -3,10 +3,10 @@ import type { Rule } from "./rules.ts";
 import { errorText } from "../core/errors.ts";
 
 /** Mean execution time in milliseconds from which a statement is reported. */
-export const SLOW_STATEMENT_MS = 100;
+const SLOW_STATEMENT_MS = 100;
 
 /** Calls a statement needs before its mean counts; one slow run is noise. */
-export const SLOW_STATEMENT_CALLS = 5;
+const SLOW_STATEMENT_CALLS = 5;
 
 interface StatementRow {
   readonly query: string;

@@ -45,7 +45,7 @@ import {
 } from "../shared.ts";
 import { sepaCreditTransferXml } from "./sepa.ts";
 
-export const REASONS: readonly BankMatchReason[] = [
+const REASONS: readonly BankMatchReason[] = [
   "reference",
   "remittance",
   "amount",
@@ -123,11 +123,7 @@ export function statementOf(value: unknown, fn: string): BankStatement {
   };
 }
 
-export function matchOf(
-  value: unknown,
-  currency: unknown,
-  fn: string,
-): BankMatch {
+function matchOf(value: unknown, currency: unknown, fn: string): BankMatch {
   const row = recordOf(value, fn);
   const createdBy = optionalText(row["createdBy"]);
 
@@ -146,7 +142,7 @@ export function matchOf(
   };
 }
 
-export const TRANSACTION_TEXT = [
+const TRANSACTION_TEXT = [
   "statementId",
   "counterpartyName",
   "counterpartyIban",
@@ -194,7 +190,7 @@ export function transactionOf(value: unknown, fn: string): BankTransaction {
   };
 }
 
-export const isFilterGroup = (value: unknown): value is FilterQuery =>
+const isFilterGroup = (value: unknown): value is FilterQuery =>
   isRecord(value) && value["type"] === "group" && Array.isArray(value["rules"]);
 
 export function ruleOf(value: unknown, fn: string): BankRule {
@@ -291,10 +287,7 @@ export function reconciliationOf(
   };
 }
 
-export function batchItemOf(
-  value: unknown,
-  currency: unknown,
-): PaymentBatchItem {
+function batchItemOf(value: unknown, currency: unknown): PaymentBatchItem {
   const row = recordOf(value, "payment batch item");
   const bic = optionalText(row["creditorBic"]);
   const remittance = optionalText(row["remittance"]);
@@ -358,7 +351,7 @@ export function importOf(value: unknown, fn: string): BankStatementImport {
   };
 }
 
-export const sepaInvalid = (message: string): AsyncResult<string> =>
+const sepaInvalid = (message: string): AsyncResult<string> =>
   AsyncResult.err(
     dbError("invalid_request", message, { hint: "SEPA_EXPORT_INVALID" }),
   );
@@ -412,9 +405,7 @@ export const defined = (
     Object.entries(value).filter(([, entry]) => entry !== undefined),
   );
 
-export const transactionArg = (
-  tx: BankTransactionInput,
-): Record<string, unknown> =>
+const transactionArg = (tx: BankTransactionInput): Record<string, unknown> =>
   defined({
     externalId: tx.externalId,
     bookedOn: dateText(tx.bookedOn),
