@@ -392,8 +392,8 @@ both are set), and `export` takes it too, to start an export at that entry.
 `export` takes the same filters, `search` and `order`. Restricted details (row snapshots, IP, user agent) are
 never in the list. `audit.reveal(entryId)` returns them for a member with the
 reveal permission in the entry's tenant, or platform staff who hold
-`permissions.revealPlatform` (the `reveal` key on the platform by default, not
-`readAll`), and records the look as an `audit.revealed` entry; anyone else
+`permissions.revealPlatform`, a platform key you set (without it only the
+service role reveals across tenants), and records the look as an `audit.revealed` entry; anyone else
 gets `not_found` (`AUDIT_ENTRY_NOT_FOUND`).
 
 `auditListQuery` is the older path: a [list query](/docs/platform/list)

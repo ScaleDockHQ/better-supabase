@@ -229,6 +229,7 @@ describe("audit module", () => {
     );
 
     expect(fallback).not.toContain("'platform.audit.read'");
+    expect(fallback).not.toContain("is_platform");
   });
 
   it("reads the request and correlation ids from settings, then headers", () => {

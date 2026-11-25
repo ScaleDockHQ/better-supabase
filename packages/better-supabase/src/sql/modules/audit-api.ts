@@ -382,17 +382,15 @@ export function reveal(ctx: BlockSqlContext, restricted: boolean): string {
     .map(([logical, out]) => `, '${out}', d.${r(logical)}`)
     .join("");
 
-  // Platform staff reveal with a platform reveal key, not the read-all key.
-  const revealPlatform = ctx.permission(
-    "revealPlatform",
-    ctx.permissionKey(
-      "reveal",
-      ctx.permissionKey("read", OPERATIONS["audit.read"]),
-    ),
-  );
+  // Platform staff reveal only with a platform reveal key the app names.
+  const revealPlatform = ctx.permissionKey("revealPlatform", "");
 
-  const allowed = (tenant: string) => `(${SERVICE_CALLER})
-    or ${ctx.scope.platform(revealPlatform)}
+  const allowed = (tenant: string) => `(${SERVICE_CALLER})${
+    revealPlatform === ""
+      ? ""
+      : `
+    or ${ctx.scope.platform(sqlString(revealPlatform))}`
+  }
     or (${tenant} is not null and coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${key}), false))`;
 
   return `-- The restricted details of one entry for a member with the reveal
