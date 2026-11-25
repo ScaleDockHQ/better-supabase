@@ -240,14 +240,16 @@ describe("service.completeVisit", () => {
 });
 
 describe("people", () => {
-  it("onboards by enrolling the new employee", async () => {
-    const enroll = vi.fn(() => done({ id: "e1" }));
+  it("onboards with one employees.onboardWithProgram call", async () => {
+    const onboardWithProgram = vi.fn(() =>
+      done({ employee: { id: "emp" }, enrollment: { id: "e1" } }),
+    );
 
     const people = createPeople(
       parts({
         parts: {
-          employees: { create: () => done({ id: "emp" }) },
-          enrollments: { enroll },
+          employees: { onboardWithProgram },
+          enrollments: {},
           shifts: {},
         },
       }),
@@ -260,9 +262,11 @@ describe("people", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(enroll).toHaveBeenCalledWith({
+    expect(onboardWithProgram).toHaveBeenCalledExactlyOnceWith({
+      organizationId: "o",
+      input: { name: "Ann" },
       program: "onboarding",
-      subject: { type: "employee", id: "emp" },
+      dates: undefined,
     });
   });
 

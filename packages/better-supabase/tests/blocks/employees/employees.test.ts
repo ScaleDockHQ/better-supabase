@@ -114,6 +114,53 @@ describe("employees block", () => {
     expect(t.calls).toHaveLength(2);
   });
 
+  it("onboards with one onboard_with_program call", async () => {
+    const t = transport({
+      onboard_with_program: () => ({
+        employee: { ...EMPLOYEE, shoe_size: 42 },
+        enrollment: {
+          id: "en1",
+          program: "welcome",
+          subjectType: "employee",
+          subjectId: "e1",
+          status: "active",
+          steps: [],
+          progress: [],
+          enrolledAt: "2026-10-15T09:00:00Z",
+          updatedAt: "2026-10-15T09:00:00Z",
+        },
+      }),
+    });
+
+    const employees = createEmployees({
+      transport: t,
+      fields: v.object({ shoe_size: v.number() }),
+    });
+
+    const onboarded = await employees
+      .onboardWithProgram({
+        organizationId: "o",
+        input: { name: "Mia", fields: { shoe_size: 42 } },
+        program: "welcome",
+        dates: { startsAt: Temporal.Instant.from("2027-02-01T00:00:00Z") },
+      })
+      .orThrow();
+
+    expect(onboarded.employee.name).toBe("Mia");
+    expect(onboarded.enrollment.program).toBe("welcome");
+    expect(t.calls.map(([fn, args]) => [fn, args])).toEqual([
+      [
+        "onboard_with_program",
+        {
+          tenant: "o",
+          attrs: { name: "Mia", shoe_size: 42 },
+          program: "welcome",
+          dates: { startsAt: "2027-02-01T00:00:00Z" },
+        },
+      ],
+    ]);
+  });
+
   it("returns a validation error for a row the schema refuses", async () => {
     const employees = createEmployees({
       transport: transport({

@@ -27,10 +27,10 @@ export interface Offboarded {
 /** The helpers `people` adds over its parts. */
 export interface People {
   /**
-   * Creates the employee, then enrolls them in the onboarding `program`
-   * (`enrollments.enroll` on `{ type: "employee", id }`). A failed enrollment
-   * returns its error and leaves the employee created, so retry it with
-   * `enrollments.enroll`, not `onboard`.
+   * Creates the employee and enrolls them in the onboarding `program` on `{
+   * type: "employee", id }`, in one database call and one transaction
+   * (`employees.onboardWithProgram`, ADR 1235). A failed enrollment rolls the
+   * employee back, so retry the whole `onboard`.
    */
   onboard(input: {
     organizationId: string;
@@ -71,25 +71,11 @@ export function createPeople(options: PeopleOptions): People {
 
   const client: People = {
     onboard: ({ organizationId, employee, program, dates }) =>
-      Async.from(async () => {
-        const created = await employees.create({
-          organizationId,
-          input: employee,
-        });
-
-        if (!created.ok) {
-          return created;
-        }
-
-        const enrollment = await enrollments.enroll({
-          program,
-          subject: { type: "employee", id: created.data.id },
-          ...(dates === undefined ? {} : { dates }),
-        });
-
-        return enrollment.ok
-          ? ok({ employee: created.data, enrollment: enrollment.data })
-          : enrollment;
+      employees.onboardWithProgram({
+        organizationId,
+        input: employee,
+        program,
+        dates,
       }),
     offboard: ({
       employeeId,

@@ -123,7 +123,8 @@ Admin, `next start`, `actions.spec.ts`. After the composite is one call, the res
 | ----------------- | ------------ | ----------- | --------------------- | ---------- |
 | inviteWithinSeats | 10           | 7           | 6 to 3                | aca51816e  |
 | offboardEmployee  | 12           | 8           | 4 to 2                | 181affa563 |
-| reconcileAccount  | 11           | 2           | 3 to 2                | (next)     |
+| reconcileAccount  | 11           | 2           | 3 to 2                | 7b60090543 |
+| onboardEmployee   | 10           | 8           | 3 to 2                | (next)     |
 
 ## Cache tiers and invalidation (ADRs 1240, 1241, 1244, 1245)
 
