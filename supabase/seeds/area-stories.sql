@@ -167,4 +167,25 @@ begin
 end
 $shop$;
 
+-- Content: a held board meeting with its agenda and decisions, so /meetings/[id]
+-- has a seeded row to open.
+insert into better_supabase.meetings (id, tenant_id, kind, title, location, starts_at, ends_at, status, held_at, summary, created_by) values
+  ('00000000-0000-4000-8000-0000005e0001', '00000000-0000-4000-8000-000000000001', 'board', 'Q3 board meeting', 'Boardroom',
+   now() - interval '7 days', now() - interval '7 days' + interval '2 hours', 'held', now() - interval '7 days',
+   'The board approved the Q3 budget and asked for a hiring plan.', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000005e0002', '00000000-0000-4000-8000-000000000001', 'meeting', 'Weekly operations sync', null,
+   now() + interval '2 days', now() + interval '2 days' + interval '1 hour', 'planned', null, null, '00000000-0000-4000-8000-0000000000a1')
+on conflict (id) do nothing;
+
+insert into better_supabase.meeting_agenda_items (id, tenant_id, meeting_id, ordinal, title, status, outcome) values
+  ('00000000-0000-4000-8000-0000005e0101', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005e0001', 1, 'Q3 budget', 'covered', 'Approved'),
+  ('00000000-0000-4000-8000-0000005e0102', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005e0001', 2, 'Hiring plan', 'covered', 'Draft by next meeting'),
+  ('00000000-0000-4000-8000-0000005e0103', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005e0002', 1, 'Open incidents', 'open', null)
+on conflict (id) do nothing;
+
+insert into better_supabase.meeting_decisions (id, tenant_id, meeting_id, agenda_item_id, title, status, decided_by, decided_at) values
+  ('00000000-0000-4000-8000-0000005e0201', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000005e0001',
+   '00000000-0000-4000-8000-0000005e0101', 'Approve the Q3 budget', 'passed', '00000000-0000-4000-8000-0000000000a1', now() - interval '7 days')
+on conflict (id) do nothing;
+
 select set_config('request.jwt.claims', '', false);

@@ -38,7 +38,7 @@ const TABLE_OF_ROUTE = {
   "/settings/option-sets/[id]": "option_sets",
   "/forms/[id]": "forms",
   "/maintenance/meters/[id]": "maintenance_meters",
-  "/finance/periods/[id]": "accounting_periods",
+  "/finance/periods/[id]": "periods",
   "/courses/[courseId]": "courses",
   "/workflows/builder/[definition]": "workflow_definitions",
   // Service and logistics
