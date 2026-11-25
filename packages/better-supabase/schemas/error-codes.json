@@ -3841,6 +3841,10 @@
     "message": "there is no such message to report"
   },
   {
+    "code": "NOTIFICATION_ACTIONS_FORBIDDEN",
+    "message": "Only the service role sends notifications with actions"
+  },
+  {
     "code": "NOTIFICATION_ACTIONS_INVALID",
     "message": "actions must be at most 10 { key, label, operation, payload } objects with unique keys"
   },

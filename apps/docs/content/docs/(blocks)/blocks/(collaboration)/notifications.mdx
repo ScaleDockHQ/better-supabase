@@ -125,8 +125,11 @@ await notifications
 most 10 objects with a unique `key` (letters, digits, `_`, `.`, `:` and `-`,
 at most 64), a `label` of 1 to 100 characters, an optional `operation` of at
 most 200 characters and an optional `payload` object, and no other keys.
-Anything else fails with `NOTIFICATION_ACTIONS_INVALID`. Items return them
-in `item.actions`, an empty array when the notification has none.
+Anything else fails with `NOTIFICATION_ACTIONS_INVALID`. Only the service
+role sends actions, because a button runs its operation for whoever presses
+it: a signed-in sender gets `NOTIFICATION_ACTIONS_FORBIDDEN`, so send them from
+your server. Items return them in `item.actions`, an empty array when the
+notification has none.
 
 ## Reading
 

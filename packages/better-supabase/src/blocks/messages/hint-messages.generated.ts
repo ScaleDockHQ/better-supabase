@@ -1172,6 +1172,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "MODERATION_INVALID": "Content starts pending or visible.",
   "MODERATION_ITEM_NOT_FOUND": "Moderation item not found.",
   "MODERATION_NOTICE_NOT_FOUND": "Notice not found.",
+  "NOTIFICATION_ACTIONS_FORBIDDEN": "Only the service role sends notifications with actions.",
   "NOTIFICATION_ACTIONS_INVALID": "Actions must be at most 10 { key, label, operation, payload } objects with unique keys.",
   "NOTIFICATION_ACTIVITY_UNKNOWN": "Activity must be participating or all.",
   "NOTIFICATION_BATCH_NOT_ARRAY": "\"send_notifications\" takes a jsonb array of events.",
