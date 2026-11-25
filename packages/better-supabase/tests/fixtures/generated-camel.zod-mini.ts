@@ -614,6 +614,10 @@ export const setMyAvatarPathArgs: z.ZodMiniType<{ avatar_path: string }> = z.obj
   avatar_path: z.string(),
 }).check(z.meta({ title: "set_my_avatar_path arguments" }));
 
+export const shellBootstrapArgs: z.ZodMiniType<{ args: Json }> = z.object({
+  args: z.json(),
+}).check(z.meta({ title: "shell_bootstrap arguments" }));
+
 export const updateMyProfileArgs: z.ZodMiniType<{ full_name: string }> = z.object({
   full_name: z.string(),
 }).check(z.meta({ title: "update_my_profile arguments" }));
@@ -638,3 +642,5 @@ export const rsFinanceOverviewResult: z.ZodMiniType<Json> = z.json();
 export const rsPipelineOverviewResult: z.ZodMiniType<Json> = z.json();
 
 export const rsWorkspaceSummaryResult: z.ZodMiniType<Json> = z.json();
+
+export const shellBootstrapResult: z.ZodMiniType<Json> = z.json();
