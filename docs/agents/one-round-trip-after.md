@@ -64,6 +64,8 @@ Buffers and statements are exact; milliseconds vary with the load. `/care/[clien
 
 Server bundles, raw bytes from `tests/next-build/server-baseline.json`, `main` then this branch: `(proxy)` 1,302,300 to 854,641 (minus 34.4 percent); all page entries 1,127,110,664 to 1,127,281,212 (plus 170,548 over 294 entries, about 0.6 KB each); all API route entries 297,179,773 to 297,214,770 (plus 34,997).
 
+To measure again in a worktree: `pnpm supabase:reset`, then `BSB_PORT=3400 BSB_REMOTE_CACHE_DIR=/tmp/bsb-remote-cache pnpm exec playwright test resolve-urls --project=chromium`, then the `db-time` and `measure-pages` specs with `BSB_DB_ADMIN_URL` set to the worktree's own database (its default is the main checkout's port, so a run without it reads and changes the wrong database). Take the numbers with a load average under 8; statements and buffers do not depend on it, milliseconds do.
+
 ## Token and cookie size
 
 The access token hook writes the `permissions` claim as a bitset (ADR 1231).
