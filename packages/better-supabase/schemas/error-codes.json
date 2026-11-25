@@ -5495,7 +5495,7 @@
   },
   {
     "code": "STATE_TRANSITION_INVALID",
-    "message": "that status is not a stage of the machine"
+    "message": "a new record can"
   },
   {
     "code": "STATUS_COMPONENT_NOT_FOUND",

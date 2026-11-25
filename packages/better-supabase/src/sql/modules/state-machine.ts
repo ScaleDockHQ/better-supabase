@@ -30,6 +30,10 @@ import {
   stampWrite,
 } from "./state-machine-guards.ts";
 import {
+  insertCheckFunction,
+  insertCheckTrigger,
+} from "./state-machine-insert.ts";
+import {
   LIFECYCLE_INTERNAL,
   lifecycleWorkflowSql,
   WORKFLOW_DECLARE,
@@ -458,22 +462,16 @@ ${item.workflow === undefined ? "" : WORKFLOW_DECLARE}`
             : `if new.${sqlIdent(item.column)} is null then
       new.${sqlIdent(item.column)} := ${sqlString(item.initial)};
     end if;`
-        }
-    -- A new row starts where the initial status can go in one step; only an
-    -- import run or the service role creates one further along.
-    if new.${sqlIdent(item.column)}::text not in (${[...new Set([item.initial, ...(item.transitions[item.initial] ?? [])])].map(sqlString).join(", ")})
-      and not (${ctx.importing()}) and not ${SERVICE_CALLER} then
-      ${fail("STATE_TRANSITION_INVALID", "a new record can't start in that status", "22023")}
-    end if;${
-      importedWrite === ""
-        ? ""
-        : `
+        }${
+          importedWrite === ""
+            ? ""
+            : `
     -- An import run (ADR 0141) may insert a row in any status: one synthetic
     -- imported history row stands for how it got there, and no event fires.
     if ${ctx.importing()} and new.${sqlIdent(item.column)} is not null then
       ${importedWrite}
     end if;`
-    }
+        }
     ${stageWrite(ctx, item, "open")}${stampWrite(ctx, item, true)}
     ${lifecycleInsert(ctx, item)}`
       : workflowInsert(
@@ -529,7 +527,8 @@ ${declare}begin
   return new;
 end;
 $$;
-${item.contributed === true ? "" : transitionTrigger(item)}`;
+${insertCheckFunction(ctx, item)}
+${item.contributed === true ? "" : transitionTrigger({ ...item, insertCheck: item.workflow === undefined })}`;
 }
 
 /**
@@ -540,12 +539,15 @@ export function transitionTrigger(item: {
   readonly name: string;
   readonly table: string;
   readonly column: string;
+  /** Attach the client insert check that the machine's module created. */
+  readonly insertCheck?: boolean;
+  readonly insertStatuses?: readonly string[];
 }): string {
   const target = quotedTable(item.table);
 
   return `drop trigger if exists bsb_transition_${item.name} on ${target};
 create trigger bsb_transition_${item.name} before insert or update of ${sqlIdent(item.column)} on ${target}
-for each row execute function better_supabase.bsb_transition_${item.name}();`;
+for each row execute function better_supabase.bsb_transition_${item.name}();${insertCheckTrigger(item, target)}`;
 }
 
 /** A `case subject_type` over the machines, with `unknown` for any other name. */

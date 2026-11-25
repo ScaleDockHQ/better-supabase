@@ -582,7 +582,7 @@
   },
   "warranty": {
     "security-definer-functions": 30,
-    "row-triggers": 6
+    "row-triggers": 12
   },
   "webhooks": {
     "security-definer-functions": 90,

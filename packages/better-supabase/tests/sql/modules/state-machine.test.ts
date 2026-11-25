@@ -59,16 +59,45 @@ describe("state machine", () => {
       },
     });
 
-    const insert = sql.slice(
-      sql.indexOf("if tg_op = 'INSERT' then"),
-      sql.indexOf("is not distinct from"),
-    );
+    const check = sql.slice(sql.indexOf("bsb_insert_status_quote()"));
 
-    expect(insert).toContain(`not in ('draft', 'sent')`);
-    expect(insert).toContain("STATE_TRANSITION_INVALID");
-    expect(insert).toContain(
-      "and not (better_supabase.import_run() is not null)",
+    expect(check).toContain(`not in ('draft', 'sent')`);
+    expect(check).toContain("security invoker");
+    expect(check).toContain(
+      "current_user::text = any (array['anon', 'authenticated'])",
     );
+    expect(check).toContain("STATE_TRANSITION_INVALID");
+    expect(sql).toContain(
+      "create trigger bsb_insert_status_quote before insert on",
+    );
+    expect(sql.slice(sql.indexOf("bsb_transition_quote()"))).not.toContain(
+      "a new record can't start in that status",
+    );
+  });
+
+  it("lets a client insert the statuses insertStatuses lists, or any with *", () => {
+    const machine = (insertStatuses: readonly string[]) =>
+      sqlOf({
+        "state-machine": {
+          options: {
+            machines: {
+              quote: {
+                table: "public.quotes",
+                column: "status",
+                initial: "draft",
+                transitions: { draft: ["sent"], sent: ["accepted"] },
+                insertStatuses,
+              },
+            },
+          },
+        },
+      });
+
+    expect(machine(["accepted"])).toContain(
+      `not in ('draft', 'sent', 'accepted')`,
+    );
+    expect(machine(["*"])).not.toContain("bsb_insert_status_quote");
+    expect(() => machine(["paid"])).toThrow(/insertStatuses: paid/u);
   });
 
   it("names the missing initial status", () => {

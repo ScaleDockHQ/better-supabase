@@ -1,6 +1,6 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:a38101894ef846e705393f9f05f35da229cf72a237b75c22eaec35b839b80f64
+-- @bsb-hash sha256:448e61197ba27621ed9c3d98792ba593bbff43a86df32e090813fc9e7ad0b59b
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.recordTypes type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -194,12 +194,6 @@ begin
     if new."state" is null then
       new."state" := 'backlog';
     end if;
-    -- A new row starts where the initial status can go in one step; only an
-    -- import run or the service role creates one further along.
-    if new."state"::text not in ('backlog', 'triage', 'unstarted', 'started', 'completed', 'canceled')
-      and not (better_supabase.import_run() is not null) and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
-      raise exception 'a new record can''t start in that status' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
-    end if;
     -- An import run (ADR 0141) may insert a row in any status: one synthetic
     -- imported history row stands for how it got there, and no event fires.
     if better_supabase.import_run() is not null and new."state" is not null then
@@ -228,8 +222,27 @@ begin
   return new;
 end;
 $$;
+
+create or replace function better_supabase.bsb_insert_status_work_item()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if current_user::text = any (array['anon', 'authenticated'])
+    and new."state"::text not in ('backlog', 'triage', 'unstarted', 'started', 'completed', 'canceled')
+    and not (better_supabase.import_run() is not null) then
+    raise exception 'a new record can''t start in that status' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function better_supabase.bsb_insert_status_work_item() from public, anon, authenticated;
 create trigger bsb_transition_work_item before insert or update of "state" on "better_supabase"."work_items"
 for each row execute function better_supabase.bsb_transition_work_item();
+create trigger bsb_insert_status_work_item before insert on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_insert_status_work_item();
 
 create or replace function better_supabase.bsb_transition_change_request()
 returns trigger
@@ -382,12 +395,6 @@ as $$
 begin
   if tg_op = 'INSERT' then
     
-    -- A new row starts where the initial status can go in one step; only an
-    -- import run or the service role creates one further along.
-    if new."document_status"::text not in ('draft', 'in_review')
-      and not (better_supabase.import_run() is not null) and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
-      raise exception 'a new record can''t start in that status' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
-    end if;
     -- An import run (ADR 0141) may insert a row in any status: one synthetic
     -- imported history row stands for how it got there, and no event fires.
     if better_supabase.import_run() is not null and new."document_status" is not null then
@@ -429,8 +436,27 @@ begin
   return new;
 end;
 $$;
+
+create or replace function better_supabase.bsb_insert_status_drive_node()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if current_user::text = any (array['anon', 'authenticated'])
+    and new."document_status"::text not in ('draft', 'in_review')
+    and not (better_supabase.import_run() is not null) then
+    raise exception 'a new record can''t start in that status' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function better_supabase.bsb_insert_status_drive_node() from public, anon, authenticated;
 create trigger bsb_transition_drive_node before insert or update of "document_status" on "better_supabase"."drive_nodes"
 for each row execute function better_supabase.bsb_transition_drive_node();
+create trigger bsb_insert_status_drive_node before insert on "better_supabase"."drive_nodes"
+for each row execute function better_supabase.bsb_insert_status_drive_node();
 
 create or replace function better_supabase.bsb_transition_warranty_claim()
 returns trigger
@@ -442,12 +468,6 @@ begin
   if tg_op = 'INSERT' then
     if new."status" is null then
       new."status" := 'draft';
-    end if;
-    -- A new row starts where the initial status can go in one step; only an
-    -- import run or the service role creates one further along.
-    if new."status"::text not in ('draft', 'submitted')
-      and not (better_supabase.import_run() is not null) and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
-      raise exception 'a new record can''t start in that status' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
     end if;
     -- An import run (ADR 0141) may insert a row in any status: one synthetic
     -- imported history row stands for how it got there, and no event fires.
@@ -477,6 +497,23 @@ begin
   return new;
 end;
 $$;
+
+create or replace function better_supabase.bsb_insert_status_warranty_claim()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if current_user::text = any (array['anon', 'authenticated'])
+    and new."status"::text not in ('draft', 'submitted')
+    and not (better_supabase.import_run() is not null) then
+    raise exception 'a new record can''t start in that status' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function better_supabase.bsb_insert_status_warranty_claim() from public, anon, authenticated;
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor
