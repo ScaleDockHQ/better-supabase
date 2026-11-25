@@ -17,8 +17,8 @@ import { env } from "@/env";
 
 import { requiredPermission } from "./features/navigation/nav-items";
 import { localizedPath, routing } from "./i18n/routing";
+import { Claims, Profile } from "./lib/claims";
 import { catalog } from "./lib/permission-catalog";
-import { app } from "./lib/supabase/app";
 import { VISITOR_COOKIE } from "./visitor-cookie";
 
 const intl = createMiddleware(routing);
@@ -151,9 +151,10 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   return;
 };
 
-// The proxy builds only the session runtime from the app definition, so it
-// loads neither the block set nor the data layer (ADR 0635).
-const handle = createProxy(app, {
+// The proxy takes the claims and profile schemas, not the app definition, so
+// its bundle carries no table registry, repository or block (ADR 0635).
+const handle = createProxy({
+  auth: { claims: Claims, userMetadata: Profile },
   debug: {
     enabled: env.EXPOSE_TESTING_API === "1",
     coldStart: env.EXPOSE_TESTING_API === "1",

@@ -52,6 +52,7 @@ import {
   FLAG_FORMATS,
   reportFormat,
 } from "../doctor/options.ts";
+import { readProxyTrace } from "../doctor/proxy-size.ts";
 import { RECEIVER_RULES } from "../doctor/receiver-types.ts";
 import { DOCS_URL, RULE_CODES, RULES, runRules } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
@@ -575,6 +576,7 @@ export async function runDoctor(
     vercelConfig,
     vercelPulled,
     listed,
+    proxyTrace,
   ] = await Promise.all([
     options.snapshot ??
       loadSnapshot(config, env, source, pg, opened.open).catch(
@@ -661,6 +663,9 @@ export async function runDoctor(
         ).then((found) => found.flat())
       : undefined,
     listedDependencies(config.root).catch(() => undefined),
+    rules.some((rule) => rule.code === "BS650")
+      ? readProxyTrace(config.root).catch(() => undefined)
+      : undefined,
   ]).catch(async (cause: unknown) => {
     await closeQuietly();
     throw explain(cause);
@@ -720,6 +725,7 @@ export async function runDoctor(
     ...(listed ? { listedDependencies: [...listed] } : {}),
     ...(vercelConfig ? { vercelConfig } : {}),
     ...(vercelPulled ? { vercelEnv: vercelPulled } : {}),
+    ...(proxyTrace ? { proxyTrace } : {}),
     ...(live.advisors ? { advisors: live.advisors } : {}),
     ...(live.database ? { database: live.database } : {}),
     ...(stats ? { stats } : {}),

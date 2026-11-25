@@ -124,6 +124,8 @@ describe("startNativeAuthzRefresh", () => {
     });
 
     await settle();
+
+    await settle();
     expect(fake.refreshSession).not.toHaveBeenCalled();
 
     fake.send({ user_id: "u1", version: 2 });
@@ -145,6 +147,8 @@ describe("startNativeAuthzRefresh", () => {
       appState: fakeAppState(),
     });
 
+    await settle();
+
     fake.send({ version: 5 });
     await settle();
     expect(fake.refreshSession).not.toHaveBeenCalled();
@@ -163,6 +167,8 @@ describe("startNativeAuthzRefresh", () => {
       appState,
       onChange,
     });
+
+    await settle();
 
     await settle();
     expect(fake.joins).toHaveBeenCalledOnce();
@@ -193,6 +199,8 @@ describe("startNativeAuthzRefresh", () => {
     });
 
     await settle();
+
+    await settle();
     expect(fake.joins).not.toHaveBeenCalled();
 
     stop();
@@ -209,6 +217,8 @@ describe("startNativeAuthzRefresh", () => {
       appState,
       source: { current, subscribe: () => () => undefined },
     });
+
+    await settle();
 
     appState.set("active");
     await settle();
@@ -231,6 +241,8 @@ describe("startNativeAuthzRefresh", () => {
       appState: fakeAppState(),
       onError,
     });
+
+    await settle();
 
     fake.send({ version: 2 });
     await settle();

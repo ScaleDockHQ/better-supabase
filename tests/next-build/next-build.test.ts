@@ -596,6 +596,29 @@ describe("the Next.js example's first-load JavaScript", () => {
     120_000,
   );
 
+  // The proxy takes the claims schemas, not the app definition. Next's own
+  // runtime is about 510 KB of the proxy, so 400 KB is out of reach for the
+  // whole bundle; the ceiling is the measured size (716 KB, down from 855 KB)
+  // and a schema or block import pulling back in trips it.
+  it.skipIf(UPDATE)(
+    "keeps the proxy under 720 KB",
+    async () => {
+      const source = await readFile(
+        join(NEXT, "server/middleware.js"),
+        "utf-8",
+      );
+
+      const chunks = new Set(
+        [...source.matchAll(SERVER_CHUNK)].flatMap((match) =>
+          match[1] === undefined ? [] : [match[1]],
+        ),
+      );
+
+      expect((await serverSize(chunks)).raw).toBeLessThan(720_000);
+    },
+    120_000,
+  );
+
   // The proxy runs on every request, so it keeps off the flag definitions and
   // the generated table schema; each marker is a string only that code holds.
   it.skipIf(UPDATE)(

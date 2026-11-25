@@ -3300,6 +3300,16 @@ expires both and resolves once the store has the tags.
 data from before the write. Expire what the write changed with
 `bsb.expireTags()` (or name `invalidates` on `bsb.action`), then refresh.
 
+### BS650
+
+**Info: the proxy bundle is large.** The last `next build` traced more than
+400 KB of files for `proxy.ts`, read from `.next/server/proxy.js.nft.json` (or
+`middleware.js.nft.json`). The proxy runs before every request, so the app
+definition, the generated schema or a block set in its imports slows each one.
+Build it with `createProxy({ auth })`, which needs no definition, and read
+permissions from the generated `proxy-permissions.generated.ts`. Doctor skips
+the rule when the project has not been built.
+
 ### BS633
 
 **Info: an app row trigger has no `importing()` guard.** An import writes many

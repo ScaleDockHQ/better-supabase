@@ -261,6 +261,12 @@ export function SideNav() {
 - `SessionProvider` reads `caller_authz_version()` from the `api` schema through
   the client's `schema()`. Pass `schema="public"` for a client that exposes it
   there, so you pass the client itself and need no wrapper.
+- The provider joins the user's `authz:<uid>` channel when the browser is idle,
+  so the join does not compete with hydration. One channel serves every
+  provider on the same client and user. Pass the bootstrap's live version
+  (`liveVersion={bootstrap.authzVersion}`) and the first join reports it
+  instead of calling `caller_authz_version()`; only a join after a reconnect
+  reads the version again.
 - `useSession()` suspends, so keep it under a `<Suspense>` boundary, and
   create the promise inside that boundary.
 - The session is a plain `AuthSession` (no token), the same type
