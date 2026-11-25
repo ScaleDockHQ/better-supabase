@@ -39,18 +39,24 @@ export interface MyProfile {
 /**
  * The caller's row in the profiles SQL module, read by the shell's one call.
  * `bsb.evictSession` after a profile update drops this entry with the rest of
- * the user's cache.
+ * the user's cache. The shell entry and the profile entry are separate private
+ * scopes read one after the other, since private scopes can't nest.
  */
 export async function getMyProfile(): Promise<MyProfile | null> {
-  "use cache: private";
   const shell = await getShell();
 
   if (!shell.user || !shell.data?.profile) {
     return null;
   }
 
+  return toMyProfile(v.parse(ProfileRow, shell.data.profile));
+}
+
+async function toMyProfile(
+  row: v.InferOutput<typeof ProfileRow>,
+): Promise<MyProfile> {
+  "use cache: private";
   const { db } = await bsb.cached();
-  const row = v.parse(ProfileRow, shell.data.profile);
 
   return {
     fullName: row.full_name,

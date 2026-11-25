@@ -63,12 +63,12 @@ export function toOrganizationSummaries(
 /**
  * One page of the caller's organizations, most recently used first: the first
  * 50 of `public.my_organizations`, read by the shell's one call
- * (`public.shell_bootstrap`).
+ * (`public.shell_bootstrap`). It reads the shell's private entry, so it holds
+ * no cache scope of its own.
  */
 export async function getMyOrganizations(): Promise<
   readonly OrganizationSummary[]
 > {
-  "use cache: private";
   const shell = await getShell();
 
   if (!shell.user) {

@@ -54,7 +54,7 @@ export const keptRead = bsbCore.kept(
   (): Promise<Fill> => Promise.resolve({ filledBy: processId(), key: null }),
   {
     name: "durable-probe",
-    tables: ["customers"],
+    tables: ["plans"],
     share: "public",
     life: { revalidate: 3600, expire: 86_400 },
   },
