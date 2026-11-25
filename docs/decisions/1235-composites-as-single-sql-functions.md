@@ -18,8 +18,8 @@ A composite moves to one SQL function when its steps are set-based and run in
 one transaction. The function counts, reads and writes inside the database; the
 composite's TypeScript method becomes one call to it.
 
-`invite_within_seats(tenant, email, role, valid_for)` is the first. It checks the
-caller's invite permission, counts the memberships, reads the `seats`
+`invite_within_seats(tenant, email, role, valid_for)` is the first. It runs with the
+caller's rights (`invite_member` checks the invite permission), counts the memberships, reads the `seats`
 entitlement through `tenant_entitlement_value` and then calls `invite_member`.
 A plan without a numeric `seats` value has no cap. `organizations.inviteWithinSeats`
 runs it, and `saas.inviteWithinSeats` delegates to that method.
@@ -47,3 +47,20 @@ seat when the database serialises them on the count. `invitations` now lists
 `entitlements` as an optional integration. The `invite_within_seats` function is
 public API on the `invitations` module (migration
 `20270120010072_invite_within_seats.sql`).
+
+## offboardEmployee
+
+`offboard_with_work(employee, end_date, reason, window_days)` is the second
+function, in the `employees` module when `enrollments` and `shifts` are also
+installed. It offboards the employee, cancels their active enrollments (not the
+onboarding ones, whose program key holds a `:`) and unassigns their open shifts
+in the next `window_days` days, and returns the three results. `people.offboard`
+makes this one call when the caller passes no id lists, and keeps the step by
+step path when it does. The parts' TypeScript hooks (`employees.offboard`,
+`enrollments.cancel`, `shifts.unassign`) no longer fire for that path; the
+composite's hook does and the SQL hooks of the three functions still run.
+
+Both functions are `security invoker`, so the count of security definer
+functions per module does not grow (`practices-baseline.json` is unchanged).
+Migration `20270120010073_offboard_with_work.sql` also redefines
+`invite_within_seats` as invoker.

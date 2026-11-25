@@ -286,6 +286,24 @@ export interface Employees<
     },
   ): AsyncResult<Employee<F>>;
   /**
+   * `offboard`, then cancels the employee's active enrollments and releases
+   * their assigned or requested shifts that start in the next `windowDays` days
+   * (30 by default), in one database call and one transaction
+   * (`offboard_with_work`, ADR 1235). Needs the enrollments and shifts modules.
+   * Returns the employee and how many of each it ended.
+   */
+  offboardWithWork(
+    input: { employeeId: string } & {
+      readonly endDate?: Temporal.PlainDate;
+      readonly reason?: string;
+      readonly windowDays?: number;
+    },
+  ): AsyncResult<{
+    employee: Employee<F>;
+    enrollments: number;
+    assignments: number;
+  }>;
+  /**
    * Removes the employee for good, for one created by mistake, and moves the
    * reports as `offboard` does. `permissions.purge` gates it, falling back to
    * the write key. Fails with `EMPLOYEE_IN_USE` while other rows point at it.
@@ -670,6 +688,27 @@ export function createEmployees<
         },
         employeeOf,
       ).andThen(parsed),
+    offboardWithWork: ({ employeeId, ...input }) =>
+      call(
+        "offboard_with_work",
+        {
+          employee: employeeId,
+          end_date: input.endDate?.toString() ?? null,
+          reason: input.reason ?? null,
+          window_days: input.windowDays ?? 30,
+        },
+        (value) => {
+          const row = recordOf(value, "offboard_with_work");
+
+          return {
+            employee: employeeOf(row["employee"]),
+            enrollments: Number(row["enrollments"]),
+            assignments: Number(row["assignments"]),
+          };
+        },
+      ).andThen(({ employee, ...counts }) =>
+        parsed(employee).map((read) => ({ employee: read, ...counts })),
+      ),
     purge: (employeeId) =>
       call("purge_employee", { employee: employeeId }, employeeOf).andThen(
         parsed,

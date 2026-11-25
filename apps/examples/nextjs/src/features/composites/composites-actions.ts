@@ -867,9 +867,9 @@ export const onboardEmployee = bsb.action(
 );
 
 /**
- * Ends an employment: `people.offboard` sets the end date, then cancels the
+ * Ends an employment: `people.offboard` sets the end date, cancels the
  * employee's active onboarding runs and releases their open shifts of the next
- * month.
+ * month, in one database call (ADR 1235).
  */
 export const offboardEmployee = bsb.action(
   {
@@ -877,37 +877,7 @@ export const offboardEmployee = bsb.action(
     requireTenant: true,
     permission: "employees.write",
   },
-  async ({ employeeId, endDate, reason }, { db, auth, tenant }) => {
-    const employee = await db.employees.get(employeeId);
-
-    if (!employee.ok) {
-      return employee;
-    }
-
-    const today = Temporal.Now.plainDateISO();
-
-    const [runs, roster] = await Promise.all([
-      db.enrollments.enrollmentPage({
-        filters: { subjectType: ["employee"], subjectId: [employeeId] },
-        limit: 50,
-      }),
-      db.shifts.roster({
-        organizationId: tenant,
-        from: today,
-        until: today.add({ days: 30 }),
-      }),
-    ]);
-
-    if (!runs.ok) {
-      return runs;
-    }
-
-    if (!roster.ok) {
-      return roster;
-    }
-
-    const userId = employee.data.userId;
-
+  async ({ employeeId, endDate, reason }, { db, auth }) => {
     const offboarded = await peopleOf(db).offboard({
       employeeId,
       ...present({
@@ -915,22 +885,6 @@ export const offboardEmployee = bsb.action(
           endDate === undefined ? undefined : Temporal.PlainDate.from(endDate),
         reason,
       }),
-      enrollmentIds: runs.data.items
-        .filter((run) => run.status === "active")
-        .map((run) => run.id),
-      assignmentIds:
-        userId === undefined
-          ? []
-          : roster.data.flatMap((shift) =>
-              shift.assignments
-                .filter(
-                  (assignment) =>
-                    assignment.userId === userId &&
-                    (assignment.status === "assigned" ||
-                      assignment.status === "requested"),
-                )
-                .map((assignment) => assignment.id),
-            ),
     });
 
     if (!offboarded.ok) {

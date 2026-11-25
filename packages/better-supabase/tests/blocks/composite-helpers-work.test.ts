@@ -295,6 +295,38 @@ describe("people", () => {
     });
   });
 
+  it("ends the open work in one call without the id lists", async () => {
+    const offboardWithWork = vi.fn(() =>
+      done({ employee: { id: "emp" }, enrollments: 2, assignments: 1 }),
+    );
+
+    const cancel = vi.fn(() => done({}));
+
+    const people = createPeople(
+      parts({
+        parts: {
+          employees: { offboardWithWork },
+          enrollments: { cancel },
+          shifts: { unassign: vi.fn() },
+        },
+      }),
+    );
+
+    const result = await people.offboard({
+      employeeId: "emp",
+      reason: "left",
+      windowDays: 14,
+    });
+
+    expect(result.data).toMatchObject({ enrollments: 2, assignments: 1 });
+    expect(offboardWithWork).toHaveBeenCalledExactlyOnceWith({
+      employeeId: "emp",
+      reason: "left",
+      windowDays: 14,
+    });
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
   it("stops before the shifts when a cancel fails", async () => {
     const unassign = vi.fn(() => done({}));
 

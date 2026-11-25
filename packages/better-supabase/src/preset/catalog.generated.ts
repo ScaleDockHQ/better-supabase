@@ -5057,7 +5057,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "hiring",
         "time-entries",
         "approvals",
-        "teams"
+        "teams",
+        "enrollments",
+        "shifts"
       ],
       "manifest": "employees",
       "scopes": [

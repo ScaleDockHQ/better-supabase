@@ -1,9 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER } from "../shared.ts";
 import { raise } from "./invitations-tables.ts";
-import { OPERATIONS } from "./permissions-model.ts";
 
 /**
  * `invite_within_seats`: `saas.inviteWithinSeats` as one atomic function (ADR
@@ -20,13 +18,15 @@ export function inviteWithinSeats(ctx: BlockSqlContext): string {
   const validFor = sqlString(ctx.text("validFor", "7 days"));
 
   const cap = ctx.installed("entitlements")
-    ? "cap := better_supabase.tenant_entitlement_value(tenant, 'seats');"
+    ? `cap := ${ctx.of("entitlements").fn("entitlement_value")}(tenant, 'seats');`
     : "cap := null;";
 
   return `
 -- Invites like invite_member when the tenant has a seat left: members counted
 -- against the numeric \`seats\` entitlement, in one transaction. A plan without
--- a numeric seats value has no cap. Pending invitations do not count.
+-- a numeric seats value has no cap. It runs with the caller's rights: the
+-- count sees the memberships the caller can read, the seats entitlement is
+-- the member's read, and invite_member checks the invite permission.
 create or replace function ${ctx.fn("invite_within_seats")}(
   tenant ${id},
   invitee_email text,
@@ -35,18 +35,14 @@ create or replace function ${ctx.fn("invite_within_seats")}(
 )
 returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  service boolean := ${SERVICE_CALLER};
   used integer;
   cap jsonb;
 begin
-  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", OPERATIONS["invitations.invite"])}), false) then
-    ${raise("INVITATION_FORBIDDEN", "Not allowed to invite members")}
-  end if;
   ${cap}
   select count(*) into used from ${m} m where m.${mt} = tenant;
   if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then

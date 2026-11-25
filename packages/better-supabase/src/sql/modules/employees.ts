@@ -711,6 +711,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "org_chart", args: ["{id}", "uuid"], returns: "jsonb" },
     { name: "reports_of", args: ["uuid", "boolean"], returns: "jsonb" },
     ...fromApplication,
+    ...(ctx.installed("enrollments") && ctx.installed("shifts")
+      ? [
+          {
+            name: "offboard_with_work",
+            args: ["uuid", "date", "text", "integer"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     ...privateDetails,
     ...contracts,
   ];
@@ -730,6 +739,8 @@ export const EMPLOYEES: BlockSqlDefinition = {
     "time-entries",
     "approvals",
     "teams",
+    "enrollments",
+    "shifts",
   ],
   target: "schema",
   modes: ["managed", "custom"],

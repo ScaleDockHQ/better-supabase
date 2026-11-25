@@ -1069,7 +1069,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:5f0fc4deb5cae2ff7d4b5a78b391449a0a94de5555d6d9061b86c245f73479c6
+-- @bsb-hash sha256:775b1e791e0ea19ecbd9ff852cf32b6b7becfa2e0a68b5f870aaa57275bd5097
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1974,6 +1974,52 @@ end;
 $$;
 revoke execute on function "better_supabase"."employee_from_application"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."employee_from_application"(uuid, jsonb) to authenticated, service_role;
+
+-- Offboards the employee, cancels their active enrollments and releases their
+-- open shift assignments that start from today to window_days days ahead, in
+-- one transaction. Steps that are already done change nothing, so it can run
+-- again. Returns the employee, and how many enrollments and assignments it
+-- ended.
+create or replace function "better_supabase"."offboard_with_work"(employee uuid, end_date date, reason text, window_days integer default 30)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_employee jsonb;
+  v_user uuid;
+  v_id uuid;
+  v_enrollments integer := 0;
+  v_assignments integer := 0;
+begin
+  v_employee := "better_supabase"."offboard_employee"(offboard_with_work.employee, offboard_with_work.end_date, offboard_with_work.reason);
+  select x."user_id" into v_user from "better_supabase"."employees" x where x."id" = offboard_with_work.employee;
+  for v_id in
+    select x."id" from "better_supabase"."enrollments" x
+    where x."subject_type" = 'employee' and x."subject_id" = offboard_with_work.employee::text and x."status" = 'active'
+      and position(':' in x."program") = 0
+    order by x."id"
+  loop
+    perform "better_supabase"."cancel_enrollment"(v_id);
+    v_enrollments := v_enrollments + 1;
+  end loop;
+  if v_user is not null then
+    for v_id in
+      select x."id" from "better_supabase"."shift_assignments" x
+      where x."user_id" = v_user and x."status" in ('assigned', 'requested')
+        and x."starts_at" >= current_date and x."starts_at" < current_date + offboard_with_work.window_days
+      order by x."starts_at", x."id"
+    loop
+      perform "better_supabase"."unassign_shift"(v_id, offboard_with_work.reason);
+      v_assignments := v_assignments + 1;
+    end loop;
+  end if;
+  return jsonb_build_object('employee', v_employee, 'enrollments', v_enrollments, 'assignments', v_assignments);
+end;
+$$;
+revoke execute on function "better_supabase"."offboard_with_work"(uuid, date, text, integer) from public, anon;
+grant execute on function "better_supabase"."offboard_with_work"(uuid, date, text, integer) to authenticated, service_role;
 
 -- An employee's private details, or null when none are saved.
 create or replace function "better_supabase"."employee_private_details"(employee uuid)

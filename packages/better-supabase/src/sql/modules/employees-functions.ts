@@ -11,6 +11,7 @@ import {
 import { fail, insertExtraColumns, userGrant } from "../shared.ts";
 import { subjectTitle } from "../subject-check-sql.ts";
 import { hasValueEntry } from "../value-maps.ts";
+import { offboardWithWork } from "./employees-offboard-work.ts";
 import { reportsMoveUp, splitName } from "./employees-options.ts";
 import { hiringCandidate } from "./hiring-adoption.ts";
 import { asText } from "./over-app.ts";
@@ -719,7 +720,7 @@ begin
 end;
 $$;
 ${userGrant(`${fn("reports_of")}(uuid, boolean)`)}
-${fromApplication(ctx, n)}`;
+${fromApplication(ctx, n)}${offboardWithWork(ctx, n)}`;
 }
 
 /**

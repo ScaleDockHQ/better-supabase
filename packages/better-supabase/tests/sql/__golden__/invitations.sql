@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:3c099a9ff7882382c30cabe2e150800c399b182d54b9d1e7efb655aa09c2b98a
+-- @bsb-hash sha256:67414c2af726d72970954f1de039b9586c852ad066212300e592c99b9f4afdf7
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -225,7 +225,9 @@ $$;
 
 -- Invites like invite_member when the tenant has a seat left: members counted
 -- against the numeric `seats` entitlement, in one transaction. A plan without
--- a numeric seats value has no cap. Pending invitations do not count.
+-- a numeric seats value has no cap. It runs with the caller's rights: the
+-- count sees the memberships the caller can read, the seats entitlement is
+-- the member's read, and invite_member checks the invite permission.
 create or replace function "better_supabase"."invite_within_seats"(
   tenant uuid,
   invitee_email text,
@@ -234,18 +236,14 @@ create or replace function "better_supabase"."invite_within_seats"(
 )
 returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   used integer;
   cap jsonb;
 begin
-  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
-    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
-  end if;
   cap := null;
   select count(*) into used from "better_supabase"."memberships" m where m."organization_id" = tenant;
   if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
@@ -773,7 +771,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:ce93e12ba8259ca6f4a9abb84329ec2c5ae753605b8075d216681b83e622df94
+-- @bsb-hash sha256:8e40d1a4a692262cd6a349c8c9d5a9dcfba46858710751b03aed9fd67433e848
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1019,7 +1017,9 @@ $$;
 
 -- Invites like invite_member when the tenant has a seat left: members counted
 -- against the numeric `seats` entitlement, in one transaction. A plan without
--- a numeric seats value has no cap. Pending invitations do not count.
+-- a numeric seats value has no cap. It runs with the caller's rights: the
+-- count sees the memberships the caller can read, the seats entitlement is
+-- the member's read, and invite_member checks the invite permission.
 create or replace function "better_supabase"."invite_within_seats"(
   tenant uuid,
   invitee_email text,
@@ -1028,19 +1028,15 @@ create or replace function "better_supabase"."invite_within_seats"(
 )
 returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   used integer;
   cap jsonb;
 begin
-  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
-    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
-  end if;
-  cap := better_supabase.tenant_entitlement_value(tenant, 'seats');
+  cap := "better_supabase"."entitlement_value"(tenant, 'seats');
   select count(*) into used from "better_supabase"."memberships" m where m."organization_id" = tenant;
   if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
     raise exception 'The plan has no seat left' using errcode = '22023', hint = 'INVITATION_NO_SEAT';
@@ -1638,7 +1634,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:984376479f11a2a7f50effcfbdc82f9c7d149a0add350abf62b6f2a5cec72d74
+-- @bsb-hash sha256:e5e5a6b77550ff085f8006b13ca7f429b61b46724bbd72c6d7c861d720cd963c
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1868,7 +1864,9 @@ $$;
 
 -- Invites like invite_member when the tenant has a seat left: members counted
 -- against the numeric `seats` entitlement, in one transaction. A plan without
--- a numeric seats value has no cap. Pending invitations do not count.
+-- a numeric seats value has no cap. It runs with the caller's rights: the
+-- count sees the memberships the caller can read, the seats entitlement is
+-- the member's read, and invite_member checks the invite permission.
 create or replace function "app_private"."invite_within_seats"(
   tenant uuid,
   invitee_email text,
@@ -1877,18 +1875,14 @@ create or replace function "app_private"."invite_within_seats"(
 )
 returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   used integer;
   cap jsonb;
 begin
-  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
-    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
-  end if;
   cap := null;
   select count(*) into used from "better_supabase"."memberships" m where m."organization_id" = tenant;
   if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
@@ -2416,7 +2410,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:f7b0fbf55c2487d5c8aae3436d2cbb544b142559cf86f6f9200217a8fb9c54b0
+-- @bsb-hash sha256:47b0c41d4504c1a999eec9a490c48ee2faf4573acf2b96dec175bb18cb38c381
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2640,7 +2634,9 @@ $$;
 
 -- Invites like invite_member when the tenant has a seat left: members counted
 -- against the numeric `seats` entitlement, in one transaction. A plan without
--- a numeric seats value has no cap. Pending invitations do not count.
+-- a numeric seats value has no cap. It runs with the caller's rights: the
+-- count sees the memberships the caller can read, the seats entitlement is
+-- the member's read, and invite_member checks the invite permission.
 create or replace function "better_supabase"."invite_within_seats"(
   tenant uuid,
   invitee_email text,
@@ -2649,18 +2645,14 @@ create or replace function "better_supabase"."invite_within_seats"(
 )
 returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   used integer;
   cap jsonb;
 begin
-  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
-    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
-  end if;
   cap := null;
   select count(*) into used from "better_supabase"."memberships" m where m."organization_id" = tenant;
   if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
@@ -3324,7 +3316,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:a02788727e22dab06b45861426702d0967c239d6fa52fbe0ebb90e5d1c0afdb4
+-- @bsb-hash sha256:75a2b7e769ab42c5e5dcc4a4b4c924550f0c1644f251d879007ec9af4a9900c5
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3544,7 +3536,9 @@ $$;
 
 -- Invites like invite_member when the tenant has a seat left: members counted
 -- against the numeric `seats` entitlement, in one transaction. A plan without
--- a numeric seats value has no cap. Pending invitations do not count.
+-- a numeric seats value has no cap. It runs with the caller's rights: the
+-- count sees the memberships the caller can read, the seats entitlement is
+-- the member's read, and invite_member checks the invite permission.
 create or replace function "better_supabase"."invite_within_seats"(
   tenant uuid,
   invitee_email text,
@@ -3553,18 +3547,14 @@ create or replace function "better_supabase"."invite_within_seats"(
 )
 returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   used integer;
   cap jsonb;
 begin
-  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
-    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
-  end if;
   cap := null;
   select count(*) into used from "better_supabase"."memberships" m where m."organization_id" = tenant;
   if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
@@ -4096,7 +4086,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:4a7650eaac2fbedb06a96c2074e7cfbfcd2abc770da019b05b7cd83479aba920
+-- @bsb-hash sha256:436699698e57e232ab2a8b7b79aed8312b4f84cc12a64a7e6e028a68cd45bfe6
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4320,7 +4310,9 @@ $$;
 
 -- Invites like invite_member when the tenant has a seat left: members counted
 -- against the numeric `seats` entitlement, in one transaction. A plan without
--- a numeric seats value has no cap. Pending invitations do not count.
+-- a numeric seats value has no cap. It runs with the caller's rights: the
+-- count sees the memberships the caller can read, the seats entitlement is
+-- the member's read, and invite_member checks the invite permission.
 create or replace function "better_supabase"."invite_within_seats"(
   tenant uuid,
   invitee_email text,
@@ -4329,18 +4321,14 @@ create or replace function "better_supabase"."invite_within_seats"(
 )
 returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   used integer;
   cap jsonb;
 begin
-  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
-    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
-  end if;
   cap := null;
   select count(*) into used from "better_supabase"."memberships" m where m."org_id" = tenant;
   if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then

@@ -121,4 +121,5 @@ Admin, `next start`, `actions.spec.ts`. After the composite is one call, the res
 
 | Action            | Calls before | Calls after | Waves before to after | Commit    |
 | ----------------- | ------------ | ----------- | --------------------- | --------- |
-| inviteWithinSeats | 10           | 7           | 6 to 3                | (this PR) |
+| inviteWithinSeats | 10           | 7           | 6 to 3                | aca51816e |
+| offboardEmployee  | 12           | 8           | 4 to 2                | (next)    |

@@ -39,10 +39,12 @@ export interface People {
     dates?: EnrollmentDates | undefined;
   }): AsyncResult<Onboarded>;
   /**
-   * Offboards the employee (`employees.offboard`), then cancels each of
-   * `enrollmentIds` and unassigns each of `assignmentIds` (the open ones the
-   * app lists for the employee). Each step is idempotent, so a retry finishes
-   * the rest.
+   * Offboards the employee, cancels their active enrollments and releases their
+   * assigned or requested shifts of the next `windowDays` days (30 by default),
+   * in one database call and one transaction (`employees.offboardWithWork`, ADR
+   * 1235). With `enrollmentIds` or `assignmentIds` it offboards the employee
+   * and then cancels and unassigns exactly those (the open ones the app lists),
+   * step by step; each step is idempotent, so a retry finishes the rest.
    */
   offboard(input: {
     employeeId: string;
@@ -50,6 +52,7 @@ export interface People {
     reason?: string | undefined;
     enrollmentIds?: readonly string[] | undefined;
     assignmentIds?: readonly string[] | undefined;
+    windowDays?: number | undefined;
   }): AsyncResult<Offboarded>;
 }
 
@@ -92,10 +95,20 @@ export function createPeople(options: PeopleOptions): People {
       employeeId,
       endDate,
       reason,
-      enrollmentIds = [],
-      assignmentIds = [],
+      enrollmentIds,
+      assignmentIds,
+      windowDays,
     }) =>
       Async.from(async () => {
+        if (enrollmentIds === undefined && assignmentIds === undefined) {
+          return employees.offboardWithWork({
+            employeeId,
+            ...(endDate === undefined ? {} : { endDate }),
+            ...(reason === undefined ? {} : { reason }),
+            ...(windowDays === undefined ? {} : { windowDays }),
+          });
+        }
+
         const employee = await employees.offboard({
           employeeId,
           ...(endDate === undefined ? {} : { endDate }),
@@ -106,7 +119,7 @@ export function createPeople(options: PeopleOptions): People {
           return employee;
         }
 
-        for (const enrollmentId of enrollmentIds) {
+        for (const enrollmentId of enrollmentIds ?? []) {
           const cancelled = await enrollments.cancel(enrollmentId);
 
           if (!cancelled.ok) {
@@ -114,7 +127,7 @@ export function createPeople(options: PeopleOptions): People {
           }
         }
 
-        for (const assignmentId of assignmentIds) {
+        for (const assignmentId of assignmentIds ?? []) {
           const removed = await shifts.unassign({
             assignmentId,
             ...(reason === undefined ? {} : { reason }),
@@ -127,8 +140,8 @@ export function createPeople(options: PeopleOptions): People {
 
         return ok({
           employee: employee.data,
-          enrollments: enrollmentIds.length,
-          assignments: assignmentIds.length,
+          enrollments: enrollmentIds?.length ?? 0,
+          assignments: assignmentIds?.length ?? 0,
         });
       }),
   };
