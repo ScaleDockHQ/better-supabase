@@ -720,6 +720,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           },
         ]
       : []),
+    ...(ctx.installed("enrollments")
+      ? [
+          {
+            name: "onboard_with_program",
+            args: ["{id}", "jsonb", "text", "jsonb"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     ...privateDetails,
     ...contracts,
   ];

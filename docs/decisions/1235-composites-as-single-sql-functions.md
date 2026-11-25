@@ -73,3 +73,12 @@ module. It lists the unmatched transactions, takes the first suggestion of
 a failed match is reported in `failed` and the rest stay. `finance.reconcile`
 delegates to the new `banking.reconcile`. The hooks of `banking.reviewQueue` and
 `banking.acceptBestMatch` no longer fire there.
+
+## onboardEmployee
+
+`onboard_with_program(tenant, attrs, program, dates)` sits in the `employees`
+module when `enrollments` is installed. It calls `create_employee`, `enroll`
+and `set_enrollment_dates`. `people.onboard` delegates to
+`employees.onboardWithProgram`. The call is atomic, so a failed enrollment rolls
+the employee back; before, the employee stayed created and the caller had to
+retry the enrollment.
