@@ -46,12 +46,14 @@ Not done, with reasons:
 
 ## Todos not done in this pass
 
-| Todo                                                   | Status  | Reason                                                                                                                                                                               |
-| ------------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| read-set-gaps                                          | skipped | Needs the permission snapshot and read sets reworked on a page by page basis; the bitset already answers the proxy gate and the member snapshot without `my_permissions()`.          |
-| page-spike, page-rollout, action-composites            | skipped | The measured waves per page are 1 (median) for admin and 2 for member; the database time of the slow routes is execution bound in the policy size above, not in the number of calls. |
-| db-track, cache-track, cache-tiers, cache-invalidation | skipped | Depend on a page rollout that was not done.                                                                                                                                          |
-| size-bundles, report-leftovers                         | partial | The bundle size baselines were not run in this pass. `permission-bitset.ts` adds a small md5 to the claims entry, so run `tests/bundle` before merging.                              |
+| Todo                                                       | Status  | Reason                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| read-set-gaps (record entry, dependent entry, keyset page) | partial | The record entry exists (`s.record`, `record_summary`). The record server page read is done: `heldPermissions` removes the six `my_permissions` calls per `/customers/[id]` render (ADR 1234). A dependent entry and a keyset page entry are skipped: the spike below shows no page that one would speed up. |
+| page-spike                                                 | done    | See "Page spike" below.                                                                                                                                                                                                                                                                                      |
+| page-rollout                                               | skipped | The spike finds no route where one call is faster than the parallel calls.                                                                                                                                                                                                                                   |
+| action-composites                                          | skipped | Baselines are measured (see "Action baselines"); no composite is written. Each is a new SQL function over a block's tables (`invite_member`, entitlements, notifications), which lives in `src/sql/modules` and needs its own ADR, migration and pgTAP test.                                                 |
+| cache-track remainder, cache-tiers, cache-invalidation     | skipped | Not started in this pass. Bare `refresh()` count measured: 139 calls in 98 files, against 372 tag-based refreshes in 126 files.                                                                                                                                                                              |
+| size-bundles, report-leftovers                             | partial | The bundle size baselines were not run in this pass. `permission-bitset.ts` adds a small md5 to the claims entry, so run `tests/bundle` before merging.                                                                                                                                                      |
 
 ## Shell bootstrap (ADR 1233)
 
@@ -67,3 +69,48 @@ Not done, with reasons:
 | `/crm/deals`        | 16           | 14          | 1 to 1                        |
 
 A first attempt where each reader called `bootShell()` left calls unchanged: React `cache()` does not span `'use cache: private'` scopes.
+
+## Record flags without `my_permissions` (ADR 1234)
+
+`bsb.record(type).load()` asked `my_permissions({ tenant, keys })` in every private
+scope, although the token claim and the shell entry hold the keys. Six calls per
+render on `/customers/[id]` (fetch log of the harness run, admin and member).
+`NextOptions.heldPermissions` now answers first. After: 0 `my_permissions` calls
+in the whole run; waves on `/customers/[id]` 3 to 2. The header count rises from
+11 to 15 because the deferred sections now start before the header is written,
+not because a call was added.
+
+## Page spike
+
+Database time of the parallel calls, from `db-time` (admin, pg statements):
+
+| Route                   | Statements | Exec ms (sum) | Plan ms | Buffers | Waves                       |
+| ----------------------- | ---------- | ------------- | ------- | ------- | --------------------------- |
+| `/crm/deals`            | 14         | 37.5          | 3.0     | 4363    | 1                           |
+| `/customers/[id]`       | 17         | 21.7          | 4.0     | 6113    | 2 after item 1 and ADR 1234 |
+| `/inbox/[conversation]` | 19         | 83.8          | 4.6     | 7330    | 2                           |
+
+One call runs its entries in one backend, one after the other, so its database
+time is at least the sum of the executions. The parallel calls cost the longest
+wave. `/crm/deals` has one wave, so a read set would add the other 13 calls to
+the slowest one. `/inbox/[conversation]` has two dependent reads and 84 ms of
+execution, mostly one statement. `/customers/[id]` is the only route near
+break-even on database time, and its remaining calls are deferred sections that
+stream after the shell, which a read set would put back in front of it.
+Exceptions (parallel calls kept): all three, for the reasons above.
+
+## Action baselines
+
+Admin, `next start`, calls and waves per action (`actions.spec.ts`):
+
+| Action                | Calls | Waves | ms    |
+| --------------------- | ----- | ----- | ----- |
+| inviteWithinSeats     | 10    | 6     | 141.7 |
+| discussCase           | 5     | 2     | 59.3  |
+| openTicket            | 6     | 3     | 57.2  |
+| payDueBills           | 7     | 4     | 56.0  |
+| reconcileAccount      | 11    | 3     | 51.4  |
+| onboardEmployee       | 10    | 3     | 45.4  |
+| offboardEmployee      | 12    | 4     | 38.4  |
+| closeAccountingPeriod | 4     | 3     | 33.5  |
+| bookWithReminder      | 9     | 2     | 21.9  |
