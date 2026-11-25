@@ -346,8 +346,11 @@ export const weekUtilization = bsb.action(
 );
 
 /**
- * Approves a submitted week and invoices the unbilled time:
- * `projects.approveAndInvoice`. A refused approval invoices nothing.
+ * Approves a submitted week and invoices the unbilled time. This app runs time
+ * entries with approvals on, where `projects.approveAndInvoice` (built on
+ * `timeEntries.approve`) refuses: the week's pending approval request is
+ * decided instead, and its final step locks the week. A refused approval
+ * invoices nothing.
  */
 export const approveAndInvoiceTimesheet = bsb.action(
   {
@@ -359,21 +362,38 @@ export const approveAndInvoiceTimesheet = bsb.action(
     permission: "time_entries.approve",
   },
   async ({ timesheetId, title }, { db, auth }) => {
-    const done = await projectsOf(db).approveAndInvoice({
-      timesheetId,
-      invoice: title === undefined || title === "" ? undefined : { title },
+    const decided = await db.$blocks.approvals.decideForSubject({
+      subject: { type: "timesheet", id: timesheetId },
+      action: "approve",
+      decision: "approve",
     });
 
-    if (!done.ok) {
-      return done;
+    if (!decided.ok) {
+      return decided;
+    }
+
+    if (decided.data.status !== "approved") {
+      const message =
+        "The week needs another approval step before it can be invoiced.";
+
+      return err(
+        invalidInput(message, [
+          { path: ["timesheetId"], code: "APPROVAL_PENDING", message },
+        ]),
+      );
+    }
+
+    const invoiced = await db.$blocks.billableTime.invoice(
+      title === undefined || title === "" ? undefined : { title },
+    );
+
+    if (!invoiced.ok) {
+      return invoiced;
     }
 
     await refreshCaller(auth, [PROJECTS_TAG, FINANCE_RECORDS_TAG]);
 
-    return ok({
-      timesheetId: done.data.timesheet.id ?? timesheetId,
-      invoiceId: done.data.invoice.invoiceId,
-    });
+    return ok({ timesheetId, invoiceId: invoiced.data.invoiceId });
   },
 );
 
