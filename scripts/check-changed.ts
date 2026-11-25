@@ -187,6 +187,21 @@ const hasScript = (workspace: string, script: string): boolean => {
   return manifest.scripts?.[script] !== undefined;
 };
 
+/**
+ * `vitest related` reruns every test for a Vitest config or a file the config
+ * imports; CI runs those.
+ */
+const inVitestConfig = (workspace: string, file: string): boolean => {
+  const config = join(repoRoot, workspace, "vitest.config.ts");
+  const path = relative(workspace, file);
+
+  return (
+    path === "vitest.config.ts" ||
+    (existsSync(config) &&
+      readFileSync(config, "utf-8").includes(`"./${path}"`))
+  );
+};
+
 export const planSteps = (files: string[]): Step[] => {
   const steps: Step[] = [];
 
@@ -277,7 +292,10 @@ export const planSteps = (files: string[]): Step[] => {
         set.add(relative(workspace, mirror));
       }
 
-      if (importerCount(workspace, file) <= RELATED_IMPORTER_CAP) {
+      if (
+        !inVitestConfig(workspace, file) &&
+        importerCount(workspace, file) <= RELATED_IMPORTER_CAP
+      ) {
         set.add(`related:${relative(workspace, file)}`);
       }
     }

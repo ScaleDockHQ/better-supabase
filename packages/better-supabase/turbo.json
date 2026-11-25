@@ -12,6 +12,7 @@
         "INIT_FIXTURE_UPDATE"
       ],
       "dependsOn": ["$TURBO_EXTENDS$", "build"],
+      "outputs": [".vitest/blob/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/registry/registry.json",

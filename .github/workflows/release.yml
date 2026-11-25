@@ -88,13 +88,11 @@ jobs:
     with:
       affected: ${{ needs.base.outputs.affected == 'true' }}
       base: ${{ needs.base.outputs.base }}
-      full: true
     secrets:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
-  # The whole unit suite runs only here, so a regression that a pull request's selected tests missed
-  # shows up as one open `main-red` issue with the run and the commit, closed by the next green run.
-  # The fix adds the owner rule or import that selected the wrong tests (scripts/select-tests.ts).
+  # A regression that passed its pull request, for example two merges that each pass alone, shows
+  # up as one open `main-red` issue with the run and the commit, closed by the next green run.
   main-red:
     name: Report main status
     needs: verify
@@ -191,7 +189,8 @@ jobs:
     needs: select-mode
     if: needs.select-mode.outputs.mode == 'publish' && vars.NPM_PUBLISH == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # About 6 minutes at p90.
+    timeout-minutes: 10
     # A poisoned cache never reaches a publish.
     cache-mode: none
     # The environment only gates the OIDC trust; the run is not a deployment.

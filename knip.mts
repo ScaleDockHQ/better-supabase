@@ -42,6 +42,8 @@ const config: KnipConfig = {
     "packages/better-supabase/src/lint/index.ts": ["duplicates"],
     // WORKFLOW_TARGET_WORLD loads the default export; the named one is for imports.
     "packages/better-supabase/src/workflow-sdk/world/index.ts": ["duplicates"],
+    // The coverage job passes `scripts/unit-durations.ts` as a Vitest reporter through $TIMES_REPORTER.
+    ".github/workflows/verify.yml": ["unresolved"],
   },
   workspaces: {
     ".": { entry: ["scripts/*.{ts,mjs}"] },

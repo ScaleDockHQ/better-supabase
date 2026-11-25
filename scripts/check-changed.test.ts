@@ -55,6 +55,15 @@ describe("planSteps", () => {
     expect(names).toContain("typecheck packages/better-supabase");
   });
 
+  it("runs no related tests for a Vitest config or a file it imports", () => {
+    const names = planSteps([
+      "packages/better-supabase/vitest.config.ts",
+      "packages/better-supabase/tests/unit-shard.ts",
+    ]).map((step) => step.name);
+
+    expect(names.some((name) => name.includes("related"))).toBe(false);
+  });
+
   it("passes lint when every changed file is lint-ignored", () => {
     const lint = planSteps([
       "apps/examples/nextjs/public/sw.js",

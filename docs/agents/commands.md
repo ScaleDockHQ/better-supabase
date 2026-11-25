@@ -5,8 +5,8 @@ what it checks.
 
 - `pnpm install`: install (pnpm 12, Node 26).
 - `pnpm check`: lint, typecheck and the mirrored tests of the changed workspaces (`node scripts/check-changed.ts`; related tests only when at most 3 source files import a file, directly or through each other). About 7 s on one library file. Hooks run it.
-- `pnpm check:format`: the old `ultracite check`. `pnpm --filter better-supabase test:coverage`: unit tests with coverage (the whole suite on `main`). `pnpm ci:baseline`: p50 and p95 job times of recent runs. `node scripts/select-tests.ts`: the library tests a diff selects, or `full`. `pnpm check:test-budget`: fails when the library tests grow more than 2% past `scripts/test-budget.json` (`--update` resets it). `pnpm ci:wait`: watch the PR checks and print failed jobs.
-- `pnpm verify`: the full gate. `main` runs it whole and a pull request runs the lanes plus the selected library tests (ADR 1095); run it locally only to reproduce a failure. It runs the format check, lint
+- `pnpm check:format`: the old `ultracite check`. `pnpm --filter better-supabase test:coverage`: unit tests with coverage (CI runs it in 18 shards, ADR 1230). `pnpm ci:baseline`: p50 and p95 job times of recent runs. `node scripts/select-tests.ts`: the library tests a diff selects for `pnpm check`, or `full`. `node scripts/unit-durations.ts --check|--write`: the unit time budget and the shard baseline (ADR 1230). `pnpm check:test-budget`: fails when the library tests grow more than 2% past `scripts/test-budget.json` (`--update` resets it). `pnpm ci:wait`: watch the PR checks and print failed jobs.
+- `pnpm verify`: the full gate. CI runs it whole on pull requests and on `main` (ADR 1230); run it locally only to reproduce a failure. It runs the format check, lint
   (type-aware Oxlint on the Ultracite presets in the root `oxlint.config.ts`), the prose check, the PermDock name check, typecheck,
   Knip, Turbo boundaries, tests, doctor and `pnpm audit`. Every step except
   the format check, boundaries and audit is a cached Turbo task with
