@@ -3283,6 +3283,23 @@ instance. Doctor can't see the instance count, so it reports every app that
 keeps entries without a durable store. See
 [Keep reads across requests and deploys](/docs/concepts/caching#keep-reads-across-requests-and-deploys).
 
+### BS648
+
+**Warning: `updateTag` or `revalidateTag` beside `bsb.kept`.** A source calls
+one of them from `next/cache` and the app keeps reads with `bsb.kept()`. The
+call expires Next's cache and leaves the kept entry, which the store keeps for
+every instance until its life ends. Call `await bsb.expireTags([...])`, which
+expires both and resolves once the store has the tags.
+`better-supabase codemod expire-tags` lists each call with its replacement.
+
+### BS649
+
+**Warning: `refresh()` without expiring tags beside `bsb.kept`.** A file calls
+`refresh()` from `next/cache`, expires no tags, and the app keeps reads with
+`bsb.kept()`. The re-render reads the kept entries again, so the page shows the
+data from before the write. Expire what the write changed with
+`bsb.expireTags()` (or name `invalidates` on `bsb.action`), then refresh.
+
 ### BS633
 
 **Info: an app row trigger has no `importing()` guard.** An import writes many

@@ -753,6 +753,11 @@ export function createNext<
 
     kept: kept.kept,
 
+    async expireTags(tags, expireOptions = {}) {
+      invalidateAll(tags, expireOptions.revalidate);
+      await kept.expireTagsNow(tags);
+    },
+
     statsFetch: recording.statsFetch,
 
     phase: recording.inPhase,

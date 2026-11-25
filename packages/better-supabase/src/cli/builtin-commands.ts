@@ -218,6 +218,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       ),
   ],
   [
+    "codemod expire-tags",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("expire-tags"),
+      ),
+  ],
+  [
     "codemod read-many",
     () =>
       import("./commands/codemod.ts").then((m) =>

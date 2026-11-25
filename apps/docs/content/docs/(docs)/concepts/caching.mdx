@@ -213,6 +213,27 @@ enclosing entry, so a write expires both. In a scope that can't read the
 request, pass the handle from `bsb.sessionHandle()`:
 `openInvoices.as(session)(customerId)`.
 
+### Expire kept entries from your own writes
+
+A `bsb.action` with `invalidates` and the repository writes expire the kept
+entries of the tables they touch. When you expire by hand, call
+`bsb.expireTags()` instead of `updateTag` or `revalidateTag`: those expire
+Next's cache and leave the kept entry, which a shared store holds for every
+instance.
+
+```ts
+await db.notes.update(id, patch).orThrow();
+await bsb.expireTags([`bsb:notes`, `bsb:notes:${id}`]);
+```
+
+It calls `updateTag` in a Server Action and `revalidateTag` in a Route
+Handler, expires the kept store, and resolves once the store has the tags, so
+the next read on another instance fills again. Both calls count in the
+request's `tagCalls` and `expiredTags`. Doctor reports the old calls
+([BS648](/docs/cli/doctor#bs648)) and a `refresh()` that expires nothing
+([BS649](/docs/cli/doctor#bs649)); `better-supabase codemod expire-tags` lists
+each call with its replacement.
+
 ### Share an entry per tenant
 
 With `share: "tenant"`, callers who hold the same permissions in a tenant read

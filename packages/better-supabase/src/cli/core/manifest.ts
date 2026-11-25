@@ -971,6 +971,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "expire-tags",
+        description:
+          "List updateTag and revalidateTag calls that bsb.expireTags replaces, so the kept store expires too",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "read-many",
         description:
           "List Promise.all groups of repository reads that db.$many or a read set can load in one round trip",

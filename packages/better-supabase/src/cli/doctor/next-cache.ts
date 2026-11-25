@@ -6,6 +6,7 @@ import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { lineColumn, parseSource } from "../config-document/parse.ts";
 import { CLIENT_BARREL_RULES } from "./client-barrels.ts";
+import { KEPT_EXPIRY_RULES } from "./kept-expiry.ts";
 import { PUBLIC_KEPT_RULES } from "./public-kept.ts";
 
 /** The `next.config` file names Next.js loads, in its order. */
@@ -411,4 +412,5 @@ export const NEXT_CACHE_RULES: readonly Rule[] = [
   },
   ...CLIENT_BARREL_RULES,
   ...PUBLIC_KEPT_RULES,
+  ...KEPT_EXPIRY_RULES,
 ];

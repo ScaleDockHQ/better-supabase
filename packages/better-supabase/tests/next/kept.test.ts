@@ -224,3 +224,52 @@ describe("bsb.kept()", () => {
     ]);
   });
 });
+
+const waitTick = (): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 2);
+  });
+
+describe("bsb.expireTags()", () => {
+  const store = memoryKeptStore();
+
+  const make = () =>
+    createNext(createSupabase(schema), {
+      env,
+      cacheTags: false,
+      auth: { jwks: signer.jwks },
+      kept: { store },
+    });
+
+  const reader = make();
+  const writer = make();
+  const fill = vi.fn((id: string) => Promise.resolve({ id }));
+
+  const read = reader.kept((_ctx, id: string) => fill(id), {
+    name: "customer",
+    tables: ["customers"],
+  });
+
+  beforeEach(() => {
+    mocks.headers = new Headers();
+    fill.mockClear();
+  });
+
+  it("makes another instance's next read fill again", async () => {
+    await signIn(ALICE);
+    await read("c1");
+    await read("c1");
+    expect(fill).toHaveBeenCalledOnce();
+
+    await waitTick();
+    await writer.expireTags(["bsb:customers"]);
+    await waitTick();
+    await read("c1");
+
+    expect(fill).toHaveBeenCalledTimes(2);
+  });
+
+  it("resolves with no tags", async () => {
+    await expect(writer.expireTags([])).resolves.toBeUndefined();
+  });
+});

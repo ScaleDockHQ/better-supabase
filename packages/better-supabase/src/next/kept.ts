@@ -91,6 +91,8 @@ export interface KeptBinding<Ctx> {
    * kept function already ran. Failures are logged.
    */
   readonly expireTags: (tags: readonly string[]) => void;
+  /** The same, resolving once the store has expired them; rejects on failure. */
+  readonly expireTagsNow: (tags: readonly string[]) => Promise<void>;
 }
 
 /** The calls a store makes for `tags`: one per batch of 16. */
@@ -165,21 +167,21 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
     return version;
   };
 
-  const expireTags = (tags: readonly string[]): void => {
+  const expireTagsNow = async (tags: readonly string[]): Promise<void> => {
     if (tags.length === 0 || (!cache && !deps.options?.store)) {
       return;
     }
 
-    cacheOf()
-      .expireTags(tags)
-      .then(() => {
-        deps.onTagCalls?.(batches(tags), tags);
-      })
-      .catch((cause: unknown) => {
-        deps.events.logger.warn("bsb.kept() could not expire its tags", {
-          cause,
-        });
+    await cacheOf().expireTags(tags);
+    deps.onTagCalls?.(batches(tags), tags);
+  };
+
+  const expireTags = (tags: readonly string[]): void => {
+    expireTagsNow(tags).catch((cause: unknown) => {
+      deps.events.logger.warn("bsb.kept() could not expire its tags", {
+        cause,
       });
+    });
   };
 
   const kept = <A extends readonly unknown[], R>(
@@ -344,5 +346,5 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
     });
   };
 
-  return { kept, expireTags };
+  return { kept, expireTags, expireTagsNow };
 }

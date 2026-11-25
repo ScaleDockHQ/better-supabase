@@ -583,6 +583,21 @@ export interface BetterNext<
    */
   statsFetch(fetch?: typeof globalThis.fetch): typeof globalThis.fetch;
   /**
+   * Expires `tags` in Next's cache (`updateTag` in a Server Action,
+   * `revalidateTag` in a Route Handler) and in the kept store, and resolves
+   * once the store has them, so another instance's next `bsb.kept()` read
+   * misses. Use it where you wrote `updateTag` or `revalidateTag` next to a
+   * `bsb.kept()` read: those calls alone leave the kept entry in place. Both
+   * calls count in the request's `tagCalls` and `expiredTags`.
+   *
+   * @example
+   *   await bsb.expireTags(["bsb:notes", `bsb:notes@${tenantId}`]);
+   */
+  expireTags(
+    tags: readonly string[],
+    options?: { readonly revalidate?: RevalidateProfile },
+  ): Promise<void>;
+  /**
    * Marks the database calls `run` starts as `phase` in the request's stats and
    * trace, so a wrapper (an authorization check, a write) shows its own share.
    * Calls in `bsb.action` are `action` unless a wrapper inside says otherwise.
