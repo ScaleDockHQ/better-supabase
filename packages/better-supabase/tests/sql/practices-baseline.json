@@ -428,7 +428,7 @@
   },
   "quotes": {
     "security-definer-functions": 151,
-    "row-triggers": 6
+    "row-triggers": 12
   },
   "rank": {
     "security-definer-functions": 4

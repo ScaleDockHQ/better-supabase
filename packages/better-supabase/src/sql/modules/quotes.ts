@@ -490,7 +490,7 @@ function quoteTotals(ctx: BlockSqlContext): "block" | "app" {
  * gives it. The public link token and the customer's decision come from
  * send_quote and the decision functions, so an insert outside an import or the
  * service role clears them, and `variantOf` must name a quote of the same
- * tenant.
+ * tenant that the writer can read (the trigger runs as the invoker).
  */
 function clientGuard(ctx: BlockSqlContext, n: QuoteNames): string {
   const { t, c } = n;
@@ -523,7 +523,7 @@ function clientGuard(ctx: BlockSqlContext, n: QuoteNames): string {
 create or replace function ${fn}()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 begin
