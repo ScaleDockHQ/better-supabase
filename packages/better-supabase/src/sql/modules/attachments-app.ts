@@ -6,7 +6,11 @@ import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import { installedTables, laterTables } from "../later-tables.ts";
 import { fail, quotedTable, SERVICE_CALLER } from "../shared.ts";
-import { subjectReadable, subjectsOption } from "../subjects.ts";
+import {
+  gatedSubjectKeys,
+  subjectReadable,
+  subjectsOption,
+} from "../subjects.ts";
 
 /**
  * A row of `table` as JSON under the module's default column names, which the
@@ -237,6 +241,31 @@ function withInferredId(entry: Subject, layout: BlockSqlLayout): Subject {
 }
 
 /**
+ * The subjects whose table exists when the module's file runs. A block-schema
+ * table no installed block creates, such as `tasks` when the block is only
+ * installed as a renamed instance, would fail an early-bound policy, so its
+ * type goes through the fallback too.
+ */
+function earlySubjects(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+  subjects: readonly (readonly [string, Subject])[],
+  module = "attachments",
+): readonly (readonly [string, Subject])[] {
+  const later = laterTables(ctx, layout, module);
+  const known = installedTables(ctx, layout);
+  const own = `"${ctx.schemaName}".`;
+
+  return subjects
+    .filter(([, entry]) => {
+      const table = quotedTable(entry.table);
+
+      return !later.has(table) && (!table.startsWith(own) || known.has(table));
+    })
+    .map(([type, entry]) => [type, withInferredId(entry, layout)] as const);
+}
+
+/**
  * The policy form of `attachment_subject_readable` over the row's columns (ADR
  * 0424): the subjects whose table exists inline, a later module's subject types
  * through `fallback`, which binds late.
@@ -262,68 +291,77 @@ export function inlineSubjectReadable(
     readonly typeNotNull?: boolean;
     /** The record team check of a type, or-ed with its permission. */
     readonly team?: (type: string, id: string) => string | undefined;
+    /** Types whose permission the caller checks as a set outside. */
+    readonly gated?: ReadonlySet<string>;
+    /** Plpgsql statements with one `return` per type (`subjectReadable`). */
+    readonly statements?: boolean;
   } = {},
 ): string {
   if (subjects.length === 0) {
     return "true";
   }
 
-  const later = laterTables(ctx, layout, options.module ?? "attachments");
-
-  const known = installedTables(ctx, layout);
-  const own = `"${ctx.schemaName}".`;
-
-  // A block-schema table no installed block creates, such as `tasks` when the
-  // block is only installed as a renamed instance, would fail an early-bound
-  // policy, so its type goes through the fallback too.
-  const early = subjects.filter(([, entry]) => {
-    const table = quotedTable(entry.table);
-
-    return !later.has(table) && (!table.startsWith(own) || known.has(table));
-  });
+  const early = earlySubjects(ctx, layout, subjects, options.module);
 
   const { fallback, ...args } = columns;
 
-  const readable = subjectReadable(
-    ctx,
-    early.map(
-      ([type, entry]) => [type, withInferredId(entry, layout)] as const,
-    ),
-    args,
-    {
-      guest: options.guest ?? true,
-      ...(options.live === true ? { live: true } : {}),
-      ...(options.team === undefined ? {} : { team: options.team }),
-      tenantColumn: true,
-      fallback,
-    },
-  );
+  const readable = subjectReadable(ctx, early, args, {
+    guest: options.guest ?? true,
+    ...(options.live === true ? { live: true } : {}),
+    ...(options.team === undefined ? {} : { team: options.team }),
+    ...(options.gated === undefined ? {} : { gated: options.gated }),
+    ...(options.statements === true ? { statements: true } : {}),
+    tenantColumn: true,
+    fallback,
+  });
 
   return options.typeNotNull === true
     ? readable
     : `(${columns.type} is null or ${readable})`;
 }
 
+/** What `registryReadable` returns: the helper function and the predicate. */
+export interface RegistryReadable {
+  /** The `create function` of the per-row check, empty without one. */
+  readonly sql: string;
+  /** The read predicate over the row's columns. */
+  readonly using: (columns: {
+    readonly type: string;
+    readonly id: string;
+    readonly tenant: string;
+  }) => string;
+}
+
 /**
- * The policy form of `can_subject(type, id, 'read')` over the row's columns for
- * a table whose rows name any registered record (ADR 0606): the registry's
- * subjects inline, the types a later module's table holds through
- * `can_subject`. A type whose record team holds the read action also lets the
- * team in, through `is_subject_member`. The columns are qualified with their
- * table, so a subject's own `tenant_id` can't capture the row's.
+ * The read predicate of `can_subject(type, id, 'read')` over the row's columns
+ * for a table whose rows name any registered record (ADR 0606, 1232). A
+ * predicate that lists every record type inline makes the planner expand the
+ * policies of every subject table, about 16 KB and 10,000 buffers per
+ * statement. The predicate here has two parts. The permission of each type that
+ * only needs its key is checked as one set per statement (a hashed `(tenant,
+ * type)` subplan), and the lookup of the subject row runs in a plpgsql function
+ * that binds each branch on first use, so a statement plans only the type it
+ * reads. A type with record grants or a record team keeps its full check in the
+ * function. The types of a later module's table go through `can_subject`, as
+ * before. Without a tenant scope the whole check stays inline.
+ *
+ * Put `sql` before the policy that uses `using`; `name` is the function's name
+ * and `module` the block whose later tables bind late. Without a `name` the
+ * whole check stays inline, for a module with no place for the function.
  */
 export function registryReadable(
   ctx: BlockSqlContext,
   layout: BlockSqlLayout,
   module: string,
-  columns: {
+  name: string | undefined,
+): RegistryReadable {
+  const canSubject = ctx.of("subjects").fn("can_subject");
+
+  const fallbackOf = (columns: {
     readonly type: string;
     readonly id: string;
-    readonly tenant: string;
-  },
-): string {
-  const canSubject = ctx.of("subjects").fn("can_subject");
-  const fallback = `coalesce(${canSubject}(${columns.type}, ${columns.id}, 'read'), false)`;
+  }): string =>
+    `coalesce(${canSubject}(${columns.type}, ${columns.id}, 'read'), false)`;
 
   const inline = subjectsOption(ctx, ["deletedAt", "team"], {
     registryOnly: true,
@@ -341,22 +379,107 @@ export function registryReadable(
     }),
   );
 
+  const team = (type: string, id: string): string | undefined =>
+    members.has(type)
+      ? `${ctx.of("subjects").fn("is_subject_member")}(${sqlString(type)}, ${id})`
+      : undefined;
+
+  const options = { module, guest: false, typeNotNull: true, team };
+
   // Without a type to inline, the function answers for all of them.
-  return inline.length === 0
-    ? fallback
-    : inlineSubjectReadable(
-        ctx,
-        layout,
-        inline,
-        { ...columns, fallback },
-        {
-          module,
-          guest: false,
-          typeNotNull: true,
-          team: (type, id) =>
-            members.has(type)
-              ? `${ctx.of("subjects").fn("is_subject_member")}(${sqlString(type)}, ${id})`
-              : undefined,
-        },
-      );
+  if (inline.length === 0) {
+    return { sql: "", using: (columns) => fallbackOf(columns) };
+  }
+
+  const early = earlySubjects(ctx, layout, inline, module);
+  const gates = gatedSubjectKeys(early, team);
+
+  if (name === undefined || ctx.scope.kind !== "tenant" || gates.size === 0) {
+    return {
+      sql: "",
+      using: (columns) =>
+        inlineSubjectReadable(
+          ctx,
+          layout,
+          inline,
+          { ...columns, fallback: fallbackOf(columns) },
+          options,
+        ),
+    };
+  }
+
+  const gated = new Set(gates.keys());
+  const fn = ctx.fn(name);
+
+  const params = {
+    type: `${name}.subject_type`,
+    id: `${name}.subject_id`,
+    tenant: `${name}.tenant`,
+  };
+
+  const body = inlineSubjectReadable(
+    ctx,
+    layout,
+    inline,
+    { ...params, fallback: fallbackOf(params) },
+    { ...options, gated, statements: true },
+  );
+
+  const sql = `-- Whether the caller may read the subject a row of ${module} names, apart from
+-- the permission of the types in the gate (ADR 1232): the subject row has to be
+-- visible to them (its own policies apply), with the record grants and team
+-- check of the types that have them. plpgsql, so a statement plans only the
+-- branch of the type it reads and a table a later module creates binds late.
+create or replace function ${fn}(subject_type text, subject_id text, tenant ${ctx.scope.idType})
+returns boolean
+language plpgsql
+stable
+security invoker
+cost 1000
+set search_path = ''
+as $$
+begin
+  ${body}
+end;
+$$;
+revoke execute on function ${fn}(text, text, ${ctx.scope.idType}) from public, anon;
+grant execute on function ${fn}(text, text, ${ctx.scope.idType}) to authenticated, service_role;
+`;
+
+  const byKey = new Map<string, string[]>();
+
+  for (const [type, key] of gates) {
+    byKey.set(key, [...(byKey.get(key) ?? []), type]);
+  }
+
+  const set = [...byKey]
+    .map(
+      ([key, types]) =>
+        `select t.tenant, g.type from ${ctx.scope.ids(sqlString(key))} as t(tenant) cross join unnest(array[${types.map(sqlString).join(", ")}]) as g(type)`,
+    )
+    .join(" union all ");
+
+  const every = `array[${[...gated].map(sqlString).join(", ")}]`;
+
+  // The types outside the gate (record grants, a team check, an own read)
+  // keep their inline exists: a row of a customer reads through one hashed
+  // subplan, where a function call per row costs a statement each (ADR 0424).
+  const open = inline.filter(([type]) => !gated.has(type));
+
+  return {
+    sql,
+    using: (columns) => {
+      const rest = `(coalesce(${columns.type} = any(${every}), false) = false or (${columns.tenant}, ${columns.type}) in (${set})) and ${fn}(${columns.type}, ${columns.id}, ${columns.tenant})`;
+
+      return open.length === 0
+        ? rest
+        : inlineSubjectReadable(
+            ctx,
+            layout,
+            open,
+            { ...columns, fallback: rest },
+            options,
+          );
+    },
+  };
 }

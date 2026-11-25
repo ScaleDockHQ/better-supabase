@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:03d461cd206136e54f35ab30699cfc5f516a215d251601d848d3ea0e6d9af8ef
+-- @bsb-hash sha256:5c769957ce009411af707bb5033877c9a49e293575a8eb383f882cadeac11dd5
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -163,7 +163,7 @@ grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -1173,7 +1173,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
@@ -1235,7 +1235,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:0825431eec37dcaacdba0d450c9920257db61c9992bd114dc07671453ef389c6
+-- @bsb-hash sha256:4bdac6862620b41cdb113d33cdcf7d9b99c28ecc8c78db7ab1d6c83671c00083
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1397,7 +1397,7 @@ grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -2690,7 +2690,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
@@ -2759,7 +2759,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:29b22b9937bd87497155ce3ab603af56725d8c7c307bb9a71af47a263a66f9e4
+-- @bsb-hash sha256:829b072a4c3fd035abb0923d095676e6fbc4ebe66cf76a425d20ec62608d450d
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2926,7 +2926,7 @@ grant select on "app_private"."funding_deliveries" to authenticated;
 grant all on "app_private"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "app_private"."funding_deliveries"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "app_private"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "app_private"."funding_awards" x where x."tenant_id" = "app_private"."funding_deliveries"."tenant_id" and x."id" = "app_private"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -3936,7 +3936,7 @@ create policy bsb_tenant_scope_select on "app_private"."funding_deliveries" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "app_private"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "app_private"."funding_awards" x where x."tenant_id" = "app_private"."funding_deliveries"."tenant_id" and x."id" = "app_private"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "app_private"."funding_deliveries" as restrictive
   for insert to public
@@ -3998,7 +3998,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:03298bbf7c17196a5be3bf60bea69b63bff3fc008424af8fe8575f3d8d88d0a6
+-- @bsb-hash sha256:d72eefcac07a3dd40f338b3539d714a005fbcdcc997940afeb29d9ff1b785859
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4160,7 +4160,7 @@ grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -5170,7 +5170,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
@@ -5395,7 +5395,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:dafc389c205824fa9db6cba4c1639389a3749e3702b46b660f8e5e23f74e4505
+-- @bsb-hash sha256:9acbce83edb1fe8afc368c07c54629c75b7835cb32dcff2a79f8720e097c03b1
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5524,7 +5524,7 @@ grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -6534,7 +6534,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "better_supabase"."funding_deliveries"."tenant_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
@@ -6596,7 +6596,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:06eaf9a10204082822354b8f1b89ab5e6f1314bda6288dd26f8fc283a551643d
+-- @bsb-hash sha256:682ba9044db9a36aa76584e28284741c7eb91343f45f983a629818865e9ebbe5
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6758,7 +6758,7 @@ grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
 create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."org_id" = "org_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
+  using ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."org_id" = "better_supabase"."funding_deliveries"."org_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
@@ -7768,7 +7768,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" 
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."org_id" = "org_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+    or ("org_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."org_id" = "better_supabase"."funding_deliveries"."org_id" and x."id" = "better_supabase"."funding_deliveries"."award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public

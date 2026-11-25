@@ -192,6 +192,13 @@ function tables(
     return "";
   }
 
+  const pipelinesReadable = registryReadable(
+    ctx,
+    layout,
+    "pipelines",
+    "pipeline_subject_readable",
+  );
+
   const { t, c } = names;
 
   const optional = (
@@ -296,7 +303,7 @@ create index if not exists ${ctx.naming.rename("pipeline_stage_history_pipeline_
 create unique index if not exists ${ctx.naming.rename("pipeline_stage_history_open_idx")} on ${t("history")} (${h("subjectType")}, ${h("subjectId")}) where ${h("exitedAt")} is null;
 ${lockTable(t("history"), { read: true })}
 -- A history row is visible to whoever can read its record.
-${renderPolicy(makePolicy({ table: t("history"), name: ctx.naming.rename("pipeline_stage_history_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), names.read)} and ${registryReadable(ctx, layout, "pipelines", { type: `${t("history")}.${h("subjectType")}`, id: `${t("history")}.${h("subjectId")}`, tenant: `${t("history")}.${h("tenant")}` })}` }), { target: t("history") })}
+${pipelinesReadable.sql}${renderPolicy(makePolicy({ table: t("history"), name: ctx.naming.rename("pipeline_stage_history_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), names.read)} and ${pipelinesReadable.using({ type: `${t("history")}.${h("subjectType")}`, id: `${t("history")}.${h("subjectId")}`, tenant: `${t("history")}.${h("tenant")}` })}` }), { target: t("history") })}
 `;
 }
 
@@ -431,6 +438,7 @@ export const PIPELINES: BlockSqlDefinition = {
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,
+  internal: ["pipeline_subject_readable"],
   names: NAMES,
   contract,
   build,

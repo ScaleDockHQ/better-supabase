@@ -242,6 +242,13 @@ function tables(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const { read } = fundingKeys(ctx);
   const canSubject = ctx.of("subjects").fn("can_subject");
 
+  const awardReadable = registryReadable(
+    ctx,
+    layout,
+    "funding",
+    "funding_subject_readable",
+  );
+
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
@@ -324,7 +331,7 @@ create index if not exists ${name("awards", "product_idx")} on ${awards} (${w("t
 create index if not exists ${name("awards", "subject_idx")} on ${awards} (${w("subjectType")}, ${w("subjectId")});
 create index if not exists ${name("awards", "funder_idx")} on ${awards} (${w("tenant")}, ${w("funder")}, ${w("status")});
 ${lockModuleTable(ctx, "awards", { read: true })}
-${readPolicy("awards", `${ctx.scope.check(w("tenant"), read)} and ${registryReadable(ctx, layout, "funding", { type: `${awards}.${w("subjectType")}`, id: `${awards}.${w("subjectId")}`, tenant: `${awards}.${w("tenant")}` })}`)}
+${awardReadable.sql}${readPolicy("awards", `${ctx.scope.check(w("tenant"), read)} and ${awardReadable.using({ type: `${awards}.${w("subjectType")}`, id: `${awards}.${w("subjectId")}`, tenant: `${awards}.${w("tenant")}` })}`)}
 
 create table if not exists ${claims} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -396,7 +403,7 @@ create index if not exists ${name("deliveries", "status_idx")} on ${deliveries} 
 create index if not exists ${name("deliveries", "claim_line_idx")} on ${deliveries} (${d("claimLine")});
 create unique index if not exists ${name("deliveries", "source_idx")} on ${deliveries} (${d("tenant")}, ${d("sourceType")}, ${d("sourceId")}) where ${d("sourceId")} is not null;
 ${lockModuleTable(ctx, "deliveries", { read: true })}
-${readPolicy("deliveries", `${ctx.scope.check(d("tenant"), read)} and exists (select 1 from ${awards} x where x.${w("tenant")} = ${d("tenant")} and x.${w("id")} = ${d("award")} and coalesce(${canSubject}(x.${w("subjectType")}, x.${w("subjectId")}, 'read'), false))`)}
+${readPolicy("deliveries", `${ctx.scope.check(d("tenant"), read)} and exists (select 1 from ${awards} x where x.${w("tenant")} = ${deliveries}.${d("tenant")} and x.${w("id")} = ${deliveries}.${d("award")} and coalesce(${canSubject}(x.${w("subjectType")}, x.${w("subjectId")}, 'read'), false))`)}
 `;
 }
 
@@ -558,6 +565,7 @@ export const FUNDING: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
+  internal: ["funding_subject_readable"],
   names: NAMES,
   contract,
   build,

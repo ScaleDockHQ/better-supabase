@@ -396,7 +396,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   // with the table so a subject's own columns can't capture them; the function
   // stays for the write paths and for a type a later module's table holds.
   const subjectPolicy = subjectScoped
-    ? registryReadable(ctx, layout, "knowledge", {
+    ? registryReadable(ctx, layout, "knowledge", undefined).using({
         type: `${documents}.${d.subjectType}`,
         id: `${documents}.${d.subjectId}`,
         tenant: `${documents}.${d.tenant}`,

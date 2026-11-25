@@ -172,7 +172,12 @@ function tables(
   // The policy inlines the subject check over the contact's columns (ADR 0644);
   // a contact type no subject registers keeps can_subject. Deals are not read
   // through contacts, so the two policies don't recurse.
-  const contactReadable = registryReadable(ctx, layout, "deals", {
+  const contactReadable = registryReadable(
+    ctx,
+    layout,
+    "deals",
+    undefined,
+  ).using({
     type: `${t("contacts")}.${k("contactType")}`,
     id: `${t("contacts")}.${k("contactId")}`,
     tenant: `${t("contacts")}.${k("tenant")}`,

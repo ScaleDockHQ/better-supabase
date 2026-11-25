@@ -677,6 +677,28 @@ function recordGrant(
 }
 
 /**
+ * The permission each type of `subjects` is read under when nothing but the key
+ * decides beyond the row itself: a tenant type with a `permission`, no record
+ * grants (`read`) and no record team. These keys can be checked as a set per
+ * statement, apart from the per-row lookup of the subject.
+ */
+export function gatedSubjectKeys(
+  subjects: readonly (readonly [string, Subject])[],
+  team?: (type: string, id: string) => string | undefined,
+): ReadonlyMap<string, string> {
+  return new Map(
+    subjects.flatMap(([type, subject]) =>
+      subject.tenant !== false &&
+      subject.read === undefined &&
+      subject.permission &&
+      team?.(type, "") === undefined
+        ? [[type, subject.permission] as const]
+        : [],
+    ),
+  );
+}
+
+/**
  * Whether the caller may read the subject `type`/`id` in `tenant`: its row is
  * visible to them (the subject table's own policies apply) and they hold its
  * permission. `true` without `subjects`, `false` for an unlisted type.
@@ -713,6 +735,16 @@ export function subjectReadable(
      * as `can_subject` does.
      */
     readonly team?: (type: string, id: string) => string | undefined;
+    /**
+     * Types whose permission the caller checks as a set outside this expression
+     * (`gatedSubjectKeys`), so their branch tests only the row.
+     */
+    readonly gated?: ReadonlySet<string>;
+    /**
+     * Return plpgsql statements, one `return` per type, not an expression, so a
+     * function plans only the branch it runs. Needs no `guest`.
+     */
+    readonly statements?: boolean;
   } = {},
 ): string {
   if (subjects.length === 0) {
@@ -726,57 +758,80 @@ export function subjectReadable(
       ? ctx.scope.guest(args.tenant, args.type, args.id, "read")
       : "false";
 
-  const readable = `case ${args.type}\n${subjects
-    .map(([type, subject]) => {
-      const deletedAt = subject.extra["deletedAt"];
+  const branches = subjects.map(([type, subject]) => {
+    const deletedAt = subject.extra["deletedAt"];
 
-      const live =
-        options.live === true && typeof deletedAt === "string"
-          ? ` and s.${sqlIdent(deletedAt)} is null`
-          : "";
+    const live =
+      options.live === true && typeof deletedAt === "string"
+        ? ` and s.${sqlIdent(deletedAt)} is null`
+        : "";
 
-      if (subject.tenant === false) {
-        return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)}${live})`;
-      }
+    if (subject.tenant === false) {
+      return [
+        type,
+        `exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)}${live})`,
+      ] as const;
+    }
 
-      const member = options.team?.(type, args.id);
+    const member = options.team?.(type, args.id);
 
-      const recordRead =
-        subject.read === undefined
-          ? undefined
-          : recordGrant(
-              ctx,
-              `records.${type}.permissions.read`,
-              subject,
-              args.tenant,
-              asSet,
-            );
+    const recordRead =
+      subject.read === undefined
+        ? undefined
+        : recordGrant(
+            ctx,
+            `records.${type}.permissions.read`,
+            subject,
+            args.tenant,
+            asSet,
+          );
 
-      const granted =
-        recordRead === undefined
-          ? ""
-          : ` and ${member === undefined ? recordRead : `(${recordRead} or ${member})`}`;
+    const granted =
+      recordRead === undefined
+        ? ""
+        : ` and ${member === undefined ? recordRead : `(${recordRead} or ${member})`}`;
 
-      const key =
-        subject.read === undefined && subject.permission
-          ? asSet
-            ? ctx.scope.check(args.tenant, sqlString(subject.permission))
-            : ctx.scope.can(args.tenant, sqlString(subject.permission))
-          : undefined;
+    const key =
+      subject.read === undefined &&
+      subject.permission &&
+      options.gated?.has(type) !== true
+        ? asSet
+          ? ctx.scope.check(args.tenant, sqlString(subject.permission))
+          : ctx.scope.can(args.tenant, sqlString(subject.permission))
+        : undefined;
 
-      const held =
-        key === undefined
-          ? member
-          : member === undefined
-            ? key
-            : `(${key} or ${member})`;
+    const held =
+      key === undefined
+        ? member
+        : member === undefined
+          ? key
+          : `(${key} or ${member})`;
 
-      const extra =
-        subject.read === undefined && held !== undefined ? ` and ${held}` : "";
+    const extra =
+      subject.read === undefined && held !== undefined ? ` and ${held}` : "";
 
-      return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)}${live}${granted})${extra}`;
-    })
-    .join("\n")}\n    else ${options.fallback ?? "false"}\n  end`;
+    return [
+      type,
+      `exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)}${live}${granted})${extra}`,
+    ] as const;
+  });
+
+  const otherwise = options.fallback ?? "false";
+
+  if (options.statements === true) {
+    return `case ${args.type}\n${branches
+      .map(
+        ([type, expr]) =>
+          `    when ${sqlString(type)} then return coalesce(${expr}, false);`,
+      )
+      .join(
+        "\n",
+      )}\n    else return coalesce(${otherwise}, false);\n  end case;`;
+  }
+
+  const readable = `case ${args.type}\n${branches
+    .map(([type, expr]) => `    when ${sqlString(type)} then ${expr}`)
+    .join("\n")}\n    else ${otherwise}\n  end`;
 
   return guest === "false" ? readable : `(${guest} or ${readable})`;
 }
