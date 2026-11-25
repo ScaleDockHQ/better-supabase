@@ -1,3 +1,4 @@
+-- The catalog is public: the pricing page reads it as `anon` through `bsb.public()`.
 -- The plan catalog the entitlements module reads (`entitlements.source.plans`
 -- in apps/examples/nextjs/better-supabase.config.ts): each organization has
 -- one subscription to a plan, and each plan lists its features. Usage quotas
@@ -14,11 +15,11 @@ create table public.plans (
 alter table public.plans enable row level security;
 
 create policy plans_read on public.plans
-  for select to authenticated
+  for select to anon, authenticated
   using (true);
 
 revoke all on public.plans from anon, authenticated;
 
-grant select on public.plans to authenticated;
+grant select on public.plans to anon, authenticated;
 
 grant all on public.plans to service_role;

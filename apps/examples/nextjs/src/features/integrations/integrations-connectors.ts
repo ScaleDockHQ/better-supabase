@@ -37,7 +37,7 @@ interface DetailRaw extends SummaryRaw {
   readonly created_at: string;
 }
 
-const CONNECTORS_TAG = "connectors";
+export const CONNECTORS_TAG = "connectors";
 
 /** The organization's connector servers; `null` without `connectors.read`. */
 export async function getConnectors(): Promise<

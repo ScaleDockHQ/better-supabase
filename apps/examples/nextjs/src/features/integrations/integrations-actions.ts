@@ -1,12 +1,13 @@
 "use server";
 
 import { dbError, err, ok } from "better-supabase";
-import { refresh } from "next/cache";
 import { headers } from "next/headers";
 import * as v from "valibot";
 
+import { refreshCaller } from "@/lib/refresh-caller";
 import { bsbCore } from "@/lib/supabase/server-core";
 
+import { CONNECTORS_TAG } from "./integrations-connectors";
 import { connectCredentials, integrationOf } from "./integrations-server";
 
 const Input = v.object({ id: v.picklist(["gmail", "outlook"]) });
@@ -56,7 +57,7 @@ export const connectIntegration = bsbCore.action(
 /** Revokes the user's grant at Connect, so the next read asks for consent. */
 export const disconnectIntegration = bsbCore.action(
   { input: Input },
-  async ({ id }, { session }) => {
+  async ({ id }, { session, auth }) => {
     const integration = integrationOf(id);
 
     if (integration === undefined || session.kind !== "user") {
@@ -71,7 +72,7 @@ export const disconnectIntegration = bsbCore.action(
       return revoked;
     }
 
-    refresh();
+    await refreshCaller(auth, [CONNECTORS_TAG]);
 
     return ok(revoked.data);
   },

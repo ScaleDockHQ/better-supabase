@@ -9,11 +9,11 @@ create table public.plan_features (
 alter table public.plan_features enable row level security;
 
 create policy plan_features_read on public.plan_features
-  for select to authenticated
+  for select to anon, authenticated
   using (true);
 
 revoke all on public.plan_features from anon, authenticated;
 
-grant select on public.plan_features to authenticated;
+grant select on public.plan_features to anon, authenticated;
 
 grant all on public.plan_features to service_role;

@@ -1113,7 +1113,7 @@ export function createBanking<
           ignored: Number(row["ignored"]),
         };
       }),
-    ...bankReads(call),
+    ...bankReads(call, transaction("reconcile_bank_account")),
     reconciliation: ({ accountId, asOf }) =>
       call(
         "bank_reconciliation_status",

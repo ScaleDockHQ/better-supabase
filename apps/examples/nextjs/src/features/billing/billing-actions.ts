@@ -8,7 +8,6 @@ import { generatedOptions } from "better-supabase/blocks";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 import { createUsage } from "better-supabase/blocks/usage";
 import { parseMoney } from "better-supabase/commerce";
-import { refresh } from "next/cache";
 import { headers } from "next/headers";
 import * as v from "valibot";
 
@@ -28,7 +27,7 @@ import { priceOf, stripeBilling } from "./billing-stripe";
 /** Completes the "Review your plan" onboarding step. */
 export const markPlanReviewed = bsb.action(
   { requireTenant: true, permission: "onboarding.complete" },
-  async (_input, { tenant: organizationId, db }) => {
+  async (_input, { tenant: organizationId, db, auth }) => {
     const completed = await db.onboarding.complete({
       checklist: gettingStarted,
       step: "plan",
@@ -39,7 +38,7 @@ export const markPlanReviewed = bsb.action(
       return completed;
     }
 
-    refresh();
+    await refreshCaller(auth);
 
     return ok(completed.data);
   },

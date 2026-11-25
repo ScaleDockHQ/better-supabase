@@ -47,7 +47,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   automations:
     "install_default_rules matching_rules rank_rule record_rule_evaluation remove_rule reset_default_rule rule_evaluations_list rule_fields_list rule_get rule_versions_list rules_list run_rules save_rule set_rule_enabled sync_rule_fields",
   banking:
-    "apply_bank_rules bank_reconciliation_board bank_reconciliation_status delete_bank_rule get_bank_transaction ignore_bank_transaction import_bank_statement list_bank_accounts list_bank_rules list_bank_statements list_bank_transactions match_bank_transaction page_bank_accounts save_bank_account save_bank_rule suggest_bank_matches unmatch_bank_transaction",
+    "apply_bank_rules bank_reconciliation_board bank_reconciliation_status delete_bank_rule get_bank_transaction ignore_bank_transaction import_bank_statement list_bank_accounts list_bank_rules list_bank_statements list_bank_transactions match_bank_transaction page_bank_accounts reconcile_bank_account save_bank_account save_bank_rule suggest_bank_matches unmatch_bank_transaction",
   "payroll-export":
     "create_payroll_run delete_payroll_run get_payroll_run list_payroll_runs mark_payroll_run_exported page_payroll_runs refresh_payroll_run",
   "document-templates":

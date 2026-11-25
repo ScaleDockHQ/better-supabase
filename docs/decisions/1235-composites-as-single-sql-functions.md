@@ -64,3 +64,12 @@ Both functions are `security invoker`, so the count of security definer
 functions per module does not grow (`practices-baseline.json` is unchanged).
 Migration `20270120010073_offboard_with_work.sql` also redefines
 `invite_within_seats` as invoker.
+
+## reconcileAccount
+
+`reconcile_bank_account(account, min_score, line_limit)` sits in the `banking`
+module. It lists the unmatched transactions, takes the first suggestion of
+`suggest_bank_matches` and calls `match_bank_transaction` inside a savepoint, so
+a failed match is reported in `failed` and the rest stay. `finance.reconcile`
+delegates to the new `banking.reconcile`. The hooks of `banking.reviewQueue` and
+`banking.acceptBestMatch` no longer fire there.

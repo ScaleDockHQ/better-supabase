@@ -3260,6 +3260,18 @@ migration, keep one cache handler per Supabase project, or use `bsb.kept()`
 with a `version`. See
 [durable use cache entries](/docs/frameworks/next-cache-components#durable-use-cache-entries).
 
+### BS647
+
+**Warning: `bsb.kept` runs on the memory store.** A source calls `bsb.kept()`
+and no source gives createNext a `kept: { store }`, or one sets it to
+`memoryKeptStore()`. The entries then live in each instance's memory: a second
+instance fills its own copy, and a write on one instance never expires the
+others. Pass `postgresKeptStore({ client })` or
+`vercelRuntimeCacheAdapter(getCache, { lease })` when the app runs more than one
+instance. Doctor can't see the instance count, so it reports every app that
+keeps entries without a durable store. See
+[Keep reads across requests and deploys](/docs/concepts/caching#keep-reads-across-requests-and-deploys).
+
 ### BS633
 
 **Info: an app row trigger has no `importing()` guard.** An import writes many

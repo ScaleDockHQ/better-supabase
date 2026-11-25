@@ -406,6 +406,32 @@ describe("createBanking", () => {
     ]);
   });
 
+  it("reconciles an account with one reconcile_bank_account call", async () => {
+    const t = fieldsTransport({
+      reconcile_bank_account: () => ({
+        matched: [TRANSACTION],
+        unmatched: ["t2"],
+        failed: [{ transactionId: "t3", message: "no" }],
+      }),
+    });
+
+    const banking = createBanking({ transport: t, tenant: "org-1" });
+
+    const run = await banking
+      .reconcile({ accountId: "a1", minScore: 2 })
+      .orThrow();
+
+    expect(run.matched[0]?.id).toBe("t1");
+    expect(run.unmatched).toEqual(["t2"]);
+    expect(run.failed).toEqual([{ transactionId: "t3", message: "no" }]);
+    expect(t.calls).toEqual([
+      [
+        "reconcile_bank_account",
+        { account_id: "a1", min_score: 2, line_limit: 20 },
+      ],
+    ]);
+  });
+
   it("saves, lists, applies and deletes bank rules", async () => {
     const t = fieldsTransport({
       save_bank_rule: () => RULE,

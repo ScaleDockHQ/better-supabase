@@ -10,6 +10,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { catalog } from "../permission-catalog";
 import { permissions } from "./blocks.config";
 import { betterSupabaseCore } from "./core";
+import { keptStore } from "./kept-store";
 import { sharedCounters } from "./session-counters";
 
 const options: NextOptions = {
@@ -25,6 +26,7 @@ const options: NextOptions = {
     route: "/api/bs-stats",
   },
   replicas: { pinMs: 5000 },
+  kept: { store: keptStore() },
   // The same counters as `server.ts`, so `/api/bs-sessions` counts every server.
   sessions: { counters: sharedCounters() },
   authorizer: permissionsAuthorizer({

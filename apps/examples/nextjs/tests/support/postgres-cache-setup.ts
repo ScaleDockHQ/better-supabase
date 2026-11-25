@@ -2,11 +2,17 @@ import { postgresCacheSql } from "better-supabase/cache-postgres";
 import { Client } from "pg";
 
 /**
- * With BSB_REMOTE_CACHE_STORE=postgres, creates the cache tables and functions
- * on the local stack and empties them, so both instances start cold.
+ * With BSB_REMOTE_CACHE_STORE=postgres or BSB_KEPT_STORE=postgres or vercel
+ * (its lease), creates the cache tables and functions on the local stack and
+ * empties them, so both instances start cold.
  */
 export default async function setup(): Promise<void> {
-  if (process.env["BSB_REMOTE_CACHE_STORE"] !== "postgres") {
+  const postgres =
+    process.env["BSB_REMOTE_CACHE_STORE"] === "postgres" ||
+    process.env["BSB_KEPT_STORE"] === "postgres" ||
+    process.env["BSB_KEPT_STORE"] === "vercel";
+
+  if (!postgres) {
     return;
   }
 
