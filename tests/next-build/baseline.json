@@ -32,7 +32,7 @@
   "/[locale]/(app)/appraisals/[id]/page": {
     "raw": 1333544,
     "gzip": 424487,
-    "brotli": 370579
+    "brotli": 371548
   },
   "/[locale]/(app)/appraisals/page": {
     "raw": 1459158,
@@ -107,7 +107,7 @@
   "/[locale]/(app)/assistant/agents/tools/page": {
     "raw": 1312263,
     "gzip": 417563,
-    "brotli": 364619
+    "brotli": 365533
   },
   "/[locale]/(app)/assistant/evals/[name]/page": {
     "raw": 1555719,
@@ -812,7 +812,7 @@
   "/[locale]/(app)/people/encryption/page": {
     "raw": 1325571,
     "gzip": 421535,
-    "brotli": 368183
+    "brotli": 369133
   },
   "/[locale]/(app)/people/hiring/[id]/page": {
     "raw": 1482166,
@@ -1082,7 +1082,7 @@
   "/[locale]/(app)/settings/privacy/page": {
     "raw": 1331836,
     "gzip": 423496,
-    "brotli": 369748
+    "brotli": 370686
   },
   "/[locale]/(app)/settings/profile/page": {
     "raw": 1299341,
@@ -1122,7 +1122,7 @@
   "/[locale]/(app)/settings/signing-keys/page": {
     "raw": 1326906,
     "gzip": 422110,
-    "brotli": 368675
+    "brotli": 369601
   },
   "/[locale]/(app)/settings/sso/page": {
     "raw": 1398702,
@@ -1262,7 +1262,7 @@
   "/[locale]/(app)/shop/reviews/[id]/page": {
     "raw": 1335062,
     "gzip": 424921,
-    "brotli": 370979
+    "brotli": 371910
   },
   "/[locale]/(app)/shop/reviews/page": {
     "raw": 1603499,
