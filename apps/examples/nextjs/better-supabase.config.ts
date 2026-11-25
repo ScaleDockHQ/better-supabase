@@ -794,6 +794,12 @@ export default defineConfig({
             function: "public.island_counts",
             tables: ["customers", "notes", "contacts", "tags", "tasks"],
           },
+          // The page shell in one call: organizations, profile, the pending
+          // approvals count and the compact permissions (ADR 1232).
+          shell: {
+            function: "public.shell_bootstrap",
+            tables: ["organizations", "memberships", "profiles", "approvals"],
+          },
         },
       },
     },

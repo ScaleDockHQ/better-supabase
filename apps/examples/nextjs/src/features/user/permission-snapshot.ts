@@ -2,6 +2,7 @@ import "server-only";
 import { permissionsOf, tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { bootShell, shellKeys } from "@/features/shell/shell-queries";
 import { catalog } from "@/lib/permission-catalog";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
@@ -16,11 +17,12 @@ type CachedRequest = Awaited<ReturnType<typeof bsb.cached>>;
 /**
  * The caller's keys in the active organization: the role's catalog keys with
  * the organization's overrides applied. They come from the token's
- * `permissions` claim, which the access token hook writes, and from the
- * permissions block's `my_permissions` only when the token has none for the
- * organization or marks them truncated. Cached per user for the request;
- * `bsb.cached()` keeps the entry no longer than the token. `null` without a
- * user or an organization.
+ * `permissions` claim, which the access token hook writes, and from the shell's
+ * one call (`public.shell_bootstrap`, the compact form of ADR 0524) only when
+ * the token has none for the organization or marks them truncated; the
+ * permissions block's `my_permissions` is the last resort. Cached per user for
+ * the request; `bsb.cached()` keeps the entry no longer than the token. `null`
+ * without a user or an organization.
  */
 export async function getPermissions(): Promise<PermissionSet | null> {
   "use cache: private";
@@ -48,7 +50,13 @@ export async function readPermissions({
 
   const keys = permissionsOf(session, tenant, { catalog });
 
-  return keys === undefined
+  if (keys !== undefined) {
+    return { tenant, keys };
+  }
+
+  const fromShell = shellKeys(await bootShell(), tenant);
+
+  return fromShell === undefined
     ? db.permissions.permissions().orThrow()
-    : { tenant, keys };
+    : { tenant, keys: fromShell };
 }

@@ -48,7 +48,22 @@ Not done, with reasons:
 
 | Todo                                                   | Status  | Reason                                                                                                                                                                               |
 | ------------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| shell-bootstrap, read-set-gaps                         | skipped | Needs the permission snapshot and read sets reworked on a page by page basis; the bitset already answers the proxy gate and the member snapshot without `my_permissions()`.          |
+| read-set-gaps                                          | skipped | Needs the permission snapshot and read sets reworked on a page by page basis; the bitset already answers the proxy gate and the member snapshot without `my_permissions()`.          |
 | page-spike, page-rollout, action-composites            | skipped | The measured waves per page are 1 (median) for admin and 2 for member; the database time of the slow routes is execution bound in the policy size above, not in the number of calls. |
 | db-track, cache-track, cache-tiers, cache-invalidation | skipped | Depend on a page rollout that was not done.                                                                                                                                          |
 | size-bundles, report-leftovers                         | partial | The bundle size baselines were not run in this pass. `permission-bitset.ts` adds a small md5 to the claims entry, so run `tests/bundle` before merging.                              |
+
+## Shell bootstrap (ADR 1233)
+
+`public.shell_bootstrap` returns organizations, profile, approvals and compact permissions in one call, read through one private entry (`getShell`). Production build, `next start`, warm render, calls per hard load:
+
+| Route               | Calls before | Calls after | Waves before to after (admin) |
+| ------------------- | ------------ | ----------- | ----------------------------- |
+| `/finance/invoices` | 4            | 2           | 1 to 1                        |
+| `/settings/roles`   | 4            | 2           | 1 to 1                        |
+| `/customers`        | 7            | 5           | 1 to 1                        |
+| `/`                 | 5            | 3           | 2 to 1                        |
+| `/customers/[id]`   | 13           | 11          | 3 to 3                        |
+| `/crm/deals`        | 16           | 14          | 1 to 1                        |
+
+A first attempt where each reader called `bootShell()` left calls unchanged: React `cache()` does not span `'use cache: private'` scopes.

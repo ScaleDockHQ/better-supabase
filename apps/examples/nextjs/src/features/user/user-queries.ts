@@ -6,6 +6,7 @@ import * as v from "valibot";
 import type { Claims, Profile } from "@/lib/claims";
 
 import { env } from "@/env";
+import { getShell } from "@/features/shell/shell-queries";
 import { avatarSrc } from "@/lib/buckets";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
@@ -36,24 +37,20 @@ export interface MyProfile {
 }
 
 /**
- * The caller's row in the profiles SQL module. `bsb.evictSession` after a
- * profile update drops this entry with the rest of the user's cache.
+ * The caller's row in the profiles SQL module, read by the shell's one call.
+ * `bsb.evictSession` after a profile update drops this entry with the rest of
+ * the user's cache.
  */
 export async function getMyProfile(): Promise<MyProfile | null> {
   "use cache: private";
-  const { db, session } = await bsb.cached();
+  const shell = await getShell();
 
-  if (session.kind !== "user") {
+  if (!shell.user || !shell.data?.profile) {
     return null;
   }
 
-  const found = await db.profiles.mine().orThrow();
-
-  if (!found) {
-    return null;
-  }
-
-  const row = v.parse(ProfileRow, found);
+  const { db } = await bsb.cached();
+  const row = v.parse(ProfileRow, shell.data.profile);
 
   return {
     fullName: row.full_name,
