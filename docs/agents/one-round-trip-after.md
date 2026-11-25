@@ -31,11 +31,12 @@ Verification on the merged tree:
 - Migrations: `main` already carries `book_with_reminder` and `pay_payment_batch` as 078 and 079, so this branch drops its identical copies and keeps `create_task_with_sla` and `close_period_if_clear`, renamed to 124 and 125 so they sort after `main`'s newest migration (`check:migration-order`).
 - The five specs that failed under load pass alone: `setProductStatus` (needed a product URL, see below), the eval run page, the API key page, the work order page, and the deals calendar view (the seed closes the deal 12 days out, which can be next month while the grid opens on the current one, so the spec now opens the seeded month).
 - Playwright, full suite on ports 3400 and 3401 after `supabase:reset` and `resolve-urls`: 1604 passed and 73 failed in the `chromium` project (down from 121), and 18 passed and 1 failed in `counters`. Causes of the 73:
-  - 66 are `instant-routes` cases of detail routes: the title heading sits behind the page's `Suspense` boundary, so it is not in the prefetched UI under the instant lock. Proposal: render the record title from the prefetched list row or a static shell heading, as `RecordDetailFrame` pages that pass do. It predates this branch and covers too many routes for one change.
+  - 66 are `instant-routes` cases of detail routes: the title heading sits behind the page's `Suspense` boundary, so it is not in the prefetched UI under the instant lock. No `page.tsx` under `apps/examples/nextjs/src/app` differs from `origin/main`, so the shells are the ones `main` has. The pages state "the back link is the static shell", and the record streams in; there is no shared detail layout to change, because each page owns its `Suspense` fallback (the 40 or so that pass have a heading in the skeleton). The fix is a static heading in about 60 skeletons, or one decision to drop the heading from the instant check for streamed records. I left it as recorded; it is a design call, not a regression. I did not rerun five of them on `main` (no build there), the identical page files stand in for it.
   - 3 are `budgets` cases that now render and measure: `/customers/[id]` (14 calls against 13, the deferred sections start inside the window), `/crm/deals/[id]` (13 calls in 4 waves against 12 in 3) and `/crm/companies/[id]` (9 calls in 4 waves against 3 waves). None of the loaders are touched by this branch; they need a budget decision or a waterfall fix.
   - 4 are the workflow builder route (budgets, cold-warm, db-time, measure-pages) opened with a stale definition id. `urls.json` kept an id from an earlier run after the reset. `resolve-urls` now forgets the URL of a route it cannot resolve, and the four cases pass alone.
-  - 1 in `counters`: `islands.spec.ts` "a second instance serves the remote entry" lands on the login page. It failed twice, the second time alone, and I did not compare it against `main`.
-- The 116 missing-`h1` failures reported earlier had three causes. Eleven pages put their title in a `div` (case, framework, lesson, contact and company, meeting, metric, rule; course and builder used `h2`): they now have a level 1 heading. Two routes read other tables than `resolve-urls` assumed (`subject_collections` has no seed, so `/shop/collections/[id]` is skipped as unresolved; `/warehouse/counts/[id]` now reads `count_plans`). `/shop/products/[id]` had no seeded URL at all.
+  - 1 in `counters`: `islands.spec.ts` "a second instance serves the remote entry" landed on a login page. The cause was the test, not the branch: it read the second instance from a fixed `localhost:3101`, so a run on `BSB_PORT=3400` reached another checkout's server. It now follows `BSB_PORT` and passes alone and with the other four islands cases. `main` has the same fixed port. `bsb-main-probe` has no install or build, so I did not run it there.
+- The 116 missing-`h1` failures reported earlier had three causes. Nine pages put their title in a `div` or `h2` (case, framework, lesson, contact, meeting, metric, rule, course, builder): they now have a level 1 heading. Two routes read other tables than `resolve-urls` assumed (`subject_collections` has no seed, so `/shop/collections/[id]` is skipped as unresolved; `/warehouse/counts/[id]` now reads `count_plans`). `/shop/products/[id]` had no seeded URL at all.
+- The Schema check failed on a stale `supabase/snapshot.json` after the migration renames; regenerated with `supabase:reset` and `gen --save-snapshot`. `verify / coverage` failed on the unit duration check (three SQL tests, in files that `scripts/unit-time-budget.json` lists, ran over half their timeout on a loaded runner); the PR's `type performance` check passes.
 - The machine carried a load average of 8 to 38 from other agents, so timing numbers are indicative.
 
 Manual steps for the maintainer:
@@ -44,6 +45,24 @@ Manual steps for the maintainer:
 2. Set `BSB_KEPT_STORE=vercel` in the Development, Preview and Production environments, then run the kept-entry probe against a preview. A kept read after a deploy is untested on Vercel.
 3. Apply the plans anon-read migration (`20270120010074` and `20270120010080`) before the plan catalog read as `anon` goes out.
 4. Adopters run `better-supabase upgrade` to pick up the composite functions and the bitset claim; a part's TypeScript hooks no longer fire inside a composite, the composite's own hook does.
+
+## Measured after the changes (calm enough: load 8 to 10)
+
+Admin, `db-time` spec (`BSB_DB_ADMIN_URL` set to this checkout's database; the default points at the main checkout's port), seed tier, warm render. Before is the first harness table in this file's sibling, [one-round-trip-before.md](one-round-trip-before.md).
+
+| Route                   | Statements | Exec ms before to after | Plan ms after | Buffers before to after        |
+| ----------------------- | ---------- | ----------------------- | ------------- | ------------------------------ |
+| `/funding`              | 14 to 11   | 1790.73 to 99.24        | 2.31          | 52707 to 4267                  |
+| `/care/[clientId]`      | 25 to 22   | 1203.12 to 70.92        | 2.90          | 30489 to 3505                  |
+| `/medications`          | 12 to 9    | 480.32 to 30.04         | 2.39          | 10273 to 1223                  |
+| `/care`                 | 20 to 18   | 359.92 to 180.56        | 9.56          | 16465 to 5977                  |
+| `/banking/transactions` | 12 to 9    | 210.92 to 89.35         | 2.83          | 15041 to 12063                 |
+| `/deadlines`            | 11 to 8    | 81.16 to 11.88          | 3.79          | 3589 to 472                    |
+| `/crm/deals`            | n/a        | n/a                     | 2.80          | 2672 (13 statements, 35.76 ms) |
+
+Buffers and statements are exact; milliseconds vary with the load. `/care/[clientId]` is 18 calls in 2 waves (before 21 in 2). The planning time of `better_supabase.funding_award_usage(uuid)` at the seed tier is 0.01 ms for the call (a nested function body is planned inside the call), 0.3 to 1.0 ms to execute and 6 to 518 buffers; the earlier 162 and 69 ms planning figures came from a larger award, not reproducible at the seed tier.
+
+Server bundles, raw bytes from `tests/next-build/server-baseline.json`, `main` then this branch: `(proxy)` 1,302,300 to 854,641 (minus 34.4 percent); all page entries 1,127,110,664 to 1,127,281,212 (plus 170,548 over 294 entries, about 0.6 KB each); all API route entries 297,179,773 to 297,214,770 (plus 34,997).
 
 ## Token and cookie size
 
