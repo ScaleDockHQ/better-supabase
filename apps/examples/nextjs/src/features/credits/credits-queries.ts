@@ -1,5 +1,5 @@
 import "server-only";
-import { tenantOf } from "better-supabase/next";
+import { tagFor, tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { readUserRows } from "@/features/admin-lists/admin-detail-read";
@@ -11,7 +11,7 @@ import { bsbShell } from "@/lib/supabase/server-shell";
 import { creditList } from "./credits-list";
 import { creditEntrySource } from "./credits-source";
 
-const CREDITS_TAG = "credits";
+const CREDITS_TAG = tagFor("credits");
 
 /**
  * The first page of credit entries; `null` without an organization or
