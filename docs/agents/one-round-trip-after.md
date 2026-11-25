@@ -123,3 +123,71 @@ Admin, `next start`, `actions.spec.ts`. After the composite is one call, the res
 | ----------------- | ------------ | ----------- | --------------------- | ---------- |
 | inviteWithinSeats | 10           | 7           | 6 to 3                | aca51816e  |
 | offboardEmployee  | 12           | 8           | 4 to 2                | 181affa563 |
+| reconcileAccount  | 11           | 2           | 3 to 2                | (next)     |
+
+## Cache tiers and invalidation (ADRs 1240, 1241, 1244, 1245)
+
+Measured on the production build with `next start`, the local stack,
+`BSB_REMOTE_CACHE_STORE=postgres` and, after, `BSB_KEPT_STORE=postgres`.
+`tests/cache.spec.ts` loads each route as the admin twice, as a member of the
+same organization once, and as the admin on a fresh `next start` process. The
+cells are database calls per hard load, before then after.
+
+| Route                   | Hard load 1 | Hard load 2 | Second user | After a restart |
+| ----------------------- | ----------- | ----------- | ----------- | --------------- |
+| `/`                     | 3 to 2      | 3 to 2      | 3 to 2      | 3 to 2          |
+| `/customers`            | 5 to 4      | 5 to 4      | 5 to 4      | 5 to 4          |
+| `/crm/deals`            | 14 to 13    | 14 to 13    | 14 to 13    | 14 to 13        |
+| `/finance/invoices`     | 2 to 1      | 2 to 1      | 2 to 1      | 2 to 1          |
+| `/settings/roles`       | 2 to 1      | 2 to 1      | 2 to 1      | 2 to 1          |
+| `/announcements`        | 2 to 1      | 2 to 1      | 2 to 1      | 2 to 1          |
+| `/islands?scope=remote` | 1 to 1      | 0 to 0      | 1 to 1      | 1 to 1          |
+
+The call each page lost is the shell's `shell_bootstrap`: the kept shell entry
+(item 2) is read from the Postgres kept store by the second user and by the
+process that started after the restart, where a `"use cache: private"` entry
+could not be. The entry is 8.3 kB. The home page went from one wave to two on the three
+loads that read it from the store; I did not find out why. Private entries still miss five to eight times per load on every route:
+they live in the browser, so none survives a hard load, and nothing else moves
+them. The islands remote entry is a hit on the second hard load only; it did
+not survive the restart in either run, which is the Next.js handler's key (it
+holds the build), not the kept store.
+
+### Items not done, and why
+
+- Tenant sharing for the permissions block (item 3) and the tenant-shared
+  reads that depend on it (item 4): `better-supabase config functions
+  --shareable` fails on the example with "The config sets no authorization
+  provider, so no function can be shared per tenant", so no function passes. A
+  provider needs its own `tables`, `scopes` and `functions`; the permissions
+  block has none, so `share: "tenant"` has no table to name. Item 4 is
+  skipped on that measurement. Item 3 needs a design (a `share` option on the
+  permissions block that feeds `tables`, `permissionsShareKey` and doctor
+  BS428/BS430) and is not started.
+- Item 5 landed (ADR 1244): `getPlans` reads as `anon` through `bsb.public()`.
+  The plan tables gained an anon select grant in a new migration.
+
+### Bare `refresh()` calls
+
+About 140 bare `refresh()` calls, counting comments that name it. `src/lib/refresh-caller.ts` holds
+three of them on purpose. The rest, by reason:
+
+- Most of the rest sit in `"use server"` functions named `retry*` or `refresh*`, with
+  no write in them: the Retry button of a load error or a live list. A retry
+  re-renders; nothing changed in the database, so no tag applies.
+- Mutations in domains whose pages read without a cache (`agents`, `evals`,
+  `ai-tasks`, `ai-providers`, `ai-usage`, `guardrails`, `knowledge`,
+  `notifications`, `prompts`, `assistant`, `records`, `workflows`): their reads
+  go through `bsbCore.context()`, which holds no entry, so `refresh()` renders
+  the new rows.
+- `composites-actions.ts` belongs to the composites work.
+- Fixed here: the organization, invitation, profile and avatar actions, the
+  plan review step and the integration disconnect. Their pages read from
+  `"use cache: private"` entries, which a production server keeps after
+  `refresh()`. They now call `refreshCaller(auth)` (the session) or, for the
+  disconnect, `refreshCaller(auth, [CONNECTORS_TAG])`.
+
+`tests/features/refresh-tags.test.ts` is the guard for the tagged calls: every
+tag passed to `refreshCaller` must be carried by a read, and an action that
+writes a table with a domain tag of its own must pass that tag. It starts at
+zero findings and a call that drops `CUSTOMERS_TAG` fails it.
