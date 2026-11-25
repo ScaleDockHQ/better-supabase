@@ -120,7 +120,7 @@ export async function CourseOutline({ courseId }: { courseId: string }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">{course.title}</h2>
+            <h1 className="text-lg font-semibold">{course.title}</h1>
             <Badge variant={statusVariants[course.status]}>
               {statusLabels[course.status]}
             </Badge>

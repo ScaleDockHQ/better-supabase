@@ -22,7 +22,7 @@ Final numbers, taken on the merged tree (`feat/one-round-trip-ship` on top of `m
 
 Composites (calls to waves): `inviteWithinSeats` 6 to 3 waves, `offboardEmployee` 8 calls in 2 waves, `reconcileAccount` 2 calls, `onboardEmployee` 8 calls, `bookWithReminder` 8 calls, `payDueBills` 6 calls, `openTicket` 4 calls in 2 waves, `closeAccountingPeriod` 2 calls in 2 waves. The generated report in [example-perf.md](example-perf.md) holds every row.
 
-What changed: the shared session memo and bitset permission claim, the shell bootstrap with a kept entry, `heldPermissions` for record loaders, the `funding_award_usage` lateral aggregate, the proxy trim, and the composites as SQL functions (migrations 082 through 085; the merge moved them up by one because `main` already carries `period_close_blockers` at 081).
+What changed: the shared session memo and bitset permission claim, the shell bootstrap with a kept entry, `heldPermissions` for record loaders, the `funding_award_usage` lateral aggregate, the proxy trim, and the composites as SQL functions (`book_with_reminder` and `pay_payment_batch` are on `main` as migrations 078 and 079; this branch adds `create_task_with_sla` at 084 and `close_period_if_clear` at 085).
 
 Verification on the merged tree:
 
@@ -33,7 +33,7 @@ Verification on the merged tree:
 
 Manual steps for the maintainer:
 
-1. Apply the migrations to the hosted project (`20270120010082` through `20270120010085`, plus the earlier plan grant `20270120010080`).
+1. Apply the migrations to the hosted project (`20270120010084` and `20270120010085`, on top of `main`'s `...078` through `...082`).
 2. Set `BSB_KEPT_STORE=vercel` in the Development, Preview and Production environments, then run the kept-entry probe against a preview. A kept read after a deploy is untested on Vercel.
 3. Apply the plans anon-read migration (`20270120010074` and `20270120010080`) before the plan catalog read as `anon` goes out.
 4. Adopters run `better-supabase upgrade` to pick up the composite functions and the bitset claim; a part's TypeScript hooks no longer fire inside a composite, the composite's own hook does.

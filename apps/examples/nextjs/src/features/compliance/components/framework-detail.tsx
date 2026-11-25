@@ -74,7 +74,9 @@ export async function FrameworkDetail({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{name}</CardTitle>
+        <CardTitle>
+          <h1>{name}</h1>
+        </CardTitle>
         <CardDescription>
           {version
             ? t("Version {version}, {count, number} controls", {
