@@ -17,7 +17,7 @@ only in migrations or in the dashboard, export it first:
 
 ```bash
 supabase db pull                                # a baseline migration, when supabase/migrations is empty
-supabase db schema declarative generate --linked
+supabase db schema declarative generate --remote
 ```
 
 Then check `supabase/config.toml`:

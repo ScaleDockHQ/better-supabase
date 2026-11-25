@@ -1,4 +1,5 @@
 {
+  "$schema": "https://supabase.com/schemas/config/v1.json",
   // Supabase CLI 3.2.0 reads config.jsonc when there is no config.json.
   "project_id": "validation-jsonc",
   "api": { "enabled": true, "auto_expose_new_tables": false },

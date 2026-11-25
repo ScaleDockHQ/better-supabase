@@ -33,7 +33,7 @@ const STACKS = [
   stack({ id: "idle", branch: "refs/heads/feature" }),
 ];
 
-function deps(calls: string[][] = [], code = 0, version = "3.2.0"): StackDeps {
+function deps(calls: string[][] = [], code = 0, version = "3.3.0"): StackDeps {
   return {
     memory: () =>
       Promise.resolve({
@@ -118,7 +118,7 @@ describe("stack prune", () => {
     ]);
     expect(calls).toEqual([
       ["stack", "prune", "--yes"],
-      ["stack", "stop", "--stack-id", "idle"],
+      ["stack", "stop", "--stack", "idle"],
     ]);
   });
 
@@ -136,7 +136,7 @@ describe("stack prune", () => {
 
     expect(calls).toEqual([
       ["stack", "prune", "--yes"],
-      ["stack", "destroy", "--stack-id", "deleted", "--yes"],
+      ["stack", "destroy", "--stack", "deleted", "--yes"],
     ]);
   });
 
@@ -144,7 +144,7 @@ describe("stack prune", () => {
     const calls: string[][] = [];
 
     await expect(
-      runStackPrune("/code/app", {}, env, () => {}, deps(calls, 0, "3.1.0")),
+      runStackPrune("/code/app", {}, env, () => {}, deps(calls, 0, "3.2.0")),
     ).rejects.toMatchObject({ code: "supabase_cli_too_old" });
     expect(calls).toEqual([]);
   });
@@ -190,7 +190,7 @@ describe("stack edge cases", () => {
     (calls: string[][], stdout = ""): StackDeps["supabase"] =>
     (args) => {
       if (args[0] === "--version") {
-        return Promise.resolve({ code: 0, stdout: "3.2.0", stderr: "" });
+        return Promise.resolve({ code: 0, stdout: "3.3.0", stderr: "" });
       }
 
       calls.push([...args]);
@@ -258,7 +258,7 @@ describe("stack edge cases", () => {
     );
 
     expect(consents).toEqual([]);
-    expect(calls).toEqual([["stack", "stop", "--stack-id", "idle"]]);
+    expect(calls).toEqual([["stack", "stop", "--stack", "idle"]]);
     expect(result.error).toBe("supabase stack stop failed: stop refused");
   });
 });
@@ -295,7 +295,7 @@ describe("stack commands through the CLI", () => {
       [
         "#!/bin/sh",
         `if [ "$1 $2" = "stack list" ]; then printf '%s' '${list}'; exit 0; fi`,
-        `if [ "$1" = "--version" ]; then echo 3.2.0; exit 0; fi`,
+        `if [ "$1" = "--version" ]; then echo 3.3.0; exit 0; fi`,
         `echo "$@" >> "${join(dir, "calls.log")}"`,
       ].join("\n"),
     );

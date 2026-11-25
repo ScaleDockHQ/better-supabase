@@ -154,8 +154,9 @@ Check that the local stack runs (`supabase start`). Exit code 1.
 
 The command needs a newer Supabase CLI than the one the project runs. The
 message names the feature, the minimum version and the installed version.
-`config validate`, `stack prune` and the `[api.tls]` settings need 3.2.0.
-Update it with `pnpm add -D supabase@3.2.0`. Exit code 1.
+`config validate`, `stack prune` and the `[api.tls]` settings need 3.2.0, and
+`dev stack prune` needs 3.3.0 for `--stack <id>`. Update it with
+`pnpm add -D supabase@3.4.0`. Exit code 1.
 
 ## `network_error`
 

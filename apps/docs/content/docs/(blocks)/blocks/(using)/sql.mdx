@@ -124,11 +124,11 @@ detected, so an app picks it in the config.
 ### pg-delta (Declarative Schemas 2.0)
 
 pg-delta is the Supabase CLI's diff engine (2.119 or later) and the default
-for projects that `supabase init` creates. It orders the schema files by
+for projects that `supabase init` creates (`config.jsonc` since CLI 3.4). It orders the schema files by
 dependency and carries grants, comments and `security_invoker` on views into
 the migration. It needs `[experimental.pgdelta] enabled = true` in
-`supabase/config.toml`; `better-supabase init`, `add` and `upgrade` add
-it to an existing `config.toml` under this workflow.
+the Supabase config (`config.toml`, `config.json` or `config.jsonc`);
+`better-supabase init`, `add` and `upgrade` add it to an existing config under this workflow.
 
 ### migra (Declarative Schemas 1.0)
 

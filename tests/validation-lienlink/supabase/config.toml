@@ -1,3 +1,4 @@
+#:schema https://supabase.com/schemas/config/v1.json
 # This file makes the folder its own Supabase project, so the declarative sync
 # and the doctor tests run against its schema files and baseline migration.
 project_id = "validation-lienlink"

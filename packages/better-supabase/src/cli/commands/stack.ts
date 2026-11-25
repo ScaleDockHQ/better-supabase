@@ -176,7 +176,7 @@ export async function runStackPrune(
     (action) => action.reason !== "worktree-missing",
   );
 
-  if (missing.length > 0) {
+  if (destroy.length + stop.length > 0) {
     const { stdout } = await deps.supabase(["--version"], root, env);
 
     assertCliVersion(parseCliVersion(stdout), "dev stack prune");
@@ -190,21 +190,16 @@ export async function runStackPrune(
         ? [
             "stack",
             "destroy",
-            ...deleted.flatMap((action) => ["--stack-id", action.stack.id]),
+            ...deleted.flatMap((action) => ["--stack", action.stack.id]),
             "--yes",
           ]
         : [],
     ],
-    [
+    // `stack stop --stack` takes one stack per call.
+    ...stop.map((action): readonly [string, readonly string[]] => [
       "stop",
-      stop.length > 0
-        ? [
-            "stack",
-            "stop",
-            ...stop.flatMap((action) => ["--stack-id", action.stack.id]),
-          ]
-        : [],
-    ],
+      ["stack", "stop", "--stack", action.stack.id],
+    ]),
   ];
 
   for (const [verb, command] of commands) {

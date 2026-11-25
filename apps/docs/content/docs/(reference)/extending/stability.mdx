@@ -121,7 +121,7 @@ release never changes your generated code or doctor report by itself:
   peer accepts `>=0.8.1`, and the CLI is tested against 0.8.1; `gen`
   prints a notice when another release is installed.
   `database.types.ts` matches `supabase gen types` for that version, apart
-  from the `__InternalSupabase` key that `supabase gen types --local` leaves
+  from the `__InternalSupabase` key that `supabase gen types` leaves
   out. Bumping it is a changelog entry.
 - **splinter** (the advisor lints) is fetched at a pinned commit and
   checked against a SHA-256 hash when doctor runs locally. It's never
