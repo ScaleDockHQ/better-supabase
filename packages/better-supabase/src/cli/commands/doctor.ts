@@ -1,10 +1,11 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { ConsentRequest } from "../core/agent.ts";
 import type { AnyCommand, CliValues } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
+import type { DoctorPhase } from "../doctor/format.ts";
 import type { OpenLive } from "../doctor/live-source.ts";
 import type { DoctorContext, Finding, TextFile } from "../doctor/rules.ts";
 import type { CliEnv } from "../env.ts";
@@ -460,6 +461,35 @@ export async function runDoctor(
     );
   }
 
+  // Check the output path before any work: a wrong --out used to fail after
+  // minutes of reading the database.
+  const out =
+    args.out ??
+    (format === config.doctor.format ? config.doctor.file : undefined);
+
+  if (out !== undefined) {
+    const target = insideRoot(config.root, out, "--out");
+
+    if (existsSync(target) && statSync(target).isDirectory()) {
+      throw new CliError(
+        "usage",
+        `--out ${out} is a directory; name the file to write.`,
+      );
+    }
+  }
+
+  const phases: DoctorPhase[] = [];
+  let phaseAt = performance.now();
+
+  const phase = (name: string): void => {
+    const now = performance.now();
+    phases.push({ name, ms: Math.round(now - phaseAt) });
+    phaseAt = now;
+    options.log?.(
+      `doctor: ${name} took ${((phases.at(-1)?.ms ?? 0) / 1000).toFixed(1)} s`,
+    );
+  };
+
   const rules = fixGrants
     ? RULES.filter((rule) => rule.code === "BS404")
     : RULES.filter(
@@ -636,6 +666,8 @@ export async function runDoctor(
     throw explain(cause);
   });
 
+  phase("read the project");
+
   const replay = opened.open ? (await opened.open()).replay : undefined;
 
   const live = replay
@@ -718,6 +750,7 @@ export async function runDoctor(
 
   try {
     ran = await runRules(context, rules);
+    phase("run the rules");
 
     const schemaRule =
       rules.find((rule) => rule.code === "BS635") ??
@@ -823,10 +856,6 @@ export async function runDoctor(
     ));
   }
 
-  const out =
-    args.out ??
-    (format === config.doctor.format ? config.doctor.file : undefined);
-
   const fromRepo = format === "sarif" || format === "github";
   const repoRoot = findRepoRoot(config.root);
 
@@ -851,6 +880,7 @@ export async function runDoctor(
       format,
       rules,
       version: VERSION,
+      phases,
       fallbackFile: repoPath(context.configToml?.path ?? "package.json"),
       ...(options.paint && !out ? { paint: options.paint } : {}),
     },
@@ -912,7 +942,7 @@ export async function runDoctor(
   }
 
   return format === "json"
-    ? { code, data: jsonReport(findings, VERSION), ...failure }
+    ? { code, data: jsonReport(findings, VERSION, phases), ...failure }
     : { code, output: report, ...failure };
 }
 

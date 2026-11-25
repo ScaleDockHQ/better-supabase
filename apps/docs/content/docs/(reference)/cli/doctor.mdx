@@ -44,6 +44,15 @@ Doctor never prints env values, only variable names and line numbers.
 
 Side effects: Reads the database, writes to the database with `--yes`, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
 
+## Large projects
+
+Doctor checks `--out` before it reads anything: a path outside the project, or
+a directory, stops the run at once. It logs how long each phase took (reading
+the project, running the rules) while it works, prints them under the text
+report, and lists them as `phases` in the JSON report. A text report of 20
+findings or more starts with one line per rule and its count, worst severity
+first, then the largest count.
+
 ## Without a database
 
 When no database runs and none is configured, doctor reads the schema from
@@ -2887,8 +2896,10 @@ awaits at least three repository, block client or `$rpc` calls in one
 PostgREST. A read set compiles the same reads into one stable database
 function, so the page waits on one round trip: `defineReadSet(db, "name", ...)`
 and `db.$many(readSet, params)`, or `bsb.bootstrap` for a page's first load.
-See [read sets](/docs/repository/read-sets). `tooling.doctor.parallelReads`
-sets the count (default 3).
+The finding prints the read set that replaces the reads: the same calls on the
+builder `s`, keyed by table, and the `db.$many` call. A value that comes from
+the page becomes a placeholder. See [read sets](/docs/repository/read-sets).
+`tooling.doctor.parallelReads` sets the count (default 3).
 
 ### BS634
 

@@ -28,6 +28,19 @@
         "infos": { "type": "integer", "minimum": 0 }
       }
     },
+    "phases": {
+      "type": "array",
+      "description": "How long each doctor phase took, in milliseconds.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "ms"],
+        "properties": {
+          "name": { "type": "string" },
+          "ms": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
     "findings": {
       "type": "array",
       "items": {

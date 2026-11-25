@@ -39,12 +39,67 @@ export function waves(model: SourceModel): Wave[] {
 const DATABASE_READ =
   /\b(?:db|ctx\.db|bsb\.db\(\)|blocks\.\w+)\b[\s\S]*?\(|\$rpc\s*\(/;
 
+/** Names the read set after the file: `src/app/tasks/page.tsx` is `tasks_page`. */
+function readSetName(path: string): string {
+  const parts = path
+    .replace(/\.[a-z]+$/, "")
+    .split("/")
+    .filter(
+      (part) => part !== "" && !/^(?:src|app|lib|\(.*\)|\[.*\])$/.test(part),
+    );
+
+  const name = parts
+    .slice(-2)
+    .join("_")
+    .replaceAll(/[^a-zA-Z0-9]+/g, "_")
+    .toLowerCase();
+
+  return name === "" ? "page_reads" : name;
+}
+
+/**
+ * The `defineReadSet` and `db.$many` calls that replace `entries`: the same
+ * reads on the builder `s`, keyed by the table each reads.
+ */
+export function readSetFor(path: string, entries: readonly string[]): string {
+  const used = new Map<string, number>();
+
+  const keyed = entries.map((entry, index) => {
+    const source = entry
+      .trim()
+      .replace(/^await\s+/, "")
+      .replace(/^(?:ctx\.db|bsb\.db\(\)|db)\b/, "s");
+
+    const table = /^s\.(\w+)\./.exec(source)?.[1] ?? `read${String(index + 1)}`;
+    const seen = used.get(table) ?? 0;
+    used.set(table, seen + 1);
+
+    return { key: seen === 0 ? table : `${table}${String(seen + 1)}`, source };
+  });
+
+  const name = readSetName(path);
+
+  return [
+    `  export const ${name.replaceAll(/_(\w)/g, (_, char: string) => char.toUpperCase())} = defineReadSet(betterSupabase, "${name}", {}, (s) => ({`,
+    ...keyed.map(({ key, source }) => `    ${key}: ${source},`),
+    "  }));",
+    `  const { ${keyed.map(({ key }) => key).join(", ")} } = await db.$many(${name.replaceAll(/_(\w)/g, (_, char: string) => char.toUpperCase())}, {}).orThrow();`,
+    "  // A value from the page (an id, a filter) becomes a placeholder in the first {} and p.<name> in the reads.",
+  ].join("\n");
+}
+
 function parallelReads(context: Parameters<Rule["check"]>[0]): FindingInput[] {
   const findings: FindingInput[] = [];
 
   for (const file of context.sources) {
     const model = sourceModel(file.text);
-    const found: { start: number; callee: string; reads: number }[] = [];
+
+    const found: {
+      start: number;
+      callee: string;
+      reads: number;
+      entries: readonly string[];
+    }[] = [];
 
     for (const wave of waves(model)) {
       const reads = wave.entries.filter((entry, index) => {
@@ -72,6 +127,7 @@ function parallelReads(context: Parameters<Rule["check"]>[0]): FindingInput[] {
           start: wave.start,
           callee: "Promise.all",
           reads: reads.length,
+          entries: reads,
         });
       }
     }
@@ -86,7 +142,7 @@ function parallelReads(context: Parameters<Rule["check"]>[0]): FindingInput[] {
       const line = file.text.slice(0, wave.start).split("\n").length;
 
       findings.push({
-        message: `${file.path} awaits ${wave.reads} database reads in one Promise.all. They run in parallel, but each is its own request. Load them in one call with a read set: defineReadSet(db, "name", { ... }) and db.$many(readSet, params) (or bsb.bootstrap for a page's first load).`,
+        message: `${file.path} awaits ${wave.reads} database reads in one Promise.all. They run in parallel, but each is its own request. Load them in one call with a read set (or bsb.bootstrap for a page's first load). The read set that replaces them:\n${readSetFor(file.path, wave.entries)}`,
         target: keys.get(wave.start)!,
         location: { file: file.path, line },
       });
