@@ -127,7 +127,7 @@ Admin, `next start`, `actions.spec.ts`. After the composite is one call, the res
 | onboardEmployee   | 10           | 8           | 3 to 2                | fbdbda00cd |
 | bookWithReminder  | 9            | 8           | 2 to 2                | eab25f2535 |
 | payDueBills       | 7            | 6           | 4 to 4                | 4a9a637725 |
-| openTicket        | 6            | 4           | 3 to 2                | (this PR)  |
+| openTicket        | 6            | 4           | 3 to 2                | a93d8063fc |
 
 ## Cache tiers and invalidation (ADRs 1240, 1241, 1244, 1245)
 
