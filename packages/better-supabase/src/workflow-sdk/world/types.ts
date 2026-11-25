@@ -11,7 +11,7 @@ import type { VercelQueueSdk } from "./vercel-queue.ts";
  * one. Its tables come from `@workflow/world-postgres` at
  * `WORLD_POSTGRES_VERSION`.
  */
-export const WORKFLOW_WORLD_PROTOCOL = "5.3.0";
+export const WORKFLOW_WORLD_PROTOCOL = "5.4.0";
 
 export type { WorkflowDeliveryMode };
 

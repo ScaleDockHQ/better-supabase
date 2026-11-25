@@ -1,0 +1,64 @@
+---
+title: From 0.85 to 0.86
+description: What to change when upgrading from better-supabase 0.85 to 0.86. eve 1.4, Workflow 5.8, world-postgres 5.5 and the ai 7.0.181 line, the workflow-sdk SQL module at version 10 and oRPC 2.0.0-beta.53.
+---
+
+0.86 moves `better-supabase/eve` and the Supabase World to eve 1.4, Workflow
+5.8 and `@workflow/world-postgres` 5.5, and raises the other peer floors to the
+releases the repo tests (ADR 1248). It is a minor release, and below 1.0 a
+minor version may carry breaking changes. Each change is also in the
+[changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+| Section                         | Needs code                                                           |
+| ------------------------------- | -------------------------------------------------------------------- |
+| [Peer versions](#peer-versions) | Upgrade eve, Workflow, world-postgres and the AI SDK                 |
+| [SQL module](#sql-module)       | Run `better-supabase upgrade` before you deploy world-postgres 5.5.0 |
+| [Rate limits](#rate-limits)     | None; the World turns them off                                       |
+
+## Peer versions
+
+Upgrade eve first with eve's own
+[upgrade guide](https://eve.dev/docs/guides/upgrade), then:
+
+```bash
+pnpm add eve@1.4.0 workflow@5.8.0 @workflow/world-postgres@5.5.0 ai@7.0.181
+```
+
+If you use them, also move `@ai-sdk/react` to 4.0.186, `@ai-sdk/workflow` to
+2.0.113 and `@orpc/server` to 2.0.0-beta.53. The Workflow ranges are:
+
+| Peer                       | 0.85                 | 0.86                 |
+| -------------------------- | -------------------- | -------------------- |
+| `eve`                      | `>=1.3.0 <2`         | `>=1.4.0 <2`         |
+| `workflow`                 | `>=5.7.1 <6`         | `>=5.8.0 <6`         |
+| `@workflow/world`          | `>=5.3.0 <5.4`       | `>=5.4.0 <5.5`       |
+| `@workflow/world-postgres` | `>=5.4.1 <5.5`       | `>=5.5.0 <5.6`       |
+| `ai`                       | `>=7.0.179 <8`       | `>=7.0.181 <8`       |
+| `@ai-sdk/react`            | `>=4.0.183 <5`       | `>=4.0.186 <5`       |
+| `@ai-sdk/workflow`         | `>=2.0.111 <3`       | `>=2.0.113 <3`       |
+| `@orpc/server`             | `>=2.0.0-beta.50 <3` | `>=2.0.0-beta.53 <3` |
+
+The World now speaks protocol 5.4.0. The other floors (Astro, Hono, NestJS,
+Nuxt, React Router, SvelteKit, TanStack Start, Stripe, `redis`, `undici` and
+more) move to the releases the repo tests; the changelog lists each one.
+
+## SQL module
+
+The `workflow-sdk` module is at version 10. Run `better-supabase upgrade`, apply
+the migration, then deploy world-postgres 5.5.0:
+
+```bash
+npx better-supabase upgrade
+```
+
+Version 10 creates `workflow.workflow_rate_limits` (world-postgres migration
+0033), closed to the API roles like the other World tables. world-postgres 5.5
+expects the table even while nothing writes to it.
+
+## Rate limits
+
+world-postgres 5.5 can reserve rate limit slots for spec 10 runs, which needs
+run serialization (`inBandFence`). The Supabase World mints spec 8 runs and
+declares no fence (ADR 1106), so it also reports `rateLimits: false`, and the
+table stays empty. Code that reads `world.capabilities` sees the two new
+`false` entries.

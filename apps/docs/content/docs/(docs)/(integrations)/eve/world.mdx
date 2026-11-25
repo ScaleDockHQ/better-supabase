@@ -20,9 +20,9 @@ SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 ```
 
 eve loads the World by name and refuses a World built for another
-`@workflow/*` major at startup. eve 1.3 bundles Workflow 5.7.1, which reads the
-5.3 protocol the World speaks (`WORKFLOW_WORLD_PROTOCOL`). The World wraps
-`@workflow/world-postgres` 5.4.1, so it inherits the atomic start hooks eve
+`@workflow/*` major at startup. eve 1.4 bundles Workflow 5.7 and checks only the
+major of the 5.4 protocol the World speaks (`WORKFLOW_WORLD_PROTOCOL`). The
+World wraps `@workflow/world-postgres` 5.5.0, so it inherits the atomic start hooks eve
 needs. The [Workflow SDK page](/docs/blocks/workflow-sdk) lists every
 variable and option. The sections below are the ones an eve app decides.
 
@@ -111,7 +111,7 @@ await world.purgeRuns({ olderThan: "30 days", skipUnprojected: true });
 purge hourly.
 
 A run started with a retention of 0 (the `$retention` attribute `'0'`) has its
-data cleared when it ends. world-postgres 5.4.1 also records a backstop for
+data cleared when it ends. world-postgres 5.5.0 also records a backstop for
 it, due a minute later, in case that purge does not finish. The World points
 `GRAPHILE_WORKER_SCHEMA` at `workflow` when you leave it unset, where
 `workflow.add_job` records the backstop, and `world.purgeBackstops()` clears
@@ -121,7 +121,7 @@ pg_cron.
 
 ## Supported eve versions
 
-The peer ranges are `eve >=1.3.0 <2`, `workflow >=5.7.1 <6`,
-`@workflow/world >=5.3.0 <5.4` and `@workflow/world-postgres >=5.4.1 <5.5`.
-Upgrade the `workflow-sdk` module to version 9 before you deploy them (see
-[the migration guide](/docs/migration/0.80-to-0.81)).
+The peer ranges are `eve >=1.4.0 <2`, `workflow >=5.8.0 <6`,
+`@workflow/world >=5.4.0 <5.5` and `@workflow/world-postgres >=5.5.0 <5.6`.
+Upgrade the `workflow-sdk` module to version 10 before you deploy them (see
+[the migration guide](/docs/migration/0.85-to-0.86)).

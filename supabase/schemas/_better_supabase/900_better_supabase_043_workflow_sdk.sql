@@ -1,11 +1,11 @@
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@9 managed
--- @bsb-hash sha256:26714529d828d782ae1a2a2f147c4e6a721daeabbb1c2d497bdf4c7d87554588
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs, the purge backstops of zero-retention runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
+-- @bsb-block workflow-sdk@10 managed
+-- @bsb-hash sha256:8bf2a0fd730c2e873939cb17821e2dde229b3638cd05cfbd720b25e816ea08d7
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.5.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs, the purge backstops of zero-retention runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.4.1).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.5.0).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -88,6 +88,13 @@ create table workflow.workflow_job_lock_holders (
   "worker_id" text not null,
   "renewed_at" timestamp with time zone not null default now(),
   constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
+);
+
+create table workflow.workflow_rate_limits (
+  "scope" character varying not null,
+  "key" character varying not null,
+  "tat_us" bigint,
+  constraint "workflow_rate_limits_scope_key_pk" PRIMARY KEY (scope, key)
 );
 
 create table workflow.workflow_run_delivery_leases (
@@ -310,6 +317,9 @@ grant all on workflow.workflow_job_lock_holders to service_role;
 alter table workflow.workflow_purge_backstops enable row level security;
 revoke all on workflow.workflow_purge_backstops from public, anon, authenticated;
 grant all on workflow.workflow_purge_backstops to service_role;
+alter table workflow.workflow_rate_limits enable row level security;
+revoke all on workflow.workflow_rate_limits from public, anon, authenticated;
+grant all on workflow.workflow_rate_limits to service_role;
 alter table workflow.workflow_run_delivery_leases enable row level security;
 revoke all on workflow.workflow_run_delivery_leases from public, anon, authenticated;
 grant all on workflow.workflow_run_delivery_leases to service_role;

@@ -1045,11 +1045,14 @@ export function createSupabaseWorld(
     // The queue is a pgmq table that runs any number of a run's messages at
     // once and takes no run delivery lease, so the World declares neither
     // `maxConcurrency` nor `inBandFence` and mints spec 8 runs whatever
-    // `WORKFLOW_SPEC_VERSION` says (ADR 1106).
+    // `WORKFLOW_SPEC_VERSION` says (ADR 1106). Rate limits need the fence, so
+    // world-postgres's `rateLimits` is turned off with it.
     capabilities: {
       ...base.capabilities,
       maxConcurrency: false,
       inBandFence: false,
+      rateLimits: false,
+      rateEventsInBatch: false,
     },
     specVersion: mintedSpecVersion(),
     // Every delivery carries the HMAC that createQueueHandler checks before the
