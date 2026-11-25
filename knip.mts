@@ -1,12 +1,6 @@
 import type { KnipConfig } from "knip";
 
-// proxy-permissions.generated.ts is the gen output the example keeps for the
-// instance-free createProxy map; the example builds its own catalog instead.
-const exampleIgnore = [
-  "**/database.types.ts",
-  "**/generated.ts",
-  "**/proxy-permissions.generated.ts",
-];
+const exampleIgnore = ["**/database.types.ts", "**/generated.ts"];
 
 // better-supabase loads @supabase/server and @supabase/ssr as optional peers.
 const serverExample = {
@@ -106,9 +100,11 @@ const config: KnipConfig = {
     },
     "apps/examples/orpc-api": serverExample,
     "apps/examples/nextjs": {
+      // gen writes proxy-permissions.generated.ts; the example builds its own catalog.
       ...browserExample,
       ignore: [
         ...exampleIgnore,
+        "src/lib/supabase/proxy-permissions.generated.ts",
         "src/components/ui/**",
         "src/components/reui/**",
         "src/lib/supabase/records/**",
