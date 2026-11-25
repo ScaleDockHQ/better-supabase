@@ -6,6 +6,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { avatars } from "@/lib/buckets";
+import { refreshCaller } from "@/lib/refresh-caller";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import { ProfileRow } from "./profile-row";
@@ -38,7 +39,7 @@ export const updateProfile = bsb.action(
       return updated;
     }
 
-    refresh();
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -101,7 +102,7 @@ export const uploadAvatar = bsb.action(
       );
 
     if (replaced.ok) {
-      refresh();
+      await refreshCaller(auth);
     }
 
     return replaced;
