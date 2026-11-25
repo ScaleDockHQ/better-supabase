@@ -12,6 +12,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { catalog } from "../permission-catalog";
 import { permissions } from "./blocks.generated";
 import { betterSupabase } from "./index";
+import { keptStore } from "./kept-store";
 import { sharedCounters } from "./session-counters";
 
 const options: NextOptions = {
@@ -28,6 +29,8 @@ const options: NextOptions = {
     // Matches `src/app/api/bs-stats/route.ts`, where `bsb.debugRoute()` is mounted.
     route: "/api/bs-stats",
   },
+  // `BSB_KEPT_STORE`: memory per instance, Postgres, or the Vercel Runtime Cache.
+  kept: { store: keptStore() },
   // Applies when SUPABASE_READ_URL is set: reads stay on the primary this long after a write.
   replicas: { pinMs: 5000 },
   // `permission` on actions, routes and resources: granted from the token's
