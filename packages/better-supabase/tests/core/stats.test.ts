@@ -136,6 +136,19 @@ describe("StatsRecorder cache details", () => {
     });
   });
 
+  it("counts kept hits in the phase that served them", () => {
+    const request = new StatsRecorder();
+
+    request.setPhase("action");
+    request.entry({ id: "a", kind: "kept", outcome: "hit" });
+    request.entry({ id: "a", kind: "kept", outcome: "miss" });
+    request.setPhase("render");
+    request.entry({ id: "a", kind: "kept", outcome: "stale" });
+    request.entry({ id: "b", kind: "remote", outcome: "hit" });
+
+    expect(request.snapshot().keptHits).toEqual({ action: 1, render: 1 });
+  });
+
   it("measures a value as JSON bytes", () => {
     expect(byteSizeOf({ a: "é" })).toBe(10);
     expect(byteSizeOf(undefined)).toBeUndefined();

@@ -963,7 +963,9 @@ export const GET = bsb.debugRoute();
   parsed-cookie memo), next to `verifications`. `phases` counts calls per
   phase: `action` inside `bsb.action`, `render` otherwise, and any name you
   mark with `bsb.phase()`. The `bsb.action` log line ends with
-  `phases=write:2,render:3 decodes=1`.
+  `phases=write:2,render:3 keptHits=render:4 decodes=1`. `keptHits` counts the
+  kept entries that served a read without a fill, per phase, so an action shows
+  what its reads saved.
 
 ```ts
 const allowed = await bsb.phase("authorization", () => can(user, "edit"));

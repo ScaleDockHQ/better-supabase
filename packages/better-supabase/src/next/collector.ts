@@ -268,8 +268,13 @@ function describePhases(stats: DbStats): string {
     .map(([phase, calls]) => `${phase}:${calls}`)
     .join(",");
 
+  const hits = Object.entries(stats.keptHits ?? {})
+    .map(([phase, count]) => `${phase}:${count}`)
+    .join(",");
+
   return [
     phases === "" ? "" : ` phases=${phases}`,
+    hits === "" ? "" : ` keptHits=${hits}`,
     stats.decodes ? ` decodes=${stats.decodes}` : "",
   ].join("");
 }

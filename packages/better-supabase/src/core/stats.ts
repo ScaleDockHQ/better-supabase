@@ -28,6 +28,11 @@ export interface DbStats {
   readonly decodes?: number;
   /** Calls per phase, for the phases the request used. */
   readonly phases?: Readonly<Partial<Record<StatsPhase, number>>>;
+  /**
+   * Kept entries served without a fill (`bsb.kept()` and `bsb.cached({ keep })`
+   * reads that hit), per phase, so an action shows what its reads saved.
+   */
+  readonly keptHits?: Readonly<Partial<Record<StatsPhase, number>>>;
   /** Calls made with the service role while serving a user request. */
   readonly adminCalls: number;
   /**
@@ -123,6 +128,7 @@ export const EMPTY_STATS: DbStats = {
   verifications: 0,
   decodes: 0,
   phases: {},
+  keptHits: {},
   adminCalls: 0,
   tagCalls: 0,
   expiredTags: [],
@@ -216,6 +222,11 @@ export class StatsRecorder {
   /** Records how one cached call was served. */
   entry(record: CacheEntryStat): void {
     this.#entries.push(record);
+
+    if (record.kind === "kept" && record.outcome !== "miss") {
+      this.#keptHits[this.#phase] = (this.#keptHits[this.#phase] ?? 0) + 1;
+    }
+
     this.#parent?.entry(record);
   }
 
@@ -266,6 +277,8 @@ export class StatsRecorder {
     };
   }
 
+  #keptHits: Partial<Record<StatsPhase, number>> = {};
+
   #phaseCounts(): Partial<Record<StatsPhase, number>> {
     const counts: Partial<Record<StatsPhase, number>> = {};
 
@@ -289,6 +302,7 @@ export class StatsRecorder {
       verifications: this.#verifications,
       decodes: this.#decodes,
       phases: this.#phaseCounts(),
+      keptHits: { ...this.#keptHits },
       adminCalls: this.#adminCalls,
       tagCalls: this.#tagCalls,
       expiredTags: [...this.#expiredTags],
