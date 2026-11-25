@@ -25,6 +25,7 @@ import { explainSql } from "./permissions-explain.ts";
 import {
   bootstrapPermissionsSql,
   myPermissionsSql,
+  bitsetClaimsSql,
   oneTenantClaims,
   permissionClaimHook,
   sqlCompleteOnly,
@@ -1027,6 +1028,8 @@ $$;
 
 ${oneTenantClaims(ctx, layout)}
 
+${model === "catalog" ? bitsetClaimsSql(ctx.table("permissions"), ctx.col("permissions", "key"), ctx.idType) : ""}
+
 ${myPermissionsSql(id)}${model === "roles" || model === "catalog" ? bootstrapPermissionsSql(ctx.of("memberships").fn("member_organization_ids")) : ""}${providerGuestFunctions(ctx.installedModules, layout)}${catalogRoleFunctions(ctx)}
 
 ${[
@@ -1056,6 +1059,7 @@ ${[
   `can_user(uuid, text, ${id}, text)`,
   "permission_claims(uuid)",
   `permission_claims(uuid, ${id})`,
+  ...(model === "catalog" ? [`permission_claims_bitset(uuid, ${id})`] : []),
   ...(model === "roles" || model === "catalog"
     ? [`can_assign_as(uuid, ${id}, text)`]
     : []),

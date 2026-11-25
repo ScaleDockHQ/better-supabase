@@ -158,6 +158,49 @@ $$;`;
 }
 
 /**
+ * `permission_claims_bitset(user_id, tenant)`: the claim for the active tenant
+ * as `{ [tenant]: { h, b } }`. `h` is the first 8 hex digits of the md5 of the
+ * catalog keys sorted `collate "C"` and joined by a newline, `b` the
+ * `permission_bitset` of the keys the member holds over that order, so a token
+ * carries about 60 bytes for 300 keys. `permissionCatalog` builds the same
+ * order and hash in the app; a hash that differs makes the reader fall back to
+ * `my_permissions`.
+ */
+export function bitsetClaimsSql(
+  catalogTable: string,
+  keyColumn: string,
+  idType: string,
+): string {
+  return `-- { [tenant]: { h: catalog hash, b: bitset } } for one tenant, the active one.
+create or replace function better_supabase.permission_claims_bitset(user_id uuid, tenant ${idType})
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with catalog as (
+    select coalesce(array_agg(c.${keyColumn} order by c.${keyColumn} collate "C"), '{}'::text[]) as keys
+    from ${catalogTable} c
+  )
+  select case
+    when permission_claims_bitset.tenant is null then '{}'::jsonb
+    else jsonb_build_object(
+      permission_claims_bitset.tenant::text,
+      jsonb_build_object(
+        'h', left(md5(array_to_string(catalog.keys, E'\\n')), 8),
+        'b', better_supabase.permission_bitset(
+          catalog.keys,
+          better_supabase.member_permissions(permission_claims_bitset.user_id, permission_claims_bitset.tenant)
+        )
+      )
+    )
+  end
+  from catalog
+$$;`;
+}
+
+/**
  * `keys` without the keys the provider doesn't mark `sqlComplete`, so the
  * `permissions` claim never grants what the SQL functions can't decide. A
  * provider built without `sqlCompleteKeys` keeps every key.
