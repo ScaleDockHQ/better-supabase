@@ -168,12 +168,18 @@ export const AREAS: readonly Area[] = [
       { label: "Inbox", route: "/inbox" },
       { label: "Cases", route: "/cases" },
       { label: "Incidents", route: "/incidents" },
+      { label: "Change requests", route: "/change-requests" },
       { label: "Knowledge", route: "/knowledge" },
       { label: "Chat", route: "/chat" },
     ],
     actions: [
       { name: "openTicket", label: "Open a ticket", route: "/cases" },
       { name: "discussCase", label: "Discuss a case", route: "/cases" },
+      {
+        name: "moveChangeRequest",
+        label: "Move a change request",
+        route: "/change-requests",
+      },
     ],
   },
   {

@@ -1,7 +1,3 @@
-/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
-   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
-/* oxlint-disable vitest/prefer-each -- Playwright has no test.each; the loop
-   generates one case per route of the manifest (1 finding). */
 import { expect, test } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";

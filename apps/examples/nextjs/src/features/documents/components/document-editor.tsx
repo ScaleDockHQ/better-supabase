@@ -272,13 +272,24 @@ function DocumentSession({
     }
 
     setSubmitting(true);
-    const stored = await session.current.provider.submitSuggestion();
-    setSubmitting(false);
 
-    if (stored.ok) {
-      setHasDraft(false);
-      await loadSuggestions();
+    try {
+      const stored = await session.current.provider.submitSuggestion();
+
+      if (stored.ok) {
+        setHasDraft(false);
+      } else {
+        setSubmitting(false);
+
+        return;
+      }
+    } catch (error) {
+      setSubmitting(false);
+      throw error;
     }
+
+    setSubmitting(false);
+    await loadSuggestions();
   };
 
   if (failed) {

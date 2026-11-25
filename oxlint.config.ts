@@ -23,7 +23,7 @@ function plugin(specifier: string): string {
  * output.
  */
 export const ignorePatterns: string[] = [
-  ...(core.ignorePatterns ?? []).filter((pattern) => pattern !== "**/build"),
+  ...core.ignorePatterns.filter((pattern) => pattern !== "**/build"),
   "**/.source",
   "**/.agents/**",
   "**/.claude/**",

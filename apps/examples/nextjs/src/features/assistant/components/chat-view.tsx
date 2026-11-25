@@ -519,6 +519,10 @@ export function ChatView({
             setInput(event.target.value);
           }}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) {
+              return;
+            }
+
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               send();

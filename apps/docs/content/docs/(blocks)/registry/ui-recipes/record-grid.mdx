@@ -223,6 +223,16 @@ function SaveTaskViewDialog({ query }: { query: TaskQuery }) {
   const save = useAction(saveTaskView);
   const error = save.error === undefined ? null : errorMessage(save.error);
 
+  const saveView = async () => {
+    const result = await save.run({ name, ...query });
+
+    if (result.ok) {
+      toast.success(t("View saved"));
+      setName("");
+      setOpen(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button size="sm" variant="outline" />}>
@@ -234,15 +244,7 @@ function SaveTaskViewDialog({ query }: { query: TaskQuery }) {
           className="grid gap-6"
           onSubmit={(event) => {
             event.preventDefault();
-            void save.run({ name, ...query }).then((result) => {
-              if (result.ok) {
-                toast.success(t("View saved"));
-                setName("");
-                setOpen(false);
-              }
-
-              return result;
-            });
+            void saveView();
           }}
         >
           <DialogHeader>

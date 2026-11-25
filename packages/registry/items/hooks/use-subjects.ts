@@ -65,6 +65,7 @@ export function useSubjects(refs: readonly RecordRef[]): SubjectsState {
             ? []
             : key.split("\n").map((line): RecordRef => {
                 // SAFETY: each line is the `[type, id]` pair written above.
+                // oxlint-disable-next-line react-doctor/no-unsafe-json-parse -- the line is JSON.stringify output from above, never outside input.
                 const [type, id] = JSON.parse(line) as [string, string];
 
                 return { type, id };

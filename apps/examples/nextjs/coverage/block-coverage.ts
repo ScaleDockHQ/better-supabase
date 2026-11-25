@@ -92,7 +92,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   numbering: at("/settings/numbering"),
   teams: at("/settings/teams"),
   tags: at("/customers/[id]"),
-  "state-machine": at("/rules"),
+  "state-machine": at("/rules", "/change-requests"),
   "custom-fields": at("/settings/custom-fields"),
   "share-links": at("/share/[token]"),
   reminders: at("/calendar", "/my-work"),

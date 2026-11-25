@@ -27,8 +27,12 @@ function SignIn() {
 
   return (
     <form onSubmit={(event) => void submit(event)}>
-      <input name="email" type="email" placeholder="Email" required />
-      <input name="password" type="password" placeholder="Password" required />
+      <label>
+        Email <input name="email" type="email" required />
+      </label>
+      <label>
+        Password <input name="password" type="password" required />
+      </label>
       <button type="submit" disabled={signIn.pending}>
         Sign in
       </button>
@@ -70,13 +74,16 @@ function Customers({ organizationId }: { organizationId: string }) {
 
   return (
     <section>
-      <input
-        value={search.value}
-        onChange={(event) => {
-          search.setValue(event.target.value);
-        }}
-        placeholder="Search"
-      />
+      <label>
+        Search{" "}
+        <input
+          type="search"
+          value={search.value}
+          onChange={(event) => {
+            search.setValue(event.target.value);
+          }}
+        />
+      </label>
       {list.error ? <p role="alert">{list.error.message}</p> : null}
       {create.error ? <p role="alert">{create.error.message}</p> : null}
       <ul>
@@ -87,7 +94,9 @@ function Customers({ organizationId }: { organizationId: string }) {
         ))}
       </ul>
       <form onSubmit={add}>
-        <input name="name" placeholder="New customer" required />
+        <label>
+          New customer <input name="name" required />
+        </label>
         <button type="submit">Add</button>
       </form>
     </section>

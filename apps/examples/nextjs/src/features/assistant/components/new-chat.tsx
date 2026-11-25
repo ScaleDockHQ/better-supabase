@@ -15,7 +15,7 @@ export async function NewChat() {
 
   return (
     <AssistantChatLazy
-      // oxlint-disable-next-line react-doctor/rendering-hydration-mismatch-time -- a server component after `io()`, so each request gets a fresh chat id on purpose
+      // oxlint-disable-next-line react-doctor/rendering-hydration-mismatch-time, react-doctor/no-nondeterministic-id-value-in-render-body -- a server component after `io()`, so each request gets a fresh chat id on purpose
       id={crypto.randomUUID()}
       messages={[]}
       durableAvailable={durableAvailable()}

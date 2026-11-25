@@ -9,11 +9,20 @@ import { claimAt, DEFAULT_CLAIMS, tenantClaimPaths } from "../core/claims.ts";
 import { isRecord } from "../core/guards.ts";
 
 /**
+ * Where eve's `EveError.is` reads an error's class lineage. eve 1.5 answers an
+ * `AuthFn`'s throw with its `response` only when the lineage names `HttpError`,
+ * and the symbol is registered, so the brand needs no eve import.
+ */
+const EVE_ERROR_LINEAGE = Symbol.for("eve.error.lineage");
+
+/**
  * Thrown by `supabaseAuth` so eve answers with `response` instead of
- * downgrading to anonymous.
+ * downgrading to anonymous. eve 1.5 reads it as one of its `HttpError`s.
  */
 export class EveAuthRejection extends Error {
   override readonly name = "EveAuthRejection";
+  readonly code = "request_rejected";
+  readonly status: number;
   readonly response: Response;
 
   constructor(
@@ -22,10 +31,14 @@ export class EveAuthRejection extends Error {
     headers: Readonly<Record<string, string>> = {},
   ) {
     super(message);
+    this.status = status;
     this.response = Response.json(
       { error: message },
       { status, headers: { "content-type": "application/json", ...headers } },
     );
+    Object.defineProperty(this, EVE_ERROR_LINEAGE, {
+      value: Object.freeze(["EveAuthRejection", "HttpError", "EveError"]),
+    });
   }
 }
 

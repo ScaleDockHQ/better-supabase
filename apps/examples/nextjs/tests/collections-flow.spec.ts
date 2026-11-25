@@ -1,5 +1,3 @@
-/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
-   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
 import { expect, test } from "@playwright/test";
 
 import { signIn } from "./support/example-session";

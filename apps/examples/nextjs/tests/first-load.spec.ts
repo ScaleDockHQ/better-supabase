@@ -1,5 +1,3 @@
-/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
-   come from @playwright/test, which the rule reads as Vitest globals. */
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "@playwright/test";

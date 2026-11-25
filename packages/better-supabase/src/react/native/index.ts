@@ -1,7 +1,14 @@
 import type { Provider } from "@supabase/supabase-js";
 import type { ReactNode } from "react";
 
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import type { AuthSnapshot } from "../../client/index.ts";
 import type {
@@ -122,8 +129,9 @@ export function useOAuth(options: UseOAuthOptions): OAuth {
   const client = useClientOf(options.client, "useOAuth");
   const { state, run } = usePending(options);
   const latest = useRef(options);
-  // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
-  latest.current = options;
+  useLayoutEffect(() => {
+    latest.current = options;
+  });
 
   const calls = useMemo(
     () => ({
@@ -207,8 +215,9 @@ export function useAuthDeepLinks(
   const client = useClientOf(options.client, "useAuthDeepLinks");
   const [last, setLast] = useState<AuthLinkResult>({ type: "none" });
   const latest = useRef(options);
-  // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
-  latest.current = options;
+  useLayoutEffect(() => {
+    latest.current = options;
+  });
 
   useEffect(() => {
     let active = true;
@@ -366,8 +375,9 @@ export function SessionProvider(props: NativeSessionProviderProps): ReactNode {
   const client = useClientOf(props.client, "SessionProvider");
   const userId = auth.status === "signed-in" ? auth.user.id : undefined;
   const handlers = useRef(props);
-  // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
-  handlers.current = props;
+  useLayoutEffect(() => {
+    handlers.current = props;
+  });
   const { appState, powersync, source, topic, event, schema } = props;
 
   useEffect(() => {
