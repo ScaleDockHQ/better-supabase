@@ -213,9 +213,21 @@ The db-time spec's "failing detail routes" were stale ids: `resolve-urls.spec` w
 
 Doctor rule BS732 (ADR 1246) warns about statements from the API roles and functions that average more than 100 ms over at least five calls, and says when `pg_stat_statements` is not installed.
 
+### Proxy and bundles (Track 5)
+
+The proxy loads `./flags` lazily and takes the visitor cookie name from `visitor-cookie.ts`. The `(proxy)` entry went from 1,258,956 to 854,495 raw bytes (32 percent). A content test in `tests/next-build` keeps the flag keys out of the proxy chunks. Of what remains, a 628 KB chunk is the permission catalog, which the proxy needs to read the permission bitset, and a 158 KB chunk holds the navigation items it needs for `requiredPermission`. Decisions after measuring: `next-intl` stays in the proxy (the locale redirect is the proxy's job and its code is a small part of the 158 KB chunk), and the refresh policy stays as it is (only the proxy refreshes, invariant 7), so neither changes.
+
+The next-build baselines were retaken against a build without `EXPOSE_TESTING_API`: server chunks grew 43 KB on pages and about 160 KB on API routes since the last retake, which comes from branch work on shared chunks (cache tiers, composites, the stats trace) and is not attributed to one change. The library baselines in `tests/bundle` were retaken too (`./server` 223,875 to 235,715 B gzip, `./claims` 18,421 to 20,361 B gzip). Building the bundle test found a module-level `TextEncoder` in `core/stats.ts` that broke imports on runtimes without one; it is created on first use now.
+
+`banking.ts` was over the 1000 line limit, so the row mappers moved into `mappers.ts` as a pure move with no export changes.
+
 ### JWT size
 
 The header size check already exists, so there is nothing to add.
+
+### Not run: routes without an `h1` and the db-time baseline
+
+The `h1` check (a sign-in, then every openable route with a 6 second wait for a level-1 heading) and the full db-time baseline did not finish. With a load average of 11 to 24 from other jobs on the machine, the production server on the example's own port stopped answering and the resolve-urls pass slowed from 4 minutes to 11 minutes for 10 routes. The 23 routes in the plan are the detail routes whose seeded id had gone stale (see above), so a fresh `resolve-urls` should remove most of them; the first fresh run found `/metrics/[key]` still without an `h1`. Run `resolve-urls` then `db-time` on a quiet machine (the nightly workflow does), set `BSB_DB_TIME_UPDATE=1` once to write `tests/db-time.baseline.seed.json`, and fix any route the run lists.
 
 ### Skipped, with the reason
 

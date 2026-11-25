@@ -14,7 +14,10 @@ for (const file of [
   }
 }
 
-const baseURL = "http://localhost:3100";
+// `BSB_PORT` moves both instances (`BSB_PORT` and the next port) so a second
+// checkout can run its own servers beside this one.
+const port = Number(process.env["BSB_PORT"] ?? "3100");
+const baseURL = `http://localhost:${String(port)}`;
 
 const COUNTER_SPECS = [
   "**/bench-scopes.spec.ts",
@@ -24,7 +27,9 @@ const COUNTER_SPECS = [
 
 // Both instances keep `"use cache: remote"` entries here; tests/islands.spec.ts
 // reads one instance's entry from the other on port 3101.
-const remoteCacheDir = path.join(tmpdir(), "bsb-example-remote-cache");
+const remoteCacheDir =
+  process.env["BSB_REMOTE_CACHE_DIR"] ??
+  path.join(tmpdir(), "bsb-example-remote-cache");
 
 // `instant()` needs a production build with the testing API exposed; under
 // `next dev` the lock is ignored and every check passes without testing.
@@ -53,7 +58,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "next build && { next start -p 3101 & next start -p 3100; }",
+    command: `next build && { next start -p ${String(port + 1)} & next start -p ${String(port)}; }`,
     url: `${baseURL}/login`,
     env: {
       EXPOSE_TESTING_API: "1",
