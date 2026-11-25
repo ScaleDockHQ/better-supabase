@@ -263,7 +263,7 @@ Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each
 - Client: `bankingBlock` from `better-supabase/blocks/banking`
 - Modes: `managed`, `custom`
 - Requires: `memberships`, `permissions`
-- Works with: `accounting`, `invoices`, `expenses`, `attachments`, `outbox`, `audit`
+- Works with: `accounting`, `contacts`, `invoices`, `expenses`, `attachments`, `outbox`, `audit`
 - Entities: `bank_transaction`, `bank_account`, `bank_statement`, `bank_match`, `bank_rule`
 - Tables: `bank_transactions`, `bank_accounts`, `bank_statements`, `bank_matches`, `bank_rules`
 - Permission keys: `banking.read`, `banking.import`, `banking.reconcile`, `banking.manage`

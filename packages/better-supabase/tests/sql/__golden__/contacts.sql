@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:cdc9c23425a5c21b3fe20ca1722ef53a147e6bd5bbc3476f87a28a341ff529ff
+-- @bsb-hash sha256:98c7c25d93b4acbdf4ba7aeea020b698a546252101b4e944fcb1a22fd24e9305
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2242,6 +2242,12 @@ begin
   if v_company is null or v_person is null then
     raise exception 'a party contact needs a company and a person' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_company and p."tenant_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."people" p where p."id" = v_person and p."tenant_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   if exists (
     select 1 from "better_supabase"."company_people" x
     where x."company_id" = v_company and x."person_id" = v_person
@@ -2299,6 +2305,9 @@ begin
   if v_party is null or v_kind not in ('person', 'company') or v_channel not in ('email', 'phone', 'mobile', 'fax', 'whatsapp') or v_address is null then
     raise exception 'a contact method needs a party, a channel and an address' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_channels" x
   where x."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid
     and x."party_id" = v_party and x."channel" = v_channel and x."address" = v_address
@@ -2346,6 +2355,9 @@ declare
 begin
   if v_party is null then
     raise exception 'a location needs a party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_party_location.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_party_location.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_party_location.subject_id is not null then
     select x."id", x."updated_at", x."party_id" is not distinct from v_party and x."kind" is not distinct from coalesce(nullif(v_data ->> 'kind', ''), 'other') and x."line1" is not distinct from nullif(btrim(v_data ->> 'line1'), '') and x."line2" is not distinct from nullif(btrim(v_data ->> 'line2'), '') and x."postal_code" is not distinct from nullif(btrim(v_data ->> 'postalCode'), '') and x."city" is not distinct from nullif(btrim(v_data ->> 'city'), '') and x."country" is not distinct from nullif(btrim(v_data ->> 'country'), '') and x."latitude" is not distinct from nullif(v_data ->> 'latitude', '')::double precision and x."longitude" is not distinct from nullif(v_data ->> 'longitude', '')::double precision and x."is_primary" is not distinct from coalesce((v_data ->> 'isPrimary')::boolean, false) into v_id, v_updated, v_same
@@ -2397,6 +2409,9 @@ declare
 begin
   if v_party is null or not better_supabase.validate_iban(v_iban) then
     raise exception 'a bank account needs a party and a valid IBAN' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_bank_accounts" x
   where x."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid and x."iban" = v_iban
@@ -2611,7 +2626,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:a69b0869156cf8ad48b509d0f3ec8fc346b6788e19b0f2cdc89bbc31079ad5c3
+-- @bsb-hash sha256:15f6092f26fdea4501888a622ec8e58d72aea336ccfc7cd57d610bb32373dc00
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5008,6 +5023,12 @@ begin
   if v_company is null or v_person is null then
     raise exception 'a party contact needs a company and a person' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_company and p."tenant_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."people" p where p."id" = v_person and p."tenant_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   if exists (
     select 1 from "better_supabase"."company_people" x
     where x."company_id" = v_company and x."person_id" = v_person
@@ -5065,6 +5086,9 @@ begin
   if v_party is null or v_kind not in ('person', 'company') or v_channel not in ('email', 'phone', 'mobile', 'fax', 'whatsapp') or v_address is null then
     raise exception 'a contact method needs a party, a channel and an address' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_channels" x
   where x."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid
     and x."party_id" = v_party and x."channel" = v_channel and x."address" = v_address
@@ -5112,6 +5136,9 @@ declare
 begin
   if v_party is null then
     raise exception 'a location needs a party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_party_location.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_party_location.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_party_location.subject_id is not null then
     select x."id", x."updated_at", x."party_id" is not distinct from v_party and x."kind" is not distinct from coalesce(nullif(v_data ->> 'kind', ''), 'other') and x."line1" is not distinct from nullif(btrim(v_data ->> 'line1'), '') and x."line2" is not distinct from nullif(btrim(v_data ->> 'line2'), '') and x."postal_code" is not distinct from nullif(btrim(v_data ->> 'postalCode'), '') and x."city" is not distinct from nullif(btrim(v_data ->> 'city'), '') and x."country" is not distinct from nullif(btrim(v_data ->> 'country'), '') and x."latitude" is not distinct from nullif(v_data ->> 'latitude', '')::double precision and x."longitude" is not distinct from nullif(v_data ->> 'longitude', '')::double precision and x."is_primary" is not distinct from coalesce((v_data ->> 'isPrimary')::boolean, false) into v_id, v_updated, v_same
@@ -5163,6 +5190,9 @@ declare
 begin
   if v_party is null or not better_supabase.validate_iban(v_iban) then
     raise exception 'a bank account needs a party and a valid IBAN' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_bank_accounts" x
   where x."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid and x."iban" = v_iban
@@ -5381,7 +5411,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:cd894d60acfe63e1346310ac7aa7923edb21b8a3883d9a9a4596a5fbd453dbd2
+-- @bsb-hash sha256:c0434868f9f211d918897fa1ddb5031736b298d0035e1627be2a7a80f12b8c18
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7627,6 +7657,12 @@ begin
   if v_company is null or v_person is null then
     raise exception 'a party contact needs a company and a person' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "app_private"."companies" p where p."id" = v_company and p."tenant_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "app_private"."people" p where p."id" = v_person and p."tenant_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   if exists (
     select 1 from "app_private"."company_people" x
     where x."company_id" = v_company and x."person_id" = v_person
@@ -7684,6 +7720,9 @@ begin
   if v_party is null or v_kind not in ('person', 'company') or v_channel not in ('email', 'phone', 'mobile', 'fax', 'whatsapp') or v_address is null then
     raise exception 'a contact method needs a party, a channel and an address' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "app_private"."companies" p where p."id" = v_party and p."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid) or exists (select 1 from "app_private"."people" p where p."id" = v_party and p."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   select x."id", x."updated_at" into v_id, v_updated from "app_private"."party_channels" x
   where x."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid
     and x."party_id" = v_party and x."channel" = v_channel and x."address" = v_address
@@ -7731,6 +7770,9 @@ declare
 begin
   if v_party is null then
     raise exception 'a location needs a party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "app_private"."companies" p where p."id" = v_party and p."tenant_id" = (import_party_location.item ->> 'tenant')::uuid) or exists (select 1 from "app_private"."people" p where p."id" = v_party and p."tenant_id" = (import_party_location.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_party_location.subject_id is not null then
     select x."id", x."updated_at", x."party_id" is not distinct from v_party and x."kind" is not distinct from coalesce(nullif(v_data ->> 'kind', ''), 'other') and x."line1" is not distinct from nullif(btrim(v_data ->> 'line1'), '') and x."line2" is not distinct from nullif(btrim(v_data ->> 'line2'), '') and x."postal_code" is not distinct from nullif(btrim(v_data ->> 'postalCode'), '') and x."city" is not distinct from nullif(btrim(v_data ->> 'city'), '') and x."country" is not distinct from nullif(btrim(v_data ->> 'country'), '') and x."latitude" is not distinct from nullif(v_data ->> 'latitude', '')::double precision and x."longitude" is not distinct from nullif(v_data ->> 'longitude', '')::double precision and x."is_primary" is not distinct from coalesce((v_data ->> 'isPrimary')::boolean, false) into v_id, v_updated, v_same
@@ -7782,6 +7824,9 @@ declare
 begin
   if v_party is null or not better_supabase.validate_iban(v_iban) then
     raise exception 'a bank account needs a party and a valid IBAN' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "app_private"."companies" p where p."id" = v_party and p."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid) or exists (select 1 from "app_private"."people" p where p."id" = v_party and p."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   select x."id", x."updated_at" into v_id, v_updated from "app_private"."party_bank_accounts" x
   where x."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid and x."iban" = v_iban
@@ -7996,7 +8041,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:87c0e21f52304a484585671e1c4d811fc9b47ff8b92eabf82f46f09b794c3015
+-- @bsb-hash sha256:a1244ea3d6d89befb5d67f57b5eaa4675a397953140424e536a572bb6ba5128e
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10237,6 +10282,12 @@ begin
   if v_company is null or v_person is null then
     raise exception 'a party contact needs a company and a person' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_company and p."tenant_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."people" p where p."id" = v_person and p."tenant_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   if exists (
     select 1 from "better_supabase"."company_people" x
     where x."company_id" = v_company and x."person_id" = v_person
@@ -10294,6 +10345,9 @@ begin
   if v_party is null or v_kind not in ('person', 'company') or v_channel not in ('email', 'phone', 'mobile', 'fax', 'whatsapp') or v_address is null then
     raise exception 'a contact method needs a party, a channel and an address' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_channels" x
   where x."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid
     and x."party_id" = v_party and x."channel" = v_channel and x."address" = v_address
@@ -10341,6 +10395,9 @@ declare
 begin
   if v_party is null then
     raise exception 'a location needs a party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_party_location.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_party_location.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_party_location.subject_id is not null then
     select x."id", x."updated_at", x."party_id" is not distinct from v_party and x."kind" is not distinct from coalesce(nullif(v_data ->> 'kind', ''), 'other') and x."line1" is not distinct from nullif(btrim(v_data ->> 'line1'), '') and x."line2" is not distinct from nullif(btrim(v_data ->> 'line2'), '') and x."postal_code" is not distinct from nullif(btrim(v_data ->> 'postalCode'), '') and x."city" is not distinct from nullif(btrim(v_data ->> 'city'), '') and x."country" is not distinct from nullif(btrim(v_data ->> 'country'), '') and x."latitude" is not distinct from nullif(v_data ->> 'latitude', '')::double precision and x."longitude" is not distinct from nullif(v_data ->> 'longitude', '')::double precision and x."is_primary" is not distinct from coalesce((v_data ->> 'isPrimary')::boolean, false) into v_id, v_updated, v_same
@@ -10392,6 +10449,9 @@ declare
 begin
   if v_party is null or not better_supabase.validate_iban(v_iban) then
     raise exception 'a bank account needs a party and a valid IBAN' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_bank_accounts" x
   where x."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid and x."iban" = v_iban
@@ -11010,7 +11070,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:63e321a90b7f2fd539ab1d6b200319bbe2eee7ff195818480bd6399bfaa8974d
+-- @bsb-hash sha256:b52bf63be63503d4411bb6ba00f5ee5873a367eae92d3a2de17216cc43469c12
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13229,6 +13289,12 @@ begin
   if v_company is null or v_person is null then
     raise exception 'a party contact needs a company and a person' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_company and p."tenant_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."people" p where p."id" = v_person and p."tenant_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   if exists (
     select 1 from "better_supabase"."company_people" x
     where x."company_id" = v_company and x."person_id" = v_person
@@ -13286,6 +13352,9 @@ begin
   if v_party is null or v_kind not in ('person', 'company') or v_channel not in ('email', 'phone', 'mobile', 'fax', 'whatsapp') or v_address is null then
     raise exception 'a contact method needs a party, a channel and an address' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_channels" x
   where x."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid
     and x."party_id" = v_party and x."channel" = v_channel and x."address" = v_address
@@ -13333,6 +13402,9 @@ declare
 begin
   if v_party is null then
     raise exception 'a location needs a party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_party_location.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_party_location.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_party_location.subject_id is not null then
     select x."id", x."updated_at", x."party_id" is not distinct from v_party and x."kind" is not distinct from coalesce(nullif(v_data ->> 'kind', ''), 'other') and x."line1" is not distinct from nullif(btrim(v_data ->> 'line1'), '') and x."line2" is not distinct from nullif(btrim(v_data ->> 'line2'), '') and x."postal_code" is not distinct from nullif(btrim(v_data ->> 'postalCode'), '') and x."city" is not distinct from nullif(btrim(v_data ->> 'city'), '') and x."country" is not distinct from nullif(btrim(v_data ->> 'country'), '') and x."latitude" is not distinct from nullif(v_data ->> 'latitude', '')::double precision and x."longitude" is not distinct from nullif(v_data ->> 'longitude', '')::double precision and x."is_primary" is not distinct from coalesce((v_data ->> 'isPrimary')::boolean, false) into v_id, v_updated, v_same
@@ -13384,6 +13456,9 @@ declare
 begin
   if v_party is null or not better_supabase.validate_iban(v_iban) then
     raise exception 'a bank account needs a party and a valid IBAN' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_bank_accounts" x
   where x."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid and x."iban" = v_iban
@@ -13598,7 +13673,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:9ab9712904a7ec9a843b8fdfa795c237565acf0c172d6cd66c78900eaafc5030
+-- @bsb-hash sha256:30732751ff5789edb83b86de5d8b82875dfa020c26fc41dad147bb3b5233c696
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15839,6 +15914,12 @@ begin
   if v_company is null or v_person is null then
     raise exception 'a party contact needs a company and a person' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_company and p."org_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."people" p where p."id" = v_person and p."org_id" = (import_party_contact.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   if exists (
     select 1 from "better_supabase"."company_people" x
     where x."company_id" = v_company and x."person_id" = v_person
@@ -15896,6 +15977,9 @@ begin
   if v_party is null or v_kind not in ('person', 'company') or v_channel not in ('email', 'phone', 'mobile', 'fax', 'whatsapp') or v_address is null then
     raise exception 'a contact method needs a party, a channel and an address' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."org_id" = (import_contact_method.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."org_id" = (import_contact_method.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
   select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_channels" x
   where x."org_id" = (import_contact_method.item ->> 'tenant')::uuid
     and x."party_id" = v_party and x."channel" = v_channel and x."address" = v_address
@@ -15943,6 +16027,9 @@ declare
 begin
   if v_party is null then
     raise exception 'a location needs a party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."org_id" = (import_party_location.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."org_id" = (import_party_location.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   if import_party_location.subject_id is not null then
     select x."id", x."updated_at", x."party_id" is not distinct from v_party and x."kind" is not distinct from coalesce(nullif(v_data ->> 'kind', ''), 'other') and x."line1" is not distinct from nullif(btrim(v_data ->> 'line1'), '') and x."line2" is not distinct from nullif(btrim(v_data ->> 'line2'), '') and x."postal_code" is not distinct from nullif(btrim(v_data ->> 'postalCode'), '') and x."city" is not distinct from nullif(btrim(v_data ->> 'city'), '') and x."country" is not distinct from nullif(btrim(v_data ->> 'country'), '') and x."latitude" is not distinct from nullif(v_data ->> 'latitude', '')::double precision and x."longitude" is not distinct from nullif(v_data ->> 'longitude', '')::double precision and x."is_primary" is not distinct from coalesce((v_data ->> 'isPrimary')::boolean, false) into v_id, v_updated, v_same
@@ -15994,6 +16081,9 @@ declare
 begin
   if v_party is null or not better_supabase.validate_iban(v_iban) then
     raise exception 'a bank account needs a party and a valid IBAN' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not (exists (select 1 from "better_supabase"."companies" p where p."id" = v_party and p."org_id" = (import_party_bank_account.item ->> 'tenant')::uuid) or exists (select 1 from "better_supabase"."people" p where p."id" = v_party and p."org_id" = (import_party_bank_account.item ->> 'tenant')::uuid)) then
+    raise exception 'the party isn''t one of this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_bank_accounts" x
   where x."org_id" = (import_party_bank_account.item ->> 'tenant')::uuid and x."iban" = v_iban

@@ -281,7 +281,7 @@ export function lineColumn(
     return LINE_DEFAULTS[column] ?? "null";
   }
 
-  return RATE_COLUMNS.has(column) && percentRates(ctx, lines)
+  return RATE_COLUMNS.has(column) && percentRates(ctx, lines, column)
     ? `round(${alias}.${ctx.col(lines, column)} * 100)::integer`
     : `${alias}.${ctx.col(lines, column)}`;
 }
@@ -292,7 +292,7 @@ export function lineRateValue(
   column: string,
   value: string,
 ): string {
-  return RATE_COLUMNS.has(column) && percentRates(ctx, lines)
+  return RATE_COLUMNS.has(column) && percentRates(ctx, lines, column)
     ? `(${value} / 100.0)`
     : value;
 }
@@ -305,20 +305,30 @@ const RATE_COLUMNS: ReadonlySet<string> = new Set([
 /**
  * `options.lineRates: "percent"`: the app's line table keeps discount and tax
  * rates as percentages, such as `numeric(5, 2)`, which the block reads and
- * writes as basis points.
+ * writes as basis points. `options.lineDiscountRates` sets the discount column
+ * apart, for a table with a percent tax rate and a basis point discount.
  */
-function percentRates(ctx: BlockSqlContext, lines: string): boolean {
-  const raw = ctx.option("lineRates") ?? "bps";
+function percentRates(
+  ctx: BlockSqlContext,
+  lines: string,
+  column: string,
+): boolean {
+  const option =
+    column === "discountBps" && ctx.option("lineDiscountRates") !== undefined
+      ? "lineDiscountRates"
+      : "lineRates";
+
+  const raw = ctx.option(option) ?? "bps";
 
   if (raw !== "bps" && raw !== "percent") {
     throw new TypeError(
-      `blocks.${ctx.module}.options.lineRates must be "bps" or "percent"`,
+      `blocks.${ctx.module}.options.${option} must be "bps" or "percent"`,
     );
   }
 
   if (raw === "percent" && ctx.owns(lines)) {
     throw new TypeError(
-      `blocks.${ctx.module}.options.lineRates: "percent" needs your own line table, mapped in tables.${lines}`,
+      `blocks.${ctx.module}.options.${option}: "percent" needs your own line table, mapped in tables.${lines}`,
     );
   }
 

@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:bae35ddabd8d3f52a45b026531b2a761be9a2865c5035e6f76f6426082f3219a
+-- @bsb-hash sha256:964ad032ddf5050a32d5b85f71f3765e3645e3c49d2c0efd5d6ce06fba1cb998
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -707,7 +707,7 @@ $$;
 revoke execute on function "better_supabase"."drive_bin"(uuid, integer, timestamptz, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_bin"(uuid, integer, timestamptz, uuid) to authenticated, service_role;
 
--- Deletes a bin entry for good (the share role, or drive.manage).
+-- Deletes a bin entry for good (the share role, and the delete key when set).
 create or replace function "better_supabase"."drive_purge"(item uuid)
 returns integer
 language plpgsql
@@ -724,7 +724,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_root."subject_id"::uuid, 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_root."subject_id"::uuid, 'owner')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_root."subject_id"::uuid, 'owner'))) then
     raise exception 'not allowed to delete this item for good' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   return "better_supabase"."trash_purge_batch"(v_root."batch_id");

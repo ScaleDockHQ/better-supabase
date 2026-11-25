@@ -9724,6 +9724,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "accounting",
+        "contacts",
         "invoices",
         "expenses",
         "attachments",
@@ -28457,7 +28458,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "bank_statement.imported",
           "bank_transaction.matched",
-          "bank_transaction.unmatched"
+          "bank_transaction.unmatched",
+          "payment_batch.created",
+          "payment_batch.posted",
+          "payment_batch.cancelled"
         ]
       },
       "entityLists": {

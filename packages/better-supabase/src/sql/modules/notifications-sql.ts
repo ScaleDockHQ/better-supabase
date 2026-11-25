@@ -422,7 +422,16 @@ begin
   end if;
   if v_activity not in ('participating', 'all') then
     ${fail("NOTIFICATION_ACTIVITY_UNKNOWN", "activity must be participating or all", "22023")}
-  end if;${actionsCheck(n)}${authorize}
+  end if;${actionsCheck(n)}${
+    n.has("events", "actions")
+      ? `
+  -- An action runs an operation for whoever presses it, so only the app's
+  -- server (the service role) sends one.
+  if not (${SERVICE_CALLER}) and jsonb_typeof(notification -> 'actions') = 'array' and jsonb_array_length(notification -> 'actions') > 0 then
+    ${fail("NOTIFICATION_ACTIONS_FORBIDDEN", "Only the service role sends notifications with actions")}
+  end if;`
+      : ""
+  }${authorize}
   ${ctx.hook("before_notification_send", [["jsonb", "notification"]])}${consentGate(ctx)}
   if to_regprocedure(${sqlString(`${audience}(jsonb)`)}) is not null then
     execute format('select %s($1)', to_regprocedure(${sqlString(`${audience}(jsonb)`)})::oid::regproc) into v_extra using notification;

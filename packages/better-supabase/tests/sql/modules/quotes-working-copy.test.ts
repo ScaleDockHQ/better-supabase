@@ -243,7 +243,7 @@ declare
 begin
   ${SERVICE}
   v_quote := better_supabase.create_quote('${TENANT}', '{"title": "Website", "currency": "EUR"}'::jsonb,
-    '[{"description": "Design", "unitAmount": "5000"}, {"description": "Support", "unitAmount": "1000", "optional": true}]'::jsonb);
+    '[{"description": "Design", "unitAmount": "5000", "unitCost": "3200", "billingParty": "internal"}, {"description": "Support", "unitAmount": "1000", "optional": true}]'::jsonb);
   v_id := (v_quote ->> 'id')::uuid;
   v_token := better_supabase.send_quote(v_id) ->> 'token';
   v_hash := (select token_hash from better_supabase.quotes where id = v_id);
@@ -265,6 +265,9 @@ begin
     or v_view ->> 'status' <> 'viewed' then
     raise exception 'the customer saw %', v_view;
   end if;
+  if v_view -> 'lines' -> 0 ? 'unitCost' or v_view -> 'lines' -> 0 ? 'billingParty' then
+    raise exception 'the customer saw the line cost %', v_view -> 'lines' -> 0;
+  end if;
   v_optional := v_view -> 'lines' -> 1 ->> 'versionLineId';
   perform better_supabase.respond_to_quote(v_token, 'accepted', 'Cleo', null, jsonb_build_array(v_optional));
   ${SERVICE}
@@ -273,6 +276,10 @@ begin
     is distinct from ('Website'::text, 6000::bigint, false, 'accepted'::text)
     or (select string_agg(description || ':' || selected, ',' order by position) from better_supabase.quote_lines where parent_id = v_id) <> 'Design:true,Support:true' then
     raise exception 'accepted %', (select to_jsonb(q) from better_supabase.quotes q where id = v_id);
+  end if;
+  if (select (unit_cost, billing_party) from better_supabase.quote_lines where parent_id = v_id and position = 1)
+    is distinct from (3200::bigint, 'internal'::text) then
+    raise exception 'the restored line lost its cost or billing party %', (select jsonb_agg(l) from better_supabase.quote_lines l where parent_id = v_id);
   end if;
 end;
 $$;`,

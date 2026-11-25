@@ -365,7 +365,7 @@ declare
   v_total bigint := 0;
   v_count integer := 0;
 begin
-  if not ${q.allowed("create_payment_batch.tenant", q.reconcile)} then
+  if not ${q.allowed("create_payment_batch.tenant", q.batch.create)} then
     ${q.forbidden("not allowed to create payment batches")}
   end if;
   if jsonb_typeof(create_payment_batch.input) is distinct from 'object'
@@ -416,7 +416,7 @@ begin
         detail = jsonb_build_object('partyId', v_item.party)::text;
     end if;
     v_iban := upper(regexp_replace(coalesce(v_creditor ->> 'iban', ''), '\\s', '', 'g'));
-    if v_iban !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' or ${fn("bank_mod97")}(substr(v_iban, 5) || substr(v_iban, 1, 4)) is distinct from 1 then
+${registeredIban(ctx)}    if v_iban !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' or ${fn("bank_mod97")}(substr(v_iban, 5) || substr(v_iban, 1, 4)) is distinct from 1 then
       raise exception 'a creditor has an invalid IBAN' using errcode = '22023', hint = 'PAYMENT_BATCH_CREDITOR_INVALID',
         detail = jsonb_build_object('partyId', v_item.party)::text;
     end if;
@@ -433,6 +433,7 @@ begin
     raise exception 'no approved open bill is due by that date' using errcode = '22023', hint = 'PAYMENT_BATCH_EMPTY';
   end if;
   update ${batches} y set ${b("total")} = v_total, ${b("itemCount")} = v_count where y.${b("id")} = v_batch.${b("id")} returning * into v_batch;
+  ${recordBatch(ctx, b, "created")}
   return ${batchJson("v_batch")};
 end;
 $$;
@@ -521,7 +522,7 @@ declare
   v_item record;
 begin
   select * into v_batch from ${batches} x where x.${b("id")} = post_payment_batch.batch_id for update;
-  if not found or not ${q.allowed(`v_batch.${b("tenant")}`, q.reconcile)} then
+  if not found or not ${q.allowed(`v_batch.${b("tenant")}`, q.batch.post)} then
     raise exception 'no such payment batch' using errcode = 'P0002', hint = 'PAYMENT_BATCH_NOT_FOUND';
   end if;
   if v_batch.${b("status")} <> 'draft' then
@@ -532,6 +533,7 @@ begin
   end loop;
   update ${items} y set ${p("status")} = 'posted' where y.${p("batch")} = v_batch.${b("id")} and y.${p("status")} = 'open';
   update ${batches} y set ${b("status")} = 'posted', ${b("postedAt")} = now() where y.${b("id")} = v_batch.${b("id")} returning * into v_batch;
+  ${recordBatch(ctx, b, "posted")}
   return ${batchJson("v_batch")};
 end;
 $$;
@@ -549,7 +551,7 @@ declare
   v_batch ${batches}%rowtype;
 begin
   select * into v_batch from ${batches} x where x.${b("id")} = cancel_payment_batch.batch_id for update;
-  if not found or not ${q.allowed(`v_batch.${b("tenant")}`, q.reconcile)} then
+  if not found or not ${q.allowed(`v_batch.${b("tenant")}`, q.batch.cancel)} then
     raise exception 'no such payment batch' using errcode = 'P0002', hint = 'PAYMENT_BATCH_NOT_FOUND';
   end if;
   if v_batch.${b("status")} not in ('draft', 'posted') then
@@ -558,12 +560,61 @@ begin
   end if;
   update ${items} y set ${p("status")} = 'cancelled' where y.${p("batch")} = v_batch.${b("id")};
   update ${batches} y set ${b("status")} = 'cancelled' where y.${b("id")} = v_batch.${b("id")} returning * into v_batch;
+  ${recordBatch(ctx, b, "cancelled")}
   return ${batchJson("v_batch")};
 end;
 $$;
 ${userGrant(`${fn("cancel_payment_batch")}(uuid)`)}
 `;
 }
+
+/**
+ * With the contacts block's party bank accounts, a supplier that registered an
+ * account is paid only to a registered IBAN: the caller's, if it is one, else
+ * the primary account. The caller can't redirect the payment.
+ */
+function registeredIban(ctx: BlockSqlContext): string {
+  const contacts = linked(ctx, "contacts");
+
+  if (contacts === undefined || !contacts.hasTable("bankAccounts")) {
+    return "";
+  }
+
+  const accounts = contacts.table("bankAccounts");
+  const k = (column: string): string => contacts.col("bankAccounts", column);
+  const own = `x.${k("tenant")} = create_payment_batch.tenant and x.${k("party")}::text = v_item.party`;
+
+  return `    if exists (select 1 from ${accounts} x where ${own}) then
+      if v_iban = '' then
+        select x.${k("iban")} into v_iban from ${accounts} x where ${own}
+        order by x.${k("isPrimary")} desc, x.${k("iban")} limit 1;
+      elsif not exists (select 1 from ${accounts} x where ${own} and upper(regexp_replace(x.${k("iban")}, '\\s', '', 'g')) = v_iban) then
+        raise exception 'the IBAN is not a registered bank account of the supplier' using errcode = '22023', hint = 'PAYMENT_BATCH_CREDITOR_INVALID',
+          detail = jsonb_build_object('partyId', v_item.party)::text;
+      end if;
+      v_iban := upper(regexp_replace(v_iban, '\\s', '', 'g'));
+    end if;
+`;
+}
+
+const recordBatch = (
+  ctx: BlockSqlContext,
+  b: (column: string) => string,
+  verb: "created" | "posted" | "cancelled",
+): string =>
+  ctx.record({
+    type: `payment_batch.${verb}`,
+    payload: `jsonb_build_object('organizationId', v_batch.${b("tenant")}, 'id', v_batch.${b("id")}, 'accountId', v_batch.${b("account")}, 'total', v_batch.${b("total")}::text, 'currency', v_batch.${b("currency")}, 'itemCount', v_batch.${b("itemCount")}, 'status', v_batch.${b("status")})`,
+    subject: `'payment-batches/' || v_batch.${b("id")}::text`,
+    tenant: `v_batch.${b("tenant")}`,
+    audit: {
+      category: "billing",
+      targetType: "payment_batch",
+      recordId: `v_batch.${b("id")}::text`,
+      targetLabel: `v_batch.${b("reference")}`,
+      summary: `'Payment batch ${verb}: ' || v_batch.${b("itemCount")}::text || ' bill(s), ' || v_batch.${b("total")}::text || ' ' || v_batch.${b("currency")}`,
+    },
+  });
 
 /** The contract of the batch functions. */
 export function batchContract(

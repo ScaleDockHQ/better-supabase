@@ -28,6 +28,12 @@ export type InvoicesSqlOptions = {
    */
   readonly lineRates?: "bps" | "percent";
   /**
+   * How the discount column of your line table stores its rate, when it differs
+   * from `lineRates`: `"bps"` for basis points next to percent tax rates.
+   * Default: `lineRates`.
+   */
+  readonly lineDiscountRates?: "bps" | "percent";
+  /**
    * App columns of the charges table, such as a `not null` kind, which
    * `charge()` sets from `fields`.
    */
@@ -111,6 +117,7 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     creditPrefix: option.string({ default: "CN-" }),
     termsDays: option.number({ default: 30 }),
     lineRates: option.string<"bps" | "percent">({ default: "bps" }),
+    lineDiscountRates: option.string<"bps" | "percent">(),
     totals: option.string<"block" | "app">({ default: "block" }),
     providerPaymentMethods: option.strings({ default: ["stripe", "order"] }),
     linePositionKey: option.boolean({ default: true }),

@@ -295,6 +295,10 @@ values, so `permissions.sensitive` is not checked either.
 To check only some records, set `readAccess: "record"` on their type in
 `config.recordTypes` (or in `on`) instead of the option. Values of those types
 follow the record's `read` entry, and the other types keep the tenant key.
+A record type that declares no read permission (no `permissions.read` and no
+`read` entry), or has no tenant column, also keeps the tenant key, because
+`read_field_values` runs as the definer and would otherwise only check that
+the record exists in the tenant the caller names.
 `driveSubject()` sets it for `drive_node`, so a member without a grant on a
 node can't read its field values. This works in every layout; in the
 normalized and inline layouts, a record-checked value skips

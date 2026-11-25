@@ -480,7 +480,7 @@ line (`customer`, `internal`, `own_warranty`, `supplier_warranty` or
 
 ## Variants
 
-A quote can have several variants: alternative scopes or prices of one offer, such as an option A and an option B. `createVariant` copies a quote into a new draft with its own label. No variant is selected at first, and an unselected variant can't become an order or an invoice (`QUOTE_VARIANT_NOT_SELECTED`). `selectVariant` marks one variant selected and its siblings not selected. With `forward` it also makes the order (`order_from_quote`) or the invoice (`invoice_from_quote`) from the selected variant.
+A quote can have several variants: alternative scopes or prices of one offer, such as an option A and an option B. `createVariant` copies a quote into a new draft with its own label. A row written directly through the Data API can't set the public link token or a customer decision (an insert outside an import or the service role clears them), and its `variantOf` must name a quote of the same organization (`QUOTE_VARIANT_TENANT`). No variant is selected at first, and an unselected variant can't become an order or an invoice (`QUOTE_VARIANT_NOT_SELECTED`). `selectVariant` marks one variant selected and its siblings not selected. With `forward` it also makes the order (`order_from_quote`) or the invoice (`invoice_from_quote`) from the selected variant.
 
 ```ts
 const b = await bsb.quotes.createVariant(quoteId, "Option B").orThrow();
@@ -498,6 +498,7 @@ picked.variants; // every variant of the group, with isSelected
 | Hint                           | Cause                                                      |
 | ------------------------------ | ---------------------------------------------------------- |
 | `QUOTE_VARIANT_INVALID`        | a bad label or `forward`, or the quote has no variants     |
+| `QUOTE_VARIANT_TENANT`         | `variantOf` names another organization's quote             |
 | `QUOTE_VARIANT_LABEL_TAKEN`    | another variant of the quote has that label                |
 | `QUOTE_VARIANT_NOT_SELECTABLE` | a withdrawn, rejected or expired variant can't be selected |
 | `QUOTE_VARIANT_NOT_SELECTED`   | the quote is one of several variants and wasn't selected   |

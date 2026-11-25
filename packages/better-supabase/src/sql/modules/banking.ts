@@ -29,6 +29,16 @@ import { bankingReconcile } from "./banking-reconcile.ts";
 import { linked } from "./banking-sql.ts";
 import { bankingTables } from "./banking-tables.ts";
 
+const BATCH = [
+  "organizationId",
+  "id",
+  "accountId",
+  "total",
+  "currency",
+  "itemCount",
+  "status",
+] as const;
+
 const TRANSACTION = [
   "organizationId",
   "id",
@@ -51,6 +61,9 @@ const EVENTS: BlockSqlEvents<BankingEvents> = {
     subject: "bank-transactions",
     payload: TRANSACTION,
   },
+  "payment_batch.created": { subject: "payment-batches", payload: BATCH },
+  "payment_batch.posted": { subject: "payment-batches", payload: BATCH },
+  "payment_batch.cancelled": { subject: "payment-batches", payload: BATCH },
 };
 
 const NAMES: BlockSqlNames = {
@@ -283,6 +296,7 @@ export const BANKING: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: [
     "accounting",
+    "contacts",
     "invoices",
     "expenses",
     "attachments",

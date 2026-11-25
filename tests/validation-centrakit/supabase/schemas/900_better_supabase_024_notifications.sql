@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@11 managed
--- @bsb-hash sha256:b5f74b6ba734472cc9a4756e259281305e70069a15fd5ab35155ed427b4fc17b
+-- @bsb-hash sha256:f66f0292b0ad8de3b773d58a9f35d3d6801399eb442b6f3d83a1919539d74672
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -255,6 +255,11 @@ begin
     or (select count(distinct a ->> 'key') from jsonb_array_elements(notification -> 'actions') a) <> jsonb_array_length(notification -> 'actions')
   ) then
     raise exception 'actions must be at most 10 { key, label, operation, payload } objects with unique keys' using errcode = '22023', hint = 'NOTIFICATION_ACTIONS_INVALID';
+  end if;
+  -- An action runs an operation for whoever presses it, so only the app's
+  -- server (the service role) sends one.
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and jsonb_typeof(notification -> 'actions') = 'array' and jsonb_array_length(notification -> 'actions') > 0 then
+    raise exception 'Only the service role sends notifications with actions' using errcode = '42501', hint = 'NOTIFICATION_ACTIONS_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     if v_tenant is null or not coalesce(better_supabase.member_can(auth.uid(), v_tenant, 'notifications.send'), false) then

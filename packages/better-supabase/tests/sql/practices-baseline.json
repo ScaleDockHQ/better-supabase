@@ -381,7 +381,8 @@
     "row-triggers": 12
   },
   "outbox": {
-    "security-definer-functions": 60
+    "security-definer-functions": 60,
+    "row-triggers": 6
   },
   "passes": {
     "security-definer-functions": 49
@@ -428,7 +429,7 @@
   },
   "quotes": {
     "security-definer-functions": 151,
-    "row-triggers": 6
+    "row-triggers": 12
   },
   "rank": {
     "security-definer-functions": 4
@@ -581,7 +582,7 @@
   },
   "warranty": {
     "security-definer-functions": 30,
-    "row-triggers": 6
+    "row-triggers": 12
   },
   "webhooks": {
     "security-definer-functions": 90,

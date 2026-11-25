@@ -60,7 +60,10 @@ const rows = useApiKeys({ limit: 50 });
 
 `rotate` returns a new token and keeps the old one working for the grace
 period (one day by default), so a deployment can switch over. `revoke` stops
-the key at once.
+the key at once. A key manager (`api_keys.manage`) may revoke any key of the
+tenant, but a personal key (one with a user) is rotated only by its own user or
+the service role, because the new secret acts as that user; anyone else gets
+`API_KEY_FORBIDDEN`.
 
 Every key that `create`, `list` and `rotate` return has a `state`, computed
 with the database clock, so a list shows a rotated key as still working

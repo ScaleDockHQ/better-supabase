@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:868d7b5f4125265eaf84d20fb727b16d0dc8306d37d4a10df834dfb75c2f8ae2
+-- @bsb-hash sha256:aa9a441ddce21c597bd82e7a8231673312593b0700d0704ef006343498c2f690
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -902,7 +902,8 @@ $$;
 revoke execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
--- Deletes a node and everything under it for good (the share role).
+-- Deletes a node and everything under it for good (the share role, and the
+-- delete key when the app sets one).
 create or replace function "better_supabase"."drive_delete"(node uuid)
 returns boolean
 language plpgsql
@@ -921,7 +922,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'owner')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'owner'))) then
     raise exception 'not allowed to delete this item for good' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if (coalesce(v_node."source"::text, 'internal') not in ('internal', 'request') or false) then
@@ -1508,7 +1509,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:b3cb6f37558b4520ff52746a018f830fa9522f11cead61b0449a049dfc5b5246
+-- @bsb-hash sha256:75001fbae7fe0af87d5c867586959f4c7440094ec65d53a64cf476a4e0118405
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2442,7 +2443,8 @@ $$;
 revoke execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
--- Deletes a node and everything under it for good (the share role).
+-- Deletes a node and everything under it for good (the share role, and the
+-- delete key when the app sets one).
 create or replace function "better_supabase"."drive_delete"(node uuid)
 returns boolean
 language plpgsql
@@ -2461,7 +2463,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'owner')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'owner'))) then
     raise exception 'not allowed to delete this item for good' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if (coalesce(v_node."source"::text, 'internal') not in ('internal', 'request') or false) then
@@ -3164,7 +3166,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:9eba4ecfb1df3f24864032ae40e100f2e7460f4f740f0a5a4b5ca39b744a643e
+-- @bsb-hash sha256:d8c0782d6defadf4c250337da73a6077be36c08b213e9498c43cd6876ef485ef
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4070,7 +4072,8 @@ $$;
 revoke execute on function "app_private"."drive_move"(uuid, uuid, text, text, uuid) from public, anon;
 grant execute on function "app_private"."drive_move"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
--- Deletes a node and everything under it for good (the share role).
+-- Deletes a node and everything under it for good (the share role, and the
+-- delete key when the app sets one).
 create or replace function "app_private"."drive_delete"(node uuid)
 returns boolean
 language plpgsql
@@ -4089,7 +4092,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "app_private"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "app_private"."drive_can"(v_node."id", 'owner')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("app_private"."drive_can"(v_node."id", 'owner'))) then
     raise exception 'not allowed to delete this item for good' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if (coalesce(v_node."source"::text, 'internal') not in ('internal', 'request') or false) then
@@ -4676,7 +4679,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:1e4e429b818d6134e86f86116fb56c2ab35a8d319ad289fc818d01a2a1313985
+-- @bsb-hash sha256:745e07ce13a23051608296579a301ec4154b8d42360b537f30ec3d82beceb8eb
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5577,7 +5580,8 @@ $$;
 revoke execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
--- Deletes a node and everything under it for good (the share role).
+-- Deletes a node and everything under it for good (the share role, and the
+-- delete key when the app sets one).
 create or replace function "better_supabase"."drive_delete"(node uuid)
 returns boolean
 language plpgsql
@@ -5596,7 +5600,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'owner')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'owner'))) then
     raise exception 'not allowed to delete this item for good' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if (coalesce(v_node."source"::text, 'internal') not in ('internal', 'request') or false) then
@@ -6475,7 +6479,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:bd81fc28661989e2bbbbda1f17d52185c21d7e83129ba137ab979350ea61237c
+-- @bsb-hash sha256:6cf0b3d74b8baa1c8232a8811037a2be492c3dcbc24f3c604ea73ca785d877c6
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7324,7 +7328,8 @@ $$;
 revoke execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
--- Deletes a node and everything under it for good (the share role).
+-- Deletes a node and everything under it for good (the share role, and the
+-- delete key when the app sets one).
 create or replace function "better_supabase"."drive_delete"(node uuid)
 returns boolean
 language plpgsql
@@ -7343,7 +7348,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'owner')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'owner'))) then
     raise exception 'not allowed to delete this item for good' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if (coalesce(v_node."source"::text, 'internal') not in ('internal', 'request') or false) then
@@ -7897,7 +7902,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:f42a1b520a95a61a48ba9c7c9aa831ba30251c9034351b3e847c07141dd73bb5
+-- @bsb-hash sha256:c0c11e2f41b102f9d2fb0c0c4a09b9f1d557f2c42333ee32067c106af9f7f250
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8798,7 +8803,8 @@ $$;
 revoke execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
--- Deletes a node and everything under it for good (the share role).
+-- Deletes a node and everything under it for good (the share role, and the
+-- delete key when the app sets one).
 create or replace function "better_supabase"."drive_delete"(node uuid)
 returns boolean
 language plpgsql
@@ -8817,7 +8823,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'owner')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'owner'))) then
     raise exception 'not allowed to delete this item for good' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if (coalesce(v_node."source"::text, 'internal') not in ('internal', 'request') or false) then
