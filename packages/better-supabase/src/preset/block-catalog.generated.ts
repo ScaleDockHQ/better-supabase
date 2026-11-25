@@ -108,6 +108,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "updated-at"
       ],
       "integrates": [
+        "entitlements",
         "organizations",
         "profiles",
         "teams"

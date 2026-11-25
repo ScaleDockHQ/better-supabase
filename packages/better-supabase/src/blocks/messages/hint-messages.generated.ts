@@ -925,6 +925,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "INVITATION_FORBIDDEN": "Not allowed to invite members.",
   "INVITATION_INVALID": "The organization is not active.",
   "INVITATION_INVITER_REVOKED": "The person who invited you can no longer invite members.",
+  "INVITATION_NO_SEAT": "The plan has no seat left.",
   "INVITATION_ROLE_FORBIDDEN": "That role is above your own.",
   "INVITATION_ROLE_UNKNOWN": "Invitation role unknown.",
   "INVITATION_SCOPE_UNSUPPORTED": "Platform invitations need platform roles: blocks.permissions.model 'catalog' with platform assignments, or blocks.invitations.options.platformRoles under 'provider'.",

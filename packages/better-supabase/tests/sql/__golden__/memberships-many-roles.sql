@@ -2446,7 +2446,7 @@ on conflict (name) do update
 -- ==== invitations
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:44a0531c2801f477824ceaa1da53a8bf2f423dfca4678b354c5e7de5c01ea9ed
+-- @bsb-hash sha256:bfba80799ac100f9cf8407c3e4f7c2a3dccdecdda97c8c9c9af750b8142889cb
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2697,6 +2697,38 @@ begin
     'prefill', '{}'::jsonb,
     'token', token
   ) || "better_supabase"."invitation_extra"(updated."id"));
+end;
+$$;
+
+-- Invites like invite_member when the tenant has a seat left: members counted
+-- against the numeric `seats` entitlement, in one transaction. A plan without
+-- a numeric seats value has no cap. Pending invitations do not count.
+create or replace function "better_supabase"."invite_within_seats"(
+  tenant uuid,
+  invitee_email text,
+  invitee_role text,
+  valid_for interval default '7 days'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  used integer;
+  cap jsonb;
+begin
+  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
+    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
+  end if;
+  cap := null;
+  select count(*) into used from "better_supabase"."memberships" m where m."organization_id" = tenant;
+  if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
+    raise exception 'The plan has no seat left' using errcode = '22023', hint = 'INVITATION_NO_SEAT';
+  end if;
+  return "better_supabase"."invite_member"(tenant, invitee_email, invitee_role, valid_for);
 end;
 $$;
 
@@ -3209,6 +3241,8 @@ $$;
 
 revoke execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb, jsonb) from public, anon;
 grant execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) from public, anon;
+grant execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) from public, anon;
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;

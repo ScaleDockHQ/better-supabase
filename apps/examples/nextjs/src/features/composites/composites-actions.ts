@@ -218,11 +218,9 @@ export const rotateKey = bsb.action(
 );
 
 /**
- * Invites a teammate when the plan has a seat left, the steps of
- * `saas.inviteWithinSeats`: count the members, read the `seats` entitlement and
- * only then invite. `createSaas` needs every part of `saas` typed against this
- * app's notification catalog, which it does not accept yet, so the steps run on
- * the three clients they use.
+ * Invites a teammate when the plan has a seat left, in one database call:
+ * `organizations.inviteWithinSeats` counts the members against the `seats`
+ * entitlement and writes the invitation in one transaction (ADR 1235).
  */
 export const inviteWithinSeats = bsb.action(
   {
@@ -234,36 +232,9 @@ export const inviteWithinSeats = bsb.action(
     permission: "members.invite",
   },
   async ({ email, role }, { db, tenant }) => {
-    const members = await db.$blocks.organizations.members(tenant);
-
-    if (!members.ok) {
-      return members;
-    }
-
-    const left = await db.entitlements.seatsLeft({
-      organizationId: tenant,
-      used: members.data.length,
-    });
-
-    if (!left.ok) {
-      return left;
-    }
-
-    if (left.data !== undefined && left.data <= 0) {
-      return err(dbError("invalid_request", "The plan has no seat left"));
-    }
-
-    // `metering` applies the `seats` limit the organizations manifest declares
-    // for `invite` (the `meter` port): a used-up quota returns `quota_exceeded`.
-    const organizations = blockSet.client(db, "organizations", {
-      metering: true,
-    });
-
-    const sent = await organizations.invite({
-      organizationId: tenant,
-      email,
-      role,
-    });
+    const sent = await blockSet
+      .client(db, "organizations")
+      .inviteWithinSeats({ organizationId: tenant, email, role });
 
     if (!sent.ok) {
       return sent;

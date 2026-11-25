@@ -51,7 +51,7 @@ Not done, with reasons:
 | read-set-gaps (record entry, dependent entry, keyset page) | partial | The record entry exists (`s.record`, `record_summary`). The record server page read is done: `heldPermissions` removes the six `my_permissions` calls per `/customers/[id]` render (ADR 1234). A dependent entry and a keyset page entry are skipped: the spike below shows no page that one would speed up. |
 | page-spike                                                 | done    | See "Page spike" below.                                                                                                                                                                                                                                                                                      |
 | page-rollout                                               | skipped | The spike finds no route where one call is faster than the parallel calls.                                                                                                                                                                                                                                   |
-| action-composites                                          | skipped | Baselines are measured (see "Action baselines"); no composite is written. Each is a new SQL function over a block's tables (`invite_member`, entitlements, notifications), which lives in `src/sql/modules` and needs its own ADR, migration and pgTAP test.                                                 |
+| action-composites                                          | partial | One SQL function per composite (ADR 1235); see "Action composites" for the ones done and the reason for each one kept.                                                                                                                                                                                       |
 | cache-track remainder, cache-tiers, cache-invalidation     | skipped | Not started in this pass. Bare `refresh()` count measured: 139 calls in 98 files, against 372 tag-based refreshes in 126 files.                                                                                                                                                                              |
 | size-bundles, report-leftovers                             | partial | The bundle size baselines were not run in this pass. `permission-bitset.ts` adds a small md5 to the claims entry, so run `tests/bundle` before merging.                                                                                                                                                      |
 
@@ -114,3 +114,11 @@ Admin, `next start`, calls and waves per action (`actions.spec.ts`):
 | offboardEmployee      | 12    | 4     | 38.4  |
 | closeAccountingPeriod | 4     | 3     | 33.5  |
 | bookWithReminder      | 9     | 2     | 21.9  |
+
+## Action composites (ADR 1235)
+
+Admin, `next start`, `actions.spec.ts`. After the composite is one call, the rest of an action's calls are the page re-render that `refresh()` starts (members, roles, teams, `entitlement_value`, shell).
+
+| Action            | Calls before | Calls after | Waves before to after | Commit    |
+| ----------------- | ------------ | ----------- | --------------------- | --------- |
+| inviteWithinSeats | 10           | 7           | 6 to 3                | (this PR) |

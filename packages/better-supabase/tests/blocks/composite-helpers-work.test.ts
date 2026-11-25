@@ -30,45 +30,47 @@ const step = <T>(order: string[], name: string, value: T): AsyncResult<T> => {
 const parts = <T>(value: object): T => value as T;
 
 describe("saas.inviteWithinSeats", () => {
-  const build = (left: number | undefined) => {
-    const invite = vi.fn(() => done({ token: "t" }));
+  it("hands the invite to the one-call organizations method", async () => {
+    const inviteWithinSeats = vi.fn(() => done({ token: "t" }));
 
     const saas = createSaas(
-      parts({
-        parts: {
-          organizations: {
-            members: () => done([{ id: "a" }, { id: "b" }]),
-            invite,
-          },
-          entitlements: { seatsLeft: vi.fn(() => done(left)) },
-        },
-      }),
+      parts({ parts: { organizations: { inviteWithinSeats } } }),
     );
 
-    return { invite, saas };
-  };
+    const result = await saas.inviteWithinSeats({
+      organizationId: "o",
+      email: "a@b.c",
+      role: "member",
+    });
 
-  const input = { organizationId: "o", email: "a@b.c", role: "member" };
-
-  it("invites while a seat is left", async () => {
-    const { invite, saas } = build(1);
-
-    expect((await saas.inviteWithinSeats(input)).ok).toBe(true);
-    expect(invite).toHaveBeenCalledOnce();
+    expect(result.ok).toBe(true);
+    expect(inviteWithinSeats).toHaveBeenCalledExactlyOnceWith({
+      organizationId: "o",
+      email: "a@b.c",
+      role: "member",
+    });
   });
 
-  it("invites when the plan has no seat limit", async () => {
-    const { invite, saas } = build(undefined);
+  it("passes a custom validity and returns the refusal", async () => {
+    const inviteWithinSeats = vi.fn(() =>
+      Promise.resolve(err(dbError("invalid_request", "no seat"))),
+    );
 
-    expect((await saas.inviteWithinSeats(input)).ok).toBe(true);
-    expect(invite).toHaveBeenCalledOnce();
-  });
+    const saas = createSaas(
+      parts({ parts: { organizations: { inviteWithinSeats } } }),
+    );
 
-  it("refuses without a seat and sends nothing", async () => {
-    const { invite, saas } = build(0);
+    const result = await saas.inviteWithinSeats({
+      organizationId: "o",
+      email: "a@b.c",
+      role: "member",
+      validFor: "1 day",
+    });
 
-    expect((await saas.inviteWithinSeats(input)).ok).toBe(false);
-    expect(invite).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
+    expect(inviteWithinSeats).toHaveBeenCalledWith(
+      expect.objectContaining({ validFor: "1 day" }),
+    );
   });
 });
 

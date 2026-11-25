@@ -1318,7 +1318,7 @@ export interface BlockNameRegistry {
       readonly "invitations": "id" | "email" | "role" | "tokenHash" | "invitedBy" | "createdAt" | "updatedAt" | "expiresAt" | "acceptedAt" | "acceptedBy" | "declinedAt" | "revokedAt" | "tenant" | "prefill";
       readonly "platformInvitations": "id" | "email" | "role" | "tokenHash" | "invitedBy" | "createdAt" | "updatedAt" | "expiresAt" | "acceptedAt" | "acceptedBy" | "declinedAt" | "revokedAt";
     };
-    readonly functions: "accept_invitation" | "accept_invitation_by_id" | "accepting_invitation" | "create_invitation" | "decline_invitation" | "decline_invitation_by_id" | "invitation_extra" | "invitation_preview" | "invitation_tenant_ids" | "invite_member" | "my_invitations" | "resend_invitation" | "resend_invitations" | "revoke_invitation" | "update_invitation";
+    readonly functions: "accept_invitation" | "accept_invitation_by_id" | "accepting_invitation" | "create_invitation" | "decline_invitation" | "decline_invitation_by_id" | "invitation_extra" | "invitation_preview" | "invitation_tenant_ids" | "invite_member" | "invite_within_seats" | "my_invitations" | "resend_invitation" | "resend_invitations" | "revoke_invitation" | "update_invitation";
     readonly actions: "invite" | "revoke" | "read" | "invitePlatform";
     readonly hooks: "before_invitation_create" | "after_invitation_accept" | "invitation_preview_extra";
     readonly entities: {};

@@ -17,10 +17,11 @@ type SaasClients = PartClients<SaasParts>;
 /** The helpers `saas` adds over its parts. */
 export interface Saas {
   /**
-   * Invites `email` when the organization has a seat left: it counts the
-   * members, reads the `seats` entitlement and only then calls
-   * `organizations.invite`. A plan without a `seats` limit has no cap. Pending
-   * invitations do not count, so an app that caps them lists them first.
+   * Invites `email` when the organization has a seat left, in one database call
+   * (`organizations.inviteWithinSeats`, ADR 1235): the members are counted
+   * against the `seats` entitlement in the same transaction as the invitation.
+   * A plan without a `seats` limit has no cap. Pending invitations do not
+   * count, so an app that caps them lists them first.
    */
   inviteWithinSeats(input: {
     organizationId: string;
@@ -85,36 +86,15 @@ export type SaasOptions = BlockContext &
 
 /** Creates the `saas` helpers over the clients of its parts. */
 export function createSaas(options: SaasOptions): Saas {
-  const { organizations, entitlements, "api-keys": apiKeys } = options.parts;
+  const { organizations, "api-keys": apiKeys } = options.parts;
 
   const client: Saas = {
     inviteWithinSeats: ({ organizationId, email, role, validFor }) =>
-      Async.from(async () => {
-        const members = await organizations.members(organizationId);
-
-        if (!members.ok) {
-          return members;
-        }
-
-        const left = await entitlements.seatsLeft({
-          organizationId,
-          used: members.data.length,
-        });
-
-        if (!left.ok) {
-          return left;
-        }
-
-        if (left.data !== undefined && left.data <= 0) {
-          return err(dbError("invalid_request", "The plan has no seat left"));
-        }
-
-        return organizations.invite({
-          organizationId,
-          email,
-          role,
-          ...(validFor === undefined ? {} : { validFor }),
-        });
+      organizations.inviteWithinSeats({
+        organizationId,
+        email,
+        role,
+        ...(validFor === undefined ? {} : { validFor }),
       }),
     ...createKeyRotator({ apiKeys }),
   };

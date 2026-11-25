@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:f97d50ff2573bf10869b1b57ae47a73735b08d2caf433fb0298a0ab6d98c723d
+-- @bsb-hash sha256:3c099a9ff7882382c30cabe2e150800c399b182d54b9d1e7efb655aa09c2b98a
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -220,6 +220,38 @@ begin
     'prefill', '{}'::jsonb,
     'token', token
   ) || "better_supabase"."invitation_extra"(updated."id"));
+end;
+$$;
+
+-- Invites like invite_member when the tenant has a seat left: members counted
+-- against the numeric `seats` entitlement, in one transaction. A plan without
+-- a numeric seats value has no cap. Pending invitations do not count.
+create or replace function "better_supabase"."invite_within_seats"(
+  tenant uuid,
+  invitee_email text,
+  invitee_role text,
+  valid_for interval default '7 days'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  used integer;
+  cap jsonb;
+begin
+  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
+    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
+  end if;
+  cap := null;
+  select count(*) into used from "better_supabase"."memberships" m where m."organization_id" = tenant;
+  if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
+    raise exception 'The plan has no seat left' using errcode = '22023', hint = 'INVITATION_NO_SEAT';
+  end if;
+  return "better_supabase"."invite_member"(tenant, invitee_email, invitee_role, valid_for);
 end;
 $$;
 
@@ -677,6 +709,8 @@ $$;
 
 revoke execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) from public, anon;
 grant execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) from public, anon;
+grant execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) from public, anon;
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
@@ -739,7 +773,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:226bb976a382451a51aa9db098c87070bbb7782e103f271bad29b6842c3a635f
+-- @bsb-hash sha256:ce93e12ba8259ca6f4a9abb84329ec2c5ae753605b8075d216681b83e622df94
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -980,6 +1014,38 @@ begin
       from "better_supabase"."profiles" pr where pr."id" = updated."invited_by"),
     'token', token
   ) || "better_supabase"."invitation_extra"(updated."id"));
+end;
+$$;
+
+-- Invites like invite_member when the tenant has a seat left: members counted
+-- against the numeric `seats` entitlement, in one transaction. A plan without
+-- a numeric seats value has no cap. Pending invitations do not count.
+create or replace function "better_supabase"."invite_within_seats"(
+  tenant uuid,
+  invitee_email text,
+  invitee_role text,
+  valid_for interval default '7 days'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  used integer;
+  cap jsonb;
+begin
+  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
+    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
+  end if;
+  cap := better_supabase.tenant_entitlement_value(tenant, 'seats');
+  select count(*) into used from "better_supabase"."memberships" m where m."organization_id" = tenant;
+  if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
+    raise exception 'The plan has no seat left' using errcode = '22023', hint = 'INVITATION_NO_SEAT';
+  end if;
+  return "better_supabase"."invite_member"(tenant, invitee_email, invitee_role, valid_for);
 end;
 $$;
 
@@ -1508,6 +1574,8 @@ $$;
 
 revoke execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) from public, anon;
 grant execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) from public, anon;
+grant execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) from public, anon;
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
@@ -1570,7 +1638,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:e5dbcd0ce2e5dfc151e4e92df4d93f8bd1a58aceeb6110f78369f9db59efcae5
+-- @bsb-hash sha256:984376479f11a2a7f50effcfbdc82f9c7d149a0add350abf62b6f2a5cec72d74
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1795,6 +1863,38 @@ begin
     'prefill', '{}'::jsonb,
     'token', token
   ) || "app_private"."invitation_extra"(updated."id"));
+end;
+$$;
+
+-- Invites like invite_member when the tenant has a seat left: members counted
+-- against the numeric `seats` entitlement, in one transaction. A plan without
+-- a numeric seats value has no cap. Pending invitations do not count.
+create or replace function "app_private"."invite_within_seats"(
+  tenant uuid,
+  invitee_email text,
+  invitee_role text,
+  valid_for interval default '7 days'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  used integer;
+  cap jsonb;
+begin
+  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
+    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
+  end if;
+  cap := null;
+  select count(*) into used from "better_supabase"."memberships" m where m."organization_id" = tenant;
+  if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
+    raise exception 'The plan has no seat left' using errcode = '22023', hint = 'INVITATION_NO_SEAT';
+  end if;
+  return "app_private"."invite_member"(tenant, invitee_email, invitee_role, valid_for);
 end;
 $$;
 
@@ -2252,6 +2352,8 @@ $$;
 
 revoke execute on function "app_private"."invite_member"(uuid, text, text, interval, jsonb) from public, anon;
 grant execute on function "app_private"."invite_member"(uuid, text, text, interval, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."invite_within_seats"(uuid, text, text, interval) from public, anon;
+grant execute on function "app_private"."invite_within_seats"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "app_private"."create_invitation"(uuid, text, text, interval) from public, anon;
 grant execute on function "app_private"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "app_private"."resend_invitation"(uuid, interval) from public, anon;
@@ -2314,7 +2416,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:baafa054411c2359690d5ba7c00260643d51e68eba0e1b67e2b2e9bf78ef1027
+-- @bsb-hash sha256:f7b0fbf55c2487d5c8aae3436d2cbb544b142559cf86f6f9200217a8fb9c54b0
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2533,6 +2635,38 @@ begin
     'prefill', '{}'::jsonb,
     'token', token
   ) || "better_supabase"."invitation_extra"(updated."id"));
+end;
+$$;
+
+-- Invites like invite_member when the tenant has a seat left: members counted
+-- against the numeric `seats` entitlement, in one transaction. A plan without
+-- a numeric seats value has no cap. Pending invitations do not count.
+create or replace function "better_supabase"."invite_within_seats"(
+  tenant uuid,
+  invitee_email text,
+  invitee_role text,
+  valid_for interval default '7 days'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  used integer;
+  cap jsonb;
+begin
+  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
+    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
+  end if;
+  cap := null;
+  select count(*) into used from "better_supabase"."memberships" m where m."organization_id" = tenant;
+  if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
+    raise exception 'The plan has no seat left' using errcode = '22023', hint = 'INVITATION_NO_SEAT';
+  end if;
+  return "better_supabase"."invite_member"(tenant, invitee_email, invitee_role, valid_for);
 end;
 $$;
 
@@ -2990,6 +3124,8 @@ $$;
 
 revoke execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) from public, anon;
 grant execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) from public, anon;
+grant execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) from public, anon;
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
@@ -3050,6 +3186,15 @@ set search_path = ''
 as $$ select "better_supabase"."invite_member"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."invite_member"(uuid, text, text, interval, jsonb) from public, anon;
 grant execute on function "api"."invite_member"(uuid, text, text, interval, jsonb) to authenticated, service_role;
+
+create or replace function "api"."invite_within_seats"(tenant uuid, invitee_email text, invitee_role text, valid_for interval default '7 days')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."invite_within_seats"($1, $2, $3, $4) $$;
+revoke execute on function "api"."invite_within_seats"(uuid, text, text, interval) from public, anon;
+grant execute on function "api"."invite_within_seats"(uuid, text, text, interval) to authenticated, service_role;
 
 create or replace function "api"."create_invitation"(organization uuid, invitee_email text, invitee_role text default 'member', valid_for interval default '7 days')
 returns text
@@ -3179,7 +3324,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:2c6895f6c417a4d94d4b1e3646d477a060686706a833f1df9e4899d1125a30b8
+-- @bsb-hash sha256:a02788727e22dab06b45861426702d0967c239d6fa52fbe0ebb90e5d1c0afdb4
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3394,6 +3539,38 @@ begin
     'prefill', updated."prefill",
     'token', token
   ) || "better_supabase"."invitation_extra"(updated."id"));
+end;
+$$;
+
+-- Invites like invite_member when the tenant has a seat left: members counted
+-- against the numeric `seats` entitlement, in one transaction. A plan without
+-- a numeric seats value has no cap. Pending invitations do not count.
+create or replace function "better_supabase"."invite_within_seats"(
+  tenant uuid,
+  invitee_email text,
+  invitee_role text,
+  valid_for interval default '7 days'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  used integer;
+  cap jsonb;
+begin
+  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
+    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
+  end if;
+  cap := null;
+  select count(*) into used from "better_supabase"."memberships" m where m."organization_id" = tenant;
+  if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
+    raise exception 'The plan has no seat left' using errcode = '22023', hint = 'INVITATION_NO_SEAT';
+  end if;
+  return "better_supabase"."invite_member"(tenant, invitee_email, invitee_role, valid_for);
 end;
 $$;
 
@@ -3855,6 +4032,8 @@ $$;
 
 revoke execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) from public, anon;
 grant execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) from public, anon;
+grant execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) from public, anon;
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
@@ -3917,7 +4096,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:26880203ce6bbca1f3c14f802081362ea70539b52b000564d42263cdcff02b5f
+-- @bsb-hash sha256:4a7650eaac2fbedb06a96c2074e7cfbfcd2abc770da019b05b7cd83479aba920
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4136,6 +4315,38 @@ begin
     'prefill', '{}'::jsonb,
     'token', token
   ) || "better_supabase"."invitation_extra"(updated."id"));
+end;
+$$;
+
+-- Invites like invite_member when the tenant has a seat left: members counted
+-- against the numeric `seats` entitlement, in one transaction. A plan without
+-- a numeric seats value has no cap. Pending invitations do not count.
+create or replace function "better_supabase"."invite_within_seats"(
+  tenant uuid,
+  invitee_email text,
+  invitee_role text,
+  valid_for interval default '7 days'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  used integer;
+  cap jsonb;
+begin
+  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
+    raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
+  end if;
+  cap := null;
+  select count(*) into used from "better_supabase"."memberships" m where m."org_id" = tenant;
+  if cap is not null and jsonb_typeof(cap) = 'number' and used >= (cap #>> '{}')::numeric then
+    raise exception 'The plan has no seat left' using errcode = '22023', hint = 'INVITATION_NO_SEAT';
+  end if;
+  return "better_supabase"."invite_member"(tenant, invitee_email, invitee_role, valid_for);
 end;
 $$;
 
@@ -4593,6 +4804,8 @@ $$;
 
 revoke execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) from public, anon;
 grant execute on function "better_supabase"."invite_member"(uuid, text, text, interval, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) from public, anon;
+grant execute on function "better_supabase"."invite_within_seats"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) from public, anon;
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;

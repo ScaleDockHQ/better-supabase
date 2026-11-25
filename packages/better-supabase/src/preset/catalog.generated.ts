@@ -70,6 +70,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "updated-at"
       ],
       "integrates": [
+        "entitlements",
         "organizations",
         "profiles",
         "teams"
