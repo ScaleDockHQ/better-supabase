@@ -1,0 +1,65 @@
+name: Example database time
+
+# Renders every route of the Next.js example as the admin and compares the buffers the database read
+# with apps/examples/nextjs/tests/db-time.baseline.seed.json (a route fails past 25 percent and 64
+# buffers over its baseline). It needs the stack, a production build and a browser, so it runs every
+# night and on demand, never on a pull request. A red run is read the next morning.
+on:
+  schedule:
+    - cron: "37 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: example-db-time-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CI: true
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
+jobs:
+  db-time:
+    name: Database time per route
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup
+
+      - name: Create the local signing key
+        run: |
+          pnpm exec turbo run build --filter=better-supabase...
+          pnpm better-supabase dev keys --cwd .
+
+      - name: Start Supabase
+        uses: $/.github/actions/supabase-stack
+
+      - name: Install the browser
+        run: pnpm --filter @better-supabase/example-nextjs exec playwright install --with-deps chromium
+
+      - name: Resolve the detail URLs, then measure
+        # resolve-urls.spec.ts writes the ids of the seeded rows. They change on every reset, so a
+        # stale urls.json sends the detail routes to rows that do not exist.
+        # The stack's address is the default of the spec's BSB_DB_ADMIN_URL.
+        run: >-
+          pnpm exec dotenv -e .env.development.local --
+          pnpm --filter @better-supabase/example-nextjs exec playwright test
+          resolve-urls db-time --project=chromium --workers=1
+
+      - name: Upload the measurements
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: example-db-time
+          path: apps/examples/nextjs/perf-results/example-perf/db-time-admin.json
+          if-no-files-found: ignore
+          retention-days: 30
