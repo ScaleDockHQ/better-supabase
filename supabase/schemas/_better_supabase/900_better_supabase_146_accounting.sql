@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:704fb9c613e6d6b1c51a30546937586c934e6b60e91e992f07e212745f612003
+-- @bsb-hash sha256:c6e918d7caa714e58638b924f4cdcdec031abafa770468d36422822cca61503c
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3109,8 +3109,8 @@ begin
   end if;
   begin
     v_parent := (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = v_tenant and case when nullif(v_data ->> 'parentId', '') is not null then y."id" = nullif(v_data ->> 'parentId', '')::uuid else y."code" = v_data ->> 'parentCode' end);
-    if nullif(v_data ->> 'parentCode', '') is not null and v_parent is null then
-      raise exception 'the parent account code isn''t an account of the organization; import parents first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    if coalesce(nullif(v_data ->> 'parentId', ''), nullif(v_data ->> 'parentCode', '')) is not null and v_parent is null then
+      raise exception 'the parent account isn''t an account of the organization; import parents first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
     v_row := "better_supabase"."save_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
       v_parent, nullif(v_data ->> 'currency', ''), coalesce((v_data ->> 'reconcilable')::boolean, false),
@@ -3155,10 +3155,10 @@ begin
     when invalid_text_representation then
       raise exception 'a journal''s account ids are uuids' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
-  if (nullif(v_data ->> 'defaultAccountCode', '') is not null and v_default is null)
-    or (nullif(v_data ->> 'contraAccountCode', '') is not null and v_contra is null)
-    or (nullif(v_data ->> 'bankAccountCode', '') is not null and v_bank is null) then
-    raise exception 'an account code of the journal isn''t an account of the organization; import accounts first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  if (coalesce(nullif(v_data ->> 'defaultAccountId', ''), nullif(v_data ->> 'defaultAccountCode', '')) is not null and v_default is null)
+    or (coalesce(nullif(v_data ->> 'contraAccountId', ''), nullif(v_data ->> 'contraAccountCode', '')) is not null and v_contra is null)
+    or (coalesce(nullif(v_data ->> 'bankAccountId', ''), nullif(v_data ->> 'bankAccountCode', '')) is not null and v_bank is null) then
+    raise exception 'an account of the journal isn''t an account of the organization; import accounts first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   v_row := "better_supabase"."save_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
     nullif(v_data ->> 'currency', ''), import_accounting_journal.subject_id::uuid, v_contra, v_bank);

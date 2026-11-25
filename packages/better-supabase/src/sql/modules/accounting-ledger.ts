@@ -397,8 +397,8 @@ declare
 begin${dataCheck("import_accounting_account", "an account")}
   begin
     v_parent := ${accountRef("v_tenant", "v_data ->> 'parentId'", "v_data ->> 'parentCode'")};
-    if nullif(v_data ->> 'parentCode', '') is not null and v_parent is null then
-      ${invalid("the parent account code isn't an account of the organization; import parents first")}
+    if coalesce(nullif(v_data ->> 'parentId', ''), nullif(v_data ->> 'parentCode', '')) is not null and v_parent is null then
+      ${invalid("the parent account isn't an account of the organization; import parents first")}
     end if;
     v_row := ${fn("save_accounting_account")}(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
       v_parent, nullif(v_data ->> 'currency', ''), coalesce((v_data ->> 'reconcilable')::boolean, false),
@@ -439,10 +439,10 @@ begin${dataCheck("import_accounting_journal", "a journal")}
     when invalid_text_representation then
       ${invalid("a journal's account ids are uuids")}
   end;
-  if (nullif(v_data ->> 'defaultAccountCode', '') is not null and v_default is null)
-    or (nullif(v_data ->> 'contraAccountCode', '') is not null and v_contra is null)
-    or (nullif(v_data ->> 'bankAccountCode', '') is not null and v_bank is null) then
-    ${invalid("an account code of the journal isn't an account of the organization; import accounts first")}
+  if (coalesce(nullif(v_data ->> 'defaultAccountId', ''), nullif(v_data ->> 'defaultAccountCode', '')) is not null and v_default is null)
+    or (coalesce(nullif(v_data ->> 'contraAccountId', ''), nullif(v_data ->> 'contraAccountCode', '')) is not null and v_contra is null)
+    or (coalesce(nullif(v_data ->> 'bankAccountId', ''), nullif(v_data ->> 'bankAccountCode', '')) is not null and v_bank is null) then
+    ${invalid("an account of the journal isn't an account of the organization; import accounts first")}
   end if;
   v_row := ${fn("save_accounting_journal")}(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
     nullif(v_data ->> 'currency', ''), import_accounting_journal.subject_id::uuid, v_contra, v_bank);

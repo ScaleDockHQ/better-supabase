@@ -2,7 +2,7 @@
 -- to the run's organization, so an item can't post into another organization's
 -- journal or book on its accounts. Acme is …0001, Globex is …0002.
 begin;
-select plan(6);
+select plan(7);
 
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 select better_supabase.setup_accounting('00000000-0000-4000-8000-000000000001', 'EUR');
@@ -34,6 +34,14 @@ select throws_ok(
 select is(
   (select count(*)::int from better_supabase.accounting_entries where tenant_id = '00000000-0000-4000-8000-000000000002'),
   0, 'Globex''s ledger stays empty'
+);
+
+select throws_ok(
+  format($$select better_supabase.import_accounting_journal(gen_random_uuid(), jsonb_build_object(
+    'tenant', '00000000-0000-4000-8000-000000000001',
+    'data', jsonb_build_object('code', 'X1', 'name', 'Planted', 'type', 'general', 'defaultAccountId', %L)), null)$$,
+    (select globex_debit from refs)),
+  '22023', null, 'a journal can''t name another organization''s account, and isn''t written without it'
 );
 
 create temporary table parties on commit drop as
