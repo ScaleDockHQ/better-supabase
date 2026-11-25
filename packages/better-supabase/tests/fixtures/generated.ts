@@ -920,6 +920,12 @@ export type Functions = {
     };
     Returns: undefined;
   };
+  shell_bootstrap: {
+    Args: {
+      args: Json | null;
+    };
+    Returns: Json;
+  };
   update_my_profile: {
     Args: {
       full_name: string | null;

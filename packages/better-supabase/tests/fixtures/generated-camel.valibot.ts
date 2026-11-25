@@ -618,6 +618,10 @@ export const setMyAvatarPathArgs: v.GenericSchema<{ avatar_path: string }> = v.p
   avatar_path: v.string(),
 }), v.title("set_my_avatar_path arguments"));
 
+export const shellBootstrapArgs: v.GenericSchema<{ args: Json }> = v.pipe(v.object({
+  args: json,
+}), v.title("shell_bootstrap arguments"));
+
 export const updateMyProfileArgs: v.GenericSchema<{ full_name: string }> = v.pipe(v.object({
   full_name: v.string(),
 }), v.title("update_my_profile arguments"));
@@ -642,3 +646,5 @@ export const rsFinanceOverviewResult: v.GenericSchema<Json> = json;
 export const rsPipelineOverviewResult: v.GenericSchema<Json> = json;
 
 export const rsWorkspaceSummaryResult: v.GenericSchema<Json> = json;
+
+export const shellBootstrapResult: v.GenericSchema<Json> = json;

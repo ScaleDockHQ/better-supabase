@@ -868,6 +868,13 @@ export const setMyAvatarPathArgs: TableSchema<{ avatar_path: string }> = tableSc
   },
 });
 
+export const shellBootstrapArgs: TableSchema<{ args: Json }> = tableSchema({
+  title: "shell_bootstrap arguments",
+  fields: {
+    args: {"kind":"json"},
+  },
+});
+
 export const updateMyProfileArgs: TableSchema<{ full_name: string }> = tableSchema({
   title: "update_my_profile arguments",
   fields: {
