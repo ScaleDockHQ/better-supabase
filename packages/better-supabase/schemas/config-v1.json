@@ -6060,7 +6060,13 @@
               "autoTables": {},
               "tenantRow": {},
               "anonymize": {},
-              "omitPattern": {}
+              "omitPattern": {},
+              "restoreExclude": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           }
         }

@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:42533e2c108556f981becda7950a9fe86dd236ee0433db0723c8a3a98580f5d2
+-- @bsb-hash sha256:45fafc96692e7a79173cf241f836f92f18cdebd6df4c82b5e95d18df793cc3fa
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1052,6 +1052,7 @@ begin
     select t.name, t.tbl, t.col, t.omit, to_regclass(t.tbl) as oid
     from "better_supabase"."data_lifecycle_tables"() t
     where t.subject = 'organization' and t.exported and to_regclass(t.tbl) is not null
+      and t.name <> all (array['better_supabase.ai_batch_items', 'better_supabase.ai_batches', 'better_supabase.ai_provider_keys', 'better_supabase.api_keys', 'better_supabase.audit_events', 'better_supabase.billing_customers', 'better_supabase.billing_native_subscriptions', 'better_supabase.billing_subscriptions', 'better_supabase.flag_overrides', 'better_supabase.hostnames', 'better_supabase.import_chunks', 'better_supabase.import_records', 'better_supabase.import_runs', 'better_supabase.invitations', 'better_supabase.outbox_events', 'better_supabase.permission_overrides', 'better_supabase.scim_groups', 'better_supabase.scim_users', 'better_supabase.service_principals', 'better_supabase.sso_domains', 'better_supabase.sso_providers', 'better_supabase.support_requests', 'better_supabase.support_sessions', 'better_supabase.usage_billed_periods', 'better_supabase.usage_counters', 'better_supabase.usage_distinct', 'better_supabase.usage_events', 'better_supabase.usage_history', 'better_supabase.usage_quotas', 'public.memberships']::text[])
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'name', l.name,
@@ -1110,9 +1111,18 @@ declare
   v_sets text[];
   v_sql text;
   v_count bigint;
+  v_creator uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role restores data' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';
+  end if;
+  select r."created_by"::uuid into v_creator
+  from "better_supabase"."import_runs" r where r."id" = restore_data_row.run;
+  if not found then
+    raise exception 'a restore runs inside an import run' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';
+  end if;
+  if v_creator is not null and coalesce(better_supabase.can_user(v_creator, 'tenant', v_tenant::uuid, 'organization.delete'), false) is false then
+    raise exception 'the run''s creator can''t restore this organization' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';
   end if;
   if v_name is null or jsonb_typeof(v_row) is distinct from 'object' then
     raise exception 'an item needs data.table and a data.row object' using errcode = '22023', hint = 'DATA_RESTORE_ROW_INVALID';

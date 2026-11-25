@@ -62,6 +62,7 @@ const NAMES: BlockSqlNames = {
     "tenantRow",
     "anonymize",
     "omitPattern",
+    "restoreExclude",
   ],
   hooks: ["on_organization_purge"],
   tables: {

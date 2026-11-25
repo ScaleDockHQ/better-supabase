@@ -40,7 +40,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
   },
   scores: { purge: "tenant" },
   "time-entries": { purge: "tenant" },
-  "data-lifecycle": { deletePlatform: "platform" },
+  "data-lifecycle": { deletePlatform: "platform", restore: "tenant" },
   tags: { create: "tenant", update: "tenant", delete: "tenant" },
   tasks: { create: "tenant", delete: "tenant", claim: "tenant" },
   calendar: {
