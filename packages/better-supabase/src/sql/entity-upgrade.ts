@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "./context.ts";
 import type { BlockSqlFile, BlockSqlLayout } from "./module-types.ts";
 import type { Qualified } from "./rename-sql.ts";
 
+import { subjectsOf } from "../config/block-subjects.ts";
 import { sqlString } from "../core/template.ts";
 import { entityMarkers } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
@@ -138,7 +139,29 @@ function installedLayout(
         : { ...rest, entities: markerEntities(marker) };
   }
 
-  return { ...layout, modules: configured };
+  if (layout.subjects === undefined) {
+    return { ...layout, modules: configured };
+  }
+
+  // The subject types the changed blocks register under the new names give
+  // way to the ones they registered under the installed names, so a module
+  // that reads the registry renders as it was installed.
+  const current = new Set(
+    modules.flatMap((module) =>
+      Object.keys(
+        subjectsOf(module, layout.modules ?? {}, layout.blockTenantColumn),
+      ),
+    ),
+  );
+
+  const subjects = Object.fromEntries([
+    ...Object.entries(layout.subjects).filter(([type]) => !current.has(type)),
+    ...modules.flatMap((module) =>
+      Object.entries(subjectsOf(module, configured, layout.blockTenantColumn)),
+    ),
+  ]);
+
+  return { ...layout, modules: configured, subjects };
 }
 
 /**

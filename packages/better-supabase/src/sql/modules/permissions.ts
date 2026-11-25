@@ -1027,9 +1027,7 @@ as $$
 $$;
 
 ${oneTenantClaims(ctx, layout)}
-
-${model === "catalog" ? bitsetClaimsSql(ctx.table("permissions"), ctx.col("permissions", "key"), ctx.idType) : ""}
-
+${model === "catalog" ? `\n${bitsetClaimsSql(ctx.table("permissions"), ctx.col("permissions", "key"), ctx.idType)}\n` : ""}
 ${myPermissionsSql(id)}${model === "roles" || model === "catalog" ? bootstrapPermissionsSql(ctx.of("memberships").fn("member_organization_ids")) : ""}${providerGuestFunctions(ctx.installedModules, layout)}${catalogRoleFunctions(ctx)}
 
 ${[

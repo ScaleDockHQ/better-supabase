@@ -172,7 +172,7 @@ export function blockEntities(
 }
 
 /** The subjects one installed block registers, keyed by renamed entity. */
-function subjectsOf(
+export function subjectsOf(
   module: string,
   blocks: AnyBlocksConfig,
   tenantColumn?: string,

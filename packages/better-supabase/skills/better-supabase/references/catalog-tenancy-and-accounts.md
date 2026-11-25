@@ -24,7 +24,7 @@ invite_member(tenant, email, role) returns a single-use token whose hash is stor
 - Docs: https://bettersupabase.com/docs/blocks/organizations
 - Modes: `managed`, `custom`
 - Requires: `memberships`, `permissions`, `updated-at`
-- Works with: `organizations`, `profiles`, `teams`
+- Works with: `entitlements`, `organizations`, `profiles`, `teams`
 - Events: `invitation.accepted`, `invitation.created`, `invitation.declined`, `invitation.resent`, `invitation.revoked`, `invitation.updated`, `organization.member_added`
 
 ## reserved-slugs
