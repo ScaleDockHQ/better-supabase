@@ -141,9 +141,9 @@ catalog:
   # @effect/platform-node.
   effect: 4.1.5
   elysia: 1.4.32
-  # eve 1.4.0 bundles Workflow 5.7 and the 5.3 world protocol; 1.5.0 moves to
-  # Workflow 5.8 and passes minimumReleaseAge on 2026-11-26.
-  eve: 1.4.0
+  # 1.5.0 moves to Workflow 5.8; it is in minimumReleaseAgeExclude until it
+  # passes the release age on 2026-11-26.
+  eve: 1.5.0
   expo: 58.0.26
   expo-constants: 58.0.16
   expo-linking: 58.0.17
@@ -189,9 +189,7 @@ catalog:
   oxlint: 1.95.0
   oxlint-tsgolint: 7.0.2008
   react-router: 8.5.2
-  # 8.2 and later turn on react-doctor rules with 40 findings in the library and
-  # examples; adopt them in their own change.
-  ultracite: 8.1.1
+  ultracite: 8.3.1
   pg: 8.23.1
   portless: 0.18.1
   postcss: 8.5.33
@@ -332,7 +330,7 @@ catalogs:
     elysia: ">=1.4.32 <2"
     expo-server: ">=58.1.0 <59"
     # A pre-release line (AGENTS.md "Pre-release pins"); <2 admits 1.0 stable.
-    eve: ">=1.4.0 <2"
+    eve: ">=1.5.0 <2"
     express: ">=5.3.0 <6"
     fastify: ">=5.12.8 <6"
     # Two majors: H3 1 is the h3/v1 entry that Nitro 2 and Nuxt 4 run
@@ -401,6 +399,11 @@ blockExoticSubdeps: true
 engineStrict: true
 minimumReleaseAge: 1440
 minimumReleaseAgeExcludePrune: true
+# A maintainer-approved exception (ADR 1248): eve 1.5.0 is the release built on
+# Workflow 5.8. Remove the entry after 2026-11-26 00:43 UTC, when it passes the
+# release age.
+minimumReleaseAgeExclude:
+  - "eve@1.5.0"
 trustPolicy: no-downgrade
 # Releases older than 30 days are trusted as they are; several of the
 # transitive packages predate npm provenance.

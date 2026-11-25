@@ -36,13 +36,9 @@ function backTo(request: NextRequest, slug: string): URL {
   const fallback = new URL(`/store/${slug}/cart`, request.url);
   const referer = request.headers.get("referer");
 
-  if (referer === null) {
-    return fallback;
-  }
+  const target = referer === null ? null : URL.parse(referer);
 
-  const target = new URL(referer);
-
-  return target.origin === fallback.origin ? target : fallback;
+  return target?.origin === fallback.origin ? target : fallback;
 }
 
 /**

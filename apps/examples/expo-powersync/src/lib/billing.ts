@@ -67,16 +67,23 @@ export async function startCheckout(
     body: JSON.stringify({ plan }),
   });
 
-  const body: unknown = await response.json();
+  if (!response.ok) {
+    const problem: unknown = await response.json().catch(() => undefined);
 
-  if (isProblem(body)) {
-    return err(fromProblem(body));
+    return err(
+      isProblem(problem)
+        ? fromProblem(problem)
+        : dbError("unexpected", `Checkout answered ${response.status}`),
+    );
   }
 
-  const started = v.safeParse(CheckoutStarted, body);
+  const started = v.safeParse(
+    CheckoutStarted,
+    await response.json().catch(() => undefined),
+  );
 
-  if (!response.ok || !started.success) {
-    return err(dbError("unexpected", `Checkout answered ${response.status}`));
+  if (!started.success) {
+    return err(dbError("unexpected", "Checkout answered without a session"));
   }
 
   return ok({ url: started.output.url });

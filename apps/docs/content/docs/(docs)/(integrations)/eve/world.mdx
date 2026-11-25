@@ -20,7 +20,7 @@ SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 ```
 
 eve loads the World by name and refuses a World built for another
-`@workflow/*` major at startup. eve 1.4 bundles Workflow 5.7 and checks only the
+`@workflow/*` major at startup. eve 1.5 bundles Workflow 5.8 and checks only the
 major of the 5.4 protocol the World speaks (`WORKFLOW_WORLD_PROTOCOL`). The
 World wraps `@workflow/world-postgres` 5.5.0, so it inherits the atomic start hooks eve
 needs. The [Workflow SDK page](/docs/blocks/workflow-sdk) lists every
@@ -121,7 +121,7 @@ pg_cron.
 
 ## Supported eve versions
 
-The peer ranges are `eve >=1.4.0 <2`, `workflow >=5.8.0 <6`,
+The peer ranges are `eve >=1.5.0 <2`, `workflow >=5.8.0 <6`,
 `@workflow/world >=5.4.0 <5.5` and `@workflow/world-postgres >=5.5.0 <5.6`.
 Upgrade the `workflow-sdk` module to version 10 before you deploy them (see
 [the migration guide](/docs/migration/0.85-to-0.86)).

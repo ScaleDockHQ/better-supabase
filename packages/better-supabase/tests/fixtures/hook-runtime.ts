@@ -19,6 +19,7 @@ interface Slot {
 const state = {
   slots: [] as Slot[],
   index: 0,
+  layout: [] as (() => void)[],
   pending: [] as (() => void)[],
   provided: new Map<object, unknown>(),
   busy: false,
@@ -47,6 +48,26 @@ const schedule = (): void => {
   }
 };
 
+/** Layout effects go to `state.layout`, which runs before `state.pending`. */
+function queueEffect(
+  queue: (() => void)[],
+  effect: () => (() => void) | undefined,
+  deps: Deps | undefined,
+): void {
+  const cell = slot();
+
+  if (!changed(cell.deps, deps)) {
+    return;
+  }
+
+  cell.deps = deps;
+  queue.push(() => {
+    cell.cleanup?.();
+    const cleanup = effect();
+    cell.cleanup = typeof cleanup === "function" ? cleanup : undefined;
+  });
+}
+
 export interface ReactHooks {
   createElement(
     type: unknown,
@@ -59,6 +80,7 @@ export interface ReactHooks {
   useMemo(factory: () => unknown, deps: Deps): unknown;
   useCallback(fn: unknown, deps: Deps): unknown;
   useEffect(effect: () => (() => void) | undefined, deps?: Deps): void;
+  useLayoutEffect(effect: () => (() => void) | undefined, deps?: Deps): void;
   useRef(initial: unknown): { current: unknown };
   useSyncExternalStore(
     subscribe: (listener: () => void) => () => void,
@@ -122,18 +144,10 @@ export const reactHooks: ReactHooks = {
     return cell.value;
   },
   useEffect(effect, deps) {
-    const cell = slot();
-
-    if (!changed(cell.deps, deps)) {
-      return;
-    }
-
-    cell.deps = deps;
-    state.pending.push(() => {
-      cell.cleanup?.();
-      const cleanup = effect();
-      cell.cleanup = typeof cleanup === "function" ? cleanup : undefined;
-    });
+    queueEffect(state.pending, effect, deps);
+  },
+  useLayoutEffect(effect, deps) {
+    queueEffect(state.layout, effect, deps);
   },
   useRef(initial) {
     const cell = slot();
@@ -195,7 +209,10 @@ export function renderHook<P, R>(
         before?.();
         result = hook(props);
 
-        for (const effect of state.pending.splice(0)) {
+        for (const effect of [
+          ...state.layout.splice(0),
+          ...state.pending.splice(0),
+        ]) {
           effect();
         }
       } finally {

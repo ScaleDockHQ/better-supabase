@@ -17,7 +17,9 @@ export default function ShiftPage({
   searchParams,
 }: PageProps<"/[locale]/shifts/[id]">) {
   const t = useExtracted("shifts");
+  // oxlint-disable-next-line react-doctor/nextjs-async-dynamic-api-not-awaited -- mapped with then and passed on unawaited, so the page renders without waiting for the request.
   const id = params.then((value) => value.id);
+  // oxlint-disable-next-line react-doctor/nextjs-async-dynamic-api-not-awaited -- mapped with then and passed on unawaited, so the page renders without waiting for the request.
   const on = searchParams.then((query) => query["on"]);
 
   return (

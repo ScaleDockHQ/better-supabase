@@ -1,6 +1,13 @@
 "use client";
 
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import type { DbError } from "../core/errors.ts";
 import type {
@@ -100,8 +107,9 @@ export function usePresence<P extends string, I, O>(
   const state = options.state;
   const stateKey = state === undefined ? undefined : JSON.stringify(state);
   const latest = useRef({ state, stateKey });
-  // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
-  latest.current = { state, stateKey };
+  useLayoutEffect(() => {
+    latest.current = { state, stateKey };
+  });
 
   useEffect(() => {
     if (!name || auth.status === "loading") {

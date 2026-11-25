@@ -123,6 +123,21 @@ function SaveViewDialog({ query }: { query: WorkGridQuery }) {
   const save = useAction(saveWorkView);
   const error = save.error === undefined ? null : errorMessage(save.error);
 
+  const saveView = async () => {
+    const result = await save.run({
+      name,
+      q: query.q,
+      state: query.state,
+      sort: query.sort,
+    });
+
+    if (result.ok) {
+      toast.success(t("View saved"));
+      setName("");
+      setOpen(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button size="sm" variant="outline" />}>
@@ -134,17 +149,7 @@ function SaveViewDialog({ query }: { query: WorkGridQuery }) {
           className="grid gap-6"
           onSubmit={(event) => {
             event.preventDefault();
-            void save
-              .run({ name, q: query.q, state: query.state, sort: query.sort })
-              .then((result) => {
-                if (result.ok) {
-                  toast.success(t("View saved"));
-                  setName("");
-                  setOpen(false);
-                }
-
-                return result;
-              });
+            void saveView();
           }}
         >
           <DialogHeader>

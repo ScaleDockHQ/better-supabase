@@ -1,7 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation.js";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import type { SessionStatusBody } from "../../server/session-status.ts";
 import type {
@@ -131,8 +137,9 @@ export function useSessionWatch(
   const nextRouter = useRouter();
   const [last, setLast] = useState<SessionStatusBody | undefined>(undefined);
   const latest = useRef({ options, router: options.router ?? nextRouter });
-  // oxlint-disable-next-line react/refs -- latest-ref pattern; the watch reads the newest callbacks without restarting.
-  latest.current = { options, router: options.router ?? nextRouter };
+  useLayoutEffect(() => {
+    latest.current = { options, router: options.router ?? nextRouter };
+  });
   const { url, intervalMs, channel, fingerprint } = options;
   const enabled = options.enabled ?? true;
 

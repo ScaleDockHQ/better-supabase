@@ -317,7 +317,15 @@ export function credentialAuth(
         return getToken(request, true);
       }
 
-      const callback = new URL(request.callbackUrl);
+      const callback = URL.parse(request.callbackUrl);
+
+      if (callback === null) {
+        throw new ConnectionAuthorizationFailedError(name, {
+          message: "The authorization callback URL is not a valid URL.",
+          reason: "invalid_callback_url",
+          retryable: false,
+        });
+      }
 
       for (const [key, value] of Object.entries(request.callback.params)) {
         callback.searchParams.set(key, value);

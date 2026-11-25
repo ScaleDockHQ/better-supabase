@@ -133,20 +133,26 @@ export function UploadFileButton({ parentId }: { parentId: string | null }) {
     const { nodeId, attachmentId, bucket, path, token } = started.data;
     setSending(true);
 
-    const sent = await supabase.storage
-      .from(bucket)
-      .uploadToSignedUrl(path, token, file, {
-        contentType: file.type || "application/octet-stream",
-      });
+    try {
+      const sent = await supabase.storage
+        .from(bucket)
+        .uploadToSignedUrl(path, token, file, {
+          contentType: file.type || "application/octet-stream",
+        });
+
+      if (sent.error) {
+        setSending(false);
+        await abandon.run({ nodeId });
+        toast.error(t("{name} didn't upload. Try again.", { name: file.name }));
+
+        return;
+      }
+    } catch (error) {
+      setSending(false);
+      throw error;
+    }
 
     setSending(false);
-
-    if (sent.error) {
-      await abandon.run({ nodeId });
-      toast.error(t("{name} didn't upload. Try again.", { name: file.name }));
-
-      return;
-    }
 
     const committed = await commit.run({ nodeId, attachmentId });
 

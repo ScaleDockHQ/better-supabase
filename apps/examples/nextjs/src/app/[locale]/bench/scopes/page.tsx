@@ -14,6 +14,7 @@ import {
 export default function ScopesBenchPage({
   searchParams,
 }: PageProps<"/[locale]/bench/scopes">) {
+  // oxlint-disable-next-line react-doctor/nextjs-async-dynamic-api-not-awaited -- mapped with then and passed on unawaited, so the page renders without waiting for the request.
   const variant = searchParams.then((params) =>
     scopeVariant(params["variant"]),
   );

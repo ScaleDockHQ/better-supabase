@@ -269,6 +269,13 @@ The October 2026 pass turned on `anti-slop/require-readable-spacing`,
 `eslint/curly`, `unicorn/switch-case-braces` and `unicorn/catch-error-name`.
 Their autofix commits are listed in `.git-blame-ignore-revs`.
 
+Ultracite 8.3.1 (November 2026) turned on more react-doctor and React
+Compiler rules. Their findings are fixed in the code. A ref written during
+render moved into a layout effect, and an unguarded `new URL` or `JSON.parse`
+on outside input became `URL.parse` or a checked parse. The few findings
+that are false positives carry a per-line disable with the reason: a page
+that maps its `params` promise with `then`, and JSON the same hook wrote.
+
 The TypeScript 7.1 preparation turned on the rules with few findings, the
 small bug finders (`oxc/no-map-spread`, `oxc/no-accumulating-spread`,
 `promise/always-return`, `unicorn/prefer-add-event-listener`, and the
