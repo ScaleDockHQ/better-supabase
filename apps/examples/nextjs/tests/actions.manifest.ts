@@ -57,6 +57,8 @@ const MANUFACTURING = "features/manufacturing/manufacturing-actions.ts";
 
 const INSPECTIONS = "features/inspections/inspections-actions.ts";
 
+const CHANGE_REQUESTS = "features/change-requests/change-requests-actions.ts";
+
 export const ACTIONS: readonly ActionCase[] = [
   read(
     "features/organization/organization-actions.ts",
@@ -176,6 +178,21 @@ export const ACTIONS: readonly ActionCase[] = [
   ]),
   write(COMPOSITES, "discussCase", "/cases", async () => [
     { caseId: await firstRowId("cases"), comment: "Looking into the cause." },
+  ]),
+  write(
+    CHANGE_REQUESTS,
+    "setUpChangeWorkflow",
+    "/change-requests",
+    async () => [{}],
+  ),
+  write(
+    CHANGE_REQUESTS,
+    "createChangeRequest",
+    "/change-requests",
+    async () => [{ title: "Rotate the database credentials" }],
+  ),
+  write(CHANGE_REQUESTS, "moveChangeRequest", "/change-requests", async () => [
+    { id: MISSING_ID, to: "review" },
   ]),
   // People
   write(COMPOSITES, "hireApplication", "/people/hiring", async () => [

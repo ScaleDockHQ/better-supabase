@@ -410,6 +410,16 @@ msgctxt "cases.Lv0zJu"
 msgid "Details"
 msgstr "Details"
 
+#: src/app/[locale]/(app)/change-requests/page.tsx
+msgctxt "changeRequests.E03-aK"
+msgid "Change requests"
+msgstr "Change requests"
+
+#: src/app/[locale]/(app)/change-requests/page.tsx
+msgctxt "changeRequests.rYrZZ9"
+msgid "Changes to production systems, from the request through the change advisory board to the scheduled rollout. The stages come from the organization's change workflow."
+msgstr "Changes to production systems, from the request through the change advisory board to the scheduled rollout. The stages come from the organization's change workflow."
+
 #: src/app/[locale]/(app)/chat/page.tsx
 msgctxt "chat.WTrOy3"
 msgid "Chat"
@@ -8279,6 +8289,131 @@ msgstr "Open a case on the board to see what still stops it from closing."
 msgctxt "cases._gd0g1"
 msgid "The case didn't load"
 msgstr "The case didn't load"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.1d-6fI"
+msgid "The change requests didn't load"
+msgstr "The change requests didn't load"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.psnPLF"
+msgid "No change workflow yet"
+msgstr "No change workflow yet"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.URqLR6"
+msgid "Change requests move through the stages of the organization's change workflow. Publish the default one (submitted, CAB review, scheduled, done) and edit it in the workflow builder later."
+msgstr "Change requests move through the stages of the organization's change workflow. Publish the default one (submitted, CAB review, scheduled, done) and edit it in the workflow builder later."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.N9dCQN"
+msgid "Ask an admin to set up the change workflow."
+msgstr "Ask an admin to set up the change workflow."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.0KakGB"
+msgid "No change requests"
+msgstr "No change requests"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.p6eLQp"
+msgid "Submit a change before you make it, so the board can review and schedule it."
+msgstr "Submit a change before you make it, so the board can review and schedule it."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.Ozu2_P"
+msgid "Workflow version {version}: {stages}"
+msgstr "Workflow version {version}: {stages}"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.BY343C"
+msgid "Change"
+msgstr "Change"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.uYAYib"
+msgid "Stage"
+msgstr "Stage"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.raexxM"
+msgid "Submitted"
+msgstr "Submitted"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.l0yR9a"
+msgid "No stage"
+msgstr "No stage"
+
+#: src/features/change-requests/components/move-change-request-menu.tsx
+msgctxt "changeRequests.7McvJB"
+msgid "Change request moved"
+msgstr "Change request moved"
+
+#: src/features/change-requests/components/move-change-request-menu.tsx
+msgctxt "changeRequests.VoDM1p"
+msgid "Move {title}"
+msgstr "Move {title}"
+
+#: src/features/change-requests/components/move-change-request-menu.tsx
+msgctxt "changeRequests.UMbBzo"
+msgid "Move"
+msgstr "Move"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.582jRQ"
+msgid "Change request submitted"
+msgstr "Change request submitted"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.9ELKXR"
+msgid "New change request"
+msgstr "New change request"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.OsMlMa"
+msgid "Say what changes. The request starts at the first stage of the change workflow."
+msgstr "Say what changes. The request starts at the first stage of the change workflow."
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.9a9-ww"
+msgid "Title"
+msgstr "Title"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.wSZR47"
+msgid "Submit"
+msgstr "Submit"
+
+#: src/features/change-requests/components/set-up-change-workflow-button.tsx
+msgctxt "changeRequests.-VRwf2"
+msgid "Change workflow published"
+msgstr "Change workflow published"
+
+#: src/features/change-requests/components/set-up-change-workflow-button.tsx
+msgctxt "changeRequests.fVoYoa"
+msgid "Set up the change workflow"
+msgstr "Set up the change workflow"
 
 #: src/features/chat/components/channel-sidebar.tsx
 msgctxt "chat.LUrJwE"
@@ -22741,6 +22876,12 @@ msgstr "Moderation"
 msgctxt "navigation.mtr3R4"
 msgid "Incidents"
 msgstr "Incidents"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.E03-aK"
+msgid "Change requests"
+msgstr "Change requests"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts

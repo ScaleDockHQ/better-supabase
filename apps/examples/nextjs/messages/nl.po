@@ -410,6 +410,16 @@ msgctxt "cases.Lv0zJu"
 msgid "Details"
 msgstr "Details"
 
+#: src/app/[locale]/(app)/change-requests/page.tsx
+msgctxt "changeRequests.E03-aK"
+msgid "Change requests"
+msgstr "Wijzigingsverzoeken"
+
+#: src/app/[locale]/(app)/change-requests/page.tsx
+msgctxt "changeRequests.rYrZZ9"
+msgid "Changes to production systems, from the request through the change advisory board to the scheduled rollout. The stages come from the organization's change workflow."
+msgstr "Wijzigingen aan productiesystemen, van het verzoek via de change advisory board tot de geplande uitrol. De fasen komen uit de wijzigingsworkflow van de organisatie."
+
 #: src/app/[locale]/(app)/chat/page.tsx
 msgctxt "chat.WTrOy3"
 msgid "Chat"
@@ -8279,6 +8289,131 @@ msgstr "Open een case op het bord om te zien wat het sluiten nog tegenhoudt."
 msgctxt "cases._gd0g1"
 msgid "The case didn't load"
 msgstr "De case is niet geladen"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.1d-6fI"
+msgid "The change requests didn't load"
+msgstr "De wijzigingsverzoeken zijn niet geladen"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.psnPLF"
+msgid "No change workflow yet"
+msgstr "Nog geen wijzigingsworkflow"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.URqLR6"
+msgid "Change requests move through the stages of the organization's change workflow. Publish the default one (submitted, CAB review, scheduled, done) and edit it in the workflow builder later."
+msgstr "Wijzigingsverzoeken doorlopen de fasen van de wijzigingsworkflow van de organisatie. Publiceer de standaardworkflow (ingediend, CAB-beoordeling, ingepland, klaar) en pas hem later aan in de workflowbouwer."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.N9dCQN"
+msgid "Ask an admin to set up the change workflow."
+msgstr "Vraag een beheerder om de wijzigingsworkflow in te stellen."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.0KakGB"
+msgid "No change requests"
+msgstr "Geen wijzigingsverzoeken"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.p6eLQp"
+msgid "Submit a change before you make it, so the board can review and schedule it."
+msgstr "Dien een wijziging in voordat je hem doorvoert, zodat de board hem kan beoordelen en inplannen."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.Ozu2_P"
+msgid "Workflow version {version}: {stages}"
+msgstr "Workflowversie {version}: {stages}"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.BY343C"
+msgid "Change"
+msgstr "Wijziging"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.uYAYib"
+msgid "Stage"
+msgstr "Fase"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.raexxM"
+msgid "Submitted"
+msgstr "Ingediend"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.l0yR9a"
+msgid "No stage"
+msgstr "Geen fase"
+
+#: src/features/change-requests/components/move-change-request-menu.tsx
+msgctxt "changeRequests.7McvJB"
+msgid "Change request moved"
+msgstr "Wijzigingsverzoek verplaatst"
+
+#: src/features/change-requests/components/move-change-request-menu.tsx
+msgctxt "changeRequests.VoDM1p"
+msgid "Move {title}"
+msgstr "{title} verplaatsen"
+
+#: src/features/change-requests/components/move-change-request-menu.tsx
+msgctxt "changeRequests.UMbBzo"
+msgid "Move"
+msgstr "Verplaatsen"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.582jRQ"
+msgid "Change request submitted"
+msgstr "Wijzigingsverzoek ingediend"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.9ELKXR"
+msgid "New change request"
+msgstr "Nieuw wijzigingsverzoek"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.OsMlMa"
+msgid "Say what changes. The request starts at the first stage of the change workflow."
+msgstr "Beschrijf wat er verandert. Het verzoek begint in de eerste fase van de wijzigingsworkflow."
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.9a9-ww"
+msgid "Title"
+msgstr "Titel"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.wSZR47"
+msgid "Submit"
+msgstr "Indienen"
+
+#: src/features/change-requests/components/set-up-change-workflow-button.tsx
+msgctxt "changeRequests.-VRwf2"
+msgid "Change workflow published"
+msgstr "Wijzigingsworkflow gepubliceerd"
+
+#: src/features/change-requests/components/set-up-change-workflow-button.tsx
+msgctxt "changeRequests.fVoYoa"
+msgid "Set up the change workflow"
+msgstr "Wijzigingsworkflow instellen"
 
 #: src/features/chat/components/channel-sidebar.tsx
 msgctxt "chat.LUrJwE"
@@ -22741,6 +22876,12 @@ msgstr "Moderatie"
 msgctxt "navigation.mtr3R4"
 msgid "Incidents"
 msgstr "Incidenten"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.E03-aK"
+msgid "Change requests"
+msgstr "Wijzigingsverzoeken"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts

@@ -100,3 +100,51 @@ test("opening a ticket reports it with its response clocks", async ({
     page.getByText("Ticket opened").filter({ visible: true }),
   ).toBeVisible();
 });
+
+test("a change request moves through the published change workflow", async ({
+  page,
+}) => {
+  const title = `Upgrade the primary database ${String(Date.now())}`;
+
+  await page.goto("/change-requests");
+
+  const main = page.getByRole("main");
+
+  const setUp = main.getByRole("button", {
+    name: "Set up the change workflow",
+  });
+
+  const create = main.getByRole("button", { name: "New change request" });
+
+  await expect(setUp.or(create).first()).toBeVisible();
+
+  if (await setUp.isVisible()) {
+    await setUp.click();
+    await expect(page.getByText("Change workflow published")).toBeVisible();
+  }
+
+  await create.click();
+
+  const dialog = page.getByRole("dialog");
+
+  await dialog.getByLabel("Title").fill(title);
+  await dialog.getByRole("button", { name: "Submit" }).click();
+  await expect(page.getByText("Change request submitted")).toBeVisible();
+
+  const row = main.getByRole("row", { name: new RegExp(title, "u") });
+
+  await expect(row.getByText("Submitted", { exact: true })).toBeVisible();
+
+  await row.getByRole("button", { name: `Move ${title}` }).click();
+  await page.getByRole("menuitem", { name: "CAB review" }).click();
+
+  await expect(row.getByText("CAB review", { exact: true })).toBeVisible();
+
+  await row.getByRole("button", { name: `Move ${title}` }).click();
+
+  const menu = page.getByRole("menu");
+
+  await expect(menu.getByRole("menuitem", { name: "Scheduled" })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Submitted" })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Done" })).toHaveCount(0);
+});

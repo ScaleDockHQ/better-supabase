@@ -198,6 +198,15 @@ export const ROUTES: readonly RouteEntry[] = [
     scale: false,
   },
   {
+    route: "/change-requests",
+    archetype: "overview",
+    url: "/change-requests",
+    maxCalls: 9,
+    maxWaves: 2,
+    instant: true,
+    scale: false,
+  },
+  {
     route: "/banking/transactions/[id]",
     archetype: "detail",
     url: null,
