@@ -1,5 +1,3 @@
-/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
-   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
 import { expect, test } from "@playwright/test";
 
 // localePrefix is "as-needed": English has no prefix, Dutch keeps /nl. They need

@@ -137,7 +137,6 @@ const config: KnipConfig = {
       // which the vitest config's `include` leaves out.
       entry: [
         "better-supabase.config.ts",
-        "src/image-loader.ts",
         "public/sw.js",
         "tests/**/*.test-d.ts",
         // The composite actions are the runnable example the docs link to; no

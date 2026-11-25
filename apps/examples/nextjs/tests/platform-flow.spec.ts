@@ -1,5 +1,3 @@
-/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
-   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
 import { expect, test } from "@playwright/test";
 import { expectInstant } from "better-supabase/testing";
 
@@ -89,7 +87,6 @@ test("a webhook endpoint opens instantly with its deliveries", async ({
   await expect(main.getByTestId("webhook-detail-deliveries")).toBeVisible();
 });
 
-// oxlint-disable-next-line vitest/prefer-each -- Playwright has no `test.each` (1 finding).
 for (const path of ["/settings/api-keys", "/settings/webhooks"]) {
   test(`${path} shows its KPI band`, async ({ page }) => {
     await page.goto(path);
@@ -184,7 +181,6 @@ test("the signing keys page links the public JWK Set, which answers without a se
   await anonymous.dispose();
 });
 
-// oxlint-disable-next-line vitest/prefer-each -- Playwright has no test.each (1 finding)
 for (const [path, label] of [
   ["/settings/signing-keys", "Active key"],
   ["/settings/billing", "Renews"],
