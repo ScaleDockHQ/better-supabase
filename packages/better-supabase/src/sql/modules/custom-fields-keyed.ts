@@ -142,7 +142,8 @@ function keyCheck(
 /**
  * The subjects whose field values follow record reads: `readAccess` on the
  * record type (`config.recordTypes.<type>` or `on.<type>`), else the module's
- * `options.readAccess`.
+ * `options.readAccess`. A type whose record check declares no read permission
+ * keeps the tenant read key, because the definer function sees every row.
  */
 export function recordReadSubjects(
   subjects: readonly (readonly [string, Subject])[],
@@ -157,7 +158,11 @@ export function recordReadSubjects(
       );
     }
 
-    return access === "record";
+    return (
+      access === "record" &&
+      subject.tenant !== false &&
+      (subject.read !== undefined || Boolean(subject.permission))
+    );
   });
 }
 

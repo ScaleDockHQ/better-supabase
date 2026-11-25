@@ -333,7 +333,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:78752d9a418623779c69e0d45cd9492e3fe2fbf93d5e4cb2cbb1c1bf1c21b4dd
+-- @bsb-hash sha256:0033fb819170536ebc2a9e0eb8652e7b29e5abf77f1fcea7b3b8f4f2891c038e
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.recordTypes type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -469,6 +469,23 @@ begin
   return new;
 end;
 $$;
+
+create or replace function better_supabase.bsb_insert_status_warranty_claim()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if current_user::text = any (array['anon', 'authenticated'])
+    and new."status"::text not in ('draft', 'submitted')
+    and not (better_supabase.import_run() is not null) then
+    raise exception 'a new record can''t start in that status' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function better_supabase.bsb_insert_status_warranty_claim() from public, anon, authenticated;
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor

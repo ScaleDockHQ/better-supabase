@@ -12,6 +12,12 @@ export type DataLifecycleSqlOptions = {
   readonly tenantRow?: unknown;
   readonly anonymize?: unknown;
   readonly omitPattern?: unknown;
+  /**
+   * Tables of your own a restore never writes, such as your billing or
+   * membership tables: `"table"` or `"schema.table"`. The tables of the access,
+   * billing, usage and key blocks are always left out.
+   */
+  readonly restoreExclude?: readonly string[];
 };
 
 export const dataLifecycleSqlOptions: BlockOptionsSchema<DataLifecycleSqlOptions> =
@@ -24,4 +30,5 @@ export const dataLifecycleSqlOptions: BlockOptionsSchema<DataLifecycleSqlOptions
     tenantRow: option.unknown(),
     anonymize: option.unknown(),
     omitPattern: option.unknown(),
+    restoreExclude: option.strings(),
   });

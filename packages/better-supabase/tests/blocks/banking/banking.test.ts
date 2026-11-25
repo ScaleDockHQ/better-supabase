@@ -802,6 +802,9 @@ describe("bankingBlock", () => {
       "bank_statement.imported",
       "bank_transaction.matched",
       "bank_transaction.unmatched",
+      "payment_batch.created",
+      "payment_batch.posted",
+      "payment_batch.cancelled",
     ]);
     expect(
       validate(bankAccountInputSchema, { name: "Operating", currency: "EUR" })

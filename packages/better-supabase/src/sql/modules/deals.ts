@@ -81,6 +81,7 @@ const NAMES: BlockSqlNames = {
     "prefix",
     "readAll",
     "lineRates",
+    "lineDiscountRates",
     "searchColumn",
   ],
   tables: {

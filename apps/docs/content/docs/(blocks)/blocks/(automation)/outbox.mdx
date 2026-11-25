@@ -238,7 +238,10 @@ commit, so a transaction that started first can commit after a later one.
 The claim holds back every event whose transaction id (`xid`) is not older
 than the oldest running transaction (`pg_snapshot_xmin`), and orders and
 tracks events by `(xid, position)`. An event that commits late therefore
-sorts after the consumer's cursor and is delayed, never skipped. A
+sorts after the consumer's cursor and is delayed, never skipped. A trigger
+sets `xid` to the writing transaction's id on every insert and keeps it on an
+update, so a client that may insert events can't plant one that sorts past the
+cursors or never settles. A
 long-running transaction delays all consumers until it ends. A new consumer
 starts after the latest event, but never past the current snapshot, so rows
 restored from another database with higher transaction ids don't hide the

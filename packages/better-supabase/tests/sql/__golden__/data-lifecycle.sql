@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:2540ac0fca856006129e36433af7868855c6d88a899188fcf7493e48c3198e8f
+-- @bsb-hash sha256:dbf74b6bee99825aae5d337d7515c2523f39f7115709be0097c17a5b40bf84a8
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -963,6 +963,7 @@ begin
     select t.name, t.tbl, t.col, t.omit, to_regclass(t.tbl) as oid
     from "better_supabase"."data_lifecycle_tables"() t
     where t.subject = 'organization' and t.exported and to_regclass(t.tbl) is not null
+      and t.name <> all (array['better_supabase.memberships', 'better_supabase.permission_overrides']::text[])
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'name', l.name,
@@ -1021,6 +1022,7 @@ declare
   v_sets text[];
   v_sql text;
   v_count bigint;
+  v_creator uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role restores data' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';
@@ -1782,7 +1784,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:918b2c2675d8bba35182676504c627ada4b9c1789456c53d63aba9da4e61d8c9
+-- @bsb-hash sha256:14052269f60cd8873b732eb3723a224ed05d89f97d7899d87ecc31bc83ec3f5a
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2834,6 +2836,7 @@ begin
     select t.name, t.tbl, t.col, t.omit, to_regclass(t.tbl) as oid
     from "better_supabase"."data_lifecycle_tables"() t
     where t.subject = 'organization' and t.exported and to_regclass(t.tbl) is not null
+      and t.name <> all (array['better_supabase.access_requests', 'better_supabase.agent_installs', 'better_supabase.agent_mandates', 'better_supabase.agents', 'better_supabase.ai_batch_items', 'better_supabase.ai_batches', 'better_supabase.ai_provider_keys', 'better_supabase.api_keys', 'better_supabase.approval_decisions', 'better_supabase.approval_items', 'better_supabase.approval_policies', 'better_supabase.approval_requests', 'better_supabase.audit_events', 'better_supabase.billing_customers', 'better_supabase.billing_native_subscriptions', 'better_supabase.billing_subscriptions', 'better_supabase.checkout_sessions', 'better_supabase.connector_grants', 'better_supabase.connector_servers', 'better_supabase.conversation_members', 'better_supabase.deal_members', 'better_supabase.drive_drive_grants', 'better_supabase.drive_grants', 'better_supabase.flag_overrides', 'better_supabase.guest_grants', 'better_supabase.guests', 'better_supabase.hostnames', 'better_supabase.import_chunks', 'better_supabase.import_records', 'better_supabase.import_runs', 'better_supabase.inspection_members', 'better_supabase.invitations', 'better_supabase.invoice_approval_levels', 'better_supabase.invoice_approvals', 'better_supabase.knowledge_collection_grants', 'better_supabase.memberships', 'better_supabase.outbox_events', 'better_supabase.permission_overrides', 'better_supabase.scim_groups', 'better_supabase.scim_users', 'better_supabase.service_principals', 'better_supabase.share_links', 'better_supabase.sso_domains', 'better_supabase.sso_providers', 'better_supabase.subject_members', 'better_supabase.support_requests', 'better_supabase.support_sessions', 'better_supabase.team_members', 'better_supabase.teams', 'better_supabase.usage_billed_periods', 'better_supabase.usage_counters', 'better_supabase.usage_distinct', 'better_supabase.usage_events', 'better_supabase.usage_history', 'better_supabase.usage_quotas', 'better_supabase.webhook_endpoint_secrets', 'better_supabase.workflow_credentials']::text[])
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'name', l.name,
@@ -2892,9 +2895,18 @@ declare
   v_sets text[];
   v_sql text;
   v_count bigint;
+  v_creator uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role restores data' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';
+  end if;
+  select r."created_by"::uuid into v_creator
+  from "better_supabase"."import_runs" r where r."id" = restore_data_row.run;
+  if not found then
+    raise exception 'a restore runs inside an import run' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';
+  end if;
+  if v_creator is not null and coalesce(better_supabase.can_user(v_creator, 'tenant', v_tenant::uuid, 'organization.delete'), false) is false then
+    raise exception 'the run''s creator can''t restore this organization' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';
   end if;
   if v_name is null or jsonb_typeof(v_row) is distinct from 'object' then
     raise exception 'an item needs data.table and a data.row object' using errcode = '22023', hint = 'DATA_RESTORE_ROW_INVALID';
@@ -4802,7 +4814,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:2093c25c1f177ae24a89e4b0f2ea0807f6eb90ba1bb635a6dbe977b5a9c513a5
+-- @bsb-hash sha256:14464bebe05c2e70ebde17f35fb41f6e021c7586623ee0cfeb3dd9feaa0db463
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5769,6 +5781,7 @@ begin
     select t.name, t.tbl, t.col, t.omit, to_regclass(t.tbl) as oid
     from "app_private"."data_lifecycle_tables"() t
     where t.subject = 'organization' and t.exported and to_regclass(t.tbl) is not null
+      and t.name <> all (array['better_supabase.memberships', 'better_supabase.permission_overrides']::text[])
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'name', l.name,
@@ -5827,6 +5840,7 @@ declare
   v_sets text[];
   v_sql text;
   v_count bigint;
+  v_creator uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role restores data' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';
@@ -6588,7 +6602,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:2c943e86f33c167239b4080ff6e7919bb0612b62018e0955cb54bf67bf85e3e0
+-- @bsb-hash sha256:f56c7c7d91b220c2232d7745192b5c8148482f98e9535850fac6aea0866466d5
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7550,6 +7564,7 @@ begin
     select t.name, t.tbl, t.col, t.omit, to_regclass(t.tbl) as oid
     from "better_supabase"."data_lifecycle_tables"() t
     where t.subject = 'organization' and t.exported and to_regclass(t.tbl) is not null
+      and t.name <> all (array['better_supabase.memberships', 'better_supabase.permission_overrides']::text[])
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'name', l.name,
@@ -7608,6 +7623,7 @@ declare
   v_sets text[];
   v_sql text;
   v_count bigint;
+  v_creator uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role restores data' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';
@@ -8772,7 +8788,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:72342877d6529ac71a9643b13426fa63db63d00d75b739103abb6904140fc11d
+-- @bsb-hash sha256:b68f6fad98bd95ad2b05a79c2e7469171d8e21ce5c6566914dab8e82a5e32c9b
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9712,6 +9728,7 @@ begin
     select t.name, t.tbl, t.col, t.omit, to_regclass(t.tbl) as oid
     from "better_supabase"."data_lifecycle_tables"() t
     where t.subject = 'organization' and t.exported and to_regclass(t.tbl) is not null
+      and t.name <> all (array['better_supabase.memberships', 'better_supabase.permission_overrides']::text[])
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'name', l.name,
@@ -9770,6 +9787,7 @@ declare
   v_sets text[];
   v_sql text;
   v_count bigint;
+  v_creator uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role restores data' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';
@@ -10529,7 +10547,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:a21b04012fabfa8236680266182dc25fb31c234d867918ba619f61b8076449dd
+-- @bsb-hash sha256:d290248a18cea0f1ea67b43b283f2c5221599c64f7d3fc395faf6b3657089995
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11491,6 +11509,7 @@ begin
     select t.name, t.tbl, t.col, t.omit, to_regclass(t.tbl) as oid
     from "better_supabase"."data_lifecycle_tables"() t
     where t.subject = 'organization' and t.exported and to_regclass(t.tbl) is not null
+      and t.name <> all (array['better_supabase.memberships', 'better_supabase.permission_overrides']::text[])
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'name', l.name,
@@ -11549,6 +11568,7 @@ declare
   v_sets text[];
   v_sql text;
   v_count bigint;
+  v_creator uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role restores data' using errcode = '42501', hint = 'DATA_RESTORE_FORBIDDEN';

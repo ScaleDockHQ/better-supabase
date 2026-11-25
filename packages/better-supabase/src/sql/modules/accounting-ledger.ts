@@ -367,8 +367,9 @@ export function accountingImportFunctions(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
 
-  const accountByCode = (tenant: string, code: string): string =>
-    `(select y.${a("id")} from ${accounts} y where y.${a("tenant")} = ${tenant} and y.${a("code")} = ${code})`;
+  // An account named by id or code, only among the organization's own.
+  const accountRef = (tenant: string, id: string, code: string): string =>
+    `(select y.${a("id")} from ${accounts} y where y.${a("tenant")} = ${tenant} and case when nullif(${id}, '') is not null then y.${a("id")} = nullif(${id}, '')::uuid else y.${a("code")} = ${code} end)`;
 
   const invalid = (message: string): string =>
     fail("IMPORT_ITEM_INVALID", message, "22023");
@@ -395,9 +396,9 @@ declare
   v_row jsonb;
 begin${dataCheck("import_accounting_account", "an account")}
   begin
-    v_parent := coalesce(nullif(v_data ->> 'parentId', '')::uuid, ${accountByCode("v_tenant", "v_data ->> 'parentCode'")});
-    if nullif(v_data ->> 'parentCode', '') is not null and v_parent is null then
-      ${invalid("the parent account code isn't an account of the organization; import parents first")}
+    v_parent := ${accountRef("v_tenant", "v_data ->> 'parentId'", "v_data ->> 'parentCode'")};
+    if coalesce(nullif(v_data ->> 'parentId', ''), nullif(v_data ->> 'parentCode', '')) is not null and v_parent is null then
+      ${invalid("the parent account isn't an account of the organization; import parents first")}
     end if;
     v_row := ${fn("save_accounting_account")}(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
       v_parent, nullif(v_data ->> 'currency', ''), coalesce((v_data ->> 'reconcilable')::boolean, false),
@@ -431,17 +432,17 @@ declare
   v_row jsonb;
 begin${dataCheck("import_accounting_journal", "a journal")}
   begin
-    v_default := coalesce(nullif(v_data ->> 'defaultAccountId', '')::uuid, ${accountByCode("v_tenant", "v_data ->> 'defaultAccountCode'")});
-    v_contra := coalesce(nullif(v_data ->> 'contraAccountId', '')::uuid, ${accountByCode("v_tenant", "v_data ->> 'contraAccountCode'")});
-    v_bank := coalesce(nullif(v_data ->> 'bankAccountId', '')::uuid, ${accountByCode("v_tenant", "v_data ->> 'bankAccountCode'")});
+    v_default := ${accountRef("v_tenant", "v_data ->> 'defaultAccountId'", "v_data ->> 'defaultAccountCode'")};
+    v_contra := ${accountRef("v_tenant", "v_data ->> 'contraAccountId'", "v_data ->> 'contraAccountCode'")};
+    v_bank := ${accountRef("v_tenant", "v_data ->> 'bankAccountId'", "v_data ->> 'bankAccountCode'")};
   exception
     when invalid_text_representation then
       ${invalid("a journal's account ids are uuids")}
   end;
-  if (nullif(v_data ->> 'defaultAccountCode', '') is not null and v_default is null)
-    or (nullif(v_data ->> 'contraAccountCode', '') is not null and v_contra is null)
-    or (nullif(v_data ->> 'bankAccountCode', '') is not null and v_bank is null) then
-    ${invalid("an account code of the journal isn't an account of the organization; import accounts first")}
+  if (coalesce(nullif(v_data ->> 'defaultAccountId', ''), nullif(v_data ->> 'defaultAccountCode', '')) is not null and v_default is null)
+    or (coalesce(nullif(v_data ->> 'contraAccountId', ''), nullif(v_data ->> 'contraAccountCode', '')) is not null and v_contra is null)
+    or (coalesce(nullif(v_data ->> 'bankAccountId', ''), nullif(v_data ->> 'bankAccountCode', '')) is not null and v_bank is null) then
+    ${invalid("an account of the journal isn't an account of the organization; import accounts first")}
   end if;
   v_row := ${fn("save_accounting_journal")}(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
     nullif(v_data ->> 'currency', ''), import_accounting_journal.subject_id::uuid, v_contra, v_bank);
@@ -509,9 +510,9 @@ begin${dataCheck("import_accounting_entry", "an entry")}
     ${invalid("an entry needs at least two lines")}
   end if;
   begin
-    v_journal := coalesce(nullif(v_data ->> 'journalId', '')::uuid,
-      (select y.${j("id")} from ${journals} y where y.${j("tenant")} = v_tenant and y.${j("code")} = v_data ->> 'journalCode'));
-    select jsonb_agg((e.value - 'accountCode') || jsonb_build_object('accountId', coalesce(nullif(e.value ->> 'accountId', '')::uuid, ${accountByCode("v_tenant", "e.value ->> 'accountCode'")})) order by e.ordinality),
+    v_journal := (select y.${j("id")} from ${journals} y where y.${j("tenant")} = v_tenant
+      and case when nullif(v_data ->> 'journalId', '') is not null then y.${j("id")} = nullif(v_data ->> 'journalId', '')::uuid else y.${j("code")} = v_data ->> 'journalCode' end);
+    select jsonb_agg((e.value - 'accountCode') || jsonb_build_object('accountId', ${accountRef("v_tenant", "e.value ->> 'accountId'", "e.value ->> 'accountCode'")}) order by e.ordinality),
       coalesce(sum((coalesce(nullif(e.value ->> 'debit', ''), '0'))::numeric), 0),
       coalesce(sum((coalesce(nullif(e.value ->> 'credit', ''), '0'))::numeric), 0)
     into v_lines, v_debit, v_credit
@@ -561,7 +562,7 @@ begin${dataCheck("import_accounting_opening_balance", "an opening balance")}
     ${invalid("an opening balance needs a fiscalYear and an integer amount")}
   end if;
   begin
-    v_account := coalesce(nullif(v_data ->> 'accountId', '')::uuid, ${accountByCode("v_tenant", "v_data ->> 'accountCode'")});
+    v_account := ${accountRef("v_tenant", "v_data ->> 'accountId'", "v_data ->> 'accountCode'")};
     return jsonb_build_object('subjectId', ${fn("accounting_opening_write")}(v_tenant, (v_data ->> 'fiscalYear')::integer, v_account,
       nullif(v_data ->> 'partyId', '')::uuid, (v_data ->> 'amount')::bigint));
   exception

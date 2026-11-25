@@ -2066,6 +2066,10 @@
     "message": "other records still refer to this employee"
   },
   {
+    "code": "EMPLOYEE_LINK_FORBIDDEN",
+    "message": "linking an employee to an account needs the sensitive read permission"
+  },
+  {
     "code": "EMPLOYEE_MANAGER_CYCLE",
     "message": "an employee can"
   },
@@ -3837,6 +3841,10 @@
     "message": "there is no such message to report"
   },
   {
+    "code": "NOTIFICATION_ACTIONS_FORBIDDEN",
+    "message": "Only the service role sends notifications with actions"
+  },
+  {
     "code": "NOTIFICATION_ACTIONS_INVALID",
     "message": "actions must be at most 10 { key, label, operation, payload } objects with unique keys"
   },
@@ -4759,6 +4767,10 @@
     "message": "this quote is one of several variants; select a variant first"
   },
   {
+    "code": "QUOTE_VARIANT_TENANT",
+    "message": "a variant belongs to a quote of the same organization"
+  },
+  {
     "code": "QUOTE_VERSION_FROZEN",
     "message": "a published quote version never changes"
   },
@@ -5483,7 +5495,7 @@
   },
   {
     "code": "STATE_TRANSITION_INVALID",
-    "message": "that status is not a stage of the machine"
+    "message": "a new record can"
   },
   {
     "code": "STATUS_COMPONENT_NOT_FOUND",

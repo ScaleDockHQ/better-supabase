@@ -55,6 +55,11 @@ export interface Machine {
   /** The column that marks a template row; the transition trigger skips it. */
   readonly template?: string;
   /**
+   * Statuses a client may insert a record in besides the initial one and its
+   * one-step targets; `*` lets a client insert any status.
+   */
+  readonly insertStatuses?: readonly string[];
+  /**
    * The machine comes from another block. Its trigger is attached after that
    * block creates the table, because this module is installed first.
    */
@@ -333,6 +338,17 @@ function machine(
 
   const history = historyOf(record["history"], where, tenantColumn, declared);
 
+  const insertStatuses = statusList(
+    record["insertStatuses"],
+    `${where}.insertStatuses`,
+  );
+
+  for (const status of insertStatuses) {
+    if (status !== "*" && !statuses.has(status)) {
+      throw new TypeError(`${where}.insertStatuses: ${status} is not a status`);
+    }
+  }
+
   return {
     name,
     table,
@@ -352,6 +368,7 @@ function machine(
     flags,
     ...(workflow === undefined ? {} : { workflow }),
     ...(history === undefined ? {} : { history }),
+    ...(insertStatuses.length === 0 ? {} : { insertStatuses }),
     ...templateOf(table, registry),
   };
 }

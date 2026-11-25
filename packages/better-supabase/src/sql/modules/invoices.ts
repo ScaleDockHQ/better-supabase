@@ -212,6 +212,7 @@ const NAMES: BlockSqlNames = {
     "creditPrefix",
     "termsDays",
     "lineRates",
+    "lineDiscountRates",
     "totals",
     "providerPaymentMethods",
     "linePositionKey",

@@ -354,7 +354,7 @@ export interface BlockNameRegistry {
       readonly "registry": "target" | "ignore" | "keyColumns" | "redact" | "category" | "eventPrefix" | "targetType" | "tenantColumn" | "labelColumn";
     };
     readonly functions: "audit" | "audit_event" | "audit_event_many" | "audit_event_types" | "audit_read_tenants" | "audit_reads_all" | "count_audit_events" | "get_audit_event" | "list_audit_events" | "purge_audit_log";
-    readonly actions: "read" | "readAll" | "revert" | "reveal";
+    readonly actions: "read" | "readAll" | "revert" | "reveal" | "revealPlatform";
     readonly hooks: "audit_retention";
     readonly entities: {};
     readonly primary: never;
@@ -386,7 +386,7 @@ export interface BlockNameRegistry {
       readonly "batchItems": "id" | "tenant" | "batch" | "invoice" | "party" | "creditorName" | "creditorIban" | "creditorBic" | "amount" | "discount" | "currency" | "endToEndId" | "remittance" | "status";
     };
     readonly functions: "apply_bank_rules" | "bank_mod97" | "bank_reconciliation_board" | "bank_reconciliation_status" | "bank_reference" | "bank_rule_condition" | "delete_bank_rule" | "get_bank_transaction" | "ignore_bank_transaction" | "import_bank_statement" | "list_bank_accounts" | "list_bank_rules" | "list_bank_statements" | "list_bank_transactions" | "match_bank_transaction" | "page_bank_accounts" | "reconcile_bank_account" | "save_bank_account" | "save_bank_rule" | "suggest_bank_matches" | "unmatch_bank_transaction";
-    readonly actions: "read" | "import" | "reconcile" | "manage";
+    readonly actions: "read" | "import" | "reconcile" | "manage" | "createBatch" | "postBatch" | "cancelBatch";
     readonly hooks: "after_bank_statement_import" | "before_bank_transaction_match" | "after_bank_transaction_match";
     readonly entities: {
       readonly "bank_transaction": "id" | "tenant_id" | "account_id" | "statement_id" | "booked_on" | "value_on" | "amount" | "currency" | "counterparty_name" | "counterparty_iban" | "remittance" | "structured_reference" | "end_to_end_id" | "external_id" | "status" | "rule_id" | "matched_at" | "matched_by" | "created_at" | "updated_at";
@@ -798,7 +798,7 @@ export interface BlockNameRegistry {
       readonly "requests": "id" | "tenant" | "kind" | "requester" | "subjectType" | "subjectId" | "details" | "status" | "receivedAt" | "receivedBy" | "dueAt" | "extendedAt" | "extensionReason" | "verifiedAt" | "verifiedBy" | "verificationMethod" | "exportId" | "resolution" | "closedAt" | "closedBy";
     };
     readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "data_restore_tables" | "due_organization_deletions" | "erase_data_subject" | "expired_data_exports" | "extend_data_subject_request" | "fail_data_export" | "forget_data_exports" | "fulfil_data_subject_request" | "get_data_export" | "get_data_subject_request" | "is_held" | "is_held_memo" | "list_data_exports" | "list_data_subject_requests" | "list_legal_holds" | "list_retention_policies" | "open_data_subject_request" | "organization_credential_refs" | "organization_deletion" | "page_data_subject_requests" | "place_legal_hold" | "purge_organization" | "refuse_data_subject_request" | "release_legal_hold" | "remove_retention_policy" | "request_data_export" | "request_organization_deletion" | "request_subject_export" | "restore_data_row" | "retention_cutoff" | "retention_floor" | "retention_for" | "retention_for_memo" | "set_retention_policy" | "verify_data_subject_request";
-    readonly actions: "export" | "delete" | "cancelDelete" | "deletePlatform";
+    readonly actions: "export" | "delete" | "cancelDelete" | "deletePlatform" | "restore";
     readonly hooks: "on_organization_purge";
     readonly entities: {};
     readonly primary: never;
@@ -919,7 +919,7 @@ export interface BlockNameRegistry {
       readonly "texts": "node" | "tenant" | "attachment" | "extractor" | "content" | "extractedAt";
     };
     readonly functions: "drive_access_approvers" | "drive_ancestors" | "drive_can" | "drive_can_comment" | "drive_can_download" | "drive_can_upload" | "drive_check_parent" | "drive_clean_name" | "drive_conflict" | "drive_create_folder" | "drive_delete" | "drive_download_blocked" | "drive_free_name" | "drive_get" | "drive_grant_access" | "drive_grants" | "drive_hold" | "drive_insert_node" | "drive_list" | "drive_lock" | "drive_lock_siblings" | "drive_move" | "drive_node_access" | "drive_node_held" | "drive_node_json" | "drive_node_moved" | "drive_node_path" | "drive_node_readable" | "drive_node_writable" | "drive_path" | "drive_readable_ids" | "drive_release_hold" | "drive_rename" | "drive_role" | "drive_search" | "drive_set_download_blocked" | "drive_share" | "drive_share_link_allowed" | "drive_shared" | "drive_subtree" | "drive_transfer_ownership" | "drive_unlock" | "drive_unshare";
-    readonly actions: "read" | "create" | "manage";
+    readonly actions: "read" | "create" | "manage" | "delete";
     readonly hooks: "before_drive_node_create" | "after_drive_node_create" | "before_drive_node_move" | "after_drive_node_move" | "before_drive_node_rename" | "after_drive_node_rename" | "before_drive_node_share" | "after_drive_node_share";
     readonly entities: {
       readonly "drive_node": "id" | "tenant_id" | "drive_id" | "parent_id" | "kind" | "name" | "attachment_id" | "path" | "rank" | "archived_at" | "source" | "external_id" | "external_metadata" | "legal_hold_expires_at" | "locked_by" | "lock_expires_at" | "lock_note" | "download_blocked" | "preview_pages" | "document_number" | "document_type" | "document_status" | "document_owner_id" | "effective_version_id" | "effective_at" | "review_interval_months" | "next_review_on" | "review_notified_for" | "created_by" | "created_at" | "updated_at";
@@ -1761,7 +1761,7 @@ export interface BlockNameRegistry {
       readonly "consumers": "name" | "cursorXid" | "cursor" | "types" | "leaseOwner" | "leaseUntil" | "attempts" | "lastError" | "retryAt" | "updatedAt";
       readonly "deadLetters": "consumer" | "position" | "eventId" | "type" | "event" | "attempts" | "error" | "deadAt";
     };
-    readonly functions: "emit_event" | "outbox_ack" | "outbox_claim" | "outbox_dead_letters" | "outbox_fail" | "outbox_has_work" | "outbox_history" | "outbox_notify" | "outbox_register" | "outbox_row_event" | "outbox_unregister" | "purge_outbox" | "track_events";
+    readonly functions: "emit_event" | "outbox_ack" | "outbox_claim" | "outbox_dead_letters" | "outbox_fail" | "outbox_has_work" | "outbox_history" | "outbox_notify" | "outbox_register" | "outbox_row_event" | "outbox_stamp_xid" | "outbox_unregister" | "purge_outbox" | "track_events";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -1941,7 +1941,7 @@ export interface BlockNameRegistry {
       readonly "versionLines": "id" | "tenant" | "version" | "position" | "description" | "quantity" | "unitAmount" | "periods" | "unit" | "discountKind" | "discountBps" | "taxRateBps" | "taxCode" | "section" | "optional" | "selected" | "productType" | "productId";
       readonly "taxLines": "id" | "tenant" | "parent" | "taxRateBps" | "taxCode" | "net" | "tax" | "gross" | "discount";
     };
-    readonly functions: "clone_quote" | "create_quote" | "create_quote_variant" | "decide_quote" | "expire_quotes" | "get_quote" | "import_quote" | "list_quote_variants" | "list_quotes_for_subject" | "page_quotes" | "portal_quote" | "public_quote" | "quote_totals_by_billing_party" | "quote_updated_at" | "quote_version" | "quote_versions" | "respond_to_portal_quote" | "respond_to_quote" | "revise_quote" | "select_quote_variant" | "send_quote" | "set_quote_lines" | "set_quote_lines_recount" | "update_quote" | "withdraw_quote";
+    readonly functions: "clone_quote" | "create_quote" | "create_quote_variant" | "decide_quote" | "expire_quotes" | "get_quote" | "import_quote" | "list_quote_variants" | "list_quotes_for_subject" | "page_quotes" | "portal_quote" | "public_quote" | "quote_client_guard" | "quote_totals_by_billing_party" | "quote_updated_at" | "quote_version" | "quote_versions" | "respond_to_portal_quote" | "respond_to_quote" | "revise_quote" | "select_quote_variant" | "send_quote" | "set_quote_lines" | "set_quote_lines_recount" | "update_quote" | "withdraw_quote";
     readonly actions: "read" | "write" | "manage" | "send" | "accept" | "reject" | "requestChanges" | "withdraw";
     readonly hooks: "before_quote_send" | "after_quote_send" | "before_quote_accept" | "after_quote_accept" | "before_quote_clone" | "after_quote_clone";
     readonly entities: {

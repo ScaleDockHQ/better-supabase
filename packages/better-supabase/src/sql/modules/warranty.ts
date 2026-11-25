@@ -523,6 +523,7 @@ ${transitionTrigger({
   name: ctx.naming.rename("warranty_claim"),
   table: `${ctx.tableName("claims").schema}.${ctx.tableName("claims").name}`,
   column: ctx.colName("claims", "status"),
+  insertCheck: true,
 })}`;
 }
 

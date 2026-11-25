@@ -570,6 +570,10 @@ begin
   select * into old from ${t} k where k.${c("id")} = rotate_api_key.key for update;
   if old.${c("id")} is null or not ${mayChange("old")} then
     ${fail("API_KEY_NOT_FOUND", "API key not found", "P0002")}
+  end if;
+  -- The new secret acts as the key's user, so only that user rotates a personal key.
+  if old.${c("user")} is not null and old.${c("user")} is distinct from auth.uid() and not ${SERVICE_CALLER} then
+    ${fail("API_KEY_FORBIDDEN", "Only its own user can rotate a personal key; revoke it instead", "42501")}
   end if;${withinToken(`old.${c("scopes")}`)}
   if old.${c("revokedAt")} is not null and old.${c("revokedAt")} <= now() then
     ${fail("API_KEY_REVOKED", "A revoked API key cannot be rotated", "22023")}
