@@ -4928,6 +4928,8 @@ msgid "Person"
 msgstr "Persoon"
 
 #: src/features/appraisals/components/appraisal-list.tsx
+#: src/features/appraisals/components/calibrate-dialog.tsx
+#: src/features/appraisals/components/write-review-dialog.tsx
 msgctxt "appraisals.ETRyBL"
 msgid "Rating"
 msgstr "Beoordeling"
@@ -4971,6 +4973,57 @@ msgstr "Open een beoordelingsronde met de mensen die je wilt beoordelen, en elk 
 msgctxt "appraisals.ZrWlbO"
 msgid "Read the appraisals guide"
 msgstr "Lees de gids over beoordelingen"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.H8PFXe"
+msgid "Appraisal calibrated"
+msgstr "Beoordeling gekalibreerd"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.0olBvz"
+msgid "Calibrate"
+msgstr "Kalibreren"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.ILukLY"
+msgid "The calibrated rating replaces the review average; the reason stays with it."
+msgstr "De gekalibreerde score vervangt het gemiddelde van de reviews; de reden blijft erbij bewaard."
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.AkCxS_"
+msgid "Reason"
+msgstr "Reden"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.Migr-m"
+msgid "Review submitted"
+msgstr "Review ingediend"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.BC1G69"
+msgid "Write review"
+msgstr "Review schrijven"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.iC6lit"
+msgid "Rate each competency from 1 to 5."
+msgstr "Geef elke competentie een score van 1 tot 5."
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.wCgTu5"
+msgid "Comments"
+msgstr "Opmerkingen"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.rJrHB6"
+msgid "Submit review"
+msgstr "Review indienen"
 
 #: src/features/approvals/components/approval-decision.tsx
 msgctxt "approvals.GkMwHf"
@@ -32991,6 +33044,11 @@ msgstr "Actief"
 msgctxt "signingKeys.JJNc3c"
 msgid "Previous"
 msgstr "Vorige"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.yIv4lB"
+msgid "Receivers read the public keys at"
+msgstr "Ontvangers lezen de publieke sleutels op"
 
 #: src/features/sso/components/sso-controls.tsx
 msgctxt "sso.VZTS3k"

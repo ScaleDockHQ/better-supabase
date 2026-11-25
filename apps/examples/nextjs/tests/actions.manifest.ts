@@ -217,6 +217,20 @@ export const ACTIONS: readonly ActionCase[] = [
     async () => [{ controlId: MISSING_ID, note: "Access review evidence" }],
   ),
   write(
+    "features/appraisals/appraisals-actions.ts",
+    "submitAppraisalReview",
+    "/appraisals/[id]",
+    async () => [{ reviewId: MISSING_ID, rating: "4" }],
+  ),
+  write(
+    "features/appraisals/appraisals-actions.ts",
+    "calibrateAppraisal",
+    "/appraisals/[id]",
+    async () => [
+      { appraisalId: MISSING_ID, rating: "4", reason: "Calibration session" },
+    ],
+  ),
+  write(
     "features/dunning/dunning-actions.ts",
     "applyStandardDunningLevels",
     "/finance/invoices",

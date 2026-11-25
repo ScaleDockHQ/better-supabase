@@ -7,10 +7,14 @@ import { Badge } from "@/components/reui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PeopleLoadError } from "@/features/people/components/people-load-error";
+import { getPermissions } from "@/features/user/permission-snapshot";
+import { can } from "@/features/user/user-permissions";
 
 import type { AppraisalRow } from "../appraisals-queries";
 
 import { getAppraisal } from "../appraisals-queries";
+import { CalibrateDialog } from "./calibrate-dialog";
+import { WriteReviewDialog } from "./write-review-dialog";
 
 const STATUS_VARIANT = {
   pending: "secondary",
@@ -25,10 +29,11 @@ const STATUS_VARIANT = {
  * results, each review and the calibrations.
  */
 export async function AppraisalDetail({ id }: { id: string }) {
-  const [t, format, loaded] = await Promise.all([
+  const [t, format, loaded, permissions] = await Promise.all([
     getExtracted("appraisals"),
     getFormatter(),
     getAppraisal(id),
+    getPermissions(),
   ]);
 
   if (loaded.kind === "no-organization") {
@@ -44,6 +49,10 @@ export async function AppraisalDetail({ id }: { id: string }) {
   }
 
   const appraisal = loaded.data;
+
+  const calibrates =
+    (appraisal.status === "reviewed" || appraisal.status === "calibrated") &&
+    can(permissions, "appraisals.manage");
 
   const statusLabel = (status: AppraisalRow["status"]) => {
     switch (status) {
@@ -120,6 +129,11 @@ export async function AppraisalDetail({ id }: { id: string }) {
                 })}
               </span>
             )}
+            {calibrates ? (
+              <div>
+                <CalibrateDialog appraisalId={appraisal.id} />
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       }
@@ -175,6 +189,14 @@ export async function AppraisalDetail({ id }: { id: string }) {
                   {review.rating === null ? "" : ` · ${review.rating}`}
                 </span>
                 {review.comments === null ? null : <p>{review.comments}</p>}
+                {review.mine && review.submittedAt === null ? (
+                  <div>
+                    <WriteReviewDialog
+                      reviewId={review.id}
+                      rubric={appraisal.rubric}
+                    />
+                  </div>
+                ) : null}
               </div>
             ))
           )}
