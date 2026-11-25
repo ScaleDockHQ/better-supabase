@@ -146,6 +146,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
 const handle = createProxy(app, {
   debug: {
     enabled: env.EXPOSE_TESTING_API === "1",
+    coldStart: env.EXPOSE_TESTING_API === "1",
     budget: { calls: 8, waves: 2 },
     route: "/api/bs-stats",
   },

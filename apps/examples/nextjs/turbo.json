@@ -56,7 +56,12 @@
     },
     "test": {
       "dependsOn": ["$TURBO_EXTENDS$", "^build"],
-      "env": ["$TURBO_EXTENDS$", "BSB_PERF_DIR", "BSB_PERF_USER"]
+      "env": [
+        "$TURBO_EXTENDS$",
+        "BSB_DB_ADMIN_URL",
+        "BSB_PERF_DIR",
+        "BSB_PERF_USER"
+      ]
     },
     "dev:portless": {
       "passThroughEnv": [

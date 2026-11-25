@@ -1,3 +1,4 @@
+import type { PermissionCatalog } from "../../auth/permission-bitset.ts";
 import type {
   AuthorizationOutcome,
   AuthorizationRequest,
@@ -6,6 +7,7 @@ import type {
   RequestMemo,
 } from "../../core/authorizer.ts";
 
+import { permissionCatalog } from "../../auth/permission-bitset.ts";
 import { keysFromClaims } from "../../auth/permissions.ts";
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import { permissionMatches } from "./permissions-controller.ts";
@@ -68,6 +70,10 @@ export function permissionsAuthorizer<Key extends string>(
 ): Authorizer<Key> {
   const claim = options.claim ?? DEFAULT_CLAIMS.permissions;
 
+  const catalog = permissionCatalog(
+    Object.values(options.permissions).flatMap((owner) => Object.values(owner)),
+  );
+
   const keysFor = async (
     request: AuthorizationRequest<Key>,
     runtime: AuthorizerRuntime | undefined,
@@ -83,6 +89,7 @@ export function permissionsAuthorizer<Key extends string>(
       tenant,
       claim,
       options.truncatedClaim,
+      catalog,
     );
 
     if (fromToken !== undefined || options.load === undefined) {
@@ -164,11 +171,12 @@ function claimedKeys(
   tenant: string,
   claim: string,
   marker: string | undefined,
+  catalog: PermissionCatalog,
 ): readonly string[] | undefined {
   const claims = properties?.["claims"];
 
   return isRecord(claims)
-    ? keysFromClaims(claims, tenant, claim, marker)
+    ? keysFromClaims(claims, tenant, claim, marker, catalog)
     : undefined;
 }
 

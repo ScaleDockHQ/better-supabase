@@ -18,6 +18,8 @@ const options: NextOptions = {
   debug: {
     // The testing build checks each navigation's budget against `next start`.
     enabled: env.EXPOSE_TESTING_API === "1",
+    // First-request timings, read by the harness (`cold=` in the stats header).
+    coldStart: env.EXPOSE_TESTING_API === "1",
     budget: { calls: 8, waves: 2 },
     // Matches `src/app/api/bs-stats/route.ts`, where `bsb.debugRoute()` is mounted.
     route: "/api/bs-stats",

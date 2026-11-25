@@ -96,6 +96,14 @@ for (const entry of openableRoutes(ROUTES)) {
       }
     }
 
+    // A private or public entry records only its miss, so the entries the
+    // first render filled and the warm render did not are the hits: visits
+    // minus misses.
+    measured["servedFromCache"] = Math.max(
+      0,
+      (measured["first_misses"] ?? 0) - (measured["misses"] ?? 0),
+    );
+
     recordPerf(`pages-${user}.json`, entry.route, measured);
   });
 }

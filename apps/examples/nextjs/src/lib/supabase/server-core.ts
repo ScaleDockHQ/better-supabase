@@ -15,6 +15,8 @@ const options: NextOptions = {
   auth: { cookie: { encode: "tokens-only" } },
   debug: {
     enabled: env.EXPOSE_TESTING_API === "1",
+    // First-request timings, read by the harness (`cold=` in the stats header).
+    coldStart: env.EXPOSE_TESTING_API === "1",
     budget: { calls: 8, waves: 2 },
     route: "/api/bs-stats",
   },

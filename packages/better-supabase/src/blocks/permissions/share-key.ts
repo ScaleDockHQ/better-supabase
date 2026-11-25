@@ -1,3 +1,4 @@
+import type { PermissionCatalog } from "../../auth/permission-bitset.ts";
 import type { ShareKeyHook } from "../../core/contracts/authorization-hooks.ts";
 
 import { keysFromClaims } from "../../auth/permissions.ts";
@@ -10,6 +11,11 @@ export interface PermissionsShareKeyOptions {
   readonly claim?: string;
   /** The provider's `tokenHook.truncatedClaim`. Defaults to `<claim>_truncated`. */
   readonly truncatedClaim?: string;
+  /**
+   * The catalog that expands the bitset form of the claim, from
+   * `permissionCatalog`.
+   */
+  readonly catalog?: PermissionCatalog;
 }
 
 interface VersionReader {
@@ -59,7 +65,14 @@ export function permissionsShareKey(
 
     // SAFETY: a plain object, checked above.
     const record = claims as Readonly<Record<string, unknown>>;
-    const keys = keysFromClaims(record, tenant, claim, options.truncatedClaim);
+
+    const keys = keysFromClaims(
+      record,
+      tenant,
+      claim,
+      options.truncatedClaim,
+      options.catalog,
+    );
 
     if (keys === undefined) {
       return null;

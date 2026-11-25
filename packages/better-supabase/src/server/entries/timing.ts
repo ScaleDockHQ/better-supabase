@@ -26,8 +26,10 @@ export function parseDbStats(
     return undefined;
   }
 
+  // `debug.coldStart` appends a `cold=` field after the five numbers.
   const [calls, waves, ms, verifications = 0, adminCalls = 0] = value
     .split(";")
+    .filter((field) => !field.startsWith("cold="))
     .map(Number);
 
   if (
