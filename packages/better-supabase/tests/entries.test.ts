@@ -251,8 +251,11 @@ describe("subpath entries", () => {
       "utf-8",
     );
 
+    // The cold-start mark has to evaluate before the rest of `next`;
+    // tsdown.config.ts keeps it as its own side-effect chunk.
     const statements = source
       .replace(/^"use client";$/m, "")
+      .replace(/^import "\.\/cold-start-mark\.ts";$/m, "")
       .replaceAll(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "")
       .split(/;\s*\n/)
       .map((statement) => statement.trim())
