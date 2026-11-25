@@ -1,4 +1,4 @@
-# 1230: Share one session memo and parse a session cookie once
+# 1247: Share one session memo and parse a session cookie once
 
 - Status: accepted
 - Date: 2026-11-24

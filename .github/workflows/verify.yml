@@ -11,13 +11,9 @@ on:
         type: boolean
         default: false
       base:
-        description: Base commit for `turbo --affected` and for the unit test selection.
+        description: Base commit for `turbo --affected`.
         type: string
         default: ""
-      full:
-        description: Run the library's whole unit suite with the coverage thresholds, not the selected tests.
-        type: boolean
-        default: false
     secrets:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY:
         description: Signs and verifies Remote Cache artifacts.
@@ -31,17 +27,15 @@ env:
   TURBO_UI: stream
   TURBO_SCM_BASE: ${{ inputs.base }}
   AFFECTED: ${{ inputs.affected && '--affected' || '' }}
-  FULL: ${{ inputs.full }}
-  BASE: ${{ inputs.base }}
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
 jobs:
-  # The cheap gates run as three lanes, so the first failure from lint or a script check arrives
+  # The cheap gates run as lanes, so the first failure from lint or a script check arrives
   # within a few minutes and the slowest lane sets the wall time instead of their sum.
   static:
     name: static (${{ matrix.lane }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: read
       # OIDC token for the Vercel Remote Cache.
@@ -60,9 +54,15 @@ jobs:
               check:app-architecture check:empty-translations check:example-coverage
               check:migration-order check:naming check:no-permdock
               recipes:check skill-references:check test:scripts catalog:check docs:drift knip
+          # The generated lanes were one job of 6.5 minutes (p50): the Next.js example's gen:check and
+          # doctor took about 4 and 3.5 minutes each while sharing four cores.
           - lane: generated
+            tasks: gen:check
+          - lane: doctor
+            tasks: doctor:sarif
+          - lane: type matrix
             # The ts-7.1 leg runs the content mapper and runs nightly (nightly.yml); ts-6 and ts-7 gate every PR.
-            tasks: gen:check doctor:sarif typecheck:matrix --filter=!@better-supabase/types-ts71
+            tasks: typecheck:matrix --filter=!@better-supabase/types-ts71
     steps:
       - uses: actions/checkout@v7
         with:
@@ -98,7 +98,7 @@ jobs:
             if: matrix.lane == 'checks'
             run: pnpm run audit:high
           - name: Publish checks
-            if: matrix.lane == 'generated'
+            if: matrix.lane == 'type matrix'
             run: pnpm run check:publish
           - name: Lint the PR title
             if: ${{ github.event_name == 'pull_request' && matrix.lane == 'lint' }}
@@ -108,7 +108,7 @@ jobs:
 
       # `doctor:sarif` is the only doctor run in CI: it prints the findings and restores `doctor.sarif` on a cache hit.
       - name: Upload doctor findings
-        if: always() && matrix.lane == 'generated' && hashFiles('apps/examples/nextjs/doctor.sarif') != ''
+        if: always() && matrix.lane == 'doctor' && hashFiles('apps/examples/nextjs/doctor.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: apps/examples/nextjs/doctor.sarif
@@ -119,7 +119,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: turbo-logs-static-${{ matrix.lane }}
+          name: turbo-logs-static-${{ strategy.job-index }}
           path: .turbo/logs/
           if-no-files-found: ignore
           retention-days: 7
@@ -128,7 +128,7 @@ jobs:
   heavy:
     name: ${{ matrix.task }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.timeout }}
     permissions:
       contents: read
       id-token: write
@@ -144,17 +144,22 @@ jobs:
               pnpm exec turbo run test --filter=!better-supabase
               --filter=!@better-supabase/next-build --filter=!@better-supabase/example-nextjs
               $AFFECTED --log-file
+            timeout: 10
           - task: next build
             run: >-
               pnpm exec turbo run test --filter=@better-supabase/next-build
               --filter=@better-supabase/example-nextjs $AFFECTED --log-file
+            timeout: 10
           # Next typechecks run one at a time on GitHub-hosted runners.
           - task: typecheck
             run: pnpm exec turbo run typecheck --concurrency=1 $AFFECTED --log-file
+            timeout: 10
           # A benchmark: it gets a machine to itself so its timings stay comparable.
           # Pull requests gate the exact counts; the time limits run nightly (nightly.yml).
           - task: type performance
             run: BENCH_TIME_GATES=0 pnpm exec turbo run typecheck:perf
+            # About 11 minutes at p90, when the benchmark misses the cache.
+            timeout: 25
     steps:
       - uses: actions/checkout@v7
         with:
@@ -176,15 +181,66 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The library's unit tests run on one machine, which gives every Vitest worker the same file
-  # queue. A pull request runs the tests its diff can reach (scripts/select-tests.ts) without
-  # coverage; the release commit runs the whole suite and checks the coverage thresholds.
-  # UNIT_RUNNER is the label of a larger runner; a fork's pull request can't use it.
+  # The library's unit tests with coverage, packed by measured file duration
+  # (packages/better-supabase/tests/unit-durations.json) so the shards finish together. Each shard
+  # writes a blob report through the Turbo `test` task, so main replays a pull request's shards on
+  # a cache hit; `coverage` merges them and checks the thresholds, which a shard never does.
   unit:
-    name: unit
-    runs-on: ${{ (github.event.pull_request.head.repo.fork && 'ubuntu-latest') || vars.UNIT_RUNNER || 'ubuntu-latest' }}
-    # The whole suite needs the larger runner. On the 4 vCPU fallback it takes about 45 minutes.
-    timeout-minutes: ${{ (vars.UNIT_RUNNER && 25) || 60 }}
+    name: unit (${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+
+      - uses: $/.github/actions/setup
+
+      - name: Unit tests
+        env:
+          SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
+        run: |
+          read -ra affected <<< "$AFFECTED"
+          # Passthrough arguments enter every task hash, so the build runs without them and hits
+          # the cache; only the test takes `--shard`. The build takes no `--affected`: the tests
+          # import the built package, so an affected-only build can leave `dist` missing.
+          pnpm exec turbo run build --filter=better-supabase --log-file
+          pnpm exec turbo run test --filter=better-supabase --only "${affected[@]}" --log-file -- \
+            --shard="$SHARD" --reporter=blob --reporter=dot --coverage
+
+      - name: Upload the blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-blob-${{ matrix.shard }}
+          path: packages/better-supabase/.vitest/blob/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload the Turbo logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: turbo-logs-unit-${{ matrix.shard }}
+          path: .turbo/logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  coverage:
+    name: coverage
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       id-token: write
@@ -197,43 +253,49 @@ jobs:
 
       - uses: $/.github/actions/setup
 
-      - name: Build the library
-        # The tests import the built package. The build takes no `--affected`: it is cheap on a
-        # cache hit and `dist` must exist for every test.
-        run: |
-          node --input-type=module -e 'import { availableParallelism } from "node:os"; console.log("availableParallelism", availableParallelism())'
-          pnpm exec turbo run build --filter=better-supabase --log-file
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: unit-blob-*
+          path: packages/better-supabase/.vitest/blob
+          merge-multiple: true
 
-      - name: Whole suite with coverage
-        if: ${{ inputs.full }}
+      # With --affected, the shards skip the library when nothing it depends on changed. Ask Turbo
+      # the same question, so a missing upload fails instead of passing as "not affected".
+      - name: Merge the shards and check the thresholds
+        env:
+          # Also writes unit-times.json for the time budget below.
+          TIMES_REPORTER: ${{ github.workspace }}/scripts/unit-durations.ts
         run: |
           read -ra affected <<< "$AFFECTED"
-          pnpm exec turbo run test --filter=better-supabase --only "${affected[@]}" --log-file -- --coverage
-
-      - name: Selected tests
-        if: ${{ !inputs.full }}
-        run: |
-          # A selection error widens to the whole suite instead of skipping tests.
-          selection=$(node scripts/select-tests.ts "$BASE" 2>/tmp/selection-reasons.txt || echo full)
-          cat /tmp/selection-reasons.txt >> "$GITHUB_STEP_SUMMARY" || true
-          mode=$(printf '%s\n' "$selection" | head -1)
-          cd packages/better-supabase
-          if [ "$mode" = "full" ]; then
-            echo "The selector widened to the whole suite."
-            pnpm exec vitest run --project unit
-          elif [ "$mode" = "files 0" ]; then
-            echo "No unit test can reach this change."
-          else
-            mapfile -t files < <(printf '%s\n' "$selection" | tail -n +2)
-            echo "Running ${#files[@]} test files."
-            pnpm exec vitest run --project unit "${files[@]}"
+          selected=$(pnpm exec turbo run test --filter=better-supabase "${affected[@]}" --dry=json \
+            | jq '[.tasks[] | select(.taskId == "better-supabase#test")] | length')
+          if [ "$selected" -eq 0 ]; then
+            echo "The library is not affected; nothing to merge."
+            exit 0
           fi
+          # Blob files are named blob-<index>-<count>.json.
+          blobs=$(find packages/better-supabase/.vitest/blob -name 'blob-*.json' | wc -l)
+          count=$(find packages/better-supabase/.vitest/blob -name 'blob-*.json' | head -1 | sed -E 's/.*-([0-9]+)\.json$/\1/')
+          if [ -z "$count" ] || [ "$blobs" -ne "$count" ]; then
+            echo "Expected ${count:-?} blob reports, found $blobs."
+            exit 1
+          fi
+          cd packages/better-supabase
+          pnpm exec vitest --merge-reports --coverage --silent=passed-only \
+            --reporter=default --reporter="$TIMES_REPORTER"
 
-      - name: Upload the Turbo logs
-        if: failure()
+      - name: Check the time budget
+        if: ${{ !cancelled() && hashFiles('packages/better-supabase/unit-times.json') != '' }}
+        run: |
+          set -o pipefail
+          node scripts/unit-durations.ts --check packages/better-supabase/unit-times.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # `node scripts/unit-durations.ts --write` (budget) and `--pack` (shards) read this file.
+      - name: Upload the unit times
+        if: ${{ !cancelled() && hashFiles('packages/better-supabase/unit-times.json') != '' }}
         uses: actions/upload-artifact@v7
         with:
-          name: turbo-logs-unit
-          path: .turbo/logs/
-          if-no-files-found: ignore
-          retention-days: 7
+          name: unit-times
+          path: packages/better-supabase/unit-times.json
+          retention-days: 14

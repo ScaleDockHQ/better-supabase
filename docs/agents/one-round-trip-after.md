@@ -199,7 +199,7 @@ zero findings and a call that drops `CUSTOMERS_TAG` fails it.
 
 ### Auth memo (Track 1)
 
-The shared session memo, its counters (ADR 1230), the sign-in seeding, the JWKS warm and the single cookie parse are in place and verified by their tests. Parsing the `ssrSession` cookie and verifying its token costs about 34 µs unmemoized and 0.8 µs memoized on a laptop. The 34 µs figure uses a locally cached JWKS; a cold JWKS fetch is a network call and is what the warm step removes.
+The shared session memo, its counters (ADR 1247), the sign-in seeding, the JWKS warm and the single cookie parse are in place and verified by their tests. Parsing the `ssrSession` cookie and verifying its token costs about 34 µs unmemoized and 0.8 µs memoized on a laptop. The 34 µs figure uses a locally cached JWKS; a cold JWKS fetch is a network call and is what the warm step removes.
 
 ### Unexplained calls (Track 0)
 
