@@ -122,13 +122,23 @@ describe.skipIf(!live)("api-keys", () => {
         ),
       ).toMatch(/permission denied/);
 
+      // Only its own user rotates a personal key: the new secret acts as them.
+      expect(await keys.rotate({ id: personal.key.id })).toMatchObject({
+        ok: false,
+        error: { hint: "API_KEY_FORBIDDEN" },
+      });
+
       // Rotation keeps the old key valid for the grace period.
+      await s.as(member);
+
       const rotated = await keys
         .rotate({
           id: personal.key.id,
           grace: Temporal.Duration.from({ hours: 1 }),
         })
         .orThrow();
+
+      await s.as(owner);
 
       expect(rotated.key.rotatedFrom).toBe(personal.key.id);
       expect(rotated.key.state).toBe("active");
