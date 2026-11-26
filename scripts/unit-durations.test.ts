@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Budget, UnitTimes } from "./unit-durations.ts";
 
 import {
+  addedTo,
   budgetOf,
   findings,
   grew,
@@ -108,5 +109,16 @@ describe("slowestFilesSummary", () => {
     expect(summary.indexOf("new.test.ts")).toBeLessThan(
       summary.indexOf("slow.test.ts"),
     );
+  });
+});
+
+describe("addedTo", () => {
+  it("adds what has no baseline and keeps every listed one", () => {
+    const next = addedTo(budget, [times]);
+
+    expect(next.totalMs).toBe(budget.totalMs);
+    expect(next.files[`${LIB}/slow.test.ts`]).toBe(19_000);
+    expect(next.files[`${LIB}/new.test.ts`]).toBe(90_000);
+    expect(next.slowTests).toMatchObject({ known: 11_000, fresh: 11_000 });
   });
 });

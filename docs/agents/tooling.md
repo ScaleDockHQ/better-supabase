@@ -72,7 +72,9 @@ bump is one commit series:
   validation projects). Download the `unit-times` artifact of two or three
   such runs and the `validation-times-*` artifacts, then run
   `node scripts/unit-durations.ts --write <every unit-times.json>`; it
-  rewrites each section from the runs of its kind.
+  rewrites each section from the runs of its kind. To list new files and tests
+  without a full refresh, run `--add` with the same files: it keeps every
+  existing baseline, so one slow run cannot loosen it.
   `--pack` rewrites the shard packing from the same files, which moves files
   between shards, so refresh the budget from a cold run after a repack. Commit
   either with the reason.

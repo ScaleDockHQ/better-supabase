@@ -143,13 +143,17 @@ jobs:
           # The shadow-database sync suites run nightly (nightly.yml).
           # The validation projects run with the time budget reporter, and their tests then go
           # through the same half-timeout check as the library's (scripts/unit-durations.ts).
+          # Two at a time: with Turbo's default of ten, a project's times depended on which
+          # neighbours it overlapped (jsonc's upgrade test took 3.0 s in run 45583895991 and
+          # 12.5 s in run 45772595721).
           - task: test
             run: |
               set -o pipefail
               pnpm exec turbo run test --filter=!better-supabase \
                 --filter=!@better-supabase/next-build --filter=!@better-supabase/example-nextjs \
                 --filter='!./tests/validation-*' $AFFECTED --log-file
-              pnpm exec turbo run test --filter='./tests/validation-*' $AFFECTED --log-file -- \
+              pnpm exec turbo run test --filter='./tests/validation-*' --concurrency=2 \
+                $AFFECTED --log-file -- \
                 --reporter=default --reporter="$TIMES_REPORTER"
               shopt -s nullglob
               times=(tests/validation-*/unit-times.json)

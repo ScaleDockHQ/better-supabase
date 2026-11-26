@@ -6,6 +6,7 @@
 //   node scripts/unit-durations.ts --check unit-times.json           (library: files, total, tests)
 //   node scripts/unit-durations.ts --check-tests unit-times.json...  (validation projects: tests)
 //   node scripts/unit-durations.ts --write unit-times.json...
+//   node scripts/unit-durations.ts --add unit-times.json...          (only what has no baseline)
 //   node scripts/unit-durations.ts --pack unit-times.json...
 import type { Reporter, TestModule, Vitest } from "vitest/node";
 
@@ -153,6 +154,25 @@ export function budgetOf(runs: readonly UnitTimes[]): Budget {
   };
 }
 
+/**
+ * Adds the files and tests from `runs` that the budget does not list yet. A
+ * listed one keeps its baseline, so one slow runner cannot loosen it; lowering
+ * or raising one takes a `--write` refresh.
+ */
+export function addedTo(budget: Budget, runs: readonly UnitTimes[]): Budget {
+  const fresh = budgetOf(runs);
+
+  return {
+    totalMs: budget.totalMs,
+    files: sortedRecord(
+      new Map(Object.entries({ ...fresh.files, ...budget.files })),
+    ),
+    slowTests: sortedRecord(
+      new Map(Object.entries({ ...fresh.slowTests, ...budget.slowTests })),
+    ),
+  };
+}
+
 /** True when `ms` grew past the budget over `before`: twice, and five seconds. */
 export function grew(ms: number, before: number): boolean {
   return ms > before * GROWTH && ms - before > SLACK_MS;
@@ -254,14 +274,20 @@ function report(found: readonly string[]): number {
   return 1;
 }
 
-const FLAGS = new Set(["--check", "--check-tests", "--write", "--pack"]);
+const FLAGS = new Set([
+  "--check",
+  "--check-tests",
+  "--write",
+  "--add",
+  "--pack",
+]);
 
 function main(): number {
   const [flag, ...paths] = process.argv.slice(2);
 
   if (paths.length === 0 || flag === undefined || !FLAGS.has(flag)) {
     process.stderr.write(
-      "usage: unit-durations --check|--check-tests|--write|--pack <unit-times.json>...\n",
+      "usage: unit-durations --check|--check-tests|--write|--add|--pack <unit-times.json>...\n",
     );
 
     return 1;
@@ -292,15 +318,16 @@ function main(): number {
     JSON.parse(readFileSync(BUDGET, "utf-8")),
   );
 
-  if (flag === "--write") {
-    // A section is rewritten only from runs of its kind; the other one stays.
+  if (flag === "--write" || flag === "--add") {
+    // A section changes only from runs of its kind; the other one stays.
     const next: BudgetFile = { ...budget };
 
     for (const section of ["coverage", "plain"] as const) {
       const own = runs.filter((run) => sectionOf(run) === section);
 
       if (own.length > 0) {
-        next[section] = budgetOf(own);
+        next[section] =
+          flag === "--add" ? addedTo(budget[section], own) : budgetOf(own);
       }
     }
 
