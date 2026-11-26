@@ -690,6 +690,11 @@ export interface BetterNext<
    * the user's entries and redirects to `redirect` when it is set.
    */
   bootstrap<T = unknown, S extends ReadSet = ReadSet>(
+    options: BootstrapOptions<Extract<keyof M, string>, S> & {
+      readonly require: "user";
+    },
+  ): Promise<UserBootstrap<C, P, T, ReadSetResult<S>>>;
+  bootstrap<T = unknown, S extends ReadSet = ReadSet>(
     options: BootstrapOptions<Extract<keyof M, string>, S>,
   ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>>;
   /**
@@ -1449,9 +1454,14 @@ export type BootstrapOptions<
     readonly redirect?: string;
     /**
      * The `reason` query value on the redirect, as in `VerifySessionOptions`.
-     * Defaults to `session_not_found` and `user_banned`.
+     * Defaults to `session_not_found` and `user_banned`; `signedOut`, for a
+     * caller `require: "user"` turns away, defaults to `signed_out`.
      */
-    readonly reasons?: { readonly ended?: string; readonly banned?: string };
+    readonly reasons?: {
+      readonly ended?: string;
+      readonly banned?: string;
+      readonly signedOut?: string;
+    };
     /**
      * Keeps the wrapper's answer (data, reads, subject and permissions) in the
      * kept store, per user, session and tenant, expired by writes to the tables
@@ -1461,7 +1471,19 @@ export type BootstrapOptions<
      * a shared kept store to help across instances.
      */
     readonly kept?: true | { readonly life?: { readonly revalidate?: number } };
-  };
+  } & (
+    | { readonly require?: undefined }
+    | {
+        /**
+         * `"user"` sends a caller without a user session (signed out, an API
+         * key or a service caller) to `redirect` too, with
+         * `?reason=signed_out`, so the result is always an active user session.
+         * Needs `redirect`.
+         */
+        readonly require: "user";
+        readonly redirect: string;
+      }
+  );
 
 export type { Access, Bootstrap } from "../server/bootstrap.ts";
 
@@ -1535,6 +1557,17 @@ export type TenantScope<
   readonly tenant: TenantRecord;
   /** Whether the permission check passed; `true` when none was asked for. */
   readonly granted: true;
+};
+
+/** A `bsb.bootstrap({ require: "user" })` result: an active user session. */
+export type UserBootstrap<
+  C = unknown,
+  P = unknown,
+  T = unknown,
+  R = Readonly<Record<string, unknown>>,
+> = Bootstrap<C, P, T, R> & {
+  readonly session: Extract<AuthSession<C, P>, { readonly kind: "user" }>;
+  readonly sessionActive: true;
 };
 
 export interface NextRootParams {

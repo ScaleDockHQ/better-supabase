@@ -185,7 +185,9 @@ Writes go to the local database and PowerSync uploads them.
 `createUploadConnector` replays them through repositories on PostgREST (a
 client without the engine), and `uploadRoute(server.db.events, { put: "create" })`
 inserts the rows of a write-once table, counting a conflict as already
-applied. `onError` reports a failed session read and retried uploads. See
+applied. `onError` reports a failed session read and retried uploads.
+`onUploaded(crud)` gets each batch's changes after `complete()` succeeds, such
+as to ask the server for work they start; the upload never waits for it. See
 [Offline-first](/docs/guides/offline-first) for the routes, outcomes and
 conflicts.
 
@@ -431,6 +433,9 @@ export async function afterSwitch(result: SwitchResult): Promise<void> {
   await sync.reconnect();
 }
 ```
+
+`connectOptions` is the second argument of every `connect`, such as
+`{ checkpointMode: "requests" }`.
 
 The connector's `fetchCredentials` must read the current session on every
 call, as `createUploadConnector` does, or the reconnect sends the old token.

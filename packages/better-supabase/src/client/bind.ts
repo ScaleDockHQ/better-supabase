@@ -135,6 +135,15 @@ export interface BindClientOptions {
    * there.
    */
   readonly engine?: DataEngine;
+  /**
+   * Asks the sessions block's `bootstrap_<rpc>` wrapper whether a session that
+   * signs in or loads from storage is still active, and signs out locally when
+   * it says no, so a session ended on the server stops the app before its
+   * access token expires. A failed call keeps the session. `schema` defaults to
+   * the one `gen` recorded for the wrapper, else `better_supabase`, as on the
+   * server.
+   */
+  readonly verifySession?: { readonly rpc: string; readonly schema?: string };
 }
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
@@ -227,6 +236,35 @@ export function bindClient<
 
   const onChange = (_event: unknown, session: Session | null): void => {
     const next = snapshotOf(session);
+
+    const check = options.verifySession;
+
+    // Outside the auth callback: an Auth call awaited inside it stalls auth-js.
+    if (
+      check !== undefined &&
+      next.status === "signed-in" &&
+      (snapshot.status !== "signed-in" ||
+        identityKey(next) !== identityKey(snapshot))
+    ) {
+      const key = identityKey(next);
+
+      setTimeout(() => {
+        import("./verify-session.ts")
+          .then(({ verifySession }) =>
+            verifySession(supabase, {
+              schema:
+                check.schema ??
+                betterSupabase.meta.bootstrap?.schema ??
+                "better_supabase",
+              rpc: check.rpc,
+              isCurrent: () =>
+                snapshot.status === "signed-in" &&
+                identityKey(snapshot) === key,
+            }),
+          )
+          .catch(() => undefined);
+      }, 0);
+    }
 
     // A refresh only moves the time claims: keeping the snapshot keeps `db`
     // and spares every `useAuth` consumer a render once an hour.

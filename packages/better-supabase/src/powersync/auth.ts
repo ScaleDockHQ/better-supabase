@@ -4,8 +4,8 @@ import { authzVersionOf } from "../auth/snapshot.ts";
 import { claimAt, tenantPathsFor } from "../core/claims.ts";
 
 /** The part of a PowerSync database `syncWithAuth` drives. */
-export interface SyncedDatabaseLike<C> {
-  connect(connector: C): Promise<void>;
+export interface SyncedDatabaseLike<C, O = never> {
+  connect(connector: C, options?: O): Promise<void>;
   disconnect(): Promise<void>;
   disconnectAndClear(): Promise<void>;
 }
@@ -19,9 +19,14 @@ export interface AuthSourceLike {
 /** The claims of a signed-in user, as `bsb.auth` holds them. */
 export type SyncClaims = Readonly<Record<string, unknown>>;
 
-export interface SyncWithAuthOptions<C> {
+export interface SyncWithAuthOptions<C, O = never> {
   /** The connector, e.g. `createUploadConnector(...)`. */
   readonly connector: C;
+  /**
+   * The second argument of each `connect`, such as PowerSync's `{
+   * checkpointMode: "requests" }`.
+   */
+  readonly connectOptions?: O;
   /**
    * Clears the local database on sign-out and when another user signs in, so
    * one user never reads another's rows. Unsynced changes are lost. Defaults to
@@ -88,12 +93,12 @@ export function claimsFingerprint(
  * useEffect(() => syncWithAuth(powersync, bsb.auth, { connector }), []);
  * ```
  */
-export function syncWithAuth<C>(
-  // C comes from `options.connector`: PowerSync 2.5 overloads `connect`, and
+export function syncWithAuth<C, O = never>(
+  // C and O come from `options`: PowerSync 2.5 overloads `connect`, and
   // inferring from the database would pick the options overload.
-  db: SyncedDatabaseLike<NoInfer<C>>,
+  db: SyncedDatabaseLike<NoInfer<C>, NoInfer<O>>,
   auth: AuthSourceLike,
-  options: SyncWithAuthOptions<C>,
+  options: SyncWithAuthOptions<C, O>,
 ): AuthSync {
   const clear = options.clearOnSignOut ?? true;
 
@@ -118,6 +123,11 @@ export function syncWithAuth<C>(
 
   const leave = () => (clear ? db.disconnectAndClear() : db.disconnect());
 
+  const connect = () =>
+    options.connectOptions === undefined
+      ? db.connect(options.connector)
+      : db.connect(options.connector, options.connectOptions);
+
   const reconnect = (): Promise<void> => {
     if (pending) {
       return pending;
@@ -139,7 +149,7 @@ export function syncWithAuth<C>(
       await db.disconnect();
       // Calls from here on need a connect that reads the token after them.
       pending = undefined;
-      await db.connect(options.connector);
+      await connect();
     });
 
     pending = run;
@@ -182,7 +192,7 @@ export function syncWithAuth<C>(
     }
 
     if (next !== null) {
-      void enqueue(() => db.connect(options.connector));
+      void enqueue(connect);
     }
   };
 

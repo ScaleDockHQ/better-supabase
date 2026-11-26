@@ -11,6 +11,8 @@ export interface CrudEntryLike {
   readonly table: string;
   readonly id: string;
   readonly opData?: Readonly<Record<string, unknown>> | undefined;
+  /** The row before a `PATCH` or `DELETE`, when the table tracks it. */
+  readonly previousValues?: Readonly<Record<string, unknown>> | undefined;
 }
 
 /** The part of a PowerSync database the connector reads the queue from. */
@@ -136,6 +138,12 @@ export interface UploadConnectorOptions {
   ) => UploadOutcome | undefined;
   readonly onConflict?: (change: RejectedChange) => void;
   readonly onDiscard?: (change: RejectedChange) => void;
+  /**
+   * Called with a batch's changes once `complete()` succeeded, refused ones
+   * included, such as to ask the server for work the changes start. The upload
+   * never waits for it, and a throw or rejection is dropped.
+   */
+  readonly onUploaded?: (crud: readonly CrudEntryLike[]) => unknown;
   /**
    * Called when reading the session fails (kind `unauthorized`, or `network`
    * when the Auth server is unreachable) and when an upload error keeps the
@@ -469,6 +477,14 @@ export function createUploadConnector(
       }
 
       await batch.complete();
+
+      const { onUploaded } = options;
+
+      if (onUploaded) {
+        void Promise.resolve(batch.crud)
+          .then(onUploaded)
+          .catch(() => undefined);
+      }
     },
   };
 }

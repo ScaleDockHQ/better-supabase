@@ -908,11 +908,16 @@ export function createServer<
       // `as` names the member the write is for: the `x-bsb-actor` header makes
       // `acting_member()` return it, for audit entries and `set_actor()`.
       const client =
-        adminOptions.as === undefined
+        adminOptions.as === undefined && adminOptions.headers === undefined
           ? serviceClient()
           : contextClient(
               { kind: "secret", keyName: "secret" },
-              { [ACTOR_HEADER]: adminOptions.as },
+              {
+                ...adminOptions.headers,
+                ...(adminOptions.as === undefined
+                  ? {}
+                  : { [ACTOR_HEADER]: adminOptions.as }),
+              },
             );
 
       const db = betterSupabase.connect(

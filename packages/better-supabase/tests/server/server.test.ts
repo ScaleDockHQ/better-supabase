@@ -526,6 +526,30 @@ describe("createServer clients", () => {
     expect(sent(1).headers.get("apikey")).toBe("sb_secret_test");
   });
 
+  it("sends admin() headers with the acting member on every request", async () => {
+    const { sent } = stubFetch();
+    const server = createServer(createSupabase(schema), { env: secretEnv });
+
+    const db = server.admin(
+      {},
+      {
+        as: USER,
+        headers: { "x-request-id": "req-1", "x-bsb-actor": "spoof" },
+      },
+    );
+
+    await db.customers.list({ select: ["id"] }).orThrow();
+    await server
+      .admin({}, { headers: { "x-request-id": "req-2" } })
+      .customers.list({ select: ["id"] })
+      .orThrow();
+    expect(sent(0).headers.get("x-request-id")).toBe("req-1");
+    expect(sent(0).headers.get("x-bsb-actor")).toBe(USER);
+    expect(sent(1).headers.get("x-request-id")).toBe("req-2");
+    expect(sent(1).headers.get("x-bsb-actor")).toBeNull();
+    expect(sent(1).headers.get("apikey")).toBe("sb_secret_test");
+  });
+
   it("binds dbFor to the caller and merges extra context", () => {
     const server = createServer(createSupabase(schema), { env: secretEnv });
     expect(server.dbFor(service).$context.actor).toEqual({

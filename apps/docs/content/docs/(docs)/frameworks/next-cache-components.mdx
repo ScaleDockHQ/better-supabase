@@ -603,6 +603,11 @@ cookies, so the proxy clears them on the next request this process serves,
 such as the redirect to `/sign-in`. `bsb.bootstrap()` takes
 `scope: "remote"` and `key` like `bsb.cached()`.
 
+`require: "user"` with `redirect` sends a caller without a user session (signed
+out, an API key or a service caller) there too, with `?reason=signed_out`
+(`reasons.signedOut` changes it), and types the result as an active user
+session, so `boot.session.user` needs no check of its own.
+
 `bsb.getAccess(boot)` turns the result into the caller's `context`,
 `session`, `tenant`, `authzVersion` and `can(permission)`, without verifying
 the token again.

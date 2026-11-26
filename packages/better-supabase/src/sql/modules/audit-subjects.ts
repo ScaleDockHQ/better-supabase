@@ -260,8 +260,10 @@ create index if not exists ${sqlIdent(`audit_events_${name}_idx`)} on ${log} (${
 
 /**
  * How the caller acted: service, support, agent, impersonation, oauth-client,
- * staff (with `staffClaim`), user or system. `import_run()` sits in a scalar
- * subselect, so a statement-level insert reads it once, not once per row.
+ * staff (with `staffClaim`), user or system. A service write for a member
+ * (`admin(context, { as })`, the `x-bsb-actor` header) is `user`, like the
+ * `actor_id` it records. `import_run()` sits in a scalar subselect, so a
+ * statement-level insert reads it once, not once per row.
  */
 export const INTEGRATION_TEST =
   "(select better_supabase.import_run()) is not null";
@@ -271,6 +273,7 @@ export function actorKind(ctx: BlockSqlContext): string {
 
   return `case
       when ${INTEGRATION_TEST} then 'integration'
+      when (select better_supabase.acting_member()) is not null then 'user'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
       when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'

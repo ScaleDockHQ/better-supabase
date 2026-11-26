@@ -2057,6 +2057,7 @@
       "TenantScope",
       "ToNextActionOptions",
       "ToNextRouteOptions",
+      "UserBootstrap",
       "VerifyOtpParams",
       "VerifySessionOptions"
     ]
