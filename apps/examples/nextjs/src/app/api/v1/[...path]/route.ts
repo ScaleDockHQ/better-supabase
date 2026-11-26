@@ -1,3 +1,5 @@
+import { createResources } from "better-supabase/next/resources";
+
 import { API_BASE_PATH, apiResources } from "@/features/api/api-resources";
 import { getTables } from "@/features/api/load-tables";
 import { betterSupabaseApi } from "@/lib/supabase/api";
@@ -12,7 +14,7 @@ import { bsbApi } from "@/lib/supabase/server-api";
  */
 await getTables(betterSupabaseApi, Object.keys(apiResources));
 
-export const { GET, POST, PATCH, PUT, DELETE } = bsbApi.resources(
+export const { GET, POST, PATCH, PUT, DELETE } = createResources(bsbApi)(
   apiResources,
   { basePath: API_BASE_PATH },
 );

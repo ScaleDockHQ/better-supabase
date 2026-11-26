@@ -7,6 +7,7 @@ import type {
 } from "better-supabase/next";
 
 import { dbError, err } from "better-supabase";
+import { createAuthFlows } from "better-supabase/next/sign-in";
 import { botIdCheck } from "better-supabase/vercel-security";
 import { checkBotId } from "botid/server";
 import { hasLocale } from "next-intl";
@@ -37,7 +38,7 @@ export async function signInWithPassword(input: {
   readonly next: string | null;
   readonly locale: string;
 }): Promise<ActionResult<SignedIn>> {
-  return bsbCore.signInWithPassword(
+  return createAuthFlows(bsbCore).signInWithPassword(
     { email: input.email, password: input.password, next: input.next },
     { fallback: homeOf(input.locale) },
   );
@@ -69,7 +70,7 @@ export async function signUp(input: {
 
   const home = homeOf(input.locale);
 
-  return bsbCore.signUp(
+  return createAuthFlows(bsbCore).signUp(
     {
       email: input.email,
       password: input.password,

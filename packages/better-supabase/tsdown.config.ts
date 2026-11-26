@@ -31,6 +31,8 @@ const entries = [
   "ssr/index",
   "next/index",
   "next/image/index",
+  "next/resources/index",
+  "next/sign-in/index",
   "next/proxy/index",
   "next/auth-gate/index",
   "next/auth-gate/user",

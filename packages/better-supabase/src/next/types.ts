@@ -6,7 +6,6 @@ import type { AuthState } from "../auth/resolve.ts";
 import type { CookieScope } from "../auth/session.ts";
 import type {
   AuthorizeUrlParams,
-  ExistingAccount,
   OtpParams,
   SignOutScope,
 } from "../auth/sign-in.ts";
@@ -45,7 +44,6 @@ import type {
   ResourceLoaderContext,
   Unwrapped,
 } from "../server/kit.ts";
-import type { ResourceMap } from "../server/resources.ts";
 import type { GuardOptions } from "../server/respond.ts";
 import type {
   AdminDb,
@@ -58,7 +56,8 @@ import type {
 import type { SupportStartRequest } from "../server/support.ts";
 import type { DbBudget } from "./collector.ts";
 import type { RecordAt, RecordServer } from "./record.ts";
-import type { NextResourceRoutes, NextResourcesOptions } from "./resources.ts";
+import type { RESOURCES_HOST, ResourcesHost } from "./resources.ts";
+import type { AUTH_FLOWS_HOST, AuthFlowDeps } from "./sign-in.ts";
 import type { GateUser } from "./user.ts";
 
 /**
@@ -971,22 +970,17 @@ export interface BetterNext<
     options?: RequireOptions<C, P, R, Ref, NextResource<M, F, E, C, P, B>>,
   ): Promise<ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R>>;
   /**
-   * REST resources for a catch-all route, matching the API model: collections,
-   * items and actions, as the caller (RLS), behind the guard in `options`, with
-   * Problem Details errors. An unknown path answers 404 before auth resolves.
-   *
-   * ```ts
-   * // app/api/[...path]/route.ts
-   * export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(
-   *   { customers: true },
-   *   { basePath: "/api" },
-   * );
-   * ```
+   * What `createResources(bsb)` from `better-supabase/next/resources` reads. It
+   * is not an API of its own.
    */
-  resources(
-    map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P, B, D>["db"]>,
-    options?: NextResourcesOptions,
-  ): NextResourceRoutes;
+  readonly [RESOURCES_HOST]: ResourcesHost<
+    M,
+    unknown,
+    F,
+    E,
+    Ref,
+    ServerContext<M, F, E, C, P, B, D>["db"]
+  >;
   /**
    * Tags the current `"use cache"` scope with a table (and row) tag. With a
    * `tenant`, mutations in other tenants leave the entry cached.
@@ -1035,96 +1029,10 @@ export interface BetterNext<
    */
   stopSupport(): Promise<ActionResult<{ readonly ended: boolean }>>;
   /**
-   * Signs in with an email and a password from a server action. It writes the
-   * session cookies, stores the verified session for the next render and
-   * returns `redirectTo`: `credentials.next` when it is a same-origin path,
-   * else `options.fallback` (`/`). Reads later in the same request
-   * (`getClaims()`, `claims()`, `context()`) see the new session.
+   * What `createAuthFlows(bsb)` from `better-supabase/next/sign-in` reads. It
+   * is not an API of its own.
    */
-  signInWithPassword(
-    credentials: SignInCredentials,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn>>;
-  /**
-   * Verifies an email link's `token_hash` (sign-up, invite, magic link,
-   * recovery, email change) or an emailed code, then commits the session like
-   * `signInWithPassword`. The new session replaces any session the request
-   * carried.
-   */
-  verifyOtp(
-    params: VerifyOtpParams,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn>>;
-  /**
-   * The Auth server's OAuth URL for `provider`, for a `redirect()`, from
-   * auth-js's `signInWithOAuth`. auth-js stores the PKCE verifier in a cookie
-   * through `@supabase/ssr`, where `exchangeCodeForSession` reads it. `next`
-   * rides on `redirectTo` as `?next=` when it is a same-origin path.
-   */
-  signInWithOAuth(
-    params: SignInWithOAuthParams,
-  ): Promise<{ readonly url: string }>;
-  /**
-   * Exchanges the callback's `?code=` and the PKCE verifier cookie for a
-   * session with auth-js, and commits it like `signInWithPassword`.
-   */
-  exchangeCodeForSession(
-    params: ExchangeCodeParams,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn>>;
-  /**
-   * Challenges and verifies an MFA factor for the signed-in user and commits
-   * the `aal2` session; `mfa` is then false.
-   */
-  verifyMfa(
-    params: MfaVerification,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn>>;
-  /**
-   * Ends the session on the Auth server first (`scope`, `local` by default),
-   * then clears the session cookies (also at `cookieScopes`), forgets the
-   * verified sessions and expires its cache tags. `others` keeps this session
-   * and its cookies, and still forgets the verified sessions. Reads later in
-   * the same request are signed out.
-   */
-  signOut(
-    params?: SignOutParams,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn>>;
-  /**
-   * Emails a magic link and a code. It writes the PKCE verifier cookie like
-   * `signInWithOAuth`, so the link's `?code=` goes to `exchangeCodeForSession`,
-   * and the code to `verifyOtp` with `type: "email"`. Returns `null`: nothing
-   * is signed in yet.
-   */
-  signInWithOtp(params: SignInWithOtpParams): Promise<ActionResult<null>>;
-  /**
-   * Emails a password reset link with the PKCE verifier cookie.
-   * `exchangeCodeForSession` on the callback signs the user in; the app then
-   * asks for the new password. Auth answers the same whether or not an account
-   * has the email.
-   */
-  resetPasswordForEmail(
-    params: ResetPasswordParams,
-  ): Promise<ActionResult<null>>;
-  /**
-   * Signs up with an email and a password. With email confirmation on, it
-   * emails the confirmation link with the PKCE verifier cookie and returns
-   * `null`. With it off, Auth returns a session, committed like
-   * `signInWithPassword`. When the email already has a confirmed account, Auth
-   * sends nothing and this returns `{ existingAccount: true }`, so the app can
-   * email the owner itself. Show the user the same screen either way, so the
-   * page doesn't tell who has an account.
-   */
-  signUp(
-    params: SignUpParams,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn | ExistingAccount | null>>;
-  /**
-   * Emails the sign-up confirmation or the email change link again, with a new
-   * PKCE verifier.
-   */
-  resend(params: ResendParams): Promise<ActionResult<null>>;
+  readonly [AUTH_FLOWS_HOST]: AuthFlowDeps<C, P>;
 }
 
 export interface SignInCredentials {

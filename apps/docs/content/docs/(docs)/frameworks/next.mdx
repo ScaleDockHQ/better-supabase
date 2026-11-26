@@ -537,15 +537,18 @@ export const addNote = toNextAction(
 
 ## REST resources
 
-`bsb.resources(map, options)` serves the same REST routes as
+`createResources(bsb)(map, options)` from `better-supabase/next/resources`
+serves the same REST routes as
 [Hono resources](/docs/frameworks/hono#resources) from one catch-all route.
-It returns a handler for each method:
+It returns a handler for each method, and lives on its own subpath so an app
+that serves no resources does not ship the router:
 
 ```ts title="src/app/api/v1/[...path]/route.ts"
 import { defineAction } from "better-supabase/next";
+import { createResources } from "better-supabase/next/resources";
 import { bsb } from "@/lib/supabase/server";
 
-export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(
+export const { GET, POST, PATCH, PUT, DELETE } = createResources(bsb)(
   {
     customers: {
       operations: ["list", "get", "update", "delete"],
@@ -581,10 +584,11 @@ serve the matching OpenAPI document.
 ### The OpenAPI document
 
 Keep the map in its own module, so the routes and the document read the same
-object and can't drift. `satisfies` checks the map against `bsb.resources`
+object and can't drift. `satisfies` checks the map against `ResourceMapOf<typeof bsb>`
 without widening it:
 
 ```ts title="src/features/api/api-resources.ts"
+import type { ResourceMapOf } from "better-supabase/next/resources";
 import type { bsb } from "@/lib/supabase/server";
 
 export const API_BASE_PATH = "/api/v1";
@@ -592,7 +596,7 @@ export const API_BASE_PATH = "/api/v1";
 export const apiResources = {
   customers: { operations: ["list", "get", "update", "delete"] },
   projects: { operations: ["list", "get", "create", "update", "delete"] },
-} satisfies Parameters<typeof bsb.resources>[0];
+} satisfies ResourceMapOf<typeof bsb>;
 ```
 
 ```ts title="src/app/api/v1/openapi.json/route.ts"

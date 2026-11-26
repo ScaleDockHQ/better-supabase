@@ -14,6 +14,7 @@ import { sessionCookieName, ssrSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
 import { createNext } from "../../src/next/index.ts";
+import { createAuthFlows } from "../../src/next/sign-in.ts";
 import { createServer } from "../../src/server/server.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
@@ -214,7 +215,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     expect(await bsb.getClaims()).toBeNull();
     expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("none");
 
-    const signed = await bsb.signInWithPassword(
+    const signed = await createAuthFlows(bsb).signInWithPassword(
       { email: user.email, password, next: "https://evil.test" },
       { fallback: "/home" },
     );
@@ -244,7 +245,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const user = await createUser();
     const { bsb } = setup();
 
-    const signed = await bsb.signInWithPassword({
+    const signed = await createAuthFlows(bsb).signInWithPassword({
       email: user.email,
       password: "wrong",
     });
@@ -266,7 +267,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       email: user.email,
     });
 
-    const linked = await bsb.verifyOtp({
+    const linked = await createAuthFlows(bsb).verifyOtp({
       type: "magiclink",
       tokenHash: link.data.properties?.hashed_token ?? "",
       next: "/welcome",
@@ -279,7 +280,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     expect((await bsb.getClaims())?.userId).toBe(user.id);
     expect(await token()).toBeDefined();
 
-    const reused = await bsb.verifyOtp({
+    const reused = await createAuthFlows(bsb).verifyOtp({
       type: "magiclink",
       tokenHash: link.data.properties?.hashed_token ?? "",
     });
@@ -291,7 +292,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       email: user.email,
     });
 
-    const coded = await bsb.verifyOtp({
+    const coded = await createAuthFlows(bsb).verifyOtp({
       type: "email",
       email: user.email,
       token: code.data.properties?.email_otp ?? "",
@@ -306,7 +307,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const { bsb, token, verifier } = setup();
     const callback = "https://example.localhost/auth/callback";
 
-    const sent = await bsb.signInWithOtp({
+    const sent = await createAuthFlows(bsb).signInWithOtp({
       email: user.email,
       redirectTo: callback,
       next: "/projects",
@@ -335,7 +336,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
 
     nextRequest();
 
-    const exchanged = await bsb.exchangeCodeForSession({
+    const exchanged = await createAuthFlows(bsb).exchangeCodeForSession({
       code,
       next: "/projects",
     });
@@ -358,7 +359,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const { bsb, token, verifier } = setup();
     const email = `next-auth-${crypto.randomUUID()}@example.com`;
 
-    const signed = await bsb.signUp({
+    const signed = await createAuthFlows(bsb).signUp({
       email,
       password,
       redirectTo: "https://example.localhost/auth/callback",
@@ -391,7 +392,12 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const { bsb } = setup();
 
     expect(
-      (await bsb.signInWithPassword({ email: user.email, password })).ok,
+      (
+        await createAuthFlows(bsb).signInWithPassword({
+          email: user.email,
+          password,
+        })
+      ).ok,
     ).toBe(true);
     const accessToken = (await bsb.getClaims())?.accessToken ?? "";
 
@@ -411,7 +417,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       totp: { secret: string };
     };
 
-    const verified = await bsb.verifyMfa({
+    const verified = await createAuthFlows(bsb).verifyMfa({
       factorId: factor.id,
       code: await totp(factor.totp.secret),
       next: "/secure",
@@ -426,7 +432,10 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     mocks.jar.clear();
     nextRequest();
 
-    const again = await bsb.signInWithPassword({ email: user.email, password });
+    const again = await createAuthFlows(bsb).signInWithPassword({
+      email: user.email,
+      password,
+    });
 
     expect(again.data?.mfa).toBe(true);
   });
@@ -436,14 +445,21 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const { bsb, token } = setup();
 
     expect(
-      (await bsb.signInWithPassword({ email: user.email, password })).ok,
+      (
+        await createAuthFlows(bsb).signInWithPassword({
+          email: user.email,
+          password,
+        })
+      ).ok,
     ).toBe(true);
     const accessToken = (await bsb.getClaims())?.accessToken ?? "";
 
     nextRequest();
     expect((await bsb.claims()).kind).toBe("user");
 
-    const signedOut = await bsb.signOut({ next: "/signed-out" });
+    const signedOut = await createAuthFlows(bsb).signOut({
+      next: "/signed-out",
+    });
 
     expect(signedOut).toEqual({
       ok: true,

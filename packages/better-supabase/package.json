@@ -203,6 +203,16 @@
       "types": "./dist/next/image/index.d.ts",
       "default": "./dist/next/image/index.js"
     },
+    "./next/resources": {
+      "@better-supabase/source": "./src/next/resources/index.ts",
+      "types": "./dist/next/resources/index.d.ts",
+      "default": "./dist/next/resources/index.js"
+    },
+    "./next/sign-in": {
+      "@better-supabase/source": "./src/next/sign-in/index.ts",
+      "types": "./dist/next/sign-in/index.d.ts",
+      "default": "./dist/next/sign-in/index.js"
+    },
     "./next/client": {
       "@better-supabase/source": "./src/next/client/index.ts",
       "types": "./dist/next/client/index.d.ts",
@@ -1714,6 +1724,14 @@
       "./next/image": {
         "types": "./dist/next/image/index.d.ts",
         "default": "./dist/next/image/index.js"
+      },
+      "./next/resources": {
+        "types": "./dist/next/resources/index.d.ts",
+        "default": "./dist/next/resources/index.js"
+      },
+      "./next/sign-in": {
+        "types": "./dist/next/sign-in/index.d.ts",
+        "default": "./dist/next/sign-in/index.js"
       },
       "./next/client": {
         "types": "./dist/next/client/index.d.ts",

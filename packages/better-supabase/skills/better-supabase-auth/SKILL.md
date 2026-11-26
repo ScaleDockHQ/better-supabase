@@ -199,13 +199,13 @@ membership lasts until the next refresh. When that window matters:
 - `bsb.evictSession(userId)` reaches the server caches and the caller's
   router only; another user's browser keeps its private entries until they
   go stale.
-- Sign in and out from a Server Action with `bsb.signInWithPassword`, `verifyOtp`,
+- Sign in and out from a Server Action with `createAuthFlows(bsb).signInWithPassword` (from `better-supabase/next/sign-in`), `verifyOtp`,
   `signInWithOAuth` and `exchangeCodeForSession`, `verifyMfa` or `signOut`, then
   `redirect(result.data.redirectTo)`. The result is plain data
   (`redirectTo`, `mfa`, `user`); reads later in the action (`bsb.context()`,
   `bsb.getClaims()`) see the new session, so build the landing
   context from them.
-- Start email link flows with `bsb.signInWithOtp`, `resetPasswordForEmail`,
+- Start email link flows with `createAuthFlows(bsb).signInWithOtp`, `resetPasswordForEmail`,
   `signUp` or `resend`, or with the browser client: auth-js stores the PKCE
   verifier in a cookie that `exchangeCodeForSession` reads on the link's
   callback.

@@ -26,6 +26,7 @@ import type {
   ContextOptions,
   ServerContext,
 } from "../server/server-types.ts";
+import type { AuthFlowDeps } from "./sign-in.ts";
 import type {
   Bootstrap,
   BootstrapOptions,
@@ -68,7 +69,6 @@ import {
   requireCaller,
   formDataObject,
 } from "../server/kit.ts";
-import { resourceRouter } from "../server/resources.ts";
 import { guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import {
@@ -111,11 +111,11 @@ import { handOff, noteFill, takeHandoff } from "./remote-handoff.ts";
 import { remoteKeyOf } from "./remote-key.ts";
 import { requestRecording } from "./request-recording.ts";
 import { adminForRequest, verifyOption } from "./request-stats.ts";
-import { resourceRoutes } from "./resources.ts";
+import { RESOURCES_HOST } from "./resources.ts";
 import { scopeMembers } from "./scope.ts";
 import { cacheKeyOf, parkUntilResponseEnds } from "./session-handle.ts";
 import { refreshCallerCache, userSessionTags } from "./session-tags.ts";
-import { authFlows } from "./sign-in.ts";
+import { AUTH_FLOWS_HOST } from "./sign-in.ts";
 import { taintObject, taintResolution, taintedAdmin } from "./taint.ts";
 import { gateUserOf } from "./user.ts";
 import { withContextFactory } from "./with-context.ts";
@@ -483,7 +483,7 @@ export function createNext<
     },
   });
 
-  const flows = authFlows<C, P>({
+  const authFlowDeps: AuthFlowDeps<C, P> = {
     env: () => base.env,
     auth: options.auth,
     cookieScopes: options.cookieScopes,
@@ -501,7 +501,7 @@ export function createNext<
       invalidate(userTags(userId));
       forget(userId);
     },
-  });
+  };
 
   /**
    * The context of a cache scope: the request's in `'use cache: private'`, the
@@ -937,41 +937,18 @@ export function createNext<
       };
     },
 
-    resources(map, resourcesOptions = {}) {
-      const { basePath, ...guardOptions } = resourcesOptions;
-
-      const router = resourceRouter(betterSupabase, map, {
-        ...(basePath === undefined ? {} : { basePath }),
-        ...(base.authorizer === undefined
-          ? {}
-          : { authorizer: base.authorizer }),
-      });
-
-      return resourceRoutes(async (request) => {
-        const route = router.match(request);
-
-        if (route instanceof Response) {
-          return route;
-        }
-
-        return handle(
-          base,
-          request,
-          (ctx) =>
-            route.handler.serve(request, ctx.db, route.segments, {
-              instance: route.instance,
-              expose,
-            }),
-          {
-            ...guardOptions,
-            expose,
-            instance: route.instance,
-            context: statsFor(request),
-            waitUntil,
-            rethrow: rethrowNextControlFlow,
-          },
-        );
-      });
+    [RESOURCES_HOST]: {
+      instance: betterSupabase,
+      authorizer: base.authorizer,
+      expose,
+      serve: (request, run, serveOptions) =>
+        handle(base, request, (ctx) => run(ctx.db), {
+          ...serveOptions,
+          expose,
+          context: statsFor(request),
+          waitUntil,
+          rethrow: rethrowNextControlFlow,
+        }),
     },
 
     waitUntil,
@@ -1187,7 +1164,7 @@ export function createNext<
         : { ok: false, data: null, error: stopped.error };
     },
 
-    ...flows,
+    [AUTH_FLOWS_HOST]: authFlowDeps,
 
     tag(table, id, tagOptions = {}) {
       applyCacheTags([

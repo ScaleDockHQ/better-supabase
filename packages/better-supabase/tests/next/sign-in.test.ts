@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ssrSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { createNext, postAuthPath } from "../../src/next/index.ts";
+import { createAuthFlows } from "../../src/next/sign-in.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -189,7 +190,7 @@ describe("auth flows", () => {
     const token = await signer.sign({ sub: USER });
     const { bsb, fetch } = setup(() => tokens(token));
 
-    const signed = await bsb.signInWithPassword(
+    const signed = await createAuthFlows(bsb).signInWithPassword(
       { email: "a@b.test", password: "pw", next: "//evil.test" },
       { fallback: "/en" },
     );
@@ -227,7 +228,7 @@ describe("auth flows", () => {
     const token = await signer.sign({ sub: USER });
     const { bsb } = setup(() => tokens(token));
 
-    const signed = await bsb.signInWithPassword({
+    const signed = await createAuthFlows(bsb).signInWithPassword({
       email: "a@b.test",
       password: "pw",
       next: "/inbox?tab=1",
@@ -248,7 +249,7 @@ describe("auth flows", () => {
       "/ok\nevil",
       null,
     ]) {
-      const signed = await bsb.signInWithPassword(
+      const signed = await createAuthFlows(bsb).signInWithPassword(
         { email: "a@b.test", password: "pw", next },
         { fallback: "/home" },
       );
@@ -277,7 +278,10 @@ describe("auth flows", () => {
 
     for (let index = 0; index < 5; index += 1) {
       results.push(
-        await bsb.signInWithPassword({ email: "a@b.test", password: "no" }),
+        await createAuthFlows(bsb).signInWithPassword({
+          email: "a@b.test",
+          password: "no",
+        }),
       );
     }
 
@@ -303,7 +307,7 @@ describe("auth flows", () => {
 
     expect(
       (
-        await thrown.bsb.signInWithPassword({
+        await createAuthFlows(thrown.bsb).signInWithPassword({
           email: "a@b.test",
           password: "pw",
         })
@@ -313,8 +317,12 @@ describe("auth flows", () => {
     const odd = setup(() => Promise.reject("down"));
 
     expect(
-      (await odd.bsb.signInWithPassword({ email: "a@b.test", password: "pw" }))
-        .error,
+      (
+        await createAuthFlows(odd.bsb).signInWithPassword({
+          email: "a@b.test",
+          password: "pw",
+        })
+      ).error,
     ).toMatchObject({ kind: "network" });
 
     const fetch = vi.fn<Fetch>(
@@ -332,8 +340,12 @@ describe("auth flows", () => {
     });
 
     expect(
-      (await slow.signInWithPassword({ email: "a@b.test", password: "pw" }))
-        .error,
+      (
+        await createAuthFlows(slow).signInWithPassword({
+          email: "a@b.test",
+          password: "pw",
+        })
+      ).error,
     ).toMatchObject({ kind: "timeout" });
   });
 
@@ -342,7 +354,7 @@ describe("auth flows", () => {
     const token = await other.sign({ sub: USER });
     const { bsb } = setup(() => tokens(token));
 
-    const signed = await bsb.signInWithPassword({
+    const signed = await createAuthFlows(bsb).signInWithPassword({
       email: "a@b.test",
       password: "pw",
     });
@@ -363,7 +375,10 @@ describe("auth flows", () => {
       auth: { jwks: signer.jwks, fetch, clientIp: () => "203.0.113.9" },
     });
 
-    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
+    await createAuthFlows(bsb).signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
 
     expect(callsOf(fetch)[0]?.headers).toMatchObject({
       apikey: "sb_secret_test",
@@ -384,7 +399,7 @@ describe("auth flows", () => {
     expect((await bsb.context()).auth.kind).toBe("none");
     expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("none");
 
-    const signed = await bsb.signInWithPassword({
+    const signed = await createAuthFlows(bsb).signInWithPassword({
       email: "a@b.test",
       password: "pw",
     });
@@ -425,12 +440,15 @@ describe("auth flows", () => {
 
     expect(await bsb.getClaims()).toBeNull();
 
-    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
+    await createAuthFlows(bsb).signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
 
     expect((await bsb.getClaims())?.userId).toBe(USER);
     expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("user");
 
-    await bsb.signOut();
+    await createAuthFlows(bsb).signOut();
 
     expect(await bsb.getClaims()).toBeNull();
     expect((await bsb.claims()).kind).toBe("none");
@@ -440,7 +458,10 @@ describe("auth flows", () => {
     const token = await signer.sign({ sub: USER });
     const { bsb, server } = setup(() => tokens(token));
 
-    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
+    await createAuthFlows(bsb).signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
     nextRequest();
 
     const resolve = vi.spyOn(server, "resolve");
@@ -470,12 +491,18 @@ describe("auth flows", () => {
       { cookieScopes: [{ domain: ".old.test" }] },
     );
 
-    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
+    await createAuthFlows(bsb).signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
     nextRequest();
 
     expect((await bsb.claims()).kind).toBe("user");
 
-    const signedOut = await bsb.signOut({ scope: "global", next: "/bye" });
+    const signedOut = await createAuthFlows(bsb).signOut({
+      scope: "global",
+      next: "/bye",
+    });
 
     expect(signedOut).toEqual({
       ok: true,
@@ -503,10 +530,13 @@ describe("auth flows", () => {
         : tokens(token),
     );
 
-    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
+    await createAuthFlows(bsb).signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
     nextRequest();
 
-    expect((await bsb.signOut()).ok).toBe(true);
+    expect((await createAuthFlows(bsb).signOut()).ok).toBe(true);
     expect(await sessionToken()).toBeUndefined();
   });
 
@@ -519,10 +549,15 @@ describe("auth flows", () => {
         : tokens(token),
     );
 
-    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
+    await createAuthFlows(bsb).signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
     nextRequest();
 
-    expect((await bsb.signOut()).error).toMatchObject({ kind: "network" });
+    expect((await createAuthFlows(bsb).signOut()).error).toMatchObject({
+      kind: "network",
+    });
     expect(await sessionToken()).toBe(token);
   });
 
@@ -535,10 +570,13 @@ describe("auth flows", () => {
         : tokens(token),
     );
 
-    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
+    await createAuthFlows(bsb).signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
     nextRequest();
 
-    const kept = await bsb.signOut({ scope: "others" });
+    const kept = await createAuthFlows(bsb).signOut({ scope: "others" });
 
     expect(kept.data).toMatchObject({
       redirectTo: "/",
@@ -555,7 +593,7 @@ describe("auth flows", () => {
   it("signs out a signed-out caller without calling Auth", async () => {
     const { bsb, fetch } = setup(() => Response.error());
 
-    expect((await bsb.signOut()).data).toEqual({
+    expect((await createAuthFlows(bsb).signOut()).data).toEqual({
       redirectTo: "/",
       mfa: false,
       user: null,
@@ -567,13 +605,13 @@ describe("auth flows", () => {
     const token = await signer.sign({ sub: USER });
     const { bsb, fetch } = setup(() => tokens(token));
 
-    const linked = await bsb.verifyOtp({
+    const linked = await createAuthFlows(bsb).verifyOtp({
       type: "magiclink",
       tokenHash: "hash",
       next: "/welcome",
     });
 
-    const coded = await bsb.verifyOtp({
+    const coded = await createAuthFlows(bsb).verifyOtp({
       type: "email",
       email: "a@b.test",
       token: "123456",
@@ -601,10 +639,16 @@ describe("auth flows", () => {
     const answers = [tokens(first), tokens(second)];
     const { bsb } = setup(() => answers.shift() ?? Response.error());
 
-    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
+    await createAuthFlows(bsb).signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
     nextRequest();
 
-    const verified = await bsb.verifyOtp({ type: "invite", tokenHash: "h" });
+    const verified = await createAuthFlows(bsb).verifyOtp({
+      type: "invite",
+      tokenHash: "h",
+    });
 
     expect(verified.ok).toBe(true);
     expect((await bsb.getClaims())?.userId).toBe(OTHER);
@@ -616,7 +660,7 @@ describe("auth flows", () => {
     const token = await signer.sign({ sub: USER });
     const { bsb, fetch } = setup(() => tokens(token));
 
-    const { url } = await bsb.signInWithOAuth({
+    const { url } = await createAuthFlows(bsb).signInWithOAuth({
       provider: "github",
       redirectTo: "https://app.test/auth/callback",
       next: "/projects",
@@ -641,7 +685,7 @@ describe("auth flows", () => {
 
     nextRequest();
 
-    const exchanged = await bsb.exchangeCodeForSession({
+    const exchanged = await createAuthFlows(bsb).exchangeCodeForSession({
       code: "c1",
       next: "/projects",
     });
@@ -658,7 +702,9 @@ describe("auth flows", () => {
 
     nextRequest();
 
-    const replayed = await bsb.exchangeCodeForSession({ code: "c1" });
+    const replayed = await createAuthFlows(bsb).exchangeCodeForSession({
+      code: "c1",
+    });
 
     expect(replayed.error).toMatchObject({ kind: "unauthorized" });
     expect(fetch).toHaveBeenCalledOnce();
@@ -667,7 +713,7 @@ describe("auth flows", () => {
   it("drops an unsafe next from the OAuth callback", async () => {
     const { bsb } = setup(() => Response.error());
 
-    const { url } = await bsb.signInWithOAuth({
+    const { url } = await createAuthFlows(bsb).signInWithOAuth({
       provider: "google",
       redirectTo: "https://app.test/auth/callback",
       next: "https://evil.test",
@@ -683,12 +729,14 @@ describe("auth flows", () => {
       Response.json({ error_code: "flow_state_expired" }, { status: 400 }),
     );
 
-    await bsb.signInWithOAuth({
+    await createAuthFlows(bsb).signInWithOAuth({
       provider: "github",
       redirectTo: "https://app.test/cb",
     });
 
-    const exchanged = await bsb.exchangeCodeForSession({ code: "old" });
+    const exchanged = await createAuthFlows(bsb).exchangeCodeForSession({
+      code: "old",
+    });
 
     expect(exchanged.error).toMatchObject({ code: "flow_state_expired" });
   });
@@ -706,14 +754,14 @@ describe("auth flows", () => {
       return tokens(url.endsWith("/verify") ? aal2 : aal1, factors);
     });
 
-    const signed = await bsb.signInWithPassword({
+    const signed = await createAuthFlows(bsb).signInWithPassword({
       email: "a@b.test",
       password: "pw",
     });
 
     expect(signed.data?.mfa).toBe(true);
 
-    const verified = await bsb.verifyMfa({
+    const verified = await createAuthFlows(bsb).verifyMfa({
       factorId: "f1",
       code: "123456",
       next: "/secure",
@@ -742,7 +790,8 @@ describe("auth flows", () => {
     const { bsb, fetch } = setup(() => Response.error());
 
     expect(
-      (await bsb.verifyMfa({ factorId: "f1", code: "1" })).error,
+      (await createAuthFlows(bsb).verifyMfa({ factorId: "f1", code: "1" }))
+        .error,
     ).toMatchObject({ kind: "unauthorized" });
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -756,10 +805,14 @@ describe("auth flows", () => {
         : tokens(token),
     );
 
-    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
+    await createAuthFlows(bsb).signInWithPassword({
+      email: "a@b.test",
+      password: "pw",
+    });
 
     expect(
-      (await bsb.verifyMfa({ factorId: "f1", code: "1" })).error,
+      (await createAuthFlows(bsb).verifyMfa({ factorId: "f1", code: "1" }))
+        .error,
     ).toMatchObject({ code: "mfa_factor_not_found" });
   });
 
@@ -772,7 +825,7 @@ describe("auth flows", () => {
       url.includes("/otp") ? Response.json({}) : tokens(token),
     );
 
-    const sent = await bsb.signInWithOtp({
+    const sent = await createAuthFlows(bsb).signInWithOtp({
       email: "a@b.test",
       redirectTo: CALLBACK,
       next: "/projects",
@@ -794,7 +847,7 @@ describe("auth flows", () => {
 
     nextRequest();
 
-    const exchanged = await bsb.exchangeCodeForSession({
+    const exchanged = await createAuthFlows(bsb).exchangeCodeForSession({
       code: "c1",
       next: "/projects",
     });
@@ -817,7 +870,7 @@ describe("auth flows", () => {
       url.includes("/recover") ? Response.json({}) : tokens(token),
     );
 
-    const sent = await bsb.resetPasswordForEmail({
+    const sent = await createAuthFlows(bsb).resetPasswordForEmail({
       email: "a@b.test",
       redirectTo: `${CALLBACK}?type=recovery`,
       next: "//evil.test",
@@ -831,7 +884,9 @@ describe("auth flows", () => {
 
     nextRequest();
 
-    const exchanged = await bsb.exchangeCodeForSession({ code: "r1" });
+    const exchanged = await createAuthFlows(bsb).exchangeCodeForSession({
+      code: "r1",
+    });
 
     expect(exchanged.ok).toBe(true);
     expect(bodyOf(fetch, 1)).toMatchObject({ auth_code: "r1" });
@@ -846,7 +901,7 @@ describe("auth flows", () => {
       Response.json({ id: USER, email: "a@b.test" }),
     );
 
-    const signed = await bsb.signUp({
+    const signed = await createAuthFlows(bsb).signUp({
       email: "a@b.test",
       password: "pw",
       redirectTo: CALLBACK,
@@ -874,7 +929,7 @@ describe("auth flows", () => {
       }),
     );
 
-    const signed = await bsb.signUp({
+    const signed = await createAuthFlows(bsb).signUp({
       email: "a@b.test",
       password: "pw",
       redirectTo: CALLBACK,
@@ -896,7 +951,7 @@ describe("auth flows", () => {
     );
 
     expect(
-      await fresh.bsb.signUp({
+      await createAuthFlows(fresh.bsb).signUp({
         email: "a@b.test",
         password: "pw",
         redirectTo: CALLBACK,
@@ -908,7 +963,7 @@ describe("auth flows", () => {
     const token = await signer.sign({ sub: USER, email: "a@b.test" });
     const { bsb } = setup(() => tokens(token));
 
-    const signed = await bsb.signUp(
+    const signed = await createAuthFlows(bsb).signUp(
       {
         email: "a@b.test",
         password: "pw",
@@ -931,13 +986,13 @@ describe("auth flows", () => {
   it("resends a link with a new verifier", async () => {
     const { bsb, fetch } = setup(() => Response.json({}));
 
-    await bsb.signUp({
+    await createAuthFlows(bsb).signUp({
       email: "a@b.test",
       password: "pw",
       redirectTo: CALLBACK,
     });
 
-    const sent = await bsb.resend({
+    const sent = await createAuthFlows(bsb).resend({
       type: "signup",
       email: "a@b.test",
       redirectTo: CALLBACK,
@@ -970,7 +1025,7 @@ describe("auth flows", () => {
           ),
     );
 
-    const refused = await bsb.signInWithOtp({
+    const refused = await createAuthFlows(bsb).signInWithOtp({
       email: "a@b.test",
       redirectTo: CALLBACK,
       shouldCreateUser: false,
@@ -982,7 +1037,7 @@ describe("auth flows", () => {
     });
     expect(refused.error?.message).not.toContain("Signups");
 
-    const limited = await bsb.resetPasswordForEmail({
+    const limited = await createAuthFlows(bsb).resetPasswordForEmail({
       email: "a@b.test",
       redirectTo: CALLBACK,
     });

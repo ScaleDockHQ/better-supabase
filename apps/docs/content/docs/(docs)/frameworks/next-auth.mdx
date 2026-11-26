@@ -163,13 +163,14 @@ next page renders signed in.
 ```ts title="src/features/auth/auth-actions.ts"
 "use server";
 import { redirect } from "next/navigation";
+import { createAuthFlows } from "better-supabase/next/sign-in";
 import { bsb } from "@/lib/supabase/server";
 
 export async function signIn(
   _state: string | null,
   form: FormData,
 ): Promise<string | null> {
-  const result = await bsb.signInWithPassword({
+  const result = await createAuthFlows(bsb).signInWithPassword({
     email: String(form.get("email")),
     password: String(form.get("password")),
     next: String(form.get("next") ?? ""),
@@ -203,11 +204,12 @@ redirect(await landingPath(ctx));
 ```ts title="src/app/auth/confirm/route.ts"
 import type { EmailOtpType } from "better-supabase/next";
 import { redirect } from "next/navigation";
+import { createAuthFlows } from "better-supabase/next/sign-in";
 import { bsb } from "@/lib/supabase/server";
 
 export async function GET(request: Request): Promise<never> {
   const params = new URL(request.url).searchParams;
-  const result = await bsb.verifyOtp({
+  const result = await createAuthFlows(bsb).verifyOtp({
     tokenHash: params.get("token_hash") ?? "",
     type: (params.get("type") ?? "email") as EmailOtpType,
     next: params.get("next"),
@@ -231,7 +233,7 @@ must be in the project's redirect allow list; a safe `next` rides on it as
 
 ```ts title="src/features/auth/auth-actions.ts"
 export async function signInWithGitHub(next: string | null): Promise<never> {
-  const { url } = await bsb.signInWithOAuth({
+  const { url } = await createAuthFlows(bsb).signInWithOAuth({
     provider: "github",
     redirectTo: `${process.env.APP_URL}/auth/callback`,
     next,
@@ -247,7 +249,7 @@ removes the verifier once the exchange succeeds, so a code works once:
 ```ts title="src/app/auth/callback/route.ts"
 export async function GET(request: Request): Promise<never> {
   const params = new URL(request.url).searchParams;
-  const result = await bsb.exchangeCodeForSession({
+  const result = await createAuthFlows(bsb).exchangeCodeForSession({
     code: params.get("code") ?? "",
     next: params.get("next"),
   });
@@ -263,7 +265,7 @@ user, then commits the `aal2` session; `mfa` is then false.
 
 ```ts
 export async function verifyCode(factorId: string, code: string, next: string) {
-  const result = await bsb.verifyMfa({ factorId, code, next });
+  const result = await createAuthFlows(bsb).verifyMfa({ factorId, code, next });
   if (result.ok) redirect(result.data.redirectTo);
   return result.error.code ?? result.error.kind;
 }
@@ -283,7 +285,7 @@ the error and let the user retry.
 
 ```ts
 export async function signOut(): Promise<never> {
-  await bsb.signOut({ next: "/" });
+  await createAuthFlows(bsb).signOut({ next: "/" });
   redirect("/");
 }
 ```
@@ -308,7 +310,7 @@ every flow.
 
 ```ts title="src/features/auth/auth-actions.ts"
 export async function sendMagicLink(form: FormData): Promise<string | null> {
-  const result = await bsb.signInWithOtp({
+  const result = await createAuthFlows(bsb).signInWithOtp({
     email: String(form.get("email")),
     redirectTo: `${process.env.APP_URL}/auth/callback`,
     next: String(form.get("next") ?? ""),
@@ -341,7 +343,11 @@ show the same "check your email" screen as for a new account, so the page
 doesn't tell anyone which emails have an account:
 
 ```ts title="src/features/auth/auth-actions.ts"
-const result = await bsb.signUp({ email, password, redirectTo });
+const result = await createAuthFlows(bsb).signUp({
+  email,
+  password,
+  redirectTo,
+});
 
 if (result.ok && result.data !== null && "existingAccount" in result.data) {
   await sendAccountExistsEmail(email);
@@ -364,7 +370,7 @@ Reads after a commit see the committed session:
 
 ```ts
 await bsb.getClaims(); // null
-await bsb.signInWithPassword({ email, password });
+await createAuthFlows(bsb).signInWithPassword({ email, password });
 await bsb.getClaims(); // the new user
 await bsb.context({ tenant }); // a context for the new user and tenant
 ```

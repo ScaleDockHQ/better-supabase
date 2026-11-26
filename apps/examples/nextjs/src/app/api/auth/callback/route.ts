@@ -1,3 +1,4 @@
+import { createAuthFlows } from "better-supabase/next/sign-in";
 import { NextResponse } from "next/server";
 
 import { bsbCore } from "@/lib/supabase/server-core";
@@ -10,7 +11,7 @@ import { bsbCore } from "@/lib/supabase/server-core";
 export async function GET(request: Request): Promise<Response> {
   const params = new URL(request.url).searchParams;
 
-  const result = await bsbCore.exchangeCodeForSession({
+  const result = await createAuthFlows(bsbCore).exchangeCodeForSession({
     code: params.get("code") ?? "",
     next: params.get("next"),
   });

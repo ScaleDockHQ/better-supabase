@@ -1,7 +1,7 @@
 {
   "client/native + react/native + powersync": 46940,
-  "createNext member: action": 94620,
-  "createNext member: tenant": 94641,
+  "createNext member: action": 89876,
+  "createNext member: tenant": 89900,
   "hono": 75641,
   "next + client": 95262,
   "next proxy": 25222,

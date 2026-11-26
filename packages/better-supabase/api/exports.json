@@ -2100,6 +2100,35 @@
       "ImageLoaderProps"
     ]
   },
+  "./next/resources": {
+    "values": [
+      "createResources"
+    ],
+    "types": [
+      "NextResourceHandler",
+      "NextResourceRoutes",
+      "NextResourcesOptions",
+      "ResourceMap",
+      "ResourceMapOf"
+    ]
+  },
+  "./next/sign-in": {
+    "values": [
+      "createAuthFlows",
+      "postAuthPath"
+    ],
+    "types": [
+      "AuthFlows",
+      "EmailRedirect",
+      "ResendParams",
+      "ResetPasswordParams",
+      "SignInOptions",
+      "SignInWithOAuthParams",
+      "SignInWithOtpParams",
+      "SignUpParams",
+      "VerifyOtpParams"
+    ]
+  },
   "./next/client": {
     "values": [
       "useSessionChange",

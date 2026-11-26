@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ssrSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { createNext } from "../../src/next/index.ts";
+import { createAuthFlows } from "../../src/next/sign-in.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -82,7 +83,7 @@ async function signIn(metadata: Record<string, unknown>): Promise<string> {
     tenant: () => "org-1",
   });
 
-  const signed = await bsb.signInWithPassword({
+  const signed = await createAuthFlows(bsb).signInWithPassword({
     email: "a@b.test",
     password: "pw",
   });
