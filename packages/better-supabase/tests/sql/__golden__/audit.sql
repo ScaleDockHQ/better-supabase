@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:890c78018bceaddeb86dad82f69dbfc7c9c3050fec350776c5dbe2d0d8a5b529
+-- @bsb-hash sha256:f75c29260d172099500279767980633577a3e735d272e322a5e13cbe43b5a958
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -312,6 +312,7 @@ begin
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
   if tg_op = 'INSERT' then
+    
     with src as (
       select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
     ), paired as (
@@ -375,7 +376,9 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   elsif tg_op = 'DELETE' then
+    
     with src as (
       select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
     ), paired as (
@@ -439,7 +442,9 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   else
+    
     with src as (
       select o.j as old_row, n.j as new_row
       from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
@@ -505,6 +510,7 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   end if;
   return null;
 end;
@@ -1224,11 +1230,21 @@ set "TimeZone" = 'UTC'
 as $$
 declare
   v_column text := nullif(tg_argv[0], '');
+  v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
+  v_have boolean := false;
+  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
+    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
+      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
 begin
+  if v_batched then
+    select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
+    v_have := found;
+  end if;
+  if not v_have then
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtext('better_supabase.chain:' || tg_relid::text),
-    pg_catalog.hashtext(coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, ''))
+    pg_catalog.hashtext(v_key)
   );
   if v_column is null then
     execute format('select p.chain_seq, p.row_hash from %s p where p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass)
@@ -1240,9 +1256,15 @@ begin
     execute format('select p.chain_seq, p.row_hash from %s p where p.%I = ($1).%I and p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass, v_column, v_column)
       into v_prev using new;
   end if;
+  end if;
   new.chain_seq := coalesce(v_prev.chain_seq, 0) + 1;
   new.prev_hash := v_prev.row_hash;
   new.row_hash := better_supabase.chain_row_hash(pg_catalog.to_jsonb(new), v_prev.row_hash);
+  if v_batched then
+    insert into pg_temp.bsb_chain_heads (tenant, chain_seq, row_hash)
+    values (v_key, new.chain_seq, new.row_hash)
+    on conflict (tenant) do update set chain_seq = excluded.chain_seq, row_hash = excluded.row_hash;
+  end if;
   return new;
 end;
 $$;
@@ -1882,7 +1904,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:c3be553f2d19d5f8950570828c843ad872839d9c4b560b4497e6479a09c9ec8a
+-- @bsb-hash sha256:e7cdb65b0ea5b7cd53cdb716d29188bc909f0750474d027b27120cee83630ed4
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2200,6 +2222,7 @@ begin
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
   if tg_op = 'INSERT' then
+    
     with src as (
       select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
     ), paired as (
@@ -2267,7 +2290,9 @@ begin
     case when row_tenant is null then 'platform' else 'tenant' end
     from final
     left join labels l on l.tenant_key is not distinct from final.row_tenant;
+    
   elsif tg_op = 'DELETE' then
+    
     with src as (
       select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
     ), paired as (
@@ -2335,7 +2360,9 @@ begin
     case when row_tenant is null then 'platform' else 'tenant' end
     from final
     left join labels l on l.tenant_key is not distinct from final.row_tenant;
+    
   else
+    
     with src as (
       select o.j as old_row, n.j as new_row
       from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
@@ -2405,6 +2432,7 @@ begin
     case when row_tenant is null then 'platform' else 'tenant' end
     from final
     left join labels l on l.tenant_key is not distinct from final.row_tenant;
+    
   end if;
   return null;
 end;
@@ -3124,11 +3152,21 @@ set "TimeZone" = 'UTC'
 as $$
 declare
   v_column text := nullif(tg_argv[0], '');
+  v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
+  v_have boolean := false;
+  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
+    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
+      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
 begin
+  if v_batched then
+    select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
+    v_have := found;
+  end if;
+  if not v_have then
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtext('better_supabase.chain:' || tg_relid::text),
-    pg_catalog.hashtext(coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, ''))
+    pg_catalog.hashtext(v_key)
   );
   if v_column is null then
     execute format('select p.chain_seq, p.row_hash from %s p where p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass)
@@ -3140,9 +3178,15 @@ begin
     execute format('select p.chain_seq, p.row_hash from %s p where p.%I = ($1).%I and p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass, v_column, v_column)
       into v_prev using new;
   end if;
+  end if;
   new.chain_seq := coalesce(v_prev.chain_seq, 0) + 1;
   new.prev_hash := v_prev.row_hash;
   new.row_hash := better_supabase.chain_row_hash(pg_catalog.to_jsonb(new), v_prev.row_hash);
+  if v_batched then
+    insert into pg_temp.bsb_chain_heads (tenant, chain_seq, row_hash)
+    values (v_key, new.chain_seq, new.row_hash)
+    on conflict (tenant) do update set chain_seq = excluded.chain_seq, row_hash = excluded.row_hash;
+  end if;
   return new;
 end;
 $$;
@@ -3947,7 +3991,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:0f56fc0db27de701bdd5ccff9d82efe16d61ec30e7d7e69423820d8cf3b96ce5
+-- @bsb-hash sha256:1099746517f5d959e44f264f8d81dbbc33bf056eac5a6fe9e967c9a3206a93df
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4258,6 +4302,7 @@ begin
     left join "app_private"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
   if tg_op = 'INSERT' then
+    
     with src as (
       select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
     ), paired as (
@@ -4321,7 +4366,9 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   elsif tg_op = 'DELETE' then
+    
     with src as (
       select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
     ), paired as (
@@ -4385,7 +4432,9 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   else
+    
     with src as (
       select o.j as old_row, n.j as new_row
       from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
@@ -4451,6 +4500,7 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   end if;
   return null;
 end;
@@ -5170,11 +5220,21 @@ set "TimeZone" = 'UTC'
 as $$
 declare
   v_column text := nullif(tg_argv[0], '');
+  v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
+  v_have boolean := false;
+  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
+    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
+      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
 begin
+  if v_batched then
+    select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
+    v_have := found;
+  end if;
+  if not v_have then
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtext('better_supabase.chain:' || tg_relid::text),
-    pg_catalog.hashtext(coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, ''))
+    pg_catalog.hashtext(v_key)
   );
   if v_column is null then
     execute format('select p.chain_seq, p.row_hash from %s p where p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass)
@@ -5186,9 +5246,15 @@ begin
     execute format('select p.chain_seq, p.row_hash from %s p where p.%I = ($1).%I and p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass, v_column, v_column)
       into v_prev using new;
   end if;
+  end if;
   new.chain_seq := coalesce(v_prev.chain_seq, 0) + 1;
   new.prev_hash := v_prev.row_hash;
   new.row_hash := better_supabase.chain_row_hash(pg_catalog.to_jsonb(new), v_prev.row_hash);
+  if v_batched then
+    insert into pg_temp.bsb_chain_heads (tenant, chain_seq, row_hash)
+    values (v_key, new.chain_seq, new.row_hash)
+    on conflict (tenant) do update set chain_seq = excluded.chain_seq, row_hash = excluded.row_hash;
+  end if;
   return new;
 end;
 $$;
@@ -5828,7 +5894,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:976bb91a78a70cef634be6b10dff143c3c771a4f58b16e648764bf2843b8b3ff
+-- @bsb-hash sha256:66cacff345e65b11a9cddb5f978b5128a1237e5f39a509f7a4873fbbbc1a42b4
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6139,6 +6205,7 @@ begin
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
   if tg_op = 'INSERT' then
+    
     with src as (
       select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
     ), paired as (
@@ -6202,7 +6269,9 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   elsif tg_op = 'DELETE' then
+    
     with src as (
       select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
     ), paired as (
@@ -6266,7 +6335,9 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   else
+    
     with src as (
       select o.j as old_row, n.j as new_row
       from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
@@ -6332,6 +6403,7 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   end if;
   return null;
 end;
@@ -7051,11 +7123,21 @@ set "TimeZone" = 'UTC'
 as $$
 declare
   v_column text := nullif(tg_argv[0], '');
+  v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
+  v_have boolean := false;
+  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
+    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
+      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
 begin
+  if v_batched then
+    select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
+    v_have := found;
+  end if;
+  if not v_have then
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtext('better_supabase.chain:' || tg_relid::text),
-    pg_catalog.hashtext(coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, ''))
+    pg_catalog.hashtext(v_key)
   );
   if v_column is null then
     execute format('select p.chain_seq, p.row_hash from %s p where p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass)
@@ -7067,9 +7149,15 @@ begin
     execute format('select p.chain_seq, p.row_hash from %s p where p.%I = ($1).%I and p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass, v_column, v_column)
       into v_prev using new;
   end if;
+  end if;
   new.chain_seq := coalesce(v_prev.chain_seq, 0) + 1;
   new.prev_hash := v_prev.row_hash;
   new.row_hash := better_supabase.chain_row_hash(pg_catalog.to_jsonb(new), v_prev.row_hash);
+  if v_batched then
+    insert into pg_temp.bsb_chain_heads (tenant, chain_seq, row_hash)
+    values (v_key, new.chain_seq, new.row_hash)
+    on conflict (tenant) do update set chain_seq = excluded.chain_seq, row_hash = excluded.row_hash;
+  end if;
   return new;
 end;
 $$;
@@ -7848,7 +7936,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:c9d1841ef93909411859769ba4108e16c123e3d971c216755cdad452c57503c9
+-- @bsb-hash sha256:e6dead0abad97addad4b5da3ca881fdd530bc77ccfc41c69f39e00b771ba2b43
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8132,6 +8220,7 @@ begin
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
   if tg_op = 'INSERT' then
+    
     with src as (
       select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
     ), paired as (
@@ -8175,7 +8264,9 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name)
     from final;
+    
   elsif tg_op = 'DELETE' then
+    
     with src as (
       select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
     ), paired as (
@@ -8219,7 +8310,9 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name)
     from final;
+    
   else
+    
     with src as (
       select o.j as old_row, n.j as new_row
       from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
@@ -8265,6 +8358,7 @@ begin
     'database',
     coalesce(entry.target_type, tg_table_name)
     from final;
+    
   end if;
   return null;
 end;
@@ -8915,11 +9009,21 @@ set "TimeZone" = 'UTC'
 as $$
 declare
   v_column text := nullif(tg_argv[0], '');
+  v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
+  v_have boolean := false;
+  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
+    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
+      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
 begin
+  if v_batched then
+    select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
+    v_have := found;
+  end if;
+  if not v_have then
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtext('better_supabase.chain:' || tg_relid::text),
-    pg_catalog.hashtext(coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, ''))
+    pg_catalog.hashtext(v_key)
   );
   if v_column is null then
     execute format('select p.chain_seq, p.row_hash from %s p where p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass)
@@ -8931,9 +9035,15 @@ begin
     execute format('select p.chain_seq, p.row_hash from %s p where p.%I = ($1).%I and p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass, v_column, v_column)
       into v_prev using new;
   end if;
+  end if;
   new.chain_seq := coalesce(v_prev.chain_seq, 0) + 1;
   new.prev_hash := v_prev.row_hash;
   new.row_hash := better_supabase.chain_row_hash(pg_catalog.to_jsonb(new), v_prev.row_hash);
+  if v_batched then
+    insert into pg_temp.bsb_chain_heads (tenant, chain_seq, row_hash)
+    values (v_key, new.chain_seq, new.row_hash)
+    on conflict (tenant) do update set chain_seq = excluded.chain_seq, row_hash = excluded.row_hash;
+  end if;
   return new;
 end;
 $$;
@@ -9557,7 +9667,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:42d4a354b825da4fb382687562b8878adec467bca22ddaec6b036b8d86fcbc46
+-- @bsb-hash sha256:8e9342b6079d4067c32d8d94ae8cf1467031ee1ad8390899bfc0b56d3d479268
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9868,6 +9978,7 @@ begin
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
   if tg_op = 'INSERT' then
+    
     with src as (
       select null::jsonb as old_row, to_jsonb(n) as new_row from new_rows n
     ), paired as (
@@ -9931,7 +10042,9 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   elsif tg_op = 'DELETE' then
+    
     with src as (
       select to_jsonb(o) as old_row, null::jsonb as new_row from old_rows o
     ), paired as (
@@ -9995,7 +10108,9 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   else
+    
     with src as (
       select o.j as old_row, n.j as new_row
       from (select to_jsonb(r) as j, (select string_agg(to_jsonb(r) ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)) as k from old_rows r) o
@@ -10061,6 +10176,7 @@ begin
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
     case when row_tenant is null then 'platform' else 'tenant' end
     from final;
+    
   end if;
   return null;
 end;
@@ -10780,11 +10896,21 @@ set "TimeZone" = 'UTC'
 as $$
 declare
   v_column text := nullif(tg_argv[0], '');
+  v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
+  v_have boolean := false;
+  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
+    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
+      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
 begin
+  if v_batched then
+    select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
+    v_have := found;
+  end if;
+  if not v_have then
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtext('better_supabase.chain:' || tg_relid::text),
-    pg_catalog.hashtext(coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, ''))
+    pg_catalog.hashtext(v_key)
   );
   if v_column is null then
     execute format('select p.chain_seq, p.row_hash from %s p where p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass)
@@ -10796,9 +10922,15 @@ begin
     execute format('select p.chain_seq, p.row_hash from %s p where p.%I = ($1).%I and p.chain_seq is not null order by p.chain_seq desc limit 1', tg_relid::regclass, v_column, v_column)
       into v_prev using new;
   end if;
+  end if;
   new.chain_seq := coalesce(v_prev.chain_seq, 0) + 1;
   new.prev_hash := v_prev.row_hash;
   new.row_hash := better_supabase.chain_row_hash(pg_catalog.to_jsonb(new), v_prev.row_hash);
+  if v_batched then
+    insert into pg_temp.bsb_chain_heads (tenant, chain_seq, row_hash)
+    values (v_key, new.chain_seq, new.row_hash)
+    on conflict (tenant) do update set chain_seq = excluded.chain_seq, row_hash = excluded.row_hash;
+  end if;
   return new;
 end;
 $$;

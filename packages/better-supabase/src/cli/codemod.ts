@@ -17,6 +17,7 @@ import type { ProjectSymbols } from "./typescript-symbols/index.ts";
 
 import { accountCallsCodemod } from "./codemod-account-calls.ts";
 import { adoptNamesCodemod } from "./codemod-adopt-names.ts";
+import { auditStatementCodemod } from "./codemod-audit-statement.ts";
 import { blocksListCodemod } from "./codemod-blocks-list.ts";
 import { configCodemod } from "./codemod-config.ts";
 import { declaredRowsCodemod } from "./codemod-declared-rows.ts";
@@ -52,6 +53,8 @@ export interface CodemodProject {
   readonly configLoaded?: boolean;
   /** `adopt-names`: the table to rename, as `<block>.<table>`. */
   readonly table?: string;
+  /** `audit-statement`: the tables to rewrite, as `schema.table`. */
+  readonly tables?: readonly string[];
   /**
    * `table-tags --explain`: list what moves and where each tag reaches, write
    * nothing.
@@ -176,6 +179,12 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
     name: "read-many",
     description: "List Promise.all groups of reads that db.$many can load",
     source: reportReadMany,
+  },
+  "audit-statement": {
+    name: "audit-statement",
+    description:
+      "Rewrite a table's row audit trigger as static statement triggers",
+    project: auditStatementCodemod,
   },
 };
 

@@ -305,6 +305,10 @@ describe("audit module", () => {
     expect(sql).toContain(
       `select better_supabase.chain('"better_supabase"."audit_events"', 'tenant_id');`,
     );
+    expect(sql).toContain("create temp table if not exists bsb_chain_heads");
+    expect(audit()).not.toContain(
+      "create temp table if not exists bsb_chain_heads",
+    );
     expect(sql).not.toContain(
       "create or replace function better_supabase.verify_audit_chain",
     );

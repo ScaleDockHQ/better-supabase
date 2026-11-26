@@ -3817,6 +3817,55 @@ describe("tables without an audit trigger (BS315)", () => {
   });
 });
 
+describe("row and statement audit triggers (BS651)", () => {
+  it("flags a table that has both", async () => {
+    const both = snapshot((tables) => {
+      table(tables, "customers").triggers = [
+        {
+          name: "bsb_audit",
+          timing: "after",
+          events: ["insert", "update", "delete"],
+          level: "row",
+          function: "better_supabase.audit_row_change",
+        },
+        {
+          name: "bsb_audit_stmt_insert",
+          timing: "after",
+          events: ["insert"],
+          level: "statement",
+          function: "better_supabase.audit_statement_change",
+        },
+      ];
+    });
+
+    const findings = await run("BS651", context(both));
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        target: "public.customers",
+      }),
+    ]);
+    expect(findings[0]?.message).toContain("written twice");
+  });
+
+  it("stays quiet when a table has only statement triggers", async () => {
+    const statement = snapshot((tables) => {
+      table(tables, "customers").triggers = [
+        {
+          name: "bsb_audit_stmt_insert",
+          timing: "after",
+          events: ["insert"],
+          level: "statement",
+          function: "better_supabase.audit_statement_change",
+        },
+      ];
+    });
+
+    expect(await run("BS651", context(statement))).toEqual([]);
+  });
+});
+
 describe("reserved roles (BS319)", () => {
   const file = (text: string) => ({
     path: "supabase/migrations/20261006000000_roles.sql",

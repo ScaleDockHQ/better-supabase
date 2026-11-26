@@ -168,6 +168,99 @@ function auditTableSection(
   return { setup: probe(table, index), checks };
 }
 
+const STATEMENT_PROBE = "bsb_audit_stmt_probe";
+
+/**
+ * Statement mode on its own temp table: one entry per changed row, ignored and
+ * redacted columns, no entries while an import summarizes, and a chain that
+ * still verifies when the log is chained. The chain links one tenant with one
+ * lookup, so the rows of one insert stay in order.
+ */
+function statementSection(
+  ctx: BlockSqlContext,
+  restricted: boolean,
+): AuditSection | undefined {
+  if (!ctx.has("log", "table") || !ctx.has("log", "op")) {
+    return undefined;
+  }
+
+  const log = ctx.table("log");
+  const c = (logical: string) => ctx.col("log", logical);
+  const probe = `(select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.${STATEMENT_PROBE}'`;
+  const tenant = "00000000-0000-4000-8000-00000000c501";
+  const joined = restricted && ctx.hasTable("restricted");
+
+  const entries = `from ${log} l${
+    joined
+      ? ` left join ${ctx.table("restricted")} r on r.${ctx.col("restricted", "entry")} = l.${c("id")}`
+      : ""
+  } where l.${c("table")} = ${probe}`;
+
+  const side = (logical: "old" | "new"): string | undefined => {
+    if (joined) {
+      return ctx.has("restricted", logical)
+        ? `r.${ctx.col("restricted", logical)}`
+        : undefined;
+    }
+
+    return ctx.has("log", logical) ? `l.${c(logical)}` : undefined;
+  };
+
+  const records = [side("old"), side("new")].filter(
+    (value) => value !== undefined,
+  );
+
+  const checks = [
+    `select extensions.results_eq($$select l.${c("op")}::text, count(*)::int ${entries} group by l.${c("op")} order by 1$$, $$values ('delete', 2), ('insert', 2), ('update', 2)$$, ${sqlString("statement mode writes one entry per changed row")});`,
+  ];
+
+  if (records.length > 0) {
+    checks.push(
+      `select extensions.is((select count(*)::int ${entries} and (${records.map((record) => `coalesce(${record} ? 'seen_at', false)`).join(" or ")})), 0, ${sqlString("statement entries leave out the ignored column")});`,
+      `select extensions.is((select count(*)::int ${entries} and l.${c("op")} <> 'delete' and (${records.map((record) => `coalesce(${record} ->> 'secret', '') <> '[redacted]'`).join(" or ")})), 0, ${sqlString("statement entries mask the redacted column")});`,
+    );
+  }
+
+  if (joined) {
+    checks.push(
+      `select extensions.is((select count(*)::int ${entries} and r.${ctx.col("restricted", "entry")} is null), 0, ${sqlString("statement entries pair with a restricted row")});`,
+    );
+  }
+
+  checks.push(
+    `select extensions.is((select count(*)::int ${entries}), 6, ${sqlString("a summary import adds no statement entry")});`,
+  );
+
+  if (ctx.owns("log") && ctx.flag("chain", false) && ctx.has("log", "tenant")) {
+    checks.push(
+      `select extensions.is((better_supabase.verify_chain(${sqlString(log)}::regclass, ${sqlString(ctx.colName("log", "tenant"))}, ${sqlString(tenant)}) ->> 'valid')::boolean, true, ${sqlString("statement writes keep one chain per tenant")});`,
+    );
+  }
+
+  const setup = `create temp table ${STATEMENT_PROBE} (
+  id uuid primary key,
+  tenant ${ctx.idType},
+  name text,
+  secret text,
+  seen_at timestamptz
+) on commit drop;
+select better_supabase.audit((${probe})::regclass, statement => true, ignore => '{seen_at}', redact => '{secret}', tenant_column => 'tenant');
+insert into pg_temp.${STATEMENT_PROBE} (id, tenant, name, secret, seen_at) values
+  ('00000000-0000-4000-8000-00000000c511'::uuid, ${sqlString(tenant)}::${ctx.idType}, 'a', 'sekret', now()),
+  ('00000000-0000-4000-8000-00000000c512'::uuid, ${sqlString(tenant)}::${ctx.idType}, 'b', 'sekret', now());
+update pg_temp.${STATEMENT_PROBE} set name = name || 'x', seen_at = now();
+update pg_temp.${STATEMENT_PROBE} set seen_at = now();
+delete from pg_temp.${STATEMENT_PROBE};
+select set_config('better_supabase.import_run', '00000000-0000-4000-8000-00000000c5aa', true);
+select set_config('better_supabase.import_audit', 'summary', true);
+insert into pg_temp.${STATEMENT_PROBE} (id, tenant, name, secret) values
+  ('00000000-0000-4000-8000-00000000c513'::uuid, ${sqlString(tenant)}::${ctx.idType}, 'c', 'sekret');
+select set_config('better_supabase.import_audit', '', true);
+select set_config('better_supabase.import_run', '', true);`;
+
+  return { setup, checks };
+}
+
 /**
  * One pgTAP file for every table in `audited`, with each table's assertion
  * names. Each table has its own numbered probe copy, dropped after its checks.
@@ -177,13 +270,16 @@ export function auditTests(
   audited: readonly AuditedTable[],
   restricted: boolean,
 ): BlockSqlTestFile[] {
-  if (audited.length === 0) {
+  const sections = [
+    ...audited.map((table, index) =>
+      auditTableSection(ctx, table, restricted, index),
+    ),
+    ...(audited.length > 0 ? [statementSection(ctx, restricted)] : []),
+  ].filter((section) => section !== undefined);
+
+  if (sections.length === 0) {
     return [];
   }
-
-  const sections = audited.map((table, index) =>
-    auditTableSection(ctx, table, restricted, index),
-  );
 
   const total = sections.reduce((sum, each) => sum + each.checks.length, 0);
 

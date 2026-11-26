@@ -232,6 +232,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       ),
   ],
   [
+    "codemod audit-statement",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("audit-statement"),
+      ),
+  ],
+  [
     "completion",
     () => import("./commands/completion.ts").then((m) => m.completionCommand),
   ],

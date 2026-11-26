@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the doubled audit trigger rule adds lines past the limit. 1 finding. */
 import type { BlockSqlDeprecation } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
@@ -34,7 +35,12 @@ import {
   appViewsOf,
 } from "./app-tables.ts";
 import { attachmentSubjectsOnDefaults } from "./attachment-subjects.ts";
-import { globs, moduleOwned, unauditedTables } from "./audit-coverage.ts";
+import {
+  doubledAudit,
+  globs,
+  moduleOwned,
+  unauditedTables,
+} from "./audit-coverage.ts";
 import { entitlementsModule } from "./authorization.ts";
 import { linksWithoutRelations } from "./block-links.ts";
 import { onUnknownRecordTypes } from "./block-on.ts";
@@ -892,6 +898,14 @@ export const MODULE_RULES: readonly Rule[] = [
     description:
       "The `audit` module is in `blocks`, and a table in `schemas` has no `bsb_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `blocks.audit.options.exempt` lists more, as `{ table, reason }` entries where `table` is a `schema.table` glob such as `public.*_archive`, or `{ class: 'no-tenant-column', reason }` for the tables without a tenant column; a bare glob string still works but gets a finding that asks for the reason. Both findings are errors. Partitions are covered by their parent.",
     check: unauditedTables,
+  },
+  {
+    code: "BS651",
+    severity: "error",
+    title: "Row and statement audit triggers",
+    description:
+      "A table has a row audit trigger and statement audit triggers, so every change is written twice. Keep the row trigger or the statement triggers, not both.",
+    check: doubledAudit,
   },
   {
     code: "BS319",
