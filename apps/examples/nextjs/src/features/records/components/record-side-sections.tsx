@@ -19,7 +19,7 @@ import { bsb } from "@/lib/supabase/server";
 
 import type { RecordSubject } from "../record-subject";
 
-import { recordPages } from "../record-pages";
+import { getSectionBindings } from "../records-queries";
 import { RecordLoadError } from "./record-card-states";
 
 /** The tags on a record, as chips. Renders nothing without `tags.read`. */
@@ -34,11 +34,7 @@ export async function RecordTags({ subject }: { subject: RecordSubject }) {
     return null;
   }
 
-  const { bindings } = await recordPages[subject.type].get(subject.id, {
-    bindings: ["tags"],
-  });
-
-  const loaded = bindings.tags;
+  const { tags: loaded } = await getSectionBindings(subject, "tags");
 
   if (loaded.kind === "hidden") {
     return null;
@@ -91,11 +87,10 @@ export async function RecordFields({ subject }: { subject: RecordSubject }) {
     return null;
   }
 
-  const { bindings } = await recordPages[subject.type].get(subject.id, {
-    bindings: ["customFields"],
-  });
-
-  const loaded = bindings.customFields;
+  const { customFields: loaded } = await getSectionBindings(
+    subject,
+    "customFields",
+  );
 
   if (loaded.kind === "hidden") {
     return null;

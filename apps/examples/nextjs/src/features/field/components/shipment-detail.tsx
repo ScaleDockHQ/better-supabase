@@ -74,6 +74,7 @@ export async function ShipmentDetail({ id, tab }: { id: string; tab: string }) {
           <RecordBoundSections
             subject={subject}
             sections={["tags", "fields", "reminders"]}
+            alongside={tab === "related" ? ["files", "relations"] : []}
           />
         </>
       }
@@ -94,6 +95,7 @@ export async function ShipmentDetail({ id, tab }: { id: string; tab: string }) {
         <RecordBoundSections
           subject={subject}
           sections={["files", "relations"]}
+          alongside={["tags", "fields", "reminders"]}
         />
       ) : tab === "activity" ? (
         <RecordBoundSections

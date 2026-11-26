@@ -114,6 +114,7 @@ export async function WorkOrderDetail({
               "tasks",
               "workflows",
             ]}
+            alongside={tab === "related" ? ["files", "relations"] : []}
           />
         </>
       }
@@ -184,6 +185,15 @@ export async function WorkOrderDetail({
         <RecordBoundSections
           subject={subject}
           sections={["files", "relations"]}
+          alongside={[
+            "tags",
+            "fields",
+            "approvals",
+            "reminders",
+            "conversations",
+            "tasks",
+            "workflows",
+          ]}
         />
       ) : tab === "activity" ? (
         <RecordBoundSections

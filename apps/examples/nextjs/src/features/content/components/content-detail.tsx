@@ -76,6 +76,7 @@ export async function ContentDetail({ id, tab }: { id: string; tab: string }) {
           <RecordBoundSections
             subject={subject}
             sections={["tags", "fields", "approvals", "reminders"]}
+            alongside={tab === "related" ? ["files", "relations"] : []}
           />
         </>
       }
@@ -140,6 +141,7 @@ export async function ContentDetail({ id, tab }: { id: string; tab: string }) {
         <RecordBoundSections
           subject={subject}
           sections={["files", "relations"]}
+          alongside={["tags", "fields", "approvals", "reminders"]}
         />
       ) : tab === "activity" ? (
         <RecordBoundSections

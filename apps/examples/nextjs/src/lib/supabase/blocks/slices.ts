@@ -1098,6 +1098,7 @@ export const reactionsConfig = {
 /** The `read-sets` instance's config slice. */
 export const readSetsConfig = {
   schema: "better_supabase",
+  api: "api",
   options: {},
 } as const satisfies GeneratedBlock;
 

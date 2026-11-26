@@ -806,6 +806,7 @@ export async function FinanceDetail({
           <RecordBoundSections
             subject={subject}
             sections={["tags", "fields", "approvals", "reminders"]}
+            alongside={["files", "relations", "discussion", "history"]}
           />
         ) : undefined
       }
@@ -863,6 +864,7 @@ export async function FinanceDetail({
         <RecordBoundSections
           subject={subject}
           sections={["files", "relations", "discussion", "history"]}
+          alongside={["tags", "fields", "approvals", "reminders"]}
         />
       ) : null}
     </RecordDetailFrame>

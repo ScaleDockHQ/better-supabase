@@ -122,6 +122,7 @@ async function Body({ data, tab }: { data: RiskDetailData; tab: string }) {
               "tasks",
               "workflows",
             ]}
+            alongside={tab === "related" ? ["files", "relations"] : []}
           />
           <Card size="sm">
             <CardHeader>
@@ -183,6 +184,15 @@ async function Body({ data, tab }: { data: RiskDetailData; tab: string }) {
         <RecordBoundSections
           subject={subject}
           sections={["files", "relations"]}
+          alongside={[
+            "tags",
+            "fields",
+            "approvals",
+            "reminders",
+            "conversations",
+            "tasks",
+            "workflows",
+          ]}
         />
       ) : tab === "activity" ? (
         <RecordBoundSections

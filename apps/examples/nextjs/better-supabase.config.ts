@@ -631,7 +631,7 @@ export default defineConfig({
   },
   blocks: [
     { block: "updated-at", api: false },
-    { block: "read-sets", api: false },
+    "read-sets",
     { block: "realtime-tables", api: false },
     { block: "rate-limit", api: false },
     { block: "vector-search", api: false },
