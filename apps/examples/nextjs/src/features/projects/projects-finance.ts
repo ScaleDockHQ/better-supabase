@@ -8,9 +8,8 @@ import { Temporal } from "temporal-polyfill";
 
 import { projectsOf } from "@/features/composites/composites";
 import { WORK_TAG } from "@/features/work/work-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { PROJECTS_TAG } from "./projects-cache";
 
 const PORTFOLIO_LIMIT = 50;
 const SECONDS_PER_HOUR = 3600;
@@ -59,7 +58,7 @@ export async function getProjectFinance(
 ): Promise<ProjectFinance | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PROJECTS_TAG, WORK_TAG);
+  cacheTag(tags.projects(), WORK_TAG);
 
   if (!tenantOf(session)) {
     return null;
@@ -105,7 +104,7 @@ export async function getProjectFinance(
 export async function getPortfolio(): Promise<Portfolio | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PROJECTS_TAG, WORK_TAG);
+  cacheTag(tags.projects(), WORK_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

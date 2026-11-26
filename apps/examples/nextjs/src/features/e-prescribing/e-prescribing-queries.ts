@@ -4,8 +4,8 @@ import type { PrescriptionStatus } from "better-supabase/blocks/e-prescribing";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { orMissing } from "@/lib/or-missing";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { PRESCRIPTIONS_TAG } from "./e-prescribing-cache";
@@ -36,7 +36,7 @@ export async function getPrescription(
 ): Promise<PrescriptionDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PRESCRIPTIONS_TAG, CUSTOMERS_TAG);
+  cacheTag(PRESCRIPTIONS_TAG, tags.customers());
 
   if (!tenantOf(session)) {
     return null;

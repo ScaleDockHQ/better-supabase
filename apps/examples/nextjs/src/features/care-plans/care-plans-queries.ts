@@ -12,8 +12,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { orMissing } from "@/lib/or-missing";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -141,7 +141,7 @@ async function loadCarePlan(
 ): Promise<CarePlanState | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
 
   if (!tenantOf(session)) {
     return null;
@@ -202,7 +202,7 @@ async function loadCarePlanDetail(
 ): Promise<CarePlanDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
 
   if (!tenantOf(session)) {
     return null;

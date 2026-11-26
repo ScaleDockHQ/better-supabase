@@ -3,8 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 const Input = v.object({ planId: v.pipe(v.string(), v.uuid()) });
@@ -19,7 +19,7 @@ export const publishCarePlan = bsb.action(
       return plan;
     }
 
-    await refreshCaller(auth, [CUSTOMERS_TAG]);
+    await refreshCaller(auth, [tags.customers()]);
 
     return ok({ id: plan.data.id });
   },
@@ -35,7 +35,7 @@ export const archiveCarePlan = bsb.action(
       return plan;
     }
 
-    await refreshCaller(auth, [CUSTOMERS_TAG]);
+    await refreshCaller(auth, [tags.customers()]);
 
     return ok({ id: plan.data.id });
   },

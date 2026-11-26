@@ -3,8 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { teamsTag } from "./teams-cache";
@@ -28,7 +28,7 @@ async function teamsChanged(
   tenant: string,
   auth: Parameters<typeof refreshCaller>[0],
 ): Promise<void> {
-  await refreshCaller(auth, [teamsTag(tenant), CUSTOMERS_TAG]);
+  await refreshCaller(auth, [teamsTag(tenant), tags.customers()]);
 }
 
 /** Creates a team; the block derives the slug from the name. */

@@ -15,7 +15,6 @@ import { CALENDAR_TAG } from "@/features/calendar/calendar-cache";
 import { CASES_TAG } from "@/features/cases/cases-cache";
 import { COURSES_TAG } from "@/features/courses/courses-cache";
 import { CRM_TAG } from "@/features/crm/crm-cache";
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { driveOf } from "@/features/drive/drive-client";
 import { DRIVE_ROLES } from "@/features/drive/drive-roles";
@@ -25,11 +24,11 @@ import { MAINTENANCE_TAG } from "@/features/maintenance/maintenance-cache";
 import { ONBOARDING_TAG } from "@/features/onboarding/onboarding-cache";
 import { PEOPLE_TAG } from "@/features/people/people-cache";
 import { PRIVACY_TAG } from "@/features/privacy/privacy-cache";
-import { PROJECTS_TAG } from "@/features/projects/projects-cache";
 import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { present } from "@/lib/present";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockSet } from "@/lib/supabase";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import {
@@ -70,7 +69,7 @@ export const closeDealWon = bsb.action(
       return closed;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok({
       dealId: closed.data.deal.id,
@@ -391,7 +390,7 @@ export const approveAndInvoiceTimesheet = bsb.action(
       return invoiced;
     }
 
-    await refreshCaller(auth, [PROJECTS_TAG, FINANCE_RECORDS_TAG]);
+    await refreshCaller(auth, [tags.projects(), FINANCE_RECORDS_TAG]);
 
     return ok({ timesheetId, invoiceId: invoiced.data.invoiceId });
   },
@@ -464,7 +463,7 @@ export const closeDealLost = bsb.action(
       return closed;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok({
       dealId: closed.data.deal.id,
@@ -499,7 +498,7 @@ export const acceptQuote = bsb.action(
       return accepted;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok({
       quoteId: accepted.data.quote.id,
@@ -523,7 +522,7 @@ export const payAndFulfilOrder = bsb.action(
       return done;
     }
 
-    await refreshCaller(auth, [CUSTOMERS_TAG, SHOP_TAG]);
+    await refreshCaller(auth, [tags.customers(), SHOP_TAG]);
 
     return ok({ shipped: done.data.fulfillment.shipped });
   },
@@ -546,7 +545,7 @@ export const reconcileAccount = bsb.action(
       return run;
     }
 
-    await refreshCaller(auth, [CUSTOMERS_TAG]);
+    await refreshCaller(auth, [tags.customers()]);
 
     return ok({
       matched: run.data.matched.length,
@@ -650,7 +649,7 @@ export const openTicket = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [PROJECTS_TAG, CASES_TAG]);
+    await refreshCaller(auth, [tags.projects(), CASES_TAG]);
 
     return ok({
       id: created.data.work_item.id,
@@ -676,7 +675,7 @@ export const discussCase = bsb.action(
       return discussion;
     }
 
-    await refreshCaller(auth, [CASES_TAG, CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CASES_TAG, CRM_TAG, tags.customers()]);
 
     return ok({ caseId });
   },
@@ -732,7 +731,7 @@ export const prescribeMedicationWithConsent = bsb.action(
       return prescribed;
     }
 
-    await refreshCaller(auth, [CUSTOMERS_TAG]);
+    await refreshCaller(auth, [tags.customers()]);
 
     return ok({ orderId: prescribed.data.id });
   },
@@ -819,7 +818,7 @@ export const hireApplication = bsb.action(
       return hired;
     }
 
-    await refreshCaller(auth, [PEOPLE_TAG, ONBOARDING_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [PEOPLE_TAG, ONBOARDING_TAG, tags.customers()]);
 
     return ok({ id: hired.data.employee.id });
   },

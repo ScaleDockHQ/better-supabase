@@ -2,6 +2,7 @@ import { driveSubject } from "better-supabase/blocks/drive";
 import { defineConfig } from "better-supabase/config";
 import { factories } from "better-supabase/generators/factories";
 import { nuqs } from "better-supabase/generators/nuqs";
+import { tags } from "better-supabase/generators/tags";
 import { zod } from "better-supabase/generators/zod";
 import { defineEntityPage, seedRef } from "better-supabase/list";
 
@@ -528,6 +529,7 @@ export default defineConfig({
       zod({ validators: false }),
       nuqs({ tables: ["tasks", "customers"] }),
       factories(),
+      tags(),
     ],
     // Routes that need no other block (sign-in, the customers API) build their
     // server from this set and bundle no other block (ADR 0542).

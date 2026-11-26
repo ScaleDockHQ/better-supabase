@@ -7,9 +7,9 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { orMissing } from "@/lib/or-missing";
 import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { CRM_TAG } from "./crm-cache";
@@ -81,7 +81,7 @@ const PAGE = 200;
 export async function getContacts(): Promise<readonly ContactSummary[] | null> {
   "use cache: private";
   const cached = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(CRM_TAG, tags.customers());
 
   return readContacts(cached);
 }
@@ -132,7 +132,7 @@ export async function getContact(
 ): Promise<ContactDetailData | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(CRM_TAG, tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -229,7 +229,7 @@ export async function getTimeline(
 ): Promise<readonly TimelineEntry[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(CRM_TAG, tags.customers());
 
   if (!tenantOf(session)) {
     return null;
@@ -280,7 +280,7 @@ export interface DealBoardData {
 export async function getDealBoard(): Promise<DealBoardData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(CRM_TAG, tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -360,7 +360,7 @@ export interface TargetRow {
 export async function getTargets(): Promise<readonly TargetRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(CRM_TAG, tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -439,7 +439,7 @@ export async function getQuote(
 ): Promise<QuoteDetailData | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(CRM_TAG, tags.customers());
 
   if (!tenantOf(session)) {
     return null;

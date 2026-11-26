@@ -15,10 +15,10 @@ import { can } from "@/features/user/user-permissions";
 import { appErrors } from "@/lib/app-error";
 import { logos } from "@/lib/buckets";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { customerPage } from "./customer-record";
-import { CUSTOMERS_TAG } from "./customers-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -131,7 +131,7 @@ export const createShareLink = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
+    await refreshCaller(auth, [tags.customers(), CRM_TAG, DRIVE_TAG]);
 
     return ok({ token: created.data.token });
   },
@@ -184,7 +184,7 @@ export const restoreCustomerVersion = bsb.action(
       return restored;
     }
 
-    await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
+    await refreshCaller(auth, [tags.customers(), CRM_TAG, DRIVE_TAG]);
 
     return ok(null);
   },
@@ -232,7 +232,7 @@ export const startCustomerSla = bsb.action(
     const started = await sla.start({ subject });
 
     if (!started.ok || started.data.length > 0) {
-      await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
+      await refreshCaller(auth, [tags.customers(), CRM_TAG, DRIVE_TAG]);
 
       return started.ok ? ok(started.data.length) : started;
     }
@@ -254,7 +254,7 @@ export const startCustomerSla = bsb.action(
 
     const restarted = await sla.start({ subject });
 
-    await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
+    await refreshCaller(auth, [tags.customers(), CRM_TAG, DRIVE_TAG]);
 
     return restarted.ok ? ok(restarted.data.length) : restarted;
   },

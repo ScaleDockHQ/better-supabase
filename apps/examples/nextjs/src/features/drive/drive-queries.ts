@@ -6,8 +6,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { notFound, unstable_rethrow } from "next/navigation";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { DRIVE_TAG } from "./drive-cache";
@@ -55,7 +55,7 @@ export type DriveFolderView =
 async function getFolder(folderId: string | null) {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
+  cacheTag(DRIVE_TAG, tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -152,7 +152,7 @@ export type DocumentRegisterView =
 async function getRegister(): Promise<readonly DocumentRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
+  cacheTag(DRIVE_TAG, tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {

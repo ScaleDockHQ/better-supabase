@@ -4,8 +4,8 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
 import { ACCESS_REQUESTS_TAG } from "@/features/access-requests/access-requests-cache";
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { readMembers } from "@/features/organization/organization-queries";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { ApprovalRow, SubjectOption } from "./approvals-types";
@@ -30,7 +30,7 @@ export type Loaded<T> =
 async function getQueue(): Promise<ApprovalsQueue | null> {
   "use cache: private";
   const request = await bsb.cached();
-  cacheTag(APPROVALS_TAG, ACCESS_REQUESTS_TAG, CUSTOMERS_TAG);
+  cacheTag(APPROVALS_TAG, ACCESS_REQUESTS_TAG, tags.customers());
   const { session, db } = request;
   const tenant = tenantOf(session);
 

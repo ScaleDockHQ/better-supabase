@@ -1,7 +1,7 @@
 import "server-only";
 import { cacheTag } from "next/cache";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import { getCustomerRows } from "./customers-reads";
@@ -21,7 +21,7 @@ export async function getCustomers() {
     keep: { name: "customers-list" },
   });
 
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
 
   return getCustomerRows(db, {});
 }
@@ -36,7 +36,7 @@ export async function getCustomer(id: string) {
     keep: { name: "customer" },
   });
 
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
 
   const customer = await db.customers
     .get(

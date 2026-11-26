@@ -5,9 +5,9 @@ import { parseMoney } from "better-supabase/commerce";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { getAllPagesResult } from "@/lib/read-all-pages";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { CRM_TAG } from "./crm-cache";
@@ -59,7 +59,7 @@ export const createContact = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok({ id: saved.data.id, name: saved.data.name });
   },
@@ -83,7 +83,7 @@ export const linkPerson = bsb.action(
       return linked;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok(true);
   },
@@ -122,7 +122,7 @@ export const logActivity = bsb.action(
       return logged;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok({ id: logged.data.id });
   },
@@ -192,7 +192,7 @@ export const createDefaultPipeline = bsb.action(
       }
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok({ id: pipeline.data.id });
   },
@@ -232,7 +232,7 @@ export const createDeal = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok({ id: created.data.id, identifier: created.data.identifier });
   },
@@ -255,7 +255,7 @@ export const moveDeal = bsb.action(
       return moved;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok(true);
   },
@@ -303,7 +303,7 @@ export const createTarget = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok({ id: saved.data.id });
   },
@@ -326,7 +326,7 @@ export const createQuote = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok({ id: created.data.id });
   },
@@ -367,7 +367,7 @@ export const saveQuoteLines = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok(saved.data.total);
   },
@@ -387,7 +387,7 @@ export const sendQuote = bsb.action(
       return sent;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok(true);
   },
@@ -410,7 +410,7 @@ export const decideQuote = bsb.action(
       return decided;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok(true);
   },
@@ -430,7 +430,7 @@ export const reviseQuote = bsb.action(
       return revised;
     }
 
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
 
     return ok({ id: revised.data.id });
   },

@@ -4,10 +4,9 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
-import { PROJECTS_TAG } from "@/features/projects/projects-cache";
 import { WORK_TAG } from "@/features/work/work-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { CUSTOM_FIELDS_TAG } from "./custom-fields-cache";
@@ -47,8 +46,8 @@ export const saveField = bsb.action(
     await refreshCaller(auth, [
       CUSTOM_FIELDS_TAG,
       WORK_TAG,
-      PROJECTS_TAG,
-      CUSTOMERS_TAG,
+      tags.projects(),
+      tags.customers(),
     ]);
 
     return ok(saved.data.id);
@@ -71,8 +70,8 @@ export const deleteField = bsb.action(
     await refreshCaller(auth, [
       CUSTOM_FIELDS_TAG,
       WORK_TAG,
-      PROJECTS_TAG,
-      CUSTOMERS_TAG,
+      tags.projects(),
+      tags.customers(),
     ]);
 
     return ok(true);
@@ -149,8 +148,8 @@ export const moveField = bsb.action(
     await refreshCaller(auth, [
       CUSTOM_FIELDS_TAG,
       WORK_TAG,
-      PROJECTS_TAG,
-      CUSTOMERS_TAG,
+      tags.projects(),
+      tags.customers(),
     ]);
 
     return ok(true);

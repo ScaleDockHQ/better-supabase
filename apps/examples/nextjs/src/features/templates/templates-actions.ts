@@ -3,10 +3,10 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { TEMPLATES_TAG } from "./templates-cache";
@@ -53,7 +53,7 @@ export const createTemplate = bsbCore.action(
       return published;
     }
 
-    await refreshCaller(auth, [TEMPLATES_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [TEMPLATES_TAG, tags.customers()]);
 
     return ok({ id: saved.data.id, name: saved.data.name });
   },
@@ -79,7 +79,7 @@ export const applyTemplate = bsbCore.action(
       return applied;
     }
 
-    await refreshCaller(auth, [TEMPLATES_TAG, CUSTOMERS_TAG]);
+    await refreshCaller(auth, [TEMPLATES_TAG, tags.customers()]);
 
     return ok({ customerId: applied.data.subject.id });
   },

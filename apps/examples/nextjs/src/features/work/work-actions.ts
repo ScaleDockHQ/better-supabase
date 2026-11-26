@@ -10,9 +10,9 @@ import type { AppDb } from "@/lib/supabase";
 import type { WorkItemChange } from "@/lib/supabase/blocks.generated";
 
 import { CUSTOM_FIELDS_TAG } from "@/features/custom-fields/custom-fields-cache";
-import { PROJECTS_TAG } from "@/features/projects/projects-cache";
 import { teamsTag } from "@/features/teams/teams-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { WorkItemSort } from "./work-types";
@@ -106,7 +106,7 @@ export const createWorkItem = bsb.action(
       }
     }
 
-    await refreshCaller(auth, [WORK_TAG, PROJECTS_TAG, CUSTOM_FIELDS_TAG]);
+    await refreshCaller(auth, [WORK_TAG, tags.projects(), CUSTOM_FIELDS_TAG]);
 
     return ok(created.data.identifier);
   },
@@ -147,7 +147,7 @@ export const moveWorkItem = bsb.action(
       target: { previous: previousId ?? null, next: nextId ?? null },
     });
 
-    await refreshCaller(auth, [WORK_TAG, PROJECTS_TAG, CUSTOM_FIELDS_TAG]);
+    await refreshCaller(auth, [WORK_TAG, tags.projects(), CUSTOM_FIELDS_TAG]);
 
     if (!ranked.ok) {
       return stageChanged ? ok({ ordered: false }) : ranked;
@@ -173,7 +173,7 @@ export const setWorkItemStage = bsb.action(
       return moved;
     }
 
-    await refreshCaller(auth, [WORK_TAG, PROJECTS_TAG, CUSTOM_FIELDS_TAG]);
+    await refreshCaller(auth, [WORK_TAG, tags.projects(), CUSTOM_FIELDS_TAG]);
 
     return ok(true);
   },
@@ -196,7 +196,7 @@ export const setWorkItemAssignee = bsb.action(
       return assigned;
     }
 
-    await refreshCaller(auth, [WORK_TAG, PROJECTS_TAG, CUSTOM_FIELDS_TAG]);
+    await refreshCaller(auth, [WORK_TAG, tags.projects(), CUSTOM_FIELDS_TAG]);
 
     return ok(assigned.data);
   },
@@ -258,7 +258,7 @@ export const saveWorkView = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [WORK_TAG, PROJECTS_TAG, CUSTOM_FIELDS_TAG]);
+    await refreshCaller(auth, [WORK_TAG, tags.projects(), CUSTOM_FIELDS_TAG]);
 
     return ok(saved.data.id);
   },
@@ -277,7 +277,7 @@ export const deleteWorkView = bsb.action(
       return deleted;
     }
 
-    await refreshCaller(auth, [WORK_TAG, PROJECTS_TAG, CUSTOM_FIELDS_TAG]);
+    await refreshCaller(auth, [WORK_TAG, tags.projects(), CUSTOM_FIELDS_TAG]);
 
     return ok(deleted.data);
   },
@@ -327,7 +327,7 @@ export const runWorkBulkAction = bsb.action(
       return result;
     }
 
-    await refreshCaller(auth, [WORK_TAG, PROJECTS_TAG, CUSTOM_FIELDS_TAG]);
+    await refreshCaller(auth, [WORK_TAG, tags.projects(), CUSTOM_FIELDS_TAG]);
 
     return ok({
       total: result.data.total,
