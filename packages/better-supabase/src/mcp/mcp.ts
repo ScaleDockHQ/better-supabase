@@ -48,7 +48,6 @@ import {
 } from "../core/problem.ts";
 import { validate } from "../core/standard.ts";
 import { boundedTtlCache } from "../core/ttl-cache.ts";
-import { toJsonSchema } from "../generators/json-schema.ts";
 import { adapterBase } from "../server/adapter-base.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { withExtra } from "../server/extra.ts";
@@ -56,6 +55,7 @@ import { defineResource } from "../server/resource.ts";
 import { guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import { pageInputSchema, pageSchema } from "../spec/resource-schemas.ts";
+import { tableJsonDefs } from "../spec/table-json-defs.ts";
 import { schemaTargetFor, toolDialects } from "./dialect.ts";
 import {
   discovery,
@@ -657,11 +657,7 @@ export function createMcp<
   const server = createServer(betterSupabase, options);
   const { expose } = adapterBase(server, options);
 
-  // SAFETY: toJsonSchema always writes a $defs map of JSON Schemas.
-  const defs = toJsonSchema({
-    meta: betterSupabase.meta,
-    config: { json: options.json ?? {} },
-  })["$defs"] as Record<string, Json>;
+  const defs = tableJsonDefs(betterSupabase.meta, options.json ?? {});
 
   /** A call `authorize` refused; `scopes` is empty for a plain tool error. */
   interface Refusal {

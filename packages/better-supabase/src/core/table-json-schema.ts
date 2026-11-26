@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import { isList, isRecord } from "./guards.ts";
+import { isList } from "./guards.ts";
 
 /** Validator for one scalar, independent of the target library. */
 export type ScalarKind =
@@ -70,8 +70,10 @@ export interface TableSchemaSpec {
 
 export type JsonSchema = Record<string, unknown>;
 
+type ScalarField = Exclude<FieldSpec, { readonly kind: "object" }>;
+
 /** JSON Schema for one scalar. Codec values are described by their wire form. */
-function scalarJsonSchema(kind: FieldSpec): JsonSchema {
+export function scalarJsonSchema(kind: ScalarField): JsonSchema {
   switch (kind.kind) {
     case "uuid": {
       return { type: "string", format: "uuid" };
@@ -130,26 +132,6 @@ function scalarJsonSchema(kind: FieldSpec): JsonSchema {
       return { type: "string", enum: [...kind.values] };
     }
 
-    case "object": {
-      const properties: Record<string, JsonSchema> = {};
-      const required: string[] = [];
-
-      for (const [name, field] of Object.entries(kind.fields)) {
-        properties[name] = fieldJsonSchema(field);
-
-        if (!field.optional) {
-          required.push(name);
-        }
-      }
-
-      return {
-        type: "object",
-        properties,
-        additionalProperties: false,
-        ...(required.length > 0 ? { required } : {}),
-      };
-    }
-
     default: {
       const exhaustive: never = kind;
 
@@ -193,7 +175,7 @@ const BOUND_KEYS = [
   "maxLength",
 ] as const;
 
-function propertySchema(field: FieldSpec, base: JsonSchema): JsonSchema {
+export function propertySchema(field: FieldSpec, base: JsonSchema): JsonSchema {
   const bounds: JsonSchema = {};
 
   for (const key of BOUND_KEYS) {
@@ -216,50 +198,6 @@ function propertySchema(field: FieldSpec, base: JsonSchema): JsonSchema {
 }
 
 /**
- * A nested Standard Schema's JSON Schema, without its dialect URI. Absent when
- * the schema does not implement Standard JSON Schema.
- */
-function nestedJson(field: FieldSpec): JsonSchema | undefined {
-  const schema = field.schema;
-
-  if (!schema) {
-    return undefined;
-  }
-
-  const standard = schema["~standard"];
-
-  if (!("jsonSchema" in standard) || !isRecord(standard.jsonSchema)) {
-    return undefined;
-  }
-
-  const output = standard.jsonSchema["output"];
-
-  if (typeof output !== "function") {
-    return undefined;
-  }
-
-  // SAFETY: the typeof check above proves output is a function.
-  const convert = output as (options: { readonly target: string }) => unknown;
-
-  const produced: unknown = convert({ target: "draft-2020-12" });
-
-  if (!isRecord(produced)) {
-    return undefined;
-  }
-
-  const rest: JsonSchema = { ...produced };
-
-  Reflect.deleteProperty(rest, "$schema");
-
-  return rest;
-}
-
-/** The JSON Schema for one field, with its array, null, bounds and docs. */
-export function fieldJsonSchema(field: FieldSpec): JsonSchema {
-  return propertySchema(field, nestedJson(field) ?? scalarJsonSchema(field));
-}
-
-/**
  * The JSON Schema object for a table shape. `nested` converts a typed jsonb
  * column's own schema; without it those columns accept any value.
  */
@@ -272,7 +210,10 @@ export function tableJsonSchema(
 
   for (const [name, field] of Object.entries(spec.fields)) {
     const base =
-      (field.schema && nested?.(field.schema)) ?? scalarJsonSchema(field);
+      (field.schema && nested?.(field.schema)) ??
+      // SAFETY: `gen` expands composite fields before this runs. The runtime
+      // document has no object fields, and the cast is erased.
+      scalarJsonSchema(field as ScalarField);
 
     properties[name] = propertySchema(field, base);
 

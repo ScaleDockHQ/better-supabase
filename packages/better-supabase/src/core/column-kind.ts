@@ -7,53 +7,12 @@ const NUMBER = new Set(["float4", "float8", "numeric", "oid", "money"]);
 
 /**
  * Types PostgREST returns as strings. Named here so an unmapped type is
- * `unknown` instead of a guess.
+ * `unknown` instead of a guess. A padded string, not a `Set`: this list ships
+ * in the server JSON Schema chunk, and the spaces keep `time` from matching
+ * `timestamp`.
  */
-const TEXT = new Set([
-  "text",
-  "varchar",
-  "bpchar",
-  "char",
-  "name",
-  "citext",
-  "vector",
-  "halfvec",
-  "sparsevec",
-  "tsvector",
-  "tsquery",
-  "inet",
-  "cidr",
-  "macaddr",
-  "macaddr8",
-  "interval",
-  "time",
-  "timetz",
-  "timestamp",
-  "int4range",
-  "int8range",
-  "numrange",
-  "tsrange",
-  "tstzrange",
-  "daterange",
-  "int4multirange",
-  "int8multirange",
-  "nummultirange",
-  "tsmultirange",
-  "tstzmultirange",
-  "datemultirange",
-  "bytea",
-  "xml",
-  "bit",
-  "varbit",
-  "point",
-  "line",
-  "lseg",
-  "box",
-  "path",
-  "polygon",
-  "circle",
-  "jsonpath",
-]);
+const TEXT =
+  " text varchar bpchar char name citext vector halfvec sparsevec tsvector tsquery inet cidr macaddr macaddr8 interval time timetz timestamp int4range int8range numrange tsrange tstzrange daterange int4multirange int8multirange nummultirange tsmultirange tstzmultirange datemultirange bytea xml bit varbit point line lseg box path polygon circle jsonpath ";
 
 const JSON = new Set(["json", "jsonb", "geometry", "geography"]);
 
@@ -115,7 +74,7 @@ export function columnKind(column: ColumnMeta): ScalarKind {
     return { kind: "unknown" };
   }
 
-  if (TEXT.has(column.type)) {
+  if (TEXT.includes(` ${column.type} `)) {
     return { kind: "string" };
   }
 

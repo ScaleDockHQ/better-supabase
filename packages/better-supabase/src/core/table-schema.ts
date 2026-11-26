@@ -10,7 +10,7 @@ import type {
 } from "./table-json-schema.ts";
 
 import { isList, isRecord } from "./guards.ts";
-import { fieldJsonSchema, tableJsonSchema } from "./table-json-schema.ts";
+import { tableJsonSchema } from "./table-json-schema.ts";
 import { isInstant, isPlainDate, isPlainDateTime } from "./temporal.ts";
 
 export type { StandardJSONSchemaV1 };
@@ -132,8 +132,10 @@ function isJson(value: unknown): boolean {
   );
 }
 
+type ScalarField = Exclude<FieldSpec, { readonly kind: "object" }>;
+
 /** The issue message for a scalar, or `undefined` when the value passes. */
-function scalarIssue(field: FieldSpec, value: unknown): string | undefined {
+function scalarIssue(field: ScalarField, value: unknown): string | undefined {
   switch (field.kind) {
     case "uuid": {
       return typeof value === "string" && UUID.test(value)
@@ -207,10 +209,6 @@ function scalarIssue(field: FieldSpec, value: unknown): string | undefined {
       return value === undefined ? "Expected a value" : undefined;
     }
 
-    case "object": {
-      return "Expected an object";
-    }
-
     default: {
       const exhaustive: never = field;
 
@@ -272,111 +270,74 @@ function nestedIssues(
   }));
 }
 
-type UnknownKeys = "strip" | "reject";
-
-/**
- * Checks one value and returns the value to keep. Object fields and nested
- * schemas return a copy with unknown keys dropped, unless `unknownKeys` is
- * `reject`.
- */
-function applyValue(
+/** Checks one element; a nested schema's async result lands in `pending`. */
+function checkValue(
   field: FieldSpec,
   value: unknown,
   path: readonly PropertyKey[],
   issues: Issues,
   pending: Promise<Issues>[],
-  unknownKeys: UnknownKeys,
-): unknown {
-  if (value === null && field.nullable) {
-    return null;
-  }
-
-  if (field.array) {
-    if (!isList(value)) {
-      issues.push({ message: "Expected an array", path: [...path] });
-
-      return value;
-    }
-
-    const element: FieldSpec = { ...field, array: false };
-
-    return value.map((item, index) =>
-      applyValue(element, item, [...path, index], issues, pending, unknownKeys),
-    );
-  }
-
+): void {
   if (field.schema) {
     const result = field.schema["~standard"].validate(value);
 
     if (result instanceof Promise) {
       pending.push(result.then((settled) => nestedIssues(settled, path)));
-
-      return value;
+    } else {
+      issues.push(...nestedIssues(result, path));
     }
 
-    issues.push(...nestedIssues(result, path));
-
-    return result.issues ? value : result.value;
+    return;
   }
 
-  if (field.kind === "object") {
-    if (!isRecord(value)) {
-      issues.push({ message: "Expected an object", path: [...path] });
-
-      return value;
-    }
-
-    const out: Record<string, unknown> = {};
-
-    for (const [name, nested] of Object.entries(field.fields)) {
-      if (!Object.hasOwn(value, name)) {
-        if (!nested.optional && nested.kind !== "unknown") {
-          issues.push({ message: "Required", path: [...path, name] });
-        }
-
-        continue;
-      }
-
-      out[name] = applyValue(
-        nested,
-        value[name],
-        [...path, name],
-        issues,
-        pending,
-        unknownKeys,
-      );
-    }
-
-    if (unknownKeys === "reject") {
-      for (const key of Object.keys(value)) {
-        if (!(key in field.fields)) {
-          issues.push({ message: "Unexpected key", path: [...path, key] });
-        }
-      }
-    }
-
-    return out;
-  }
-
-  const message = scalarIssue(field, value) ?? boundIssue(field, value);
+  const message =
+    scalarIssue(
+      // SAFETY: block schemas have no composite fields. The object walker checks those.
+      field as ScalarField,
+      value,
+    ) ?? boundIssue(field, value);
 
   if (message) {
     issues.push({ message, path: [...path] });
   }
+}
 
-  return value;
+function checkField(
+  name: string,
+  field: FieldSpec,
+  value: unknown,
+  issues: Issues,
+  pending: Promise<Issues>[],
+): void {
+  if (value === null && field.nullable) {
+    return;
+  }
+
+  if (!field.array) {
+    checkValue(field, value, [name], issues, pending);
+
+    return;
+  }
+
+  if (!isList(value)) {
+    issues.push({ message: "Expected an array", path: [name] });
+
+    return;
+  }
+
+  for (const [index, item] of value.entries()) {
+    checkValue(field, item, [name, index], issues, pending);
+  }
 }
 
 /**
  * A Standard Schema for one table shape, without a validation library. It
- * validates like the `zod()` and `valibot()` output, drops unknown keys
- * (`unknownKeys: "reject"` fails on them instead), and converts to JSON Schema
- * for `draft-2020-12`, `draft-07` and `openapi-3.0`. The `standardSchema()`
- * generator emits one per Row, Insert and Update.
+ * validates like the `zod()` and `valibot()` output, drops unknown keys, and
+ * converts to JSON Schema for `draft-2020-12`, `draft-07` and `openapi-3.0`.
+ * The `standardSchema()` generator emits one per Row, Insert and Update.
  */
 export function tableSchema<T>(spec: TableSchemaSpec): TableSchema<T> {
   const entries = Object.entries(spec.fields);
-  const unknownKeys = spec.unknownKeys ?? "strip";
 
   const validate = (
     input: unknown,
@@ -398,22 +359,8 @@ export function tableSchema<T>(spec: TableSchemaSpec): TableSchema<T> {
         continue;
       }
 
-      value[name] = applyValue(
-        field,
-        input[name],
-        [name],
-        issues,
-        pending,
-        unknownKeys,
-      );
-    }
-
-    if (unknownKeys === "reject") {
-      for (const key of Object.keys(input)) {
-        if (!(key in spec.fields)) {
-          issues.push({ message: "Unexpected key", path: [key] });
-        }
-      }
+      value[name] = input[name];
+      checkField(name, field, input[name], issues, pending);
     }
 
     const settle = (all: Issues): StandardSchemaV1.Result<T> =>
@@ -450,51 +397,6 @@ export function tableSchema<T>(spec: TableSchemaSpec): TableSchema<T> {
         }),
         options.target,
       );
-
-  return {
-    "~standard": {
-      version: 1,
-      vendor: "better-supabase",
-      validate,
-      jsonSchema: { input: convert("input"), output: convert("output") },
-    },
-  };
-}
-
-/**
- * A Standard Schema for one value, such as a list, a count or a page. Unknown
- * keys inside objects follow `unknownKeys`, which defaults to dropping them.
- */
-export function valueSchema<T>(
-  field: FieldSpec,
-  options?: Pick<TableSchemaSpec, "unknownKeys">,
-): TableSchema<T> {
-  const unknownKeys = options?.unknownKeys ?? "strip";
-
-  const validate = (
-    input: unknown,
-  ): StandardSchemaV1.Result<T> | Promise<StandardSchemaV1.Result<T>> => {
-    const issues: Issues = [];
-    const pending: Promise<Issues>[] = [];
-    const value = applyValue(field, input, [], issues, pending, unknownKeys);
-
-    const settle = (all: Issues): StandardSchemaV1.Result<T> =>
-      // SAFETY: the value passed the field check, so it has the shape of T.
-      all.length > 0 ? { issues: all } : { value: value as T };
-
-    if (pending.length === 0) {
-      return settle(issues);
-    }
-
-    return Promise.all(pending).then((nested) =>
-      settle([...issues, ...nested.flat()]),
-    );
-  };
-
-  const convert =
-    (_direction: "input" | "output") =>
-    (jsonOptions: StandardJSONSchemaV1.Options): JsonSchema =>
-      forTarget(fieldJsonSchema(field), jsonOptions.target);
 
   return {
     "~standard": {

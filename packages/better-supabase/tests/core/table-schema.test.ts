@@ -10,7 +10,7 @@ import type {
   TableSchemaSpec,
 } from "../../src/core/table-schema.ts";
 
-import { tableSchema } from "../../src/core/table-schema.ts";
+import { tableSchema } from "../../src/core/table-schema-object.ts";
 
 type Row = Record<string, unknown>;
 

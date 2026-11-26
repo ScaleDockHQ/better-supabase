@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { createSupabase } from "../../src/core/define.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
-import { tableSchema } from "../../src/core/table-schema.ts";
+import { tableSchema } from "../../src/core/table-schema-object.ts";
 import {
   resultSchema,
   specResultSchema,

@@ -278,7 +278,7 @@ export { validate } from "./core/standard.ts";
 
 export type { StandardSchemaV1 } from "./core/standard.ts";
 
-export { tableSchema } from "./core/table-schema.ts";
+export { tableSchema } from "./core/table-schema-object.ts";
 
 export type {
   FieldSpec,

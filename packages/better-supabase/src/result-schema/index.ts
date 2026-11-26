@@ -14,8 +14,7 @@ import type {
 
 import { columnField } from "../core/column-kind.ts";
 import { isRecord } from "../core/guards.ts";
-import { isFunctionSpec, isQuerySpec } from "../core/spec.ts";
-import { tableSchema, valueSchema } from "../core/table-schema.ts";
+import { tableSchema, valueSchema } from "../core/table-schema-object.ts";
 import { builderFor, invalidRequest } from "../ir/build.ts";
 import { rpcReturnSchema } from "../schema/rpc-returns.ts";
 
@@ -74,11 +73,10 @@ function entryField(
   spec: ReadSetEntry,
   options: ResultSchemaOptions | undefined,
 ): FieldSpec {
-  const field = isQuerySpec(spec)
-    ? queryField(meta, spec, options)
-    : isFunctionSpec(spec)
+  const field =
+    "kind" in spec
       ? functionField(meta, spec.name, options)
-      : { kind: "unknown" as const };
+      : queryField(meta, spec, options);
 
   return spec.gate ? { ...field, nullable: true } : field;
 }

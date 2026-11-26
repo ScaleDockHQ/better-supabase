@@ -1,10 +1,8 @@
-import type { GeneratorMetadata } from "../../config/generator-metadata.ts";
-import type { ExtrasDomain } from "../../config/snapshot.ts";
-import type { FieldSpec } from "../../core/table-json-schema.ts";
-import type { ColumnMeta } from "../../schema/types.ts";
+import type { ExtrasDomain, GeneratorMetadata } from "../../config/index.ts";
+import type { ColumnMeta, FieldSpec } from "../../index.ts";
 
 import { columnField, unmappedType } from "../../core/column-kind.ts";
-import { parseCheckBounds } from "../../generators/shared.ts";
+import { parseCheckBounds } from "../../generators/index.ts";
 import { parseCheckNotNull } from "./shared.ts";
 
 export interface ResolvedColumnType {

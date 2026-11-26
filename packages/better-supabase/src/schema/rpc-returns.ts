@@ -2,17 +2,16 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 const returns = new Map<string, StandardSchemaV1>();
 
-/** Remembers the Standard Schema a generated function result must match. */
+/** The schema `registerRpcReturn` stored, if the function named one. */
+export function rpcReturnSchema(name: string): StandardSchemaV1 | undefined {
+  return returns.get(name);
+}
+
 export function registerRpcReturn(
   name: string,
   schema: StandardSchemaV1,
 ): void {
   returns.set(name, schema);
-}
-
-/** The schema `registerRpcReturn` stored for `name`, if the app registered one. */
-export function rpcReturnSchema(name: string): StandardSchemaV1 | undefined {
-  return returns.get(name);
 }
 
 /**

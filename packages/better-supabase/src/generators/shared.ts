@@ -1,7 +1,7 @@
 import type { FieldSpec, ScalarKind } from "../core/table-json-schema.ts";
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
 
-import { columnField, columnKind, columnKinds } from "../core/column-kind.ts";
+import { columnKind, columnKinds } from "../core/column-kind.ts";
 
 export type { ScalarKind };
 
@@ -663,50 +663,57 @@ export function fieldDocs(
   };
 }
 
+const FIELD_BOUNDS = [
+  "minimum",
+  "exclusiveMinimum",
+  "maximum",
+  "exclusiveMaximum",
+  "minLength",
+  "maxLength",
+] as const satisfies readonly (keyof Bounds)[];
+
+/**
+ * A composite attribute, including nested composites. Domain bounds use the
+ * same `pick` as CHECK docs, so this does not carry a second copy of them.
+ */
+function fieldOf(column: ColumnMeta): FieldSpec {
+  const spec: FieldSpec = column.fields
+    ? {
+        kind: "object",
+        fields: Object.fromEntries(
+          Object.entries(column.fields).map(([name, child]) => [
+            name,
+            fieldOf(child),
+          ]),
+        ),
+      }
+    : columnKind(column);
+
+  return {
+    ...spec,
+    ...(column.nullable ? { nullable: true } : {}),
+    ...(column.array ? { array: true } : {}),
+    ...pick(column, FIELD_BOUNDS),
+  };
+}
+
 /**
  * A field as `tableSchema()` and `tableJsonSchema()` read it. A jsonb column
  * with a configured TypeScript type becomes `custom`; set `schema` on the
  * result for one with a validator.
  */
 export function fieldSpec(plan: FieldPlan, docs: FieldDocs): FieldSpec {
-  const spec = plan.customJson
-    ? { kind: "custom" as const }
-    : plan.column.fields
-      ? {
-          kind: "object" as const,
-          fields: Object.fromEntries(
-            Object.entries(plan.column.fields).map(([name, column]) => [
-              name,
-              columnField(column),
-            ]),
-          ),
-        }
-      : plan.scalar;
-
   return {
-    ...spec,
+    ...(plan.customJson
+      ? { kind: "custom" as const }
+      : plan.column.fields
+        ? fieldOf(plan.column)
+        : plan.scalar),
     ...(plan.nullable ? { nullable: true } : {}),
     ...(plan.optional ? { optional: true } : {}),
     ...(plan.column.array ? { array: true } : {}),
     ...(plan.managed ? { readOnly: true } : {}),
-    ...(plan.column.minimum === undefined
-      ? {}
-      : { minimum: plan.column.minimum }),
-    ...(plan.column.exclusiveMinimum === undefined
-      ? {}
-      : { exclusiveMinimum: plan.column.exclusiveMinimum }),
-    ...(plan.column.maximum === undefined
-      ? {}
-      : { maximum: plan.column.maximum }),
-    ...(plan.column.exclusiveMaximum === undefined
-      ? {}
-      : { exclusiveMaximum: plan.column.exclusiveMaximum }),
-    ...(plan.column.minLength === undefined
-      ? {}
-      : { minLength: plan.column.minLength }),
-    ...(plan.column.maxLength === undefined
-      ? {}
-      : { maxLength: plan.column.maxLength }),
+    ...pick(plan.column, FIELD_BOUNDS),
     ...docs,
   };
 }

@@ -35,8 +35,9 @@ const BUNDLED = new Set([
   resolve(SRC, "../api/naming.json"),
 ]);
 
-// Pure helpers and types with no module state, which the facts readers share
-// with the library's own text rewriters (ADR 1212).
+// Pure helpers and types with no module state. The facts readers share the
+// text rewriters with the library (ADR 1212). Column mapping is the same
+// function `gen` and `result-schema` call, and it keeps no module state.
 const PURE = new Set([
   join(SRC, "sql/text-edit.ts"),
   join(SRC, "sql/function-renames.ts"),
@@ -44,6 +45,7 @@ const PURE = new Set([
   join(SRC, "sql/bsb-tags.ts"),
   join(SRC, "sql/table-facts.ts"),
   join(SRC, "sql/value-maps.ts"),
+  join(SRC, "core/column-kind.ts"),
 ]);
 
 describe("the CLI's library imports", () => {

@@ -1,5 +1,8 @@
-import type { AppColumnType, ResolvedConfig } from "../../config/index.ts";
-import type { ExtrasDomain } from "../../config/snapshot.ts";
+import type {
+  AppColumnType,
+  ExtrasDomain,
+  ResolvedConfig,
+} from "../../config/index.ts";
 import type {
   Casing,
   Codec,
