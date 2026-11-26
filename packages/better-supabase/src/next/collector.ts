@@ -306,7 +306,7 @@ export function devBudget(waves: number | false): DbBudget | undefined {
 }
 
 /** The 404 of `bsb.debugRoute()`, with the reason as JSON. */
-export function debugRefusal(on: boolean): Response {
+function debugRefusal(on: boolean): Response {
   return Response.json(
     on
       ? {
