@@ -41,34 +41,43 @@ describe("resolveBlocks", () => {
   });
 });
 
+let withHistory: string | undefined;
+
+/**
+ * Every module but pgTAP, with usage history and no comments, rendered once for
+ * this file.
+ */
+const everyModuleWithHistory = (): string =>
+  (withHistory ??= renderBlocks(
+    Object.keys(SQL_MODULES).filter((name) => name !== "pgtap"),
+    { modules: { usage: { options: { history: true } } } },
+  )
+    .map((file) => file.contents.replaceAll(/--.*$/gm, ""))
+    .join("\n"));
+
 describe("pg-safeupdate", () => {
-  it("gives every delete in the modules a where clause", () => {
-    const sql = renderBlocks(
-      Object.keys(SQL_MODULES).filter((name) => name !== "pgtap"),
-      { modules: { usage: { options: { history: true } } } },
-    )
-      .map((file) => file.contents.replaceAll(/--.*$/gm, ""))
-      .join("\n");
+  // The first of two tests that share one render of every module: 12.5 s on a loaded CI shard.
+  it(
+    "gives every delete in the modules a where clause",
+    { timeout: 60_000 },
+    () => {
+      const sql = everyModuleWithHistory();
 
-    const deletes = [...sql.matchAll(/\bdelete\s+from\s+[^;]*;/gi)].map(
-      (match) => match[0],
-    );
+      const deletes = [...sql.matchAll(/\bdelete\s+from\s+[^;]*;/gi)].map(
+        (match) => match[0],
+      );
 
-    expect(deletes.length).toBeGreaterThan(10);
-    expect(
-      deletes.filter((statement) => !/\bwhere\b/i.test(statement)),
-    ).toEqual([]);
-  });
+      expect(deletes.length).toBeGreaterThan(10);
+      expect(
+        deletes.filter((statement) => !/\bwhere\b/i.test(statement)),
+      ).toEqual([]);
+    },
+  );
 });
 
 describe("plpgsql_check", () => {
   it("creates no temporary tables that supabase db lint cannot see", () => {
-    const sql = renderBlocks(
-      Object.keys(SQL_MODULES).filter((name) => name !== "pgtap"),
-      { modules: { usage: { options: { history: true } } } },
-    )
-      .map((file) => file.contents.replaceAll(/--.*$/gm, ""))
-      .join("\n");
+    const sql = everyModuleWithHistory();
 
     expect(sql).not.toMatch(/\bcreate\s+(?:temporary|temp)\s+table\b/i);
   });
@@ -102,16 +111,21 @@ describe("moduleTopics", () => {
 });
 
 describe("renderBlocks", () => {
-  it("numbers files by registry position so paths stay stable", () => {
-    const all = renderBlocks(Object.keys(SQL_MODULES));
-    const jobs = renderBlocks(["queue"]);
-    expect(jobs[0]!.path).toBe(
-      all.find((file) => file.module === "queue")!.path,
-    );
-    expect(jobs[0]!.path).toMatch(
-      /^supabase\/schemas\/900_better_supabase_\d{3}_queue\.sql$/,
-    );
-  });
+  // Renders every module: 10.4 s on a loaded CI shard.
+  it(
+    "numbers files by registry position so paths stay stable",
+    { timeout: 60_000 },
+    () => {
+      const all = renderBlocks(Object.keys(SQL_MODULES));
+      const jobs = renderBlocks(["queue"]);
+      expect(jobs[0]!.path).toBe(
+        all.find((file) => file.module === "queue")!.path,
+      );
+      expect(jobs[0]!.path).toMatch(
+        /^supabase\/schemas\/900_better_supabase_\d{3}_queue\.sql$/,
+      );
+    },
+  );
 
   it("writes pgtap to the tests directory with a managed header", () => {
     const [file] = renderBlocks(["pgtap"], { testsDir: "db/tests/" });
@@ -213,20 +227,27 @@ describe("renderBlocks", () => {
     expect(() => entitlements({ maxTenants: 0 })).toThrow(/maxTenants/);
   });
 
-  it("wraps auth calls in policies so Postgres evaluates them once", () => {
-    const names = Object.values(SQL_MODULES)
-      .filter((module) => module.target === "schema")
-      .map((module) => module.name);
+  // Renders every schema module: 10.6 s on a loaded CI shard.
+  it(
+    "wraps auth calls in policies so Postgres evaluates them once",
+    { timeout: 60_000 },
+    () => {
+      const names = Object.values(SQL_MODULES)
+        .filter((module) => module.target === "schema")
+        .map((module) => module.name);
 
-    const unwrapped = renderBlocks(names).flatMap((file) =>
-      [...file.contents.matchAll(/create policy[\s\S]*?;/g)]
-        .map((match) => match[0])
-        .filter((policy) => /(?<!select )auth\.(uid|jwt|role)\(\)/.test(policy))
-        .map((policy) => `${file.module}: ${policy.slice(0, 80)}`),
-    );
+      const unwrapped = renderBlocks(names).flatMap((file) =>
+        [...file.contents.matchAll(/create policy[\s\S]*?;/g)]
+          .map((match) => match[0])
+          .filter((policy) =>
+            /(?<!select )auth\.(uid|jwt|role)\(\)/.test(policy),
+          )
+          .map((policy) => `${file.module}: ${policy.slice(0, 80)}`),
+      );
 
-    expect(unwrapped).toEqual([]);
-  });
+      expect(unwrapped).toEqual([]);
+    },
+  );
 
   it("checks tenant permissions in policies with a set, not can() per row", () => {
     const layouts = [
@@ -297,38 +318,43 @@ describe("renderBlocks", () => {
 });
 
 describe("module order", () => {
-  it("binds a later module's tables late in sql functions", () => {
-    const all = Object.keys(SQL_MODULES);
-    const order = [...all];
+  // Renders every module with their subjects: 12.7 s on a loaded CI shard.
+  it(
+    "binds a later module's tables late in sql functions",
+    { timeout: 60_000 },
+    () => {
+      const all = Object.keys(SQL_MODULES);
+      const order = [...all];
 
-    const later = ["messages", "conversations", "conversation_members"].map(
-      (table) => `"better_supabase"."${table}"`,
-    );
-
-    const early = renderBlocks(all, {
-      subjects: withBlockSubjects({}, all, {}),
-    })
-      .filter(
-        (file) =>
-          file.kind === "schema" &&
-          order.indexOf(file.module) < order.indexOf("messaging"),
-      )
-      .flatMap((file) =>
-        [
-          ...file.contents.matchAll(
-            /create or replace function ([^\s(]+)[\s\S]*?language sql[\s\S]*?\$\$([\s\S]*?)\$\$/g,
-          ),
-        ]
-          .filter((match) =>
-            later.some((table) =>
-              (match[2] ?? "").replaceAll(/'[^']*'/g, "").includes(table),
-            ),
-          )
-          .map((match) => `${file.module}: ${match[1]}`),
+      const later = ["messages", "conversations", "conversation_members"].map(
+        (table) => `"better_supabase"."${table}"`,
       );
 
-    expect(early).toEqual([]);
-  });
+      const early = renderBlocks(all, {
+        subjects: withBlockSubjects({}, all, {}),
+      })
+        .filter(
+          (file) =>
+            file.kind === "schema" &&
+            order.indexOf(file.module) < order.indexOf("messaging"),
+        )
+        .flatMap((file) =>
+          [
+            ...file.contents.matchAll(
+              /create or replace function ([^\s(]+)[\s\S]*?language sql[\s\S]*?\$\$([\s\S]*?)\$\$/g,
+            ),
+          ]
+            .filter((match) =>
+              later.some((table) =>
+                (match[2] ?? "").replaceAll(/'[^']*'/g, "").includes(table),
+              ),
+            )
+            .map((match) => `${file.module}: ${match[1]}`),
+        );
+
+      expect(early).toEqual([]);
+    },
+  );
 });
 
 describe("module event triggers", () => {

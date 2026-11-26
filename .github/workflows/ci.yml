@@ -230,11 +230,32 @@ jobs:
       - name: Start Supabase
         uses: $/.github/actions/supabase-stack
 
-      # --workspace-concurrency=1: the suites share the stack's database.
+      # --workspace-concurrency=1: the suites share the stack's database. The time budget reporter
+      # writes each project's unit-times.json for the half-timeout check below.
       - name: Validation projects on the stack
         env:
           FILTERS: ${{ matrix.filters }}
+          TIMES_REPORTER: ${{ github.workspace }}/scripts/unit-durations.ts
         run: |
           read -ra filters <<< "$FILTERS"
           pnpm exec dotenv -e .env.development.local -- \
-            pnpm --workspace-concurrency=1 "${filters[@]}" test
+            pnpm --workspace-concurrency=1 "${filters[@]}" test \
+            --reporter=default --reporter="$TIMES_REPORTER"
+
+      - name: Check the test time limits
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          shopt -s nullglob
+          times=(tests/*/unit-times.json)
+          if [ "${#times[@]}" -gt 0 ]; then
+            node scripts/unit-durations.ts --check-tests "${times[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the validation test times
+        if: ${{ !cancelled() && hashFiles('tests/*/unit-times.json') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: validation-times-${{ strategy.job-index }}
+          path: tests/*/unit-times.json
+          retention-days: 14

@@ -95,3 +95,6 @@ doctor.sarif
 
 # @workflow/vitest build output
 .workflow-vitest/
+
+# Written by the unit time budget reporter (scripts/unit-durations.ts)
+unit-times.json

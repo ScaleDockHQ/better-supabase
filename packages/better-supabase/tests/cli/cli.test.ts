@@ -73,7 +73,8 @@ describe("parseCheckNotNull", () => {
 });
 
 describe("fixtures", () => {
-  it("are in sync with the generator", async () => {
+  // Renders every fixture: 16.6 s on a loaded CI shard.
+  it("are in sync with the generator", { timeout: 60_000 }, async () => {
     for (const file of await renderFixtures()) {
       expect({
         path: file.path,
