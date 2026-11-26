@@ -7,9 +7,8 @@ import * as v from "valibot";
 
 import { requireCaller, sqlResult } from "@/features/developer/postgres";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { OPTION_SETS_TAG } from "./option-sets-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -56,7 +55,7 @@ export const ensureOptionSet = bsb.action(
       return ensured;
     }
 
-    await refreshCaller(auth, [OPTION_SETS_TAG]);
+    await refreshCaller(auth, [tags.optionSets()]);
 
     return ok(true);
   },
@@ -128,7 +127,7 @@ export const editOptionItem = bsb.action(
       return err(dbError("not_found", "Option not found"));
     }
 
-    await refreshCaller(auth, [OPTION_SETS_TAG]);
+    await refreshCaller(auth, [tags.optionSets()]);
 
     return ok(true);
   },
@@ -158,7 +157,7 @@ export const archiveOptionItem = bsb.action(
       return archived;
     }
 
-    await refreshCaller(auth, [OPTION_SETS_TAG]);
+    await refreshCaller(auth, [tags.optionSets()]);
 
     return ok(true);
   },

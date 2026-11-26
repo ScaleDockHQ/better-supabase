@@ -4,9 +4,8 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
 import { getMemberNames } from "@/features/people/member-names";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { APPRAISALS_TAG } from "./appraisals-cache";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -46,7 +45,7 @@ export interface AppraisalRow {
 
 async function loadAppraisals(): Promise<readonly AppraisalRow[] | null> {
   "use cache: private";
-  cacheTag(APPRAISALS_TAG);
+  cacheTag(tags.appraisals());
   const scope = await bsb.cached();
   const { session, db } = scope;
   const tenant = tenantOf(session);
@@ -114,7 +113,7 @@ async function loadAppraisal(
   id: string,
 ): Promise<AppraisalDetailData | "not-found" | null> {
   "use cache: private";
-  cacheTag(APPRAISALS_TAG);
+  cacheTag(tags.appraisals());
   const scope = await bsb.cached();
   const { session, db } = scope;
   const tenant = tenantOf(session);

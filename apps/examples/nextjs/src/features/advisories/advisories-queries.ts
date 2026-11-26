@@ -4,9 +4,8 @@ import type { AdvisoryStatus } from "better-supabase/blocks/advisories";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ADVISORIES_TAG } from "./advisories-cache";
 
 export interface AdvisoryProductRow {
   readonly id: string;
@@ -41,7 +40,7 @@ export async function getAdvisoryProducts(): Promise<
 > {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(ADVISORIES_TAG);
+  cacheTag(tags.advisories());
 
   const products = await db.advisories.products().orThrow();
 
@@ -59,7 +58,7 @@ export async function getAdvisoryProducts(): Promise<
 export async function getAdvisories(): Promise<readonly AdvisoryRow[]> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(ADVISORIES_TAG);
+  cacheTag(tags.advisories());
 
   const [advisories, products] = await Promise.all([
     db.advisories
@@ -88,7 +87,7 @@ export async function getVulnerabilities(): Promise<
 > {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(ADVISORIES_TAG);
+  cacheTag(tags.advisories());
 
   const vulnerabilities = await db.advisories
     .pageVulnerabilities({ limit: 100 })
@@ -130,7 +129,7 @@ export async function getVulnerability(
 ): Promise<VulnerabilityDetail | undefined | null> {
   "use cache: private";
   const { db, session } = await bsb.cached();
-  cacheTag(ADVISORIES_TAG);
+  cacheTag(tags.advisories());
 
   if (!tenantOf(session)) {
     return null;

@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { CONTENT_TAG } from "./content-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -36,7 +35,7 @@ export const createEntry = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [CONTENT_TAG]);
+    await refreshCaller(auth, [tags.contentEntries()]);
 
     return ok(created.data.id);
   },
@@ -56,7 +55,7 @@ export const publishEntry = bsb.action(
       return published;
     }
 
-    await refreshCaller(auth, [CONTENT_TAG]);
+    await refreshCaller(auth, [tags.contentEntries()]);
 
     return ok(published.data.id);
   },
@@ -76,7 +75,7 @@ export const archiveEntry = bsb.action(
       return archived;
     }
 
-    await refreshCaller(auth, [CONTENT_TAG]);
+    await refreshCaller(auth, [tags.contentEntries()]);
 
     return ok(archived.data.id);
   },

@@ -3,9 +3,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { readMembers } from "@/features/organization/organization-queries";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COURSES_TAG } from "../courses-cache";
 
 export interface LearnerRow {
   readonly userId: string;
@@ -32,7 +31,7 @@ export async function getCourseLearners(
   "use cache: private";
   const scope = await bsb.cached();
   const { session, db } = scope;
-  cacheTag(COURSES_TAG);
+  cacheTag(tags.courses());
   const tenant = tenantOf(session);
 
   if (!tenant) {

@@ -5,9 +5,8 @@ import { FORM_FIELD_TYPES } from "better-supabase/blocks/forms";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { FORMS_TAG } from "./forms-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -45,7 +44,7 @@ export const createForm = bsb.action(
       return form;
     }
 
-    await refreshCaller(auth, [FORMS_TAG]);
+    await refreshCaller(auth, [tags.forms()]);
 
     return ok({ id: form.data.id, title: form.data.title });
   },
@@ -95,7 +94,7 @@ export const publishForm = bsb.action(
       return version;
     }
 
-    await refreshCaller(auth, [FORMS_TAG]);
+    await refreshCaller(auth, [tags.forms()]);
 
     return ok({ number: version.data.number });
   },
@@ -122,7 +121,7 @@ export const submitForm = bsb.action(
       return submission;
     }
 
-    await refreshCaller(auth, [FORMS_TAG]);
+    await refreshCaller(auth, [tags.forms()]);
 
     return ok({ id: submission.data.id });
   },

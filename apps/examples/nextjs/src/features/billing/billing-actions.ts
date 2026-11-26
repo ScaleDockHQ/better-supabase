@@ -11,11 +11,11 @@ import { parseMoney } from "better-supabase/commerce";
 import { headers } from "next/headers";
 import * as v from "valibot";
 
-import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { PlanOption } from "./billing-queries";
@@ -148,7 +148,7 @@ export const createDraftInvoice = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [BILLING_TAG, BANKING_TAG]);
+    await refreshCaller(auth, [BILLING_TAG, tags.banking()]);
 
     return ok(created.data.id);
   },
@@ -168,7 +168,7 @@ export const issueInvoice = bsb.action(
       return issued;
     }
 
-    await refreshCaller(auth, [BILLING_TAG, BANKING_TAG]);
+    await refreshCaller(auth, [BILLING_TAG, tags.banking()]);
 
     return ok(issued.data.status);
   },

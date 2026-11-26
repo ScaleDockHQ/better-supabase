@@ -7,9 +7,8 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { LEAVE_TAG } from "./leave-cache";
 
 interface ApprovalDecision {
   readonly id: string;
@@ -70,7 +69,7 @@ export const requestLeave = bsb.action(
       return requested;
     }
 
-    await refreshCaller(auth, [LEAVE_TAG]);
+    await refreshCaller(auth, [tags.leave()]);
 
     return ok({ id: requested.data.id, amount: requested.data.amount });
   },
@@ -90,7 +89,7 @@ export const cancelLeave = bsb.action(
       return cancelled;
     }
 
-    await refreshCaller(auth, [LEAVE_TAG]);
+    await refreshCaller(auth, [tags.leave()]);
 
     return ok({ status: cancelled.data.status });
   },
@@ -118,7 +117,7 @@ export const decideLeave = bsb.action(
       return decided;
     }
 
-    await refreshCaller(auth, [LEAVE_TAG]);
+    await refreshCaller(auth, [tags.leave()]);
 
     return ok({ status: decided.data.status });
   },
@@ -169,7 +168,7 @@ export const setUpLeaveTypes = bsb.action(
       return accrued;
     }
 
-    await refreshCaller(auth, [LEAVE_TAG]);
+    await refreshCaller(auth, [tags.leave()]);
 
     return ok({ granted: accrued.data });
   },

@@ -3,11 +3,9 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { CASES_TAG } from "@/features/cases/cases-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { INSPECTIONS_TAG } from "./inspections-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -25,7 +23,7 @@ export const raiseFindingCase = bsb.action(
       return raised;
     }
 
-    await refreshCaller(auth, [INSPECTIONS_TAG, CASES_TAG]);
+    await refreshCaller(auth, [tags.inspections(), tags.cases()]);
 
     return ok({ number: raised.data.number });
   },
@@ -45,7 +43,7 @@ export const closeInspection = bsb.action(
       return closed;
     }
 
-    await refreshCaller(auth, [INSPECTIONS_TAG, CASES_TAG]);
+    await refreshCaller(auth, [tags.inspections(), tags.cases()]);
 
     return ok({ number: closed.data.number });
   },

@@ -5,10 +5,10 @@ import { parseMt940 } from "better-supabase/blocks/banking";
 import { parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
-import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { Decimal, Id, Optional, given } from "@/lib/form-input";
 import { getAllPagesResult } from "@/lib/read-all-pages";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { planCashAccount } from "./cash-account";
@@ -281,7 +281,7 @@ export const importDepositStatement = bsb.action(
       added += imported.data.imported;
     }
 
-    await refreshCaller(auth, [...TILLS_CACHE_TAGS, BANKING_TAG]);
+    await refreshCaller(auth, [...TILLS_CACHE_TAGS, tags.banking()]);
 
     return ok({ imported: added });
   },
@@ -301,7 +301,7 @@ export const reconcileDeposit = bsb.action(
       return reconciled;
     }
 
-    await refreshCaller(auth, [...TILLS_CACHE_TAGS, BANKING_TAG]);
+    await refreshCaller(auth, [...TILLS_CACHE_TAGS, tags.banking()]);
 
     return ok(true);
   },

@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { DOCUMENT_TEMPLATES_TAG } from "./document-templates-cache";
 
 /** Creates an invoice template with a plain body, to start from. */
 export const addStarterTemplate = bsb.action(
@@ -27,7 +26,7 @@ export const addStarterTemplate = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [DOCUMENT_TEMPLATES_TAG]);
+    await refreshCaller(auth, [tags.documentTemplates()]);
 
     return ok({ id: saved.data.id });
   },
@@ -47,7 +46,7 @@ export const setTemplateActive = bsb.action(
       return updated;
     }
 
-    await refreshCaller(auth, [DOCUMENT_TEMPLATES_TAG]);
+    await refreshCaller(auth, [tags.documentTemplates()]);
 
     return ok({ active: updated.data.active });
   },

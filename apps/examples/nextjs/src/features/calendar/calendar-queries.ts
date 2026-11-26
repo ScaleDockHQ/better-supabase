@@ -4,10 +4,8 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
-import { BOOKINGS_TAG } from "@/features/bookings/bookings-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { CALENDAR_TAG } from "./calendar-cache";
 
 /** What a loader gives a component: the data, a failed read, or no organization. */
 export type Loaded<T> =
@@ -94,7 +92,7 @@ async function getCalendarPage(
 ): Promise<CalendarPage | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CALENDAR_TAG, BOOKINGS_TAG);
+  cacheTag(tags.calendar(), tags.bookings());
   const tenant = tenantOf(session);
 
   if (!tenant) {

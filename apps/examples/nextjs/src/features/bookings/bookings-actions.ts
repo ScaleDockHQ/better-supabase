@@ -6,13 +6,12 @@ import { dbError, err, ok } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { CALENDAR_TAG } from "@/features/calendar/calendar-cache";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { BOOKINGS_TAG } from "./bookings-cache";
 import {
   BOOKING_PAGE_OWNER,
   BOOKING_SERVICE_SUBJECT,
@@ -101,7 +100,7 @@ export const setUpBookingPage = bsb.action(
       return index;
     }
 
-    await refreshCaller(auth, [BOOKINGS_TAG, CALENDAR_TAG]);
+    await refreshCaller(auth, [tags.bookings(), tags.calendar()]);
 
     return ok(null);
   },
@@ -147,7 +146,7 @@ export const saveWeeklyHours = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [BOOKINGS_TAG, CALENDAR_TAG]);
+    await refreshCaller(auth, [tags.bookings(), tags.calendar()]);
 
     return ok({ days: saved.data });
   },
@@ -180,7 +179,7 @@ export const createBookingLink = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [BOOKINGS_TAG, CALENDAR_TAG]);
+    await refreshCaller(auth, [tags.bookings(), tags.calendar()]);
 
     return ok({ token: created.data.token });
   },
@@ -231,7 +230,7 @@ export const bookSlot = bsb.action(
       return confirmed;
     }
 
-    await refreshCaller(auth, [BOOKINGS_TAG, CALENDAR_TAG]);
+    await refreshCaller(auth, [tags.bookings(), tags.calendar()]);
 
     return ok({
       startsAt: confirmed.data.startsAt.toString(),

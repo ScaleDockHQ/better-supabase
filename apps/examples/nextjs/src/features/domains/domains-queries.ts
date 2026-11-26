@@ -10,11 +10,11 @@ import type {
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { pageEntityRows } from "@/lib/block-entity-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { DomainRow } from "./domains-list";
 
-import { DOMAINS_TAG } from "./domains-cache";
 import { domainList, domainMap } from "./domains-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -61,7 +61,7 @@ export function getDomainPage(
 export async function getDomains() {
   "use cache: private";
   const request = await bsb.cached();
-  cacheTag(DOMAINS_TAG);
+  cacheTag(tags.domains());
   const tenant = tenantOf(request.session);
   const permissions = await readPermissions(request);
 

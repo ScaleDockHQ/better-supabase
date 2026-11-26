@@ -12,9 +12,8 @@ import { requireCaller, sqlResult } from "@/features/developer/postgres";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { serviceSupabase } from "@/lib/service-supabase";
 import { blockConfig } from "@/lib/supabase/blocks.config";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { DOMAINS_TAG } from "./domains-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -59,7 +58,7 @@ export const addDomain = bsb.action(
       return err(dbError("not_found", "The hostname was not added"));
     }
 
-    await refreshCaller(auth, [DOMAINS_TAG]);
+    await refreshCaller(auth, [tags.domains()]);
 
     return ok({ id: first.row.id });
   },
@@ -87,7 +86,7 @@ export const setPrimaryDomain = bsb.action(
       return set;
     }
 
-    await refreshCaller(auth, [DOMAINS_TAG]);
+    await refreshCaller(auth, [tags.domains()]);
 
     return ok(true);
   },
@@ -122,7 +121,7 @@ export const removeDomain = bsb.action(
       return err(dbError("not_found", "Hostname not found"));
     }
 
-    await refreshCaller(auth, [DOMAINS_TAG]);
+    await refreshCaller(auth, [tags.domains()]);
 
     return ok(true);
   },
@@ -152,7 +151,7 @@ export const verifyDomain = bsb.action(
     });
 
     if (verified.ok) {
-      await refreshCaller(auth, [DOMAINS_TAG]);
+      await refreshCaller(auth, [tags.domains()]);
     }
 
     return verified;

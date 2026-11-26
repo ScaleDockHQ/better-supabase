@@ -12,16 +12,14 @@ import type {
 } from "@/components/record-list/record-list-types";
 
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { settle } from "@/features/shop/shop-queries";
 import { pageEntityRows } from "@/lib/block-entity-page";
 import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { LotRow, MovementRow, StockRow } from "./inventory-list";
 
-import { INVENTORY_TAG } from "./inventory-cache";
 import {
   lotList,
   lotMap,
@@ -393,7 +391,7 @@ export interface StockOverviewData extends StockData {
 async function loadStock(): Promise<StockOverviewData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(INVENTORY_TAG, SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
+  cacheTag(tags.inventory(), tags.shop(), tags.manufacturing(), BILLING_TAG);
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -429,7 +427,7 @@ export function getStock() {
 async function loadMovements() {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(INVENTORY_TAG, SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
+  cacheTag(tags.inventory(), tags.shop(), tags.manufacturing(), BILLING_TAG);
   const organizationId = tenantOf(session);
 
   return organizationId
@@ -444,7 +442,7 @@ export function getMovements() {
 async function loadLots() {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(INVENTORY_TAG, SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
+  cacheTag(tags.inventory(), tags.shop(), tags.manufacturing(), BILLING_TAG);
   const organizationId = tenantOf(session);
 
   return organizationId
@@ -475,7 +473,7 @@ export type StockItemData =
 async function loadStockItem(variantId: string): Promise<StockItemData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(INVENTORY_TAG, SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
+  cacheTag(tags.inventory(), tags.shop(), tags.manufacturing(), BILLING_TAG);
   const organizationId = tenantOf(session);
 
   if (!organizationId) {

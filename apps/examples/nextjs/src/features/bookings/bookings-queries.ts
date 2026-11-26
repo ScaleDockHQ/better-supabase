@@ -6,10 +6,8 @@ import { Temporal } from "temporal-polyfill";
 
 import type { AppDb } from "@/lib/supabase";
 
-import { CALENDAR_TAG } from "@/features/calendar/calendar-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { BOOKINGS_TAG } from "./bookings-cache";
 
 /** What a loader gives a component: the data, a failed read, or nothing to show. */
 export type Loaded<T> =
@@ -101,7 +99,7 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 export async function getBookingSetup(): Promise<BookingSetup | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(BOOKINGS_TAG, CALENDAR_TAG);
+  cacheTag(tags.bookings(), tags.calendar());
   const tenant = tenantOf(session);
 
   if (!tenant || session.kind !== "user") {
@@ -210,7 +208,7 @@ export async function getPublicBooking(
 ): Promise<PublicBookingPage | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(BOOKINGS_TAG, CALENDAR_TAG);
+  cacheTag(tags.bookings(), tags.calendar());
   const { bookings } = db;
   const service = await bookings.public.service(token);
 

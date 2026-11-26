@@ -4,9 +4,8 @@ import { cacheTag } from "next/cache";
 
 import { postgres, userClaims } from "@/features/developer/postgres";
 import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { LIMS_TAG } from "./lims-cache";
 
 export type SampleStatus =
   | "registered"
@@ -38,7 +37,7 @@ export interface MethodRow {
 export async function getMethods(): Promise<readonly MethodRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(LIMS_TAG);
+  cacheTag(tags.lims());
 
   if (!tenantOf(session)) {
     return null;
@@ -80,7 +79,7 @@ export async function loadSample(
 ): Promise<SampleFull | null | undefined> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(LIMS_TAG);
+  cacheTag(tags.lims());
 
   if (!tenantOf(session)) {
     return null;
@@ -138,7 +137,7 @@ export async function getInstruments(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(LIMS_TAG);
+  cacheTag(tags.lims());
   const tenant = tenantOf(session);
   const connection = postgres();
   const claims = userClaims(session);

@@ -7,9 +7,8 @@ import type {
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { MODERATION_TAG } from "./moderation-cache";
 
 export interface QueueRow {
   readonly id: string;
@@ -25,7 +24,7 @@ export interface QueueRow {
 export async function getQueue(): Promise<readonly QueueRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(MODERATION_TAG);
+  cacheTag(tags.moderation());
 
   if (!tenantOf(session)) {
     return null;
@@ -56,7 +55,7 @@ export interface BanRow {
 export async function getBans(): Promise<readonly BanRow[]> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(MODERATION_TAG);
+  cacheTag(tags.moderation());
 
   const bans = await db.moderation.bans({ pageSize: 50 }).orThrow();
 
@@ -93,7 +92,7 @@ export async function getItem(
 ): Promise<ItemDetailData | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(MODERATION_TAG);
+  cacheTag(tags.moderation());
 
   const item = await db.moderation.item({ type, id }).orThrow();
 

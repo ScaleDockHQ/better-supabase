@@ -12,8 +12,6 @@ import { getAllPages } from "@/lib/read-all-pages";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { CRM_TAG } from "./crm-cache";
-
 /** A loaded region: its data, no active organization, or a failed read. */
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -81,7 +79,7 @@ const PAGE = 200;
 export async function getContacts(): Promise<readonly ContactSummary[] | null> {
   "use cache: private";
   const cached = await bsb.cached();
-  cacheTag(CRM_TAG, tags.customers());
+  cacheTag(tags.crm(), tags.customers());
 
   return readContacts(cached);
 }
@@ -132,7 +130,7 @@ export async function getContact(
 ): Promise<ContactDetailData | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, tags.customers());
+  cacheTag(tags.crm(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -229,7 +227,7 @@ export async function getTimeline(
 ): Promise<readonly TimelineEntry[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, tags.customers());
+  cacheTag(tags.crm(), tags.customers());
 
   if (!tenantOf(session)) {
     return null;
@@ -280,7 +278,7 @@ export interface DealBoardData {
 export async function getDealBoard(): Promise<DealBoardData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, tags.customers());
+  cacheTag(tags.crm(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -360,7 +358,7 @@ export interface TargetRow {
 export async function getTargets(): Promise<readonly TargetRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, tags.customers());
+  cacheTag(tags.crm(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -439,7 +437,7 @@ export async function getQuote(
 ): Promise<QuoteDetailData | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, tags.customers());
+  cacheTag(tags.crm(), tags.customers());
 
   if (!tenantOf(session)) {
     return null;

@@ -5,9 +5,8 @@ import * as v from "valibot";
 
 import { BILLING_TAG } from "@/features/billing/billing-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { BANKING_TAG } from "./banking-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -31,7 +30,7 @@ export const matchBankTransaction = bsb.action(
       return matched;
     }
 
-    await refreshCaller(auth, [BANKING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.banking(), BILLING_TAG]);
 
     return ok({ id: matched.data.id, status: matched.data.status });
   },
@@ -51,7 +50,7 @@ export const ignoreBankTransaction = bsb.action(
       return ignored;
     }
 
-    await refreshCaller(auth, [BANKING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.banking(), BILLING_TAG]);
 
     return ok({ id: ignored.data.id, status: ignored.data.status });
   },

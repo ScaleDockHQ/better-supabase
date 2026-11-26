@@ -5,11 +5,10 @@ import * as v from "valibot";
 
 import { given, Id, Name, Optional, plainDateOf } from "@/lib/form-input";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { LIMS_TAG } from "./lims-cache";
-
-const TAGS = [LIMS_TAG];
+const TAGS = [tags.lims()];
 
 /** Registers a sample, which gets the next SMP number. */
 export const registerSample = bsb.action(

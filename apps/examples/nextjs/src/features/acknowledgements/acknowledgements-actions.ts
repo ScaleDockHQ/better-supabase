@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ACKNOWLEDGEMENTS_TAG } from "./acknowledgements-cache";
 
 const RECORD_TYPE = /^[a-z][a-z0-9_]*$/;
 
@@ -33,7 +32,7 @@ export const acknowledgeRecord = bsb.action(
       return acknowledged;
     }
 
-    await refreshCaller(auth, [ACKNOWLEDGEMENTS_TAG]);
+    await refreshCaller(auth, [tags.acknowledgements()]);
 
     return ok({ id: acknowledged.data.id });
   },

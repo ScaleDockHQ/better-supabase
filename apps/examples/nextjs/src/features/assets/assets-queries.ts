@@ -12,11 +12,11 @@ import type { BlockPage } from "@/lib/block-page";
 import type { BlockListQuery } from "@/lib/block-status-list";
 
 import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { AssetRow } from "./asset-row";
 
-import { ASSETS_TAG } from "./assets-cache";
 import { ASSET_PAGE_SIZE, ASSET_STATUSES, assetList } from "./assets-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -71,7 +71,7 @@ const toRow = (asset: Asset): AssetRow => ({
 export async function getAssets(): Promise<BlockPage<AssetRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(ASSETS_TAG);
+  cacheTag(tags.assets());
 
   if (!tenantOf(session)) {
     return null;
@@ -107,7 +107,7 @@ export interface AssetDetailData {
 export async function getAsset(id: string): Promise<AssetDetailData | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(ASSETS_TAG);
+  cacheTag(tags.assets());
 
   const result = await db.assets.asset(id);
 
@@ -160,7 +160,7 @@ export interface AssetDepreciationRow {
 export async function getAssetHistory(id: string) {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(ASSETS_TAG);
+  cacheTag(tags.assets());
 
   const [assignments, depreciations] = await Promise.all([
     db.assets.assignments({ assetId: id, pageSize: 20 }),

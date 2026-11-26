@@ -6,9 +6,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ENCRYPTION_TAG } from "./encryption-cache";
 
 /**
  * Replaces the organization's data key and encrypts every stored value again
@@ -27,7 +26,7 @@ export const rotateFieldKey = bsb.action(
       return rotated;
     }
 
-    await refreshCaller(auth, [ENCRYPTION_TAG]);
+    await refreshCaller(auth, [tags.encryption()]);
 
     return ok(rotated.data.values);
   },

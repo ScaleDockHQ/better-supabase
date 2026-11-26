@@ -12,9 +12,8 @@ import { cacheTag } from "next/cache";
 import { notFound, unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COURSES_TAG } from "./courses-cache";
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
@@ -97,7 +96,7 @@ const TextBody = v.object({ text: v.string() });
 async function loadCourses(): Promise<readonly CourseCard[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(COURSES_TAG);
+  cacheTag(tags.courses());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -131,7 +130,7 @@ export async function getCourses(): Promise<Loaded<readonly CourseCard[]>> {
 async function loadOutline(id: string): Promise<OutlineView | "not-found"> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(COURSES_TAG);
+  cacheTag(tags.courses());
   const outline = await db.courses.outline(id);
 
   if (!outline.ok) {
@@ -190,7 +189,7 @@ export async function getOutline(id: string): Promise<Loaded<OutlineView>> {
 async function loadLesson(id: string): Promise<LessonView | "not-found"> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(COURSES_TAG);
+  cacheTag(tags.courses());
   const lesson = await db.courses.lesson(id);
 
   if (!lesson.ok) {

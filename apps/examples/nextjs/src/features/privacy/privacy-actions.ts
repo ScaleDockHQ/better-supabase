@@ -11,9 +11,8 @@ import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { PRIVACY_TAG } from "./privacy-cache";
 
 const SCHEMA = blockConfig["data-lifecycle"].api;
 const ID = v.pipe(v.string(), v.uuid());
@@ -41,7 +40,7 @@ export const requestMyExport = bsb.action({}, async (_input, { db, auth }) => {
   }
 
   await runExport(requested.data.id);
-  await refreshCaller(auth, [PRIVACY_TAG]);
+  await refreshCaller(auth, [tags.privacy()]);
 
   return ok(requested.data.id);
 });
@@ -59,7 +58,7 @@ export const requestOrganizationExport = bsb.action(
     }
 
     await runExport(requested.data.id);
-    await refreshCaller(auth, [PRIVACY_TAG]);
+    await refreshCaller(auth, [tags.privacy()]);
 
     return ok(requested.data.id);
   },
@@ -94,7 +93,7 @@ export const requestOrganizationDeletion = bsb.action(
       return requested;
     }
 
-    await refreshCaller(auth, [PRIVACY_TAG]);
+    await refreshCaller(auth, [tags.privacy()]);
 
     return ok(requested.data.purgeAfter.toString());
   },
@@ -110,7 +109,7 @@ export const cancelOrganizationDeletion = bsb.action(
       return cancelled;
     }
 
-    await refreshCaller(auth, [PRIVACY_TAG]);
+    await refreshCaller(auth, [tags.privacy()]);
 
     return ok(cancelled.data !== undefined);
   },

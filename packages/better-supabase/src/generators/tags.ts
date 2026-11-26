@@ -15,6 +15,12 @@ export interface TagsGeneratorOptions {
    * Defaults to every table, block tables included under their final names.
    */
   readonly tables?: readonly string[];
+  /**
+   * Tags that name a feature instead of a table (`crm`, `teams`), written next
+   * to the table tags so a read and an action in that feature share one
+   * declaration. Names that are already table keys are skipped.
+   */
+  readonly domains?: readonly string[];
 }
 
 /**
@@ -38,10 +44,24 @@ export function tags(options: TagsGeneratorOptions = {}): Generator {
       const wanted =
         options.tables === undefined ? undefined : new Set(options.tables);
 
-      const keys = input.model.tables
+      const keys: string[] = input.model.tables
         .map((table) => table.key)
         .filter((key) => wanted === undefined || wanted.has(key))
         .toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+
+      for (const domain of options.domains ?? []) {
+        if (!/^[A-Za-z_$][\w$]*$/u.test(domain)) {
+          throw new Error(
+            `tags(): domain "${domain}" is not an identifier; write it in camelCase`,
+          );
+        }
+
+        if (!keys.includes(domain)) {
+          keys.push(domain);
+        }
+      }
+
+      keys.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
       const missing = [...(wanted ?? [])].filter((key) => !keys.includes(key));
 

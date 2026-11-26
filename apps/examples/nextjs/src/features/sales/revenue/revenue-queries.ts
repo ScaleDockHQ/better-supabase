@@ -4,12 +4,11 @@ import type { Money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { CRM_TAG } from "@/features/crm/crm-cache";
 import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { contractOf } from "../list-reads/contracts-reads";
-import { SALES_TAG } from "../sales-cache";
 
 export interface ContractRow {
   readonly id: string;
@@ -47,7 +46,7 @@ export async function getContract(
 ): Promise<ContractDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -114,7 +113,7 @@ export async function loadStatement(
 ): Promise<StatementDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
 
   if (!tenantOf(session)) {
     return null;

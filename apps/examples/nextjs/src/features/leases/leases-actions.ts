@@ -11,9 +11,8 @@ import type { Mutable } from "@/lib/block-status-list";
 
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { LEASES_TAG } from "./leases-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Amount = v.pipe(v.string(), v.regex(/^\d+(\.\d{1,2})?$/));
@@ -55,7 +54,7 @@ export const createLease = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [LEASES_TAG]);
+    await refreshCaller(auth, [tags.leases()]);
 
     return ok(created.data.id);
   },
@@ -75,7 +74,7 @@ export const activateLease = bsb.action(
       return activated;
     }
 
-    await refreshCaller(auth, [LEASES_TAG]);
+    await refreshCaller(auth, [tags.leases()]);
 
     return ok(activated.data.id);
   },
@@ -100,7 +99,7 @@ export const terminateLease = bsb.action(
       return ended;
     }
 
-    await refreshCaller(auth, [LEASES_TAG]);
+    await refreshCaller(auth, [tags.leases()]);
 
     return ok(ended.data.id);
   },
@@ -123,7 +122,7 @@ export const recordRentPayment = bsb.action(
       return paid;
     }
 
-    await refreshCaller(auth, [LEASES_TAG]);
+    await refreshCaller(auth, [tags.leases()]);
 
     return ok(paid.data.leaseId);
   },

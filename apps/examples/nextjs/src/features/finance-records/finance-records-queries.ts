@@ -8,19 +8,16 @@ import * as v from "valibot";
 import type { RecordListPage } from "@/components/record-list/record-list-types";
 import type { FinanceEntityKey, FinanceListQuery } from "@/lib/finance-list";
 
-import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
 import {
   defineFinanceList,
   financeFixedFacets,
   financeSqlEntity,
 } from "@/lib/finance-list";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import type { FinanceRecord, FinanceRow } from "./finance-records-types";
-
-import { FINANCE_RECORDS_TAG } from "./finance-records-cache";
 
 const PAGE_SIZE = 50;
 
@@ -85,7 +82,7 @@ async function getFirstPage(
 ): Promise<RecordListPage<FinanceRow> | null> {
   "use cache: private";
   const { session, db } = await bsbCore.cached();
-  cacheTag(FINANCE_RECORDS_TAG, BILLING_TAG, BANKING_TAG, SHOP_TAG);
+  cacheTag(tags.financeRecords(), BILLING_TAG, tags.banking(), tags.shop());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -131,7 +128,7 @@ async function getRecord(
 ): Promise<FinanceRecord | null> {
   "use cache: private";
   const { session, db } = await bsbCore.cached();
-  cacheTag(FINANCE_RECORDS_TAG, BILLING_TAG, BANKING_TAG, SHOP_TAG);
+  cacheTag(tags.financeRecords(), BILLING_TAG, tags.banking(), tags.shop());
   const tenant = tenantOf(session);
 
   if (!tenant) {

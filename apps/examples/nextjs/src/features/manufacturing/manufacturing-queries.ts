@@ -11,13 +11,12 @@ import * as v from "valibot";
 
 import type { Loaded } from "@/features/shop/shop-queries";
 
-import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { getProducts, settle } from "@/features/shop/shop-queries";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { BoardStatus } from "./production-order-statuses";
 
-import { MANUFACTURING_TAG } from "./manufacturing-cache";
 import { isBoardStatus } from "./production-order-statuses";
 
 /** A production order as a board card shows it, serializable. */
@@ -34,7 +33,7 @@ export interface ProductionOrderCard {
 async function getBoard(): Promise<readonly ProductionOrderCard[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(MANUFACTURING_TAG, SHOP_TAG);
+  cacheTag(tags.manufacturing(), tags.shop());
 
   if (!tenantOf(session)) {
     return null;
@@ -83,7 +82,7 @@ export interface RequirementRow {
 async function getRequirements(): Promise<readonly RequirementRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(MANUFACTURING_TAG, SHOP_TAG);
+  cacheTag(tags.manufacturing(), tags.shop());
 
   if (!tenantOf(session)) {
     return null;
@@ -161,7 +160,7 @@ async function loadProductionOrder(
 ): Promise<ProductionOrderView | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(MANUFACTURING_TAG, SHOP_TAG);
+  cacheTag(tags.manufacturing(), tags.shop());
 
   if (!tenantOf(session)) {
     return null;

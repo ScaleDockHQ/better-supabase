@@ -9,9 +9,8 @@ import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
-
-import { SERVICE_PRINCIPALS_TAG } from "./service-principals-cache";
 
 const API_SCHEMA = blockConfig["service-accounts"].api;
 
@@ -58,7 +57,7 @@ export const createServicePrincipal = bsbCore.action(
       return created;
     }
 
-    await refreshCaller(auth, [SERVICE_PRINCIPALS_TAG]);
+    await refreshCaller(auth, [tags.servicePrincipals()]);
 
     return ok(created.data.id);
   },
@@ -84,7 +83,7 @@ export const disableServicePrincipal = bsbCore.action(
     });
 
     if (disabled.ok) {
-      await refreshCaller(auth, [SERVICE_PRINCIPALS_TAG]);
+      await refreshCaller(auth, [tags.servicePrincipals()]);
     }
 
     return disabled;

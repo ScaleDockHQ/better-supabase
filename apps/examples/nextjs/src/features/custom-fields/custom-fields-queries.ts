@@ -3,11 +3,10 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { FieldEntity, FieldRow } from "./custom-fields-types";
-
-import { CUSTOM_FIELDS_TAG } from "./custom-fields-cache";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -23,7 +22,7 @@ async function loadFields(
 ): Promise<readonly FieldRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CUSTOM_FIELDS_TAG);
+  cacheTag(tags.customFields());
   const tenant = tenantOf(session);
 
   if (!tenant) {

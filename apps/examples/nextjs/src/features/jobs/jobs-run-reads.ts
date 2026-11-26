@@ -5,11 +5,11 @@ import { cacheTag } from "next/cache";
 import { getAdminList } from "@/features/admin-lists/admin-list-load";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbShell } from "@/lib/supabase/server-shell";
 
 import type { JobRow } from "./jobs-list";
 
-import { JOBS_TAG } from "./jobs-cache";
 import { jobList } from "./jobs-list";
 import { JOBS_PERMISSION } from "./jobs-server";
 import { getJobRun, jobSource, queueNames } from "./jobs-source";
@@ -22,7 +22,7 @@ import { getJobRun, jobSource, queueNames } from "./jobs-source";
 export async function getJobRuns() {
   "use cache: private";
   const request = await bsbShell.cached();
-  cacheTag(JOBS_TAG);
+  cacheTag(tags.jobs());
   const tenant = tenantOf(request.session);
   const permissions = await readPermissions(request);
 
@@ -51,7 +51,7 @@ export async function getJobRunDetail(
 ): Promise<JobRunDetail | null> {
   "use cache: private";
   const request = await bsbShell.cached({ id: `${queue}:${String(id)}` });
-  cacheTag(JOBS_TAG);
+  cacheTag(tags.jobs());
   const tenant = tenantOf(request.session);
   const permissions = await readPermissions(request);
 

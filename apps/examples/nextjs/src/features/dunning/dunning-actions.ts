@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { DUNNING_TAG } from "./dunning-cache";
 
 /**
  * A reminder a week after the due date, a second with a 15.00 fee after three
@@ -36,7 +35,7 @@ export const applyStandardDunningLevels = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [DUNNING_TAG]);
+    await refreshCaller(auth, [tags.dunning()]);
 
     return ok({ levels: saved.data.length });
   },

@@ -12,11 +12,11 @@ import type { Loaded } from "@/features/people/people-queries";
 
 import { settle } from "@/features/people/people-queries";
 import { pageEntityRows } from "@/lib/block-entity-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { TemplateRow } from "./document-templates-list";
 
-import { DOCUMENT_TEMPLATES_TAG } from "./document-templates-cache";
 import { templateList, templateMap } from "./document-templates-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -58,7 +58,7 @@ export function getTemplatePage(
 async function loadTemplates(): Promise<RecordListPage<TemplateRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DOCUMENT_TEMPLATES_TAG);
+  cacheTag(tags.documentTemplates());
 
   return tenantOf(session) ? getTemplatePage(db, templateList.defaults) : null;
 }
@@ -77,7 +77,7 @@ async function loadTemplate(
 ): Promise<TemplateDetailData | "not-found" | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DOCUMENT_TEMPLATES_TAG);
+  cacheTag(tags.documentTemplates());
 
   if (!tenantOf(session)) {
     return null;

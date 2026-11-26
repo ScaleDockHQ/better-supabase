@@ -5,9 +5,8 @@ import { revalidatePath } from "next/cache";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SUPPORT_TAG } from "./support-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -34,7 +33,7 @@ export const requestSupportSession = bsb.action(
       return err(result.error);
     }
 
-    await refreshCaller(auth, [SUPPORT_TAG]);
+    await refreshCaller(auth, [tags.supportSessions()]);
 
     return ok(target);
   },
@@ -50,7 +49,7 @@ export const endSupportSession = bsb.action(
       return err(result.error);
     }
 
-    await refreshCaller(auth, [SUPPORT_TAG]);
+    await refreshCaller(auth, [tags.supportSessions()]);
 
     return ok(sessionId);
   },
@@ -107,7 +106,7 @@ export async function viewAsMember(input: {
     return err(requested.error);
   }
 
-  await refreshCaller(auth, [SUPPORT_TAG]);
+  await refreshCaller(auth, [tags.supportSessions()]);
 
   return ok<ViewAsOutcome>("requested");
 }

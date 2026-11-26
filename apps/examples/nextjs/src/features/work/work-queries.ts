@@ -5,7 +5,6 @@ import { unstable_rethrow } from "next/navigation";
 
 import type { WorkItemListOptions } from "@/lib/supabase/blocks.generated";
 
-import { CUSTOM_FIELDS_TAG } from "@/features/custom-fields/custom-fields-cache";
 import { getMembers } from "@/features/organization/organization-queries";
 import { teamsTag } from "@/features/teams/teams-cache";
 import { getAllPages } from "@/lib/read-all-pages";
@@ -21,7 +20,6 @@ import type {
   WorkItemRow,
 } from "./work-types";
 
-import { WORK_TAG } from "./work-cache";
 import {
   WORK_ITEM_LIST,
   WORK_ITEM_STATES,
@@ -73,7 +71,7 @@ export async function getWorkBoard(
 ): Promise<WorkBoardData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WORK_TAG, tags.projects(), CUSTOM_FIELDS_TAG);
+  cacheTag(tags.work(), tags.projects(), tags.customFields());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -120,7 +118,7 @@ export async function getWorkBoard(
 export async function getTeams(): Promise<readonly TeamOption[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WORK_TAG, tags.projects(), CUSTOM_FIELDS_TAG);
+  cacheTag(tags.work(), tags.projects(), tags.customFields());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -201,7 +199,7 @@ export async function getWorkGrid(
 ): Promise<WorkGridData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WORK_TAG, tags.projects(), CUSTOM_FIELDS_TAG);
+  cacheTag(tags.work(), tags.projects(), tags.customFields());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -254,7 +252,7 @@ export async function getWorkViews(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WORK_TAG, tags.projects(), CUSTOM_FIELDS_TAG);
+  cacheTag(tags.work(), tags.projects(), tags.customFields());
   const tenant = tenantOf(session);
 
   if (!tenant) {

@@ -2,11 +2,11 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import "server-only";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbShell } from "@/lib/supabase/server-shell";
 
 import type { ConversationRow } from "./inbox-types";
 
-import { INBOX_TAG } from "./inbox-cache";
 import { inboxReads } from "./inbox-reads";
 import { toConversationRow } from "./inbox-types";
 
@@ -14,7 +14,7 @@ import { toConversationRow } from "./inbox-types";
 export async function getConversations(): Promise<readonly ConversationRow[]> {
   "use cache: private";
   const { session, db } = await bsbShell.cached();
-  cacheTag(INBOX_TAG);
+  cacheTag(tags.inbox());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -45,7 +45,7 @@ export async function getConversationContext(
 ): Promise<ConversationContext | null> {
   "use cache: private";
   const { session, db } = await bsbShell.cached();
-  cacheTag(INBOX_TAG);
+  cacheTag(tags.inbox());
   const tenant = tenantOf(session);
 
   const foundResult =

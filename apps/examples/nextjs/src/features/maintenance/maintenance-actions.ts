@@ -13,11 +13,10 @@ import {
   Whole,
 } from "@/lib/form-input";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { MAINTENANCE_TAG } from "./maintenance-cache";
-
-const TAGS = [MAINTENANCE_TAG];
+const TAGS = [tags.maintenance()];
 
 const Priority = v.picklist(["low", "normal", "high", "urgent"]);
 

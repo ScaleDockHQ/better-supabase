@@ -3,16 +3,14 @@
 import { err, invalidInput, ok } from "better-supabase";
 import * as v from "valibot";
 
-import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { Decimal, Id, given, Name, Optional, Whole } from "@/lib/form-input";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { WAREHOUSE_TAG } from "./warehouse-cache";
 import { openOrderLines } from "./warehouse-queries";
 
-const TAGS = [WAREHOUSE_TAG, SHOP_TAG, MANUFACTURING_TAG];
+const TAGS = [tags.warehouse(), tags.shop(), tags.manufacturing()];
 
 /** Finishes a pick list: lines with less picked than asked for become short. */
 export const completePickList = bsb.action(

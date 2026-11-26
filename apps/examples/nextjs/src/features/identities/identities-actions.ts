@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { IDENTITIES_TAG } from "./identities-cache";
 
 /**
  * Issues a one-time code. Sending it to the app's chat bot links that chat
@@ -45,7 +44,7 @@ export const unlinkIdentity = bsb.action(
       return unlinked;
     }
 
-    await refreshCaller(auth, [IDENTITIES_TAG]);
+    await refreshCaller(auth, [tags.identities()]);
 
     return ok(unlinked.data);
   },

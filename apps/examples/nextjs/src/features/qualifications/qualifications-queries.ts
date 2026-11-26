@@ -15,11 +15,11 @@ import type {
 
 import { getMemberNames } from "@/features/people/member-names";
 import { pageEntityRows } from "@/lib/block-entity-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { QualificationTypeRow } from "./qualifications-types-list";
 
-import { QUALIFICATIONS_TAG } from "./qualifications-cache";
 import {
   qualificationTypeList,
   qualificationTypeMap,
@@ -65,7 +65,7 @@ export interface Matrix {
 async function loadMatrix(): Promise<Matrix | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(QUALIFICATIONS_TAG);
+  cacheTag(tags.qualifications());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -114,7 +114,7 @@ export interface MyQualificationsData {
 async function getMine(): Promise<MyQualificationsData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(QUALIFICATIONS_TAG);
+  cacheTag(tags.qualifications());
   const tenant = tenantOf(session);
 
   if (!tenant || session.kind !== "user") {
@@ -196,7 +196,7 @@ export function getQualificationTypePage(
 async function getTypes(): Promise<RecordListPage<QualificationTypeRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(QUALIFICATIONS_TAG);
+  cacheTag(tags.qualifications());
   const tenant = tenantOf(session);
 
   return tenant
@@ -235,7 +235,7 @@ async function loadType(
   "use cache: private";
   const scope = await bsb.cached();
   const { session, db } = scope;
-  cacheTag(QUALIFICATIONS_TAG);
+  cacheTag(tags.qualifications());
   const tenant = tenantOf(session);
 
   if (!tenant) {

@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ADVISORIES_TAG } from "./advisories-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -33,7 +32,7 @@ export const saveProduct = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [ADVISORIES_TAG]);
+    await refreshCaller(auth, [tags.advisories()]);
 
     return ok(saved.data.id);
   },
@@ -58,7 +57,7 @@ export const trackVulnerability = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [ADVISORIES_TAG]);
+    await refreshCaller(auth, [tags.advisories()]);
 
     return ok(saved.data.id);
   },
@@ -81,7 +80,7 @@ export const publishAdvisory = bsb.action(
       return published;
     }
 
-    await refreshCaller(auth, [ADVISORIES_TAG]);
+    await refreshCaller(auth, [tags.advisories()]);
 
     return ok(published.data.id);
   },

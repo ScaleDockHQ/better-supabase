@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { CHECKOUT_SESSIONS_TAG } from "./checkout-sessions-cache";
 
 /** Cancels an open or ready session, so the agent can no longer complete it. */
 export const cancelCheckoutSession = bsb.action(
@@ -22,7 +21,7 @@ export const cancelCheckoutSession = bsb.action(
       return canceled;
     }
 
-    await refreshCaller(auth, [CHECKOUT_SESSIONS_TAG]);
+    await refreshCaller(auth, [tags.agentCheckout()]);
 
     return ok(canceled.data.id);
   },

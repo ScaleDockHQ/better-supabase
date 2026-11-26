@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COURSES_TAG } from "./courses-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -74,7 +73,7 @@ export const createSampleCourse = bsb.action(
       return published;
     }
 
-    await refreshCaller(auth, [COURSES_TAG]);
+    await refreshCaller(auth, [tags.courses()]);
 
     return ok({ id: course.data.id });
   },
@@ -94,7 +93,7 @@ export const enrollInCourse = bsb.action(
       return learner;
     }
 
-    await refreshCaller(auth, [COURSES_TAG]);
+    await refreshCaller(auth, [tags.courses()]);
 
     return ok({ status: learner.data.status });
   },
@@ -114,7 +113,7 @@ export const completeLesson = bsb.action(
       return learner;
     }
 
-    await refreshCaller(auth, [COURSES_TAG]);
+    await refreshCaller(auth, [tags.courses()]);
 
     return ok({ status: learner.data.status });
   },
@@ -144,7 +143,7 @@ export const submitQuiz = bsb.action(
       return result;
     }
 
-    await refreshCaller(auth, [COURSES_TAG]);
+    await refreshCaller(auth, [tags.courses()]);
 
     const entry = result.data.progress.lessons.find(
       (lesson) => lesson.lessonId === lessonId,

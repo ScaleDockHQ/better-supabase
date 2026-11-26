@@ -7,13 +7,12 @@ import { money, parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { SHOP_TAG } from "./shop-cache";
 import { SHOP_CURRENCY } from "./shop-currency";
 import { shopOrders } from "./shop-server";
 
@@ -86,7 +85,7 @@ export const createProduct = bsb.action(
       return activated;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(product.data.id);
   },
@@ -105,7 +104,7 @@ export const createMainLocation = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(saved.data.id);
   },
@@ -140,7 +139,7 @@ export const adjustStock = bsb.action(
       return adjusted;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(adjusted.data.onHand);
   },
@@ -175,7 +174,7 @@ export const requestPurchase = bsb.action(
       return requested;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(requested.data.id);
   },
@@ -216,7 +215,7 @@ export const createDraftOrder = bsb.action(
       return added;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(cart.data.id);
   },
@@ -236,7 +235,7 @@ export const placeOrder = bsb.action(
       return checkout;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(checkout.data.order.id);
   },
@@ -290,7 +289,7 @@ export const markOrderPaid = bsb.action(
       return recorded;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(recorded.data.status);
   },
@@ -313,7 +312,7 @@ export const cancelOrder = bsb.action(
       return cancelled;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(cancelled.data);
   },
@@ -333,7 +332,7 @@ export const confirmDraftOrder = bsb.action(
       return confirmed;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(confirmed.data.status);
   },
@@ -356,7 +355,7 @@ export const holdOrder = bsb.action(
       return held;
     }
 
-    await refreshCaller(auth, [SHOP_TAG]);
+    await refreshCaller(auth, [tags.shop()]);
 
     return ok(held.data.status);
   },
@@ -376,7 +375,7 @@ export const releaseOrderHold = bsb.action(
       return released;
     }
 
-    await refreshCaller(auth, [SHOP_TAG]);
+    await refreshCaller(auth, [tags.shop()]);
 
     return ok(released.data.status);
   },
@@ -396,7 +395,7 @@ export const fulfillOrder = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(created.data.id);
   },
@@ -417,7 +416,7 @@ export const shipFulfillment = bsb.action(
       return shipped;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(shipped.data);
   },
@@ -437,7 +436,7 @@ export const deliverFulfillment = bsb.action(
       return delivered;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(delivered.data);
   },
@@ -464,7 +463,7 @@ export const applyPromotionCode = bsb.action(
       return applied;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(code);
   },
@@ -483,7 +482,7 @@ export const removePromotionCode = bsb.action(
       return removed;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(removed.data);
   },
@@ -557,7 +556,7 @@ export const sendToKitchen = bsb.action(
       return sent;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(sent.data);
   },
@@ -588,7 +587,7 @@ export const bumpTicket = bsb.action(
       return bumped;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(bumped.data);
   },
@@ -608,7 +607,7 @@ export const setLineState = bsb.action(
       return line;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+    await refreshCaller(auth, [tags.shop(), tags.manufacturing(), BILLING_TAG]);
 
     return ok(line.data.state);
   },
@@ -631,7 +630,7 @@ export const setProductStatus = bsb.action(
       return changed;
     }
 
-    await refreshCaller(auth, [SHOP_TAG]);
+    await refreshCaller(auth, [tags.shop()]);
 
     return ok({ id: productId, status });
   },

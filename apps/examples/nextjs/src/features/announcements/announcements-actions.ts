@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ANNOUNCEMENTS_TAG } from "./announcements-cache";
 
 /** Hides an announcement for the signed-in user. */
 export const dismissAnnouncement = bsb.action(
@@ -18,7 +17,7 @@ export const dismissAnnouncement = bsb.action(
       return dismissed;
     }
 
-    await refreshCaller(auth, [ANNOUNCEMENTS_TAG]);
+    await refreshCaller(auth, [tags.announcements()]);
 
     return ok(dismissed.data);
   },

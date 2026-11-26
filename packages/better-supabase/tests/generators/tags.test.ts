@@ -35,4 +35,17 @@ describe("tags generator", () => {
       tags({ tables: ["nope"] }).generate(inputOf(["tasks"])),
     ).toThrow('no table named "nope"');
   });
+
+  it("adds feature domains once, sorted with the tables", async () => {
+    const [file] = await tags({ domains: ["crm", "tasks"] }).generate(
+      inputOf(["tasks", "notes"]),
+    );
+
+    expect(file?.contents).toContain(
+      'defineTags(["crm", "notes", "tasks"] as const)',
+    );
+    expect(() =>
+      tags({ domains: ["option-sets"] }).generate(inputOf(["tasks"])),
+    ).toThrow("not an identifier");
+  });
 });

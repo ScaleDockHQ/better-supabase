@@ -11,11 +11,9 @@ import { cacheTag } from "next/cache";
 import { notFound, unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
-import { CUSTOM_FIELDS_TAG } from "@/features/custom-fields/custom-fields-cache";
 import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { FORMS_TAG } from "./forms-cache";
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
@@ -76,7 +74,7 @@ export type Loaded<T> =
 async function loadForms(): Promise<readonly FormSummary[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(FORMS_TAG, CUSTOM_FIELDS_TAG);
+  cacheTag(tags.forms(), tags.customFields());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -123,7 +121,7 @@ function answerCells(answers: FormSubmission["answers"]) {
 async function loadForm(id: string): Promise<FormDetailView | "not-found"> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(FORMS_TAG, CUSTOM_FIELDS_TAG);
+  cacheTag(tags.forms(), tags.customFields());
   const tenant = tenantOf(session);
   const { forms } = db;
 

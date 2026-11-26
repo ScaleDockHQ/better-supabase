@@ -3,9 +3,9 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { getAdminList } from "@/features/admin-lists/admin-list-load";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbShell } from "@/lib/supabase/server-shell";
 
-import { INCOMING_WEBHOOKS_TAG } from "./incoming-webhooks-cache";
 import { incomingWebhookList } from "./incoming-webhooks-list";
 import { incomingWebhookSource } from "./incoming-webhooks-source";
 
@@ -16,7 +16,7 @@ import { incomingWebhookSource } from "./incoming-webhooks-source";
 export async function getIncomingWebhooks() {
   "use cache: private";
   const { session } = await bsbShell.cached();
-  cacheTag(INCOMING_WEBHOOKS_TAG);
+  cacheTag(tags.incomingWebhooks());
   const tenant = tenantOf(session);
 
   if (!tenant) {

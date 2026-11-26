@@ -8,8 +8,7 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
-import { BANKING_TAG } from "@/features/banking/banking-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { PLANS_TABLE, BILLING_TAG } from "./billing-cache";
@@ -68,7 +67,7 @@ export async function getPlans(): Promise<readonly PlanOption[]> {
 export async function getSubscription(organizationId: string) {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(BILLING_TAG, BANKING_TAG, SHOP_TAG);
+  cacheTag(BILLING_TAG, tags.banking(), tags.shop());
 
   return db.subscriptions
     .get(
@@ -192,7 +191,7 @@ export interface InvoiceSummary {
 async function loadInvoices(): Promise<readonly InvoiceSummary[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(BILLING_TAG, BANKING_TAG, SHOP_TAG);
+  cacheTag(BILLING_TAG, tags.banking(), tags.shop());
   const tenant = tenantOf(session);
 
   if (!tenant) {

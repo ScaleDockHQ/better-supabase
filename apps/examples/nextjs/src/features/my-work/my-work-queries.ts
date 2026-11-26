@@ -6,10 +6,6 @@ import { getMyWork as getRecordsMyWork } from "better-supabase/records";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { APPROVALS_TAG } from "@/features/approvals/approvals-cache";
-import { CALENDAR_TAG } from "@/features/calendar/calendar-cache";
-import { CRM_TAG } from "@/features/crm/crm-cache";
-import { WORK_TAG } from "@/features/work/work-cache";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -41,12 +37,12 @@ async function getView(): Promise<MyWorkView | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(
-    WORK_TAG,
+    tags.work(),
     tags.projects(),
-    APPROVALS_TAG,
-    CALENDAR_TAG,
+    tags.approvals(),
+    tags.calendar(),
     tags.customers(),
-    CRM_TAG,
+    tags.crm(),
   );
   const tenant = tenantOf(session);
 
@@ -96,7 +92,7 @@ export interface MyReminder {
 async function getReminders(): Promise<readonly MyReminder[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CALENDAR_TAG);
+  cacheTag(tags.calendar());
 
   if (!tenantOf(session)) {
     return null;

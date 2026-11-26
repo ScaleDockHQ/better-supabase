@@ -5,11 +5,9 @@ import { refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { APPROVALS_TAG } from "@/features/approvals/approvals-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ACCESS_REQUESTS_TAG } from "./access-requests-cache";
 
 const DURATIONS = ["PT1H", "P1D", "P7D", "none"] as const;
 
@@ -50,7 +48,7 @@ export const requestAccess = bsb.action(
       return requested;
     }
 
-    await refreshCaller(auth, [ACCESS_REQUESTS_TAG, APPROVALS_TAG]);
+    await refreshCaller(auth, [tags.accessRequests(), tags.approvals()]);
 
     return ok(requested.data.id);
   },
@@ -78,7 +76,7 @@ export const decideAccessRequest = bsb.action(
       return decided;
     }
 
-    await refreshCaller(auth, [ACCESS_REQUESTS_TAG, APPROVALS_TAG]);
+    await refreshCaller(auth, [tags.accessRequests(), tags.approvals()]);
 
     return ok(decided.data.id);
   },
@@ -94,7 +92,7 @@ export const cancelAccessRequest = bsb.action(
       return cancelled;
     }
 
-    await refreshCaller(auth, [ACCESS_REQUESTS_TAG, APPROVALS_TAG]);
+    await refreshCaller(auth, [tags.accessRequests(), tags.approvals()]);
 
     return ok(cancelled.data.id);
   },
@@ -110,7 +108,7 @@ export const endAccess = bsb.action(
       return ended;
     }
 
-    await refreshCaller(auth, [ACCESS_REQUESTS_TAG, APPROVALS_TAG]);
+    await refreshCaller(auth, [tags.accessRequests(), tags.approvals()]);
 
     return ok(ended.data.id);
   },

@@ -7,13 +7,11 @@ import { unstable_rethrow } from "next/navigation";
 
 import type { Role } from "@/lib/claims";
 
-import { APPROVALS_TAG } from "@/features/approvals/approvals-cache";
 import { getMembers } from "@/features/organization/organization-queries";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can, roleOf } from "@/features/user/user-permissions";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ACCESS_REQUESTS_TAG } from "./access-requests-cache";
 
 export interface AccessRequestRow {
   readonly id: string;
@@ -63,7 +61,7 @@ export async function getAccessRequests(): Promise<AccessRequestsData | null> {
   "use cache: private";
 
   const request = await bsb.cached();
-  cacheTag(ACCESS_REQUESTS_TAG, APPROVALS_TAG);
+  cacheTag(tags.accessRequests(), tags.approvals());
   const { session, db, auth } = request;
   const permissions = await readPermissions(request);
 

@@ -11,11 +11,11 @@ import type { BlockPage } from "@/lib/block-page";
 import type { BlockListQuery } from "@/lib/block-status-list";
 
 import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { LeaseRow } from "./lease-row";
 
-import { LEASES_TAG } from "./leases-cache";
 import { LEASE_PAGE_SIZE, LEASE_STATUSES, leaseList } from "./leases-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -61,7 +61,7 @@ export async function getLeasePage(
 export async function getLeases(): Promise<BlockPage<LeaseRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(LEASES_TAG);
+  cacheTag(tags.leases());
 
   if (!tenantOf(session)) {
     return null;
@@ -90,7 +90,7 @@ export interface LeaseDetailData extends LeaseRow {
 export async function getLease(id: string): Promise<LeaseDetailData | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(LEASES_TAG);
+  cacheTag(tags.leases());
 
   const result = await db.leases.get(id);
 
@@ -136,7 +136,7 @@ export async function getLeaseCharges(
 ): Promise<readonly LeaseChargeRow[]> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(LEASES_TAG);
+  cacheTag(tags.leases());
 
   const result = await db.leases.charges({ leaseId: id, pageSize: 36 });
 
@@ -161,7 +161,7 @@ export interface LeaseFormOptions {
 export async function getLeaseFormOptions(): Promise<LeaseFormOptions> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(LEASES_TAG);
+  cacheTag(tags.leases());
 
   const [units, parties] = await Promise.all([
     db.assets.page({ filters: { status: ["active"] }, limit: 100 }),

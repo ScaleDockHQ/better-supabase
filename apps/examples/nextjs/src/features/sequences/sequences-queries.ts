@@ -9,9 +9,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SEQUENCES_TAG } from "./sequences-cache";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -30,7 +29,7 @@ export interface SequenceCard {
 async function loadSequences(): Promise<readonly SequenceCard[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SEQUENCES_TAG);
+  cacheTag(tags.sequences());
   const tenant = tenantOf(session);
 
   if (!tenant) {

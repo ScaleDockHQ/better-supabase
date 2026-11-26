@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { APPRAISALS_TAG } from "./appraisals-cache";
 
 const AppraisalId = v.pipe(v.string(), v.uuid());
 
@@ -44,7 +43,7 @@ export const signOffAppraisal = bsb.action(
       return signed;
     }
 
-    await refreshCaller(auth, [APPRAISALS_TAG]);
+    await refreshCaller(auth, [tags.appraisals()]);
 
     return ok({ status: signed.data.status });
   },
@@ -89,7 +88,7 @@ export const submitAppraisalReview = bsb.action(
       return submitted;
     }
 
-    await refreshCaller(auth, [APPRAISALS_TAG]);
+    await refreshCaller(auth, [tags.appraisals()]);
 
     return ok({ status: submitted.data.status });
   },
@@ -120,7 +119,7 @@ export const calibrateAppraisal = bsb.action(
       return calibrated;
     }
 
-    await refreshCaller(auth, [APPRAISALS_TAG]);
+    await refreshCaller(auth, [tags.appraisals()]);
 
     return ok({ status: calibrated.data.status });
   },

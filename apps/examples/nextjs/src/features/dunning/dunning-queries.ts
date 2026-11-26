@@ -3,9 +3,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { DUNNING_TAG } from "./dunning-cache";
 
 /** A reminder level, serializable. */
 export interface DunningLevelRow {
@@ -36,7 +35,7 @@ export type CollectionsLoaded =
 
 async function loadCollections(): Promise<Collections | null> {
   "use cache: private";
-  cacheTag(DUNNING_TAG);
+  cacheTag(tags.dunning());
   const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 

@@ -5,13 +5,10 @@ import { ok } from "better-supabase";
 import { parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
-import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { FINANCE_RECORDS_TAG } from "./finance-records-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -21,7 +18,7 @@ const Text = (max: number) =>
 const Day = v.pipe(v.string(), v.isoDate());
 
 /** The tags every finance write expires: the lists and the domains they show. */
-const TAGS = [FINANCE_RECORDS_TAG, BILLING_TAG, BANKING_TAG, SHOP_TAG];
+const TAGS = [tags.financeRecords(), BILLING_TAG, tags.banking(), tags.shop()];
 
 /** Files a draft expense report for approval. */
 export const submitExpenseReport = bsb.action(

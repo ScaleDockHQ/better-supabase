@@ -3,14 +3,13 @@ import { subjectKey } from "better-supabase/blocks/subjects";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { CRM_TAG } from "@/features/crm/crm-cache";
 import { orMissing } from "@/lib/or-missing";
 import { getAllPagesResult } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { queueOf } from "../list-reads/queues-reads";
 import { segmentOf } from "../list-reads/segments-reads";
-import { SALES_TAG } from "../sales-cache";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
@@ -57,7 +56,7 @@ export async function loadSegment(
 ): Promise<SegmentDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
 
   if (!tenantOf(session)) {
     return null;
@@ -117,7 +116,7 @@ export async function getQueue(
 ): Promise<QueueDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -196,7 +195,7 @@ export async function getScoreModel(
 ): Promise<ScoreModelDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
 
   if (!tenantOf(session)) {
     return null;
@@ -279,7 +278,7 @@ export interface HealthData {
 export async function getHealth(): Promise<HealthData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -351,7 +350,7 @@ export async function getContactSales(
 ): Promise<ContactSales | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -416,7 +415,7 @@ export async function getFieldHistory(
 ): Promise<readonly FieldChangeRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
 
   if (!tenantOf(session)) {
     return null;

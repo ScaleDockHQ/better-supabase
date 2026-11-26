@@ -11,7 +11,6 @@ import { blockConfig } from "@/lib/supabase/blocks.config";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { DRIVE_TAG } from "./drive-cache";
 import { driveOf } from "./drive-client";
 import { DRIVE_ROLES } from "./drive-roles";
 
@@ -40,7 +39,7 @@ export const createDriveFolder = bsb.action(
       return folder;
     }
 
-    await refreshCaller(auth, [DRIVE_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ id: folder.data.id, name: folder.data.name });
   },
@@ -104,7 +103,7 @@ export const commitDriveUpload = bsb.action(
       return committed;
     }
 
-    await refreshCaller(auth, [DRIVE_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ id: committed.data.id, name: committed.data.name });
   },
@@ -133,7 +132,7 @@ export const renameDriveItem = bsb.action(
       return renamed;
     }
 
-    await refreshCaller(auth, [DRIVE_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ id: renamed.data.id, name: renamed.data.name });
   },
@@ -156,7 +155,7 @@ export const trashDriveItem = bsb.action(
       return trashed;
     }
 
-    await refreshCaller(auth, [DRIVE_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ trashItemId: trashed.data.id, count: trashed.data.count });
   },
@@ -201,7 +200,7 @@ export const setDriveCheckout = bsb.action(
       return node;
     }
 
-    await refreshCaller(auth, [DRIVE_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ id: node.data.id, locked: node.data.lockedBy !== undefined });
   },
@@ -221,7 +220,7 @@ export const setDriveDownloadsBlocked = bsb.action(
       return node;
     }
 
-    await refreshCaller(auth, [DRIVE_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ id: node.data.id, blocked: node.data.downloadBlocked });
   },
@@ -241,7 +240,7 @@ export const requestDriveApproval = bsb.action(
       return requested;
     }
 
-    await refreshCaller(auth, [DRIVE_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ id: requested.data.id, revision: requested.data.revision });
   },
@@ -341,7 +340,7 @@ export const shareDriveItem = bsb.action(
       return shared;
     }
 
-    await refreshCaller(auth, [DRIVE_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok(null);
   },
@@ -365,7 +364,7 @@ export const unshareDriveItem = bsb.action(
       return err(dbError("not_found", "Grant not found"));
     }
 
-    await refreshCaller(auth, [DRIVE_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok(null);
   },

@@ -21,7 +21,6 @@ import { bsb } from "@/lib/supabase/server";
 import type { EmployeeRow } from "./employees-list";
 
 import { employeeList, employeeMap } from "./employees-list";
-import { PEOPLE_TAG } from "./people-cache";
 
 /** What a loader gives a component: the data, a failed read, or no organization. */
 export type Loaded<T> =
@@ -130,7 +129,7 @@ export interface DirectoryData {
 export async function loadDirectory(): Promise<DirectoryData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, tags.customers());
+  cacheTag(tags.people(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -172,7 +171,7 @@ export async function getEmployee(
 ): Promise<EmployeeDetail | "not-found" | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, tags.customers());
+  cacheTag(tags.people(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -245,7 +244,7 @@ export async function getTimesheet(
 ): Promise<TimesheetWeek | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, tags.customers());
+  cacheTag(tags.people(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -327,7 +326,7 @@ export interface HiringBoardData {
 export async function getHiringBoard(): Promise<HiringBoardData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, tags.customers());
+  cacheTag(tags.people(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -410,7 +409,7 @@ export interface ApplicationsData {
  */
 export async function getApplications(): Promise<ApplicationsData | null> {
   "use cache: private";
-  cacheTag(PEOPLE_TAG, tags.customers());
+  cacheTag(tags.people(), tags.customers());
 
   return readApplications(await bsb.cached());
 }
@@ -500,7 +499,7 @@ export async function getApplication(
   "use cache: private";
   const scope = await bsb.cached();
   const { db } = scope;
-  cacheTag(PEOPLE_TAG, tags.customers());
+  cacheTag(tags.people(), tags.customers());
 
   const all = await readApplications(scope);
 
@@ -570,7 +569,7 @@ export async function getRoster(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, tags.customers());
+  cacheTag(tags.people(), tags.customers());
   const tenant = tenantOf(session);
 
   return tenant ? getDirectory(db, tenant) : null;

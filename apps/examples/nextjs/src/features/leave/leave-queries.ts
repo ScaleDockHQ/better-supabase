@@ -16,11 +16,11 @@ import type { Loaded } from "@/features/people/people-queries";
 
 import { settle } from "@/features/people/people-queries";
 import { pageEntityRows } from "@/lib/block-entity-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { LeaveRow } from "./leave-list";
 
-import { LEAVE_TAG } from "./leave-cache";
 import { leaveList, leaveMap } from "./leave-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -140,7 +140,7 @@ export interface LeaveOverviewData {
 async function loadLeave(): Promise<LeaveOverviewData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(LEAVE_TAG);
+  cacheTag(tags.leave());
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -183,7 +183,7 @@ export type LeaveDetailData =
 async function loadLeaveRequest(id: string): Promise<LeaveDetailData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(LEAVE_TAG);
+  cacheTag(tags.leave());
   const organizationId = tenantOf(session);
 
   if (!organizationId) {

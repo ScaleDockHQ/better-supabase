@@ -10,9 +10,8 @@ import type { Mutable } from "@/lib/block-status-list";
 
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { WARRANTY_TAG } from "./warranty-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -48,7 +47,7 @@ export const createClaim = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [WARRANTY_TAG]);
+    await refreshCaller(auth, [tags.warranty()]);
 
     return ok(created.data.id);
   },
@@ -68,7 +67,7 @@ export const submitClaim = bsb.action(
       return submitted;
     }
 
-    await refreshCaller(auth, [WARRANTY_TAG]);
+    await refreshCaller(auth, [tags.warranty()]);
 
     return ok(submitted.data.id);
   },
@@ -104,7 +103,7 @@ export const decideClaim = bsb.action(
       return decided;
     }
 
-    await refreshCaller(auth, [WARRANTY_TAG]);
+    await refreshCaller(auth, [tags.warranty()]);
 
     return ok(decided.data.id);
   },

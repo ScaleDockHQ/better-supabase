@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COMPLIANCE_TAG } from "./compliance-cache";
 
 /**
  * Records a note as evidence on a control. With `evidenceTaskId` it answers
@@ -32,7 +31,7 @@ export const addControlEvidence = bsb.action(
       return added;
     }
 
-    await refreshCaller(auth, [COMPLIANCE_TAG]);
+    await refreshCaller(auth, [tags.compliance()]);
 
     return ok({ id: added.data.id });
   },

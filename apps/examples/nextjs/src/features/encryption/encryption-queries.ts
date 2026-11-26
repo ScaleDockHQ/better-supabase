@@ -9,11 +9,9 @@ import { cacheTag } from "next/cache";
 
 import type { FieldEntity } from "@/features/custom-fields/custom-fields-types";
 
-import { CUSTOM_FIELDS_TAG } from "@/features/custom-fields/custom-fields-cache";
 import { FIELD_ENTITIES } from "@/features/custom-fields/custom-fields-types";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ENCRYPTION_TAG } from "./encryption-cache";
 
 export interface EncryptedField {
   readonly id: string;
@@ -71,7 +69,7 @@ const lookupKeyOf = (
 export async function getEncryptionView(): Promise<EncryptionView | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CUSTOM_FIELDS_TAG, ENCRYPTION_TAG);
+  cacheTag(tags.customFields(), tags.encryption());
   const tenant = tenantOf(session);
 
   if (!tenant) {

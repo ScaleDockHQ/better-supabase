@@ -3,11 +3,9 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { PEOPLE_TAG } from "@/features/people/people-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ONBOARDING_TAG } from "./onboarding-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -52,7 +50,7 @@ export const setUpOnboardingProgram = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [ONBOARDING_TAG]);
+    await refreshCaller(auth, [tags.onboarding()]);
 
     return ok({ key: saved.data.key });
   },
@@ -78,7 +76,7 @@ export const enrollEmployee = bsb.action(
       return enrolled;
     }
 
-    await refreshCaller(auth, [ONBOARDING_TAG]);
+    await refreshCaller(auth, [tags.onboarding()]);
 
     return ok({ id: enrolled.data.id });
   },
@@ -101,7 +99,7 @@ export const completeOnboardingStep = bsb.action(
       return done;
     }
 
-    await refreshCaller(auth, [ONBOARDING_TAG, PEOPLE_TAG]);
+    await refreshCaller(auth, [tags.onboarding(), tags.people()]);
 
     return ok({ id: done.data.id });
   },

@@ -5,11 +5,9 @@ import { parseMoney } from "better-supabase/commerce";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { CRM_TAG } from "@/features/crm/crm-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SALES_TAG } from "./sales-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Name = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200));
@@ -35,7 +33,7 @@ const Whole = (min: number, max: number) =>
     v.maxValue(max),
   );
 
-const TAGS = [SALES_TAG, CRM_TAG];
+const TAGS = [tags.sales(), tags.crm()];
 
 /**
  * `{ [key]: value }` when a value is given, `{}` otherwise, for exact optional

@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { INCIDENTS_TAG } from "./incidents-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -43,7 +42,7 @@ export const openIncident = bsb.action(
       return opened;
     }
 
-    await refreshCaller(auth, [INCIDENTS_TAG]);
+    await refreshCaller(auth, [tags.incidents()]);
 
     return ok(opened.data.id);
   },
@@ -70,7 +69,7 @@ export const postIncidentUpdate = bsb.action(
       return posted;
     }
 
-    await refreshCaller(auth, [INCIDENTS_TAG]);
+    await refreshCaller(auth, [tags.incidents()]);
 
     return ok(posted.data.id);
   },
@@ -90,7 +89,7 @@ export const resolveIncident = bsb.action(
       return resolved;
     }
 
-    await refreshCaller(auth, [INCIDENTS_TAG]);
+    await refreshCaller(auth, [tags.incidents()]);
 
     return ok(resolved.data.id);
   },

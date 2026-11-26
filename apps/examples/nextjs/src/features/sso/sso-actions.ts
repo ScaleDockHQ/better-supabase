@@ -11,9 +11,8 @@ import * as v from "valibot";
 import { env } from "@/env";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SSO_TAG } from "./sso-cache";
 
 const DOMAIN = v.pipe(
   v.string(),
@@ -62,7 +61,7 @@ export const addSsoDomain = bsb.action(
       return added;
     }
 
-    await refreshCaller(auth, [SSO_TAG]);
+    await refreshCaller(auth, [tags.sso()]);
 
     return ok(added.data.id);
   },
@@ -81,7 +80,7 @@ export const removeSsoDomain = bsb.action(
       return removed;
     }
 
-    await refreshCaller(auth, [SSO_TAG]);
+    await refreshCaller(auth, [tags.sso()]);
 
     return ok(removed.data);
   },
@@ -113,7 +112,7 @@ export const verifySsoDomain = bsb.action(
       return verified;
     }
 
-    await refreshCaller(auth, [SSO_TAG]);
+    await refreshCaller(auth, [tags.sso()]);
 
     return ok(verified.data.verifiedAt !== undefined);
   },
@@ -151,7 +150,7 @@ export const updateSsoDomain = bsb.action(
       return updated;
     }
 
-    await refreshCaller(auth, [SSO_TAG]);
+    await refreshCaller(auth, [tags.sso()]);
 
     return ok(updated.data.id);
   },
@@ -192,7 +191,7 @@ export const addSamlConnection = bsb.action(
       return added;
     }
 
-    await refreshCaller(auth, [SSO_TAG]);
+    await refreshCaller(auth, [tags.sso()]);
 
     return ok(added.data.id);
   },
@@ -224,7 +223,7 @@ export const removeSamlConnection = bsb.action(
       return removed;
     }
 
-    await refreshCaller(auth, [SSO_TAG]);
+    await refreshCaller(auth, [tags.sso()]);
 
     return ok(removed.data !== undefined);
   },

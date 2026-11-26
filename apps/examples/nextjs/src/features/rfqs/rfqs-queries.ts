@@ -5,9 +5,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { readContacts } from "@/features/crm/crm-queries";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { RFQS_TAG } from "./rfqs-cache";
 
 export type RfqStatus = "draft" | "open" | "closed" | "awarded" | "cancelled";
 
@@ -96,7 +95,7 @@ export async function loadRfq(id: string): Promise<RfqFull | null | undefined> {
   "use cache: private";
   const cached = await bsb.cached();
   const { session, db } = cached;
-  cacheTag(RFQS_TAG);
+  cacheTag(tags.rfqs());
 
   if (!tenantOf(session)) {
     return null;

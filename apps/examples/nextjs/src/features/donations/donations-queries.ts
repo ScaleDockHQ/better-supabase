@@ -10,11 +10,11 @@ import type { BlockPage } from "@/lib/block-page";
 import type { BlockListQuery } from "@/lib/block-status-list";
 
 import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { GiftRow } from "./gift-row";
 
-import { DONATIONS_TAG } from "./donations-cache";
 import { GIFT_PAGE_SIZE, GIFT_STATUSES, giftList } from "./donations-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -88,7 +88,7 @@ export async function getGiftPage(
 export async function getGifts(): Promise<BlockPage<GiftRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DONATIONS_TAG);
+  cacheTag(tags.donations());
 
   if (!tenantOf(session)) {
     return null;
@@ -114,7 +114,7 @@ export interface GiftDetailData extends GiftRow {
 export async function getGift(id: string): Promise<GiftDetailData | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(DONATIONS_TAG);
+  cacheTag(tags.donations());
 
   const result = await db.donations.getGift(id);
 
@@ -167,7 +167,7 @@ export interface GiftFormOptions {
 export async function getGiftFormOptions(): Promise<GiftFormOptions> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(DONATIONS_TAG);
+  cacheTag(tags.donations());
 
   const [donors, funds] = await Promise.all([
     db.customers.list({

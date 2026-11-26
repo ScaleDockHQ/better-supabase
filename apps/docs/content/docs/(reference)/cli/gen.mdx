@@ -780,10 +780,11 @@ import { tags } from "better-supabase/generators/tags";
 export default defineConfig({ gen: { generators: [tags()] } });
 ```
 
-| Option   | What it does                                              |
-| -------- | --------------------------------------------------------- |
-| `tables` | The table keys to write tags for; defaults to every table |
-| `output` | The file path; defaults to `<output>.tags.ts`             |
+| Option    | What it does                                                          |
+| --------- | --------------------------------------------------------------------- |
+| `tables`  | The table keys to write tags for; defaults to every table             |
+| `domains` | Feature tags such as `crm` (camelCase) written next to the table tags |
+| `output`  | The file path; defaults to `<output>.tags.ts`                         |
 
 ## Standard Schema without a validation library
 

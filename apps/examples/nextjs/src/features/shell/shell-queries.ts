@@ -8,7 +8,7 @@ import * as v from "valibot";
 
 import type { Claims, Profile } from "@/lib/claims";
 
-import { APPROVALS_TAG } from "@/features/approvals/approvals-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 /**
@@ -121,7 +121,7 @@ const keptShell = bsb.kept(
   {
     name: "shell",
     tables: SHELL_TABLES,
-    tags: [APPROVALS_TAG],
+    tags: [tags.approvals()],
     life: { revalidate: 60, expire: 300 },
   },
 );
@@ -138,7 +138,7 @@ const keptShell = bsb.kept(
 export async function getShell(): Promise<ShellEntry> {
   "use cache: private";
   cacheLife({ stale: 30, revalidate: 60, expire: 300 });
-  cacheTag(APPROVALS_TAG);
+  cacheTag(tags.approvals());
 
   return keptShell();
 }

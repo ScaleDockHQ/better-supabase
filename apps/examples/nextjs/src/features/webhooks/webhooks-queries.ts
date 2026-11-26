@@ -4,12 +4,12 @@ import { cacheTag } from "next/cache";
 import * as v from "valibot";
 
 import { postgres, userClaims } from "@/features/developer/postgres";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import type { WebhookDeliveryRow, WebhookEndpointRow } from "./webhook-types";
 
 import { WebhookStatus } from "./webhook-types";
-import { WEBHOOKS_TAG } from "./webhooks-cache";
 
 interface EndpointRecord {
   readonly id: string;
@@ -47,7 +47,7 @@ export interface WebhooksOverview {
 export async function getWebhooks(): Promise<WebhooksOverview | null> {
   "use cache: private";
   const { session } = await bsbCore.cached();
-  cacheTag(WEBHOOKS_TAG);
+  cacheTag(tags.webhooks());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -122,7 +122,7 @@ export async function getWebhook(
 ): Promise<WebhookDetail | undefined | null> {
   "use cache: private";
   const { session } = await bsbCore.cached();
-  cacheTag(WEBHOOKS_TAG);
+  cacheTag(tags.webhooks());
   const tenant = tenantOf(session);
 
   if (!tenant) {

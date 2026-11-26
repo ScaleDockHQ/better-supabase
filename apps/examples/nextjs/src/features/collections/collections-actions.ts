@@ -8,9 +8,8 @@ import * as v from "valibot";
 import type { Mutable } from "@/lib/block-status-list";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COLLECTIONS_TAG } from "./collections-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -45,7 +44,7 @@ export const createCollection = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [COLLECTIONS_TAG]);
+    await refreshCaller(auth, [tags.collections()]);
 
     return ok(created.data.id);
   },
@@ -65,7 +64,7 @@ export const archiveCollection = bsb.action(
       return done;
     }
 
-    await refreshCaller(auth, [COLLECTIONS_TAG]);
+    await refreshCaller(auth, [tags.collections()]);
 
     return ok(done.data);
   },
@@ -88,7 +87,7 @@ export const addToCollection = bsb.action(
       return done;
     }
 
-    await refreshCaller(auth, [COLLECTIONS_TAG]);
+    await refreshCaller(auth, [tags.collections()]);
 
     return ok(done.data.added.length);
   },
@@ -111,7 +110,7 @@ export const removeFromCollection = bsb.action(
       return done;
     }
 
-    await refreshCaller(auth, [COLLECTIONS_TAG]);
+    await refreshCaller(auth, [tags.collections()]);
 
     return ok(done.data);
   },

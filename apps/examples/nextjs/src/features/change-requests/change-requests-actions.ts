@@ -8,6 +8,7 @@ import * as v from "valibot";
 import { builderFor } from "@/features/workflows/builder/builder-server";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import {
@@ -15,7 +16,6 @@ import {
   CHANGE_WORKFLOW,
   DEFAULT_CHANGE_GRAPH,
 } from "./change-request-lifecycle";
-import { CHANGE_REQUESTS_TAG } from "./change-requests-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -72,7 +72,7 @@ export const setUpChangeWorkflow = bsb.action(
       return purpose;
     }
 
-    await refreshCaller(auth, [CHANGE_REQUESTS_TAG]);
+    await refreshCaller(auth, [tags.changeRequests()]);
 
     return ok(published.data.version);
   },
@@ -96,7 +96,7 @@ export const createChangeRequest = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [CHANGE_REQUESTS_TAG]);
+    await refreshCaller(auth, [tags.changeRequests()]);
 
     return ok(created.data.id);
   },
@@ -124,7 +124,7 @@ export const moveChangeRequest = bsb.action(
       return moved;
     }
 
-    await refreshCaller(auth, [CHANGE_REQUESTS_TAG]);
+    await refreshCaller(auth, [tags.changeRequests()]);
 
     return ok(moved.data);
   },

@@ -13,9 +13,8 @@ import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 
 import { readMembers } from "@/features/organization/organization-queries";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { FIELD_TAG } from "./field-cache";
 
 /** One work order as the board and the day plan show it. */
 export interface WorkOrderCard {
@@ -109,7 +108,7 @@ export async function getDispatchWeek(
 ): Promise<DispatchWeek | null> {
   "use cache: private";
   const request = await bsb.cached();
-  cacheTag(FIELD_TAG);
+  cacheTag(tags.field());
   const { session, db } = request;
   const tenant = tenantOf(session);
 
@@ -165,7 +164,7 @@ export async function getTechnicianDay(
 ): Promise<TechnicianDayPlan | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(FIELD_TAG);
+  cacheTag(tags.field());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -192,7 +191,7 @@ export async function getShipmentTracking(
 ): Promise<ShipmentTracking | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(FIELD_TAG);
+  cacheTag(tags.field());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -272,7 +271,7 @@ export async function getWorkOrder(
 ): Promise<WorkOrderDetail | undefined | null> {
   "use cache: private";
   const request = await bsb.cached();
-  cacheTag(FIELD_TAG);
+  cacheTag(tags.field());
   const { session, db } = request;
   const tenant = tenantOf(session);
 
@@ -345,7 +344,7 @@ export async function getShipment(
 ): Promise<ShipmentDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(FIELD_TAG);
+  cacheTag(tags.field());
 
   if (!tenantOf(session)) {
     return null;

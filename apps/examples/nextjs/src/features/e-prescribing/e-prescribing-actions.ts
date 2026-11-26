@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { PRESCRIPTIONS_TAG } from "./e-prescribing-cache";
 
 /** Signs a draft. Only its prescriber signs; the database refuses anyone else. */
 export const signPrescription = bsb.action(
@@ -22,7 +21,7 @@ export const signPrescription = bsb.action(
       return prescription;
     }
 
-    await refreshCaller(auth, [PRESCRIPTIONS_TAG]);
+    await refreshCaller(auth, [tags.prescriptions()]);
 
     return ok({ id: prescription.data.id });
   },
@@ -42,7 +41,7 @@ export const cancelPrescription = bsb.action(
       return prescription;
     }
 
-    await refreshCaller(auth, [PRESCRIPTIONS_TAG]);
+    await refreshCaller(auth, [tags.prescriptions()]);
 
     return ok({ id: prescription.data.id });
   },

@@ -8,9 +8,8 @@ import * as v from "valibot";
 import type { Mutable } from "@/lib/block-status-list";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { PASSES_TAG } from "./passes-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -61,7 +60,7 @@ export const issuePass = bsb.action(
       return issued;
     }
 
-    await refreshCaller(auth, [PASSES_TAG]);
+    await refreshCaller(auth, [tags.passes()]);
 
     return ok(issued.data.id);
   },
@@ -81,7 +80,7 @@ export const revokePass = bsb.action(
       return revoked;
     }
 
-    await refreshCaller(auth, [PASSES_TAG]);
+    await refreshCaller(auth, [tags.passes()]);
 
     return ok(revoked.data.id);
   },
@@ -101,7 +100,7 @@ export const checkInPass = bsb.action(
       return scanned;
     }
 
-    await refreshCaller(auth, [PASSES_TAG]);
+    await refreshCaller(auth, [tags.passes()]);
 
     return ok(scanned.data.admitted);
   },

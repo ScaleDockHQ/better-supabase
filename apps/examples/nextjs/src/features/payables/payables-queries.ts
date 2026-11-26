@@ -7,11 +7,10 @@ import { cacheTag } from "next/cache";
 
 import type { Loaded } from "@/features/shop/shop-queries";
 
-import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
 import { settle } from "@/features/shop/shop-queries";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 /** What the organization owes its suppliers, by days past due, serializable. */
@@ -29,7 +28,7 @@ export interface PayablesAging {
 async function getPayables(): Promise<PayablesAging | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(BILLING_TAG, SHOP_TAG, BANKING_TAG);
+  cacheTag(BILLING_TAG, tags.shop(), tags.banking());
   const tenant = tenantOf(session);
 
   if (!tenant) {

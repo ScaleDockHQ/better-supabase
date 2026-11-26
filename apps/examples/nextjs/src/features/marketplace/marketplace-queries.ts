@@ -3,9 +3,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { MARKETPLACE_TAG } from "./marketplace-cache";
 
 export interface MarketplaceResourceView {
   readonly externalId: string;
@@ -37,7 +36,7 @@ async function getInstallation(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(MARKETPLACE_TAG);
+  cacheTag(tags.marketplace());
   const tenant = tenantOf(session);
 
   if (!tenant) {

@@ -7,9 +7,8 @@ import * as v from "valibot";
 
 import { requireCaller, sqlResult } from "@/features/developer/postgres";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { INCOMING_WEBHOOKS_TAG } from "./incoming-webhooks-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -66,7 +65,7 @@ export const createIncomingWebhook = bsb.action(
       return err(dbError("not_found", "The endpoint was not created"));
     }
 
-    await refreshCaller(auth, [INCOMING_WEBHOOKS_TAG]);
+    await refreshCaller(auth, [tags.incomingWebhooks()]);
 
     return ok({ token: first.row.token, secret: first.row.secret });
   },
@@ -97,7 +96,7 @@ export const setIncomingWebhookEnabled = bsb.action(
       return set;
     }
 
-    await refreshCaller(auth, [INCOMING_WEBHOOKS_TAG]);
+    await refreshCaller(auth, [tags.incomingWebhooks()]);
 
     return ok(enabled);
   },
@@ -132,7 +131,7 @@ export const deleteIncomingWebhook = bsb.action(
       return err(dbError("not_found", "Endpoint not found"));
     }
 
-    await refreshCaller(auth, [INCOMING_WEBHOOKS_TAG]);
+    await refreshCaller(auth, [tags.incomingWebhooks()]);
 
     return ok(true);
   },

@@ -3,9 +3,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { MAINTENANCE_TAG } from "./maintenance-cache";
 
 export type MaintenanceKind = "time" | "meter" | "rrule";
 
@@ -62,7 +61,7 @@ export function stateOf(plan: {
 export async function getPlans(): Promise<readonly PlanRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(MAINTENANCE_TAG);
+  cacheTag(tags.maintenance());
 
   if (!tenantOf(session)) {
     return null;
@@ -110,7 +109,7 @@ export interface MeterRow {
 export async function getMeters(): Promise<readonly MeterRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(MAINTENANCE_TAG);
+  cacheTag(tags.maintenance());
 
   if (!tenantOf(session)) {
     return null;

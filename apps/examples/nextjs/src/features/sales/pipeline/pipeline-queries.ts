@@ -6,14 +6,13 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 
-import { CRM_TAG } from "@/features/crm/crm-cache";
 import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { DealPipeline } from "../list-reads/deals-reads";
 
 import { dealPipelineOf, dealsFrom } from "../list-reads/deals-reads";
-import { SALES_TAG } from "../sales-cache";
 
 export interface PipelineStageRow {
   readonly id: string;
@@ -56,7 +55,7 @@ export interface DealsData {
 export async function getDeals(): Promise<DealsData | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -76,7 +75,7 @@ export async function getDealPipeline(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -107,7 +106,7 @@ export async function getDeal(
 ): Promise<DealDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
 
   if (!tenantOf(session)) {
     return null;
@@ -201,7 +200,7 @@ export async function getPipeline(
 ): Promise<PipelineDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -306,7 +305,7 @@ export async function getForecast(
 ): Promise<ForecastDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
   const tenant = tenantOf(session);
 
   if (!tenant) {

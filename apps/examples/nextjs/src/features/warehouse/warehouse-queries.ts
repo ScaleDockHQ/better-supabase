@@ -10,12 +10,9 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { postgres, userClaims } from "@/features/developer/postgres";
-import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { WAREHOUSE_TAG } from "./warehouse-cache";
 
 export interface LocationOption {
   readonly id: string;
@@ -52,7 +49,7 @@ const LOOKUP_LIMIT = 200;
 export async function getLookups(): Promise<Lookups | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -130,7 +127,7 @@ export async function getWavePickLists(
 ): Promise<readonly PickListRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG, MANUFACTURING_TAG);
+  cacheTag(tags.warehouse(), tags.shop(), tags.manufacturing());
 
   if (!tenantOf(session)) {
     return null;
@@ -165,7 +162,7 @@ export async function loadPickList(
 ): Promise<PickListFull | null | undefined> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG, MANUFACTURING_TAG);
+  cacheTag(tags.warehouse(), tags.shop(), tags.manufacturing());
 
   if (!tenantOf(session)) {
     return null;
@@ -239,7 +236,7 @@ export function waveRowOf(wave: PickWave): WaveRow {
 export async function getWaves(): Promise<readonly WaveRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG);
+  cacheTag(tags.warehouse());
 
   if (!tenantOf(session)) {
     return null;
@@ -278,7 +275,7 @@ export async function getPutawayRules(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG);
+  cacheTag(tags.warehouse());
 
   if (!tenantOf(session)) {
     return null;
@@ -305,7 +302,7 @@ export async function getSlotting(
 ): Promise<readonly SlottingRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
 
   if (!tenantOf(session)) {
     return null;
@@ -360,7 +357,7 @@ export function countPlanRowOf(plan: CountPlan): CountPlanRow {
 export async function getCountPlans(): Promise<readonly CountPlanRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
 
   if (!tenantOf(session)) {
     return null;
@@ -394,7 +391,7 @@ export async function getVariance(
 ): Promise<CountVariance | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
 
   if (!tenantOf(session)) {
     return null;
@@ -422,7 +419,7 @@ export async function getReceivableOrders(): Promise<
 > {
   "use cache: private";
   const { session } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
   const tenant = tenantOf(session);
   const connection = postgres();
   const claims = userClaims(session);
@@ -499,7 +496,7 @@ export async function getReceipts(): Promise<{
 } | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
   const tenant = tenantOf(session);
   const connection = postgres();
   const claims = userClaims(session);

@@ -9,7 +9,6 @@ import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
 
-import { TEMPLATES_TAG } from "./templates-cache";
 import {
   CustomerTemplateBody,
   customerTemplates,
@@ -53,7 +52,7 @@ export const createTemplate = bsbCore.action(
       return published;
     }
 
-    await refreshCaller(auth, [TEMPLATES_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.templates(), tags.customers()]);
 
     return ok({ id: saved.data.id, name: saved.data.name });
   },
@@ -79,7 +78,7 @@ export const applyTemplate = bsbCore.action(
       return applied;
     }
 
-    await refreshCaller(auth, [TEMPLATES_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.templates(), tags.customers()]);
 
     return ok({ customerId: applied.data.subject.id });
   },

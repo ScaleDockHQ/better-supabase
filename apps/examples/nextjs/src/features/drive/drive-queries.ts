@@ -10,7 +10,6 @@ import { getAllPages } from "@/lib/read-all-pages";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { DRIVE_TAG } from "./drive-cache";
 import { driveOf } from "./drive-client";
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
@@ -55,7 +54,7 @@ export type DriveFolderView =
 async function getFolder(folderId: string | null) {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DRIVE_TAG, tags.customers());
+  cacheTag(tags.drive(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -152,7 +151,7 @@ export type DocumentRegisterView =
 async function getRegister(): Promise<readonly DocumentRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DRIVE_TAG, tags.customers());
+  cacheTag(tags.drive(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {

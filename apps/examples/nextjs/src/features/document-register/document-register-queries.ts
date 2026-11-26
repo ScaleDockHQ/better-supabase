@@ -10,7 +10,6 @@ import type {
 } from "@/components/record-list/record-list-types";
 import type { Loaded } from "@/features/people/people-queries";
 
-import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { driveOf } from "@/features/drive/drive-client";
 import { settle } from "@/features/people/people-queries";
 import { pageEntityRows } from "@/lib/block-entity-page";
@@ -65,7 +64,7 @@ export function getRegisterPage(
 async function loadRegister(): Promise<RecordListPage<RegisterRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DRIVE_TAG, tags.customers());
+  cacheTag(tags.drive(), tags.customers());
   const tenant = tenantOf(session);
 
   return tenant ? getRegisterPage(db, tenant, registerList.defaults) : null;
@@ -93,7 +92,7 @@ async function loadDocument(
 ): Promise<RegisterDetailData | "not-found" | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DRIVE_TAG, tags.customers());
+  cacheTag(tags.drive(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {

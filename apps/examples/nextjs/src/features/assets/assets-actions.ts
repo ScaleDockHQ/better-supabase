@@ -8,9 +8,9 @@ import * as v from "valibot";
 import type { Mutable } from "@/lib/block-status-list";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { ASSETS_TAG } from "./assets-cache";
 import { ASSET_STATUSES } from "./assets-list";
 
 const Id = v.pipe(v.string(), v.uuid());
@@ -64,7 +64,7 @@ export const createAsset = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [ASSETS_TAG]);
+    await refreshCaller(auth, [tags.assets()]);
 
     return ok(created.data.id);
   },
@@ -84,7 +84,7 @@ export const setAssetStatus = bsb.action(
       return updated;
     }
 
-    await refreshCaller(auth, [ASSETS_TAG]);
+    await refreshCaller(auth, [tags.assets()]);
 
     return ok(updated.data.id);
   },
@@ -104,7 +104,7 @@ export const releaseAsset = bsb.action(
       return released;
     }
 
-    await refreshCaller(auth, [ASSETS_TAG]);
+    await refreshCaller(auth, [tags.assets()]);
 
     return ok(released.data.id);
   },

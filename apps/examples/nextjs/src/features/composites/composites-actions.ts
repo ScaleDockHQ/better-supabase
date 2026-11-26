@@ -6,25 +6,10 @@ import { refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { API_KEYS_TAG } from "@/features/api-keys/api-keys-cache";
-import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { BOOKINGS_TAG } from "@/features/bookings/bookings-cache";
 import { findBookingPage } from "@/features/bookings/bookings-queries";
-import { CALENDAR_TAG } from "@/features/calendar/calendar-cache";
-import { CASES_TAG } from "@/features/cases/cases-cache";
-import { COURSES_TAG } from "@/features/courses/courses-cache";
-import { CRM_TAG } from "@/features/crm/crm-cache";
-import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { driveOf } from "@/features/drive/drive-client";
 import { DRIVE_ROLES } from "@/features/drive/drive-roles";
-import { FIELD_TAG } from "@/features/field/field-cache";
-import { FINANCE_RECORDS_TAG } from "@/features/finance-records/finance-records-cache";
-import { MAINTENANCE_TAG } from "@/features/maintenance/maintenance-cache";
-import { ONBOARDING_TAG } from "@/features/onboarding/onboarding-cache";
-import { PEOPLE_TAG } from "@/features/people/people-cache";
-import { PRIVACY_TAG } from "@/features/privacy/privacy-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { present } from "@/lib/present";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockSet } from "@/lib/supabase";
@@ -69,7 +54,7 @@ export const closeDealWon = bsb.action(
       return closed;
     }
 
-    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.crm(), tags.customers()]);
 
     return ok({
       dealId: closed.data.deal.id,
@@ -136,7 +121,7 @@ export const shareDriveWithRoles = bsb.action(
       return report;
     }
 
-    await refreshCaller(auth, [DRIVE_TAG]);
+    await refreshCaller(auth, [tags.drive()]);
 
     return ok({
       shared: report.data.succeeded.length,
@@ -210,7 +195,7 @@ export const rotateKey = bsb.action(
       return rotated;
     }
 
-    await refreshCaller(auth, [API_KEYS_TAG]);
+    await refreshCaller(auth, [tags.apiKeys()]);
 
     return ok({ id: rotated.data.key.id, token: rotated.data.token });
   },
@@ -390,7 +375,7 @@ export const approveAndInvoiceTimesheet = bsb.action(
       return invoiced;
     }
 
-    await refreshCaller(auth, [tags.projects(), FINANCE_RECORDS_TAG]);
+    await refreshCaller(auth, [tags.projects(), tags.financeRecords()]);
 
     return ok({ timesheetId, invoiceId: invoiced.data.invoiceId });
   },
@@ -463,7 +448,7 @@ export const closeDealLost = bsb.action(
       return closed;
     }
 
-    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.crm(), tags.customers()]);
 
     return ok({
       dealId: closed.data.deal.id,
@@ -498,7 +483,7 @@ export const acceptQuote = bsb.action(
       return accepted;
     }
 
-    await refreshCaller(auth, [CRM_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.crm(), tags.customers()]);
 
     return ok({
       quoteId: accepted.data.quote.id,
@@ -522,7 +507,7 @@ export const payAndFulfilOrder = bsb.action(
       return done;
     }
 
-    await refreshCaller(auth, [tags.customers(), SHOP_TAG]);
+    await refreshCaller(auth, [tags.customers(), tags.shop()]);
 
     return ok({ shipped: done.data.fulfillment.shipped });
   },
@@ -614,7 +599,7 @@ export const completeVisit = bsb.action(
       return visit;
     }
 
-    await refreshCaller(auth, [FIELD_TAG, MAINTENANCE_TAG]);
+    await refreshCaller(auth, [tags.field(), tags.maintenance()]);
 
     return ok({
       workOrderId: visit.data.workOrder.id,
@@ -649,7 +634,7 @@ export const openTicket = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [tags.projects(), CASES_TAG]);
+    await refreshCaller(auth, [tags.projects(), tags.cases()]);
 
     return ok({
       id: created.data.work_item.id,
@@ -675,7 +660,7 @@ export const discussCase = bsb.action(
       return discussion;
     }
 
-    await refreshCaller(auth, [CASES_TAG, CRM_TAG, tags.customers()]);
+    await refreshCaller(auth, [tags.cases(), tags.crm(), tags.customers()]);
 
     return ok({ caseId });
   },
@@ -766,7 +751,7 @@ export const exportRecordSubject = bsb.action(
       return exported;
     }
 
-    await refreshCaller(auth, [PRIVACY_TAG]);
+    await refreshCaller(auth, [tags.privacy()]);
 
     return ok({
       exportId: exported.data.export.id,
@@ -818,7 +803,11 @@ export const hireApplication = bsb.action(
       return hired;
     }
 
-    await refreshCaller(auth, [PEOPLE_TAG, ONBOARDING_TAG, tags.customers()]);
+    await refreshCaller(auth, [
+      tags.people(),
+      tags.onboarding(),
+      tags.customers(),
+    ]);
 
     return ok({ id: hired.data.employee.id });
   },
@@ -875,7 +864,7 @@ export const onboardEmployee = bsb.action(
       return onboarded;
     }
 
-    await refreshCaller(auth, [PEOPLE_TAG, ONBOARDING_TAG]);
+    await refreshCaller(auth, [tags.people(), tags.onboarding()]);
 
     return ok({ id: onboarded.data.employee.id });
   },
@@ -906,7 +895,7 @@ export const offboardEmployee = bsb.action(
       return offboarded;
     }
 
-    await refreshCaller(auth, [PEOPLE_TAG, ONBOARDING_TAG]);
+    await refreshCaller(auth, [tags.people(), tags.onboarding()]);
 
     return ok({ id: employeeId });
   },
@@ -926,7 +915,7 @@ export const assignCourse = bsb.action(
       return assigned;
     }
 
-    await refreshCaller(auth, [COURSES_TAG]);
+    await refreshCaller(auth, [tags.courses()]);
 
     return ok({ id: assigned.data.learner.enrollmentId });
   },
@@ -981,13 +970,18 @@ export const bookWithReminder = bsb.action(
       return booked;
     }
 
-    await refreshCaller(auth, [BOOKINGS_TAG, CALENDAR_TAG]);
+    await refreshCaller(auth, [tags.bookings(), tags.calendar()]);
 
     return ok({ id: booked.data.booking.id });
   },
 );
 
-const FINANCE_TAGS = [FINANCE_RECORDS_TAG, BILLING_TAG, BANKING_TAG, SHOP_TAG];
+const FINANCE_TAGS = [
+  tags.financeRecords(),
+  BILLING_TAG,
+  tags.banking(),
+  tags.shop(),
+];
 
 /**
  * Closes an accounting period when nothing blocks it: `finance.closePeriod`. A
@@ -1119,7 +1113,7 @@ export const requestOrderReturn = bsb.action(
       return requested;
     }
 
-    await refreshCaller(auth, [SHOP_TAG]);
+    await refreshCaller(auth, [tags.shop()]);
 
     return ok({ id: requested.data.id, quantity: requested.data.quantity });
   },

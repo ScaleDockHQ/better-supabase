@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COMMUNITY_TAG } from "./community-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -30,7 +29,7 @@ export const createFeedbackBoard = bsb.action(
       return board;
     }
 
-    await refreshCaller(auth, [COMMUNITY_TAG]);
+    await refreshCaller(auth, [tags.community()]);
 
     return ok({ id: board.data.id });
   },
@@ -54,7 +53,7 @@ export const createPost = bsb.action(
       return post;
     }
 
-    await refreshCaller(auth, [COMMUNITY_TAG]);
+    await refreshCaller(auth, [tags.community()]);
 
     return ok({ id: post.data.id, moderation: post.data.moderation });
   },
@@ -74,7 +73,7 @@ export const voteOnPost = bsb.action(
       return tally;
     }
 
-    await refreshCaller(auth, [COMMUNITY_TAG]);
+    await refreshCaller(auth, [tags.community()]);
 
     return ok(tally.data);
   },

@@ -1,9 +1,8 @@
 import "server-only";
 import { cacheTag } from "next/cache";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SUPPORT_TAG } from "./support-cache";
 
 export interface SupportSessionRow {
   readonly id: string;
@@ -25,7 +24,7 @@ export async function getSupportSessions(): Promise<
 > {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(SUPPORT_TAG);
+  cacheTag(tags.supportSessions());
 
   const { items: sessions } = await db.impersonation
     .sessionPage({ limit: 50 })

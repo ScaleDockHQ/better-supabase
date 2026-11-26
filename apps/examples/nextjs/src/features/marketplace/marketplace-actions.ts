@@ -4,9 +4,8 @@ import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { MARKETPLACE_TAG } from "./marketplace-cache";
 
 /**
  * Links a Vercel configuration to this organization. Only the service role
@@ -40,7 +39,7 @@ export const connectInstallation = bsb.action(
       return err(dbError("unexpected", linked.error.message));
     }
 
-    await refreshCaller(auth, [MARKETPLACE_TAG]);
+    await refreshCaller(auth, [tags.marketplace()]);
 
     return ok(configurationId);
   },

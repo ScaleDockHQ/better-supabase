@@ -4,8 +4,8 @@ import type { Money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { getAllPages, getAllPagesResult } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { TILLS_TAG } from "./tills-cache";
@@ -194,7 +194,7 @@ export interface BankTargets {
 export async function getBankTargets(): Promise<BankTargets | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(TILLS_TAG, BANKING_TAG);
+  cacheTag(TILLS_TAG, tags.banking());
 
   if (!tenantOf(session)) {
     return null;

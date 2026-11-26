@@ -6,9 +6,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SEQUENCES_TAG } from "./sequences-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Text = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200));
@@ -40,7 +39,7 @@ export const createSampleSequence = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [SEQUENCES_TAG]);
+    await refreshCaller(auth, [tags.sequences()]);
 
     return ok({ id: saved.data.id });
   },
@@ -63,7 +62,7 @@ export const setSequenceStatus = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [SEQUENCES_TAG]);
+    await refreshCaller(auth, [tags.sequences()]);
 
     return ok({ status: saved.data.status });
   },
@@ -132,7 +131,7 @@ export const addSequenceStep = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [SEQUENCES_TAG]);
+    await refreshCaller(auth, [tags.sequences()]);
 
     return ok({ steps: saved.data.steps.length });
   },

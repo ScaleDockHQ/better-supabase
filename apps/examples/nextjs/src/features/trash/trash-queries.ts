@@ -3,18 +3,6 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { COMMUNITY_TAG } from "@/features/community/community-cache";
-import { CRM_TAG } from "@/features/crm/crm-cache";
-import { CUSTOM_FIELDS_TAG } from "@/features/custom-fields/custom-fields-cache";
-import { DRIVE_TAG } from "@/features/drive/drive-cache";
-import { FIELD_TAG } from "@/features/field/field-cache";
-import { FORMS_TAG } from "@/features/forms/forms-cache";
-import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
-import { PEOPLE_TAG } from "@/features/people/people-cache";
-import { SEQUENCES_TAG } from "@/features/sequences/sequences-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
-import { TEMPLATES_TAG } from "@/features/templates/templates-cache";
-import { WORK_TAG } from "@/features/work/work-cache";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -38,20 +26,20 @@ async function loadTrash(): Promise<readonly TrashEntry[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(
-    DRIVE_TAG,
+    tags.drive(),
     tags.customers(),
-    CRM_TAG,
+    tags.crm(),
     tags.projects(),
-    WORK_TAG,
-    SHOP_TAG,
-    FORMS_TAG,
-    TEMPLATES_TAG,
-    PEOPLE_TAG,
-    FIELD_TAG,
-    MANUFACTURING_TAG,
-    COMMUNITY_TAG,
-    SEQUENCES_TAG,
-    CUSTOM_FIELDS_TAG,
+    tags.work(),
+    tags.shop(),
+    tags.forms(),
+    tags.templates(),
+    tags.people(),
+    tags.field(),
+    tags.manufacturing(),
+    tags.community(),
+    tags.sequences(),
+    tags.customFields(),
   );
   const tenant = tenantOf(session);
 

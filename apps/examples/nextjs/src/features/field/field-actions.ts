@@ -7,9 +7,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { FIELD_TAG } from "./field-cache";
 
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
 
@@ -62,7 +61,7 @@ export const createWorkOrder = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [FIELD_TAG]);
+    await refreshCaller(auth, [tags.field()]);
 
     return ok({ id: created.data.id });
   },
@@ -85,7 +84,7 @@ export const advanceWorkOrder = bsb.action(
       return moved;
     }
 
-    await refreshCaller(auth, [FIELD_TAG]);
+    await refreshCaller(auth, [tags.field()]);
 
     return ok({ status: moved.data.status });
   },
@@ -136,7 +135,7 @@ export const createShipment = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [FIELD_TAG]);
+    await refreshCaller(auth, [tags.field()]);
 
     return ok({ id: created.data.id });
   },

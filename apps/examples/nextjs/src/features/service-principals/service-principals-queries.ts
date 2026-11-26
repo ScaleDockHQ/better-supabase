@@ -2,9 +2,8 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SERVICE_PRINCIPALS_TAG } from "./service-principals-cache";
 
 export interface ServicePrincipalRow {
   readonly id: string;
@@ -25,7 +24,7 @@ export async function getServicePrincipals(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SERVICE_PRINCIPALS_TAG);
+  cacheTag(tags.servicePrincipals());
   const tenant = tenantOf(session);
 
   if (!tenant) {

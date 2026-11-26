@@ -5,7 +5,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { PEOPLE_TAG } from "@/features/people/people-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -27,7 +27,7 @@ export interface PayrollRunRow {
 async function getRuns(): Promise<readonly PayrollRunRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG);
+  cacheTag(tags.people());
 
   if (!tenantOf(session)) {
     return null;

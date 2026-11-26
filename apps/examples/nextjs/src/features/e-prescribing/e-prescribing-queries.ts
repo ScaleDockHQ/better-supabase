@@ -8,8 +8,6 @@ import { orMissing } from "@/lib/or-missing";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { PRESCRIPTIONS_TAG } from "./e-prescribing-cache";
-
 /** One prescription for its page, serializable. */
 export interface PrescriptionDetail {
   readonly id: string;
@@ -36,7 +34,7 @@ export async function getPrescription(
 ): Promise<PrescriptionDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PRESCRIPTIONS_TAG, tags.customers());
+  cacheTag(tags.prescriptions(), tags.customers());
 
   if (!tenantOf(session)) {
     return null;

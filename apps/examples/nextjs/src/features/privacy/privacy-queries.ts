@@ -9,9 +9,8 @@ import { cacheTag } from "next/cache";
 
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { PRIVACY_TAG } from "./privacy-cache";
 
 export interface ExportRow {
   readonly id: string;
@@ -51,7 +50,7 @@ export async function getPrivacy(): Promise<PrivacyData> {
   "use cache: private";
 
   const request = await bsb.cached();
-  cacheTag(PRIVACY_TAG);
+  cacheTag(tags.privacy());
   const { session, db } = request;
   const permissions = await readPermissions(request);
 

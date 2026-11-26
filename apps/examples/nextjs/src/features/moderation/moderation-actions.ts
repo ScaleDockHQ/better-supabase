@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { MODERATION_TAG } from "./moderation-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -30,7 +29,7 @@ export const decideItem = bsb.action(
       return decided;
     }
 
-    await refreshCaller(auth, [MODERATION_TAG]);
+    await refreshCaller(auth, [tags.moderation()]);
 
     return ok(decided.data.id);
   },
@@ -50,7 +49,7 @@ export const liftBan = bsb.action(
       return lifted;
     }
 
-    await refreshCaller(auth, [MODERATION_TAG]);
+    await refreshCaller(auth, [tags.moderation()]);
 
     return ok(lifted.data);
   },

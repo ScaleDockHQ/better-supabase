@@ -4,9 +4,8 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { REVIEWS_TAG } from "./reviews-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -24,7 +23,7 @@ export const publishReview = bsb.action(
       return published;
     }
 
-    await refreshCaller(auth, [REVIEWS_TAG]);
+    await refreshCaller(auth, [tags.reviews()]);
 
     return ok(published.data.id);
   },
@@ -51,7 +50,7 @@ export const respondToReview = bsb.action(
       return done;
     }
 
-    await refreshCaller(auth, [REVIEWS_TAG]);
+    await refreshCaller(auth, [tags.reviews()]);
 
     return ok(done.data.id);
   },

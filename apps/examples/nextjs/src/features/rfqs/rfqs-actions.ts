@@ -14,11 +14,10 @@ import {
   Whole,
 } from "@/lib/form-input";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { RFQS_TAG } from "./rfqs-cache";
-
-const TAGS = [RFQS_TAG];
+const TAGS = [tags.rfqs()];
 
 const Currency = v.picklist(["EUR", "USD", "GBP"]);
 

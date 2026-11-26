@@ -10,9 +10,8 @@ import type { Mutable } from "@/lib/block-status-list";
 
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { DONATIONS_TAG } from "./donations-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -43,7 +42,7 @@ export const recordGift = bsb.action(
       return gift;
     }
 
-    await refreshCaller(auth, [DONATIONS_TAG]);
+    await refreshCaller(auth, [tags.donations()]);
 
     return ok(gift.data.id);
   },
@@ -63,7 +62,7 @@ export const issueReceipt = bsb.action(
       return receipt;
     }
 
-    await refreshCaller(auth, [DONATIONS_TAG]);
+    await refreshCaller(auth, [tags.donations()]);
 
     return ok(receipt.data.number);
   },

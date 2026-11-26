@@ -8,8 +8,6 @@ import { withBetterResult } from "better-supabase/better-result";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { CRM_TAG } from "@/features/crm/crm-cache";
-import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { appErrors } from "@/lib/app-error";
@@ -131,7 +129,7 @@ export const createShareLink = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [tags.customers(), CRM_TAG, DRIVE_TAG]);
+    await refreshCaller(auth, [tags.customers(), tags.crm(), tags.drive()]);
 
     return ok({ token: created.data.token });
   },
@@ -184,7 +182,7 @@ export const restoreCustomerVersion = bsb.action(
       return restored;
     }
 
-    await refreshCaller(auth, [tags.customers(), CRM_TAG, DRIVE_TAG]);
+    await refreshCaller(auth, [tags.customers(), tags.crm(), tags.drive()]);
 
     return ok(null);
   },
@@ -232,7 +230,7 @@ export const startCustomerSla = bsb.action(
     const started = await sla.start({ subject });
 
     if (!started.ok || started.data.length > 0) {
-      await refreshCaller(auth, [tags.customers(), CRM_TAG, DRIVE_TAG]);
+      await refreshCaller(auth, [tags.customers(), tags.crm(), tags.drive()]);
 
       return started.ok ? ok(started.data.length) : started;
     }
@@ -254,7 +252,7 @@ export const startCustomerSla = bsb.action(
 
     const restarted = await sla.start({ subject });
 
-    await refreshCaller(auth, [tags.customers(), CRM_TAG, DRIVE_TAG]);
+    await refreshCaller(auth, [tags.customers(), tags.crm(), tags.drive()]);
 
     return restarted.ok ? ok(restarted.data.length) : restarted;
   },

@@ -15,11 +15,11 @@ import type {
 
 import { getDirectory, settle } from "@/features/people/people-queries";
 import { pageEntityRows } from "@/lib/block-entity-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { OnboardingRow } from "./onboarding-list";
 
-import { ONBOARDING_TAG } from "./onboarding-cache";
 import { onboardingList, onboardingMap } from "./onboarding-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -89,7 +89,7 @@ export interface OnboardingOverviewData {
 async function loadOnboarding(): Promise<OnboardingOverviewData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(ONBOARDING_TAG);
+  cacheTag(tags.onboarding());
   const tenant = tenantOf(session);
 
   if (!tenant) {
