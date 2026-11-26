@@ -22,7 +22,7 @@ const notFound = (message: string): DbError => ({
  * Reads a `TenantRef` as a resolver kind and a value: a string takes
  * `NextTenants.by` (default `id`), an object names its own kind.
  */
-export function readTenantRef(
+function readTenantRef(
   ref: TenantRef,
   by: string | undefined,
 ): { readonly kind: string; readonly value: string } {
@@ -43,7 +43,7 @@ export function readTenantRef(
  * The record a ref names. `id` needs no resolver; an unknown kind or a resolver
  * that returns `null` ends the render with `notFound()`.
  */
-export async function resolveTenantRef(
+async function resolveTenantRef(
   ref: TenantRef,
   tenants: NextTenants | undefined,
 ): Promise<TenantRecord> {
