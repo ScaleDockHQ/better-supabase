@@ -147,7 +147,7 @@
     "raw": 3893652
   },
   "/[locale]/(app)/care/[clientId]/page": {
-    "raw": 3970038
+    "raw": 3970739
   },
   "/[locale]/(app)/care/page": {
     "raw": 3889517
@@ -192,40 +192,40 @@
     "raw": 3904022
   },
   "/[locale]/(app)/crm/commissions/page": {
-    "raw": 3938757
+    "raw": 3939314
   },
   "/[locale]/(app)/crm/commissions/statements/[id]/page": {
-    "raw": 4017528
+    "raw": 4018181
   },
   "/[locale]/(app)/crm/companies/[id]/page": {
-    "raw": 3992141
+    "raw": 3992794
   },
   "/[locale]/(app)/crm/companies/page": {
-    "raw": 3928884
+    "raw": 3929441
   },
   "/[locale]/(app)/crm/contacts/[id]/page": {
-    "raw": 3992120
+    "raw": 3992773
   },
   "/[locale]/(app)/crm/contacts/page": {
-    "raw": 3928878
+    "raw": 3929435
   },
   "/[locale]/(app)/crm/contracts/[id]/page": {
-    "raw": 4017421
+    "raw": 4018074
   },
   "/[locale]/(app)/crm/contracts/page": {
-    "raw": 3928627
+    "raw": 3929184
   },
   "/[locale]/(app)/crm/deals/[id]/page": {
-    "raw": 4029250
+    "raw": 4029813
   },
   "/[locale]/(app)/crm/deals/page": {
-    "raw": 3972913
+    "raw": 3973554
   },
   "/[locale]/(app)/crm/forecasts/[id]/page": {
     "raw": 3929895
   },
   "/[locale]/(app)/crm/forecasts/page": {
-    "raw": 3922313
+    "raw": 3922870
   },
   "/[locale]/(app)/crm/page": {
     "raw": 3903758
@@ -234,46 +234,46 @@
     "raw": 3929893
   },
   "/[locale]/(app)/crm/pipelines/page": {
-    "raw": 3921597
+    "raw": 3922154
   },
   "/[locale]/(app)/crm/queues/[id]/page": {
     "raw": 3918931
   },
   "/[locale]/(app)/crm/queues/page": {
-    "raw": 3928625
+    "raw": 3929182
   },
   "/[locale]/(app)/crm/quotes/[id]/page": {
-    "raw": 3929160
+    "raw": 3929741
   },
   "/[locale]/(app)/crm/quotes/page": {
-    "raw": 3931102
+    "raw": 3931659
   },
   "/[locale]/(app)/crm/referrals/page": {
-    "raw": 3938652
+    "raw": 3939209
   },
   "/[locale]/(app)/crm/scoring/[id]/page": {
     "raw": 3918937
   },
   "/[locale]/(app)/crm/scoring/page": {
-    "raw": 3928628
+    "raw": 3929185
   },
   "/[locale]/(app)/crm/segments/[id]/page": {
     "raw": 3918942
   },
   "/[locale]/(app)/crm/segments/page": {
-    "raw": 3928635
+    "raw": 3929192
   },
   "/[locale]/(app)/crm/sequences/[id]/page": {
     "raw": 3888483
   },
   "/[locale]/(app)/crm/sequences/page": {
-    "raw": 3933486
+    "raw": 3934043
   },
   "/[locale]/(app)/crm/success/page": {
-    "raw": 3927942
+    "raw": 3928499
   },
   "/[locale]/(app)/customers/[id]/page": {
-    "raw": 3961730
+    "raw": 3962251
   },
   "/[locale]/(app)/customers/page": {
     "raw": 3886828
@@ -315,7 +315,7 @@
     "raw": 3902870
   },
   "/[locale]/(app)/field/dispatch/[id]/page": {
-    "raw": 3996587
+    "raw": 3997147
   },
   "/[locale]/(app)/field/dispatch/page": {
     "raw": 3925863
@@ -420,7 +420,7 @@
     "raw": 3879627
   },
   "/[locale]/(app)/inspections/register/page": {
-    "raw": 3933367
+    "raw": 3933924
   },
   "/[locale]/(app)/knowledge/page": {
     "raw": 3871639
@@ -450,7 +450,7 @@
     "raw": 3963022
   },
   "/[locale]/(app)/manufacturing/orders/page": {
-    "raw": 3933491
+    "raw": 3934048
   },
   "/[locale]/(app)/manufacturing/page": {
     "raw": 3890411
@@ -813,7 +813,7 @@
     "raw": 3885470
   },
   "/[locale]/(app)/work/page": {
-    "raw": 3888026
+    "raw": 3888603
   },
   "/[locale]/(app)/workflows/[definition]/page": {
     "raw": 5414434
