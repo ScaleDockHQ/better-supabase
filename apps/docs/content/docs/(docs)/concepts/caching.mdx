@@ -235,19 +235,25 @@ export async function getCustomer(id: string) {
 Each read gets its own entry, keyed on the user, the tenant, the operation and
 the schema version, and tagged with the table it reads, so a write to the table
 expires it like any other kept entry. Parallel renders of one page share a
-single fill. Writes, `db.$many()` batches, function sources and `$rpc()` calls
-always reach the database, and so does a read of a support session or of a
-token that failed to verify. Request stats count only the reads that miss, and
-`keptHits` counts the rest.
+single fill. A stable `$rpc()` or `db.$many()` batch is kept too when
+`keep.tables` names the tables it reads: one entry for the call, tagged with
+those tables. `read_batch`, which `bsb.record(type).get` uses for a record
+page, is that kind of call. A function the schema does not name is kept the
+same way. A volatile function, a function call with no `keep.tables`, a
+function source and raw SQL always reach the database, and so does a read of a
+support session or of a token that failed to verify. A failed call is not
+stored. Request stats count only the reads that miss, and `keptHits` counts
+the rest.
 
 ### Keep a bootstrap answer
 
 `bsb.bootstrap({ rpc, kept: true })` keeps the wrapper's answer (data, reads,
 subject and permissions) per user, session and tenant. A write to a table the
-wrapper reads expires it. A session that ended is served from the store for at
-most `kept.life.revalidate` seconds (default 30), unless `bsb.evictSession()`
-ran for the user, which expires the entry at once. Leave `kept` off where a
-revoked session must stop on the next request.
+wrapper reads expires it. A signed-out caller makes no call and nothing is
+stored, including under `require: "user"`. A session that ended is served from
+the store for at most `kept.life.revalidate` seconds (default 30), unless
+`bsb.evictSession()` ran for the user, which expires the entry at once. Leave
+`kept` off where a revoked session must stop on the next request.
 
 ### Expire kept entries from your own writes
 

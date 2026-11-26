@@ -14,7 +14,14 @@ import { refreshSessionCache } from "../islands-actions";
  * moves, the provider refreshes the token, this drops the caller's cached
  * entries, and the page re-renders in the background with the new claims.
  */
-export function AuthzRefresh({ session }: { session: Promise<AuthSession> }) {
+export function AuthzRefresh({
+  session,
+  liveVersion,
+}: {
+  session: Promise<AuthSession>;
+  /** The live version the server just read, so the first join skips its RPC. */
+  liveVersion?: number | null;
+}) {
   const supabase = useSupabase();
   const router = useRouter();
 
@@ -22,6 +29,7 @@ export function AuthzRefresh({ session }: { session: Promise<AuthSession> }) {
     <SessionProvider
       session={session}
       client={supabase}
+      {...(liveVersion === undefined ? {} : { liveVersion })}
       onAuthzChange={async () => {
         await refreshSessionCache();
         router.refresh();

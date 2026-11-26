@@ -8,8 +8,11 @@
  * `maxCalls` and `maxWaves` start as ceilings per archetype. The first
  * `budgets.spec.ts` run on a seeded stack prints the measured numbers (`pnpm
  * example:perf-report`); tighten an entry to the measurement plus slack, and
- * never loosen one without a finding in docs/agents/example-findings.md. A
- * `url` of `null` needs an id the seed does not fix yet.
+ * never loosen one without a finding in docs/agents/example-findings.md. The
+ * signed-in layout reads `caller_authz_version()` once so `SessionProvider` can
+ * skip the catch-up RPC (EX-1615), and the detail ceilings that the measurement
+ * put one call over include that read. A `url` of `null` needs an id the seed
+ * does not fix yet.
  */
 
 export type RouteArchetype =
@@ -300,7 +303,7 @@ export const ROUTES: readonly RouteEntry[] = [
     route: "/finance/invoices/[id]",
     archetype: "detail",
     url: null,
-    maxCalls: 11,
+    maxCalls: 12,
     maxWaves: 3,
     instant: true,
     scale: false,
@@ -372,7 +375,7 @@ export const ROUTES: readonly RouteEntry[] = [
     route: "/finance/payables/[id]",
     archetype: "detail",
     url: null,
-    maxCalls: 10,
+    maxCalls: 11,
     maxWaves: 3,
     instant: true,
     scale: false,
@@ -1056,7 +1059,7 @@ export const ROUTES: readonly RouteEntry[] = [
     route: "/customers/[id]",
     archetype: "detail",
     url: null,
-    maxCalls: 9,
+    maxCalls: 10,
     maxWaves: 3,
     instant: true,
     scale: false,
@@ -1632,7 +1635,7 @@ export const ROUTES: readonly RouteEntry[] = [
     route: "/risks/[id]",
     archetype: "detail",
     url: null,
-    maxCalls: 6,
+    maxCalls: 7,
     maxWaves: 3,
     instant: true,
     scale: false,
@@ -2406,7 +2409,7 @@ export const ROUTES: readonly RouteEntry[] = [
     route: "/field/dispatch/[id]",
     archetype: "detail",
     url: null,
-    maxCalls: 9,
+    maxCalls: 10,
     maxWaves: 3,
     instant: true,
     scale: false,

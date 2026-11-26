@@ -131,6 +131,97 @@ describe("bsb.cached({ keep })", () => {
     expect(dataCalls()).toBe(2);
   });
 
+  it("keeps a stable function call when the tables are named", async () => {
+    const bsb = make();
+    await signIn(ALICE);
+
+    const read = async () => {
+      const ctx = await bsb.cached({
+        keep: { name: "by-status", tables: ["customers"] },
+      });
+
+      return ctx.db.$rpc("customers_by_status", {
+        p_status: "active",
+        p_limit: 1,
+      });
+    };
+
+    await read();
+    await read();
+
+    expect(dataCalls()).toBe(1);
+  });
+
+  it("does not keep a function call without tables", async () => {
+    const bsb = make();
+    await signIn(ALICE);
+
+    for (let i = 0; i < 2; i += 1) {
+      const ctx = await bsb.cached({ keep: { name: "by-status" } });
+
+      await ctx.db.$rpc("customers_by_status", {
+        p_status: "active",
+        p_limit: 1,
+      });
+    }
+
+    expect(dataCalls()).toBe(2);
+  });
+
+  it("does not keep a volatile function call", async () => {
+    const bsb = make();
+    await signIn(ALICE);
+
+    const read = async () => {
+      const ctx = await bsb.cached({
+        keep: { name: "import", tables: ["customers"] },
+      });
+
+      return ctx.db.$rpc("import_customer", {
+        item: {},
+        run: ALICE,
+        subject_id: ALICE,
+      });
+    };
+
+    await read();
+    await read();
+
+    expect(dataCalls()).toBe(2);
+  });
+
+  it("does not keep a signed-out bootstrap", async () => {
+    const store = memoryKeptStore();
+    mocks.headers = new Headers();
+
+    const boot = (bsb: ReturnType<typeof make>) =>
+      bsb.bootstrap({
+        rpc: "app",
+        kept: true,
+        require: "user",
+        redirect: "/login",
+      });
+
+    await expect(boot(make(store))).rejects.toThrow(Error);
+    await expect(boot(make(store))).rejects.toThrow(Error);
+    expect(dataCalls()).toBe(0);
+
+    await signIn(ALICE);
+    rest.mockImplementation(async () =>
+      Response.json({
+        session_active: true,
+        authz_version: 1,
+        tenant: null,
+        data: { name: "Alice" },
+      }),
+    );
+
+    const row = await make(store).bootstrap({ rpc: "app", kept: true });
+
+    expect(row.data).toEqual({ name: "Alice" });
+    expect(dataCalls()).toBe(1);
+  });
+
   it("keeps a bootstrap answer across instances", async () => {
     const store = memoryKeptStore();
     await signIn(ALICE);

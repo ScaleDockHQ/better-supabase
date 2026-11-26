@@ -2577,6 +2577,9 @@ and reports:
   `permissions`, so the entry would be keyed on the wrong grant;
 - a name the database has no table for.
 
+A schema-qualified name (`private.counts`) is read even when `schemas` does
+not list that schema. An unqualified name is read in `schemas`.
+
 ### BS430
 
 **Error: a function the provider shares per tenant reads past its tables.** An
@@ -2896,9 +2899,11 @@ awaits at least three repository, block client or `$rpc` calls in one
 PostgREST. A read set compiles the same reads into one stable database
 function, so the page waits on one round trip: `defineReadSet(db, "name", ...)`
 and `db.$many(readSet, params)`, or `bsb.bootstrap` for a page's first load.
-The finding prints the read set that replaces the reads: the same calls on the
-builder `s`, keyed by table, and the `db.$many` call. A value that comes from
-the page becomes a placeholder. See [read sets](/docs/repository/read-sets).
+A record page can send the same bindings through `read_batch`, which
+`bsb.record(type).get` calls. The finding prints the read set that replaces
+the reads: the same calls on the builder `s`, keyed by table, and the
+`db.$many` call. A value that comes from the page becomes a placeholder. See
+[read sets](/docs/repository/read-sets).
 `tooling.doctor.parallelReads` sets the count (default 3).
 
 ### BS634
