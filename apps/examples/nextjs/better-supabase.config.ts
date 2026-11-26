@@ -1242,4 +1242,15 @@ export default defineConfig({
     "option-sets",
     "billing",
   ],
+
+  // A table the provider does not declare, shared between holders of one grant.
+  // RLS still checks the read (ADR 1267).
+  shares: {
+    tables: {
+      "public.organizations": {
+        share: "tenant",
+        permissions: ["organizations.read"],
+      },
+    },
+  },
 });
