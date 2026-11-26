@@ -524,6 +524,18 @@ export interface AuthorizationTableShare<Key extends string = string> {
   readonly permissions: readonly Key[];
 }
 
+/**
+ * Tables and functions the app shares per tenant, beside the authorization
+ * provider's `tables` and `sharedFunctions`. An entry the provider already
+ * declares with the same `share` and `permissions` is a restated default.
+ */
+export interface SharesConfig<Key extends string = string> {
+  readonly tables?: Readonly<Record<string, AuthorizationTableShare<Key>>>;
+  readonly functions?: Readonly<
+    Record<string, AuthorizationFunctionShare<Key>>
+  >;
+}
+
 /** One entry of `AuthorizationProvider.sharedFunctions`. */
 export interface AuthorizationFunctionShare<Key extends string = string> {
   /**

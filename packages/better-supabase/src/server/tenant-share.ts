@@ -63,7 +63,7 @@ async function tenantShareOf(input: TenantShareInput): Promise<TenantShare> {
         kind: "refused",
         error: refusal(
           name,
-          "the authorization provider's sharedFunctions don't list it",
+          "not listed in the provider's sharedFunctions or `shares.functions`",
         ),
       };
     }
@@ -85,7 +85,7 @@ async function tenantShareOf(input: TenantShareInput): Promise<TenantShare> {
         kind: "refused",
         error: refusal(
           table,
-          "the authorization provider's tables don't list it",
+          "not listed in the provider's tables or `shares.tables`",
         ),
       };
     }

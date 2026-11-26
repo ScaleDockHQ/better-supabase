@@ -644,7 +644,7 @@ describe("testAuthorizationProvider", () => {
         }),
       ),
     ).toEqual([
-      'shares functions only over tables it shares per tenant: sharedFunctions.api.note_payload reads "notes", which tables doesn\'t share per tenant',
+      "shares functions only over tables it shares per tenant: sharedFunctions.api.note_payload reads \"notes\", which the provider's tables and shares.tables don't share per tenant",
     ]);
   });
 

@@ -1,8 +1,9 @@
-import type { AuthorizationProvider } from "./authorization.ts";
+import type { AuthorizationProvider, SharesConfig } from "./authorization.ts";
 import type { AnyBlocksConfig } from "./blocks.ts";
 
 import { tokenizeTemplate } from "../core/sql-template-tokens.ts";
 import { DEFAULT_ACTIVE_TENANT } from "./blocks.ts";
+import { restatedShares } from "./shares.ts";
 
 /** Why a config entry equals what the render would use without it. */
 export type RestatedKind =
@@ -43,6 +44,8 @@ export interface RestatedInput {
   }[];
   /** The authorization provider, when the app uses the provider model. */
   readonly provider?: AuthorizationProvider | undefined;
+  /** `shares`, so an entry that repeats the provider's is a restated default. */
+  readonly shares?: SharesConfig | undefined;
   /**
    * `recordTypes` (resolved as `subjects`), for keys the provider's
    * `actionKeys` repeat.
@@ -287,6 +290,18 @@ export function restatedEntries(input: RestatedInput): RestatedEntry[] {
         value: declared,
       });
     }
+  }
+
+  for (const entry of restatedShares({
+    ...(input.provider === undefined ? {} : { authorization: input.provider }),
+    ...(input.shares === undefined ? {} : { shares: input.shares }),
+  })) {
+    found.push({
+      kind: "provider",
+      path: entry.path,
+      reason: "repeats the authorization provider's entry",
+      value: entry.value,
+    });
   }
 
   const provided = providerEntries(input);

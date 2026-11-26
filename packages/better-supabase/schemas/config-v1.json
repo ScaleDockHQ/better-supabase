@@ -2060,6 +2060,54 @@
       },
       "description": "The app's subject types, keyed by type name: the entities blocks attach tags, comments, fields and ranks to. Subject-bound SQL modules read this registry, and the `subjects` module writes `subject_title`, `subject_url` and `can_subject` from it."
     },
+    "shares": {
+      "type": "object",
+      "properties": {
+        "tables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "share": {
+                "enum": ["tenant", "row"],
+                "type": "string"
+              },
+              "permissions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["share", "permissions"],
+            "additionalProperties": false
+          }
+        },
+        "functions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "tables": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "permissions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["tables", "permissions"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "blocks": {
       "description": "The blocks to install and keep in sync: a list of names, or an object keyed by block name whose values set the block's mode, names, permission keys and options. The foundation blocks (tenant, access, updated-at, rls-guard, ...) are configured here too.",
       "oneOf": [
@@ -4003,6 +4051,9 @@
         },
         "recordTypes": {
           "$ref": "#/properties/recordTypes"
+        },
+        "shares": {
+          "$ref": "#/properties/shares"
         },
         "blocks": {
           "$ref": "#/properties/blocks"
@@ -8613,7 +8664,11 @@
               },
               "needs": {},
               "claims": {},
-              "hold": {}
+              "hold": {},
+              "identifiers": {
+                "type": "string",
+                "default": "tenant"
+              }
             }
           }
         }

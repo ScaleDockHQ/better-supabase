@@ -5318,3 +5318,38 @@ create table public.reminder_deliveries (id uuid primary key, organization_id uu
     );
   });
 });
+
+describe("app-declared shares", () => {
+  it("reports a share that disagrees with the provider (BS652)", async () => {
+    const found = await run(
+      "BS652",
+      context(
+        base,
+        {},
+        {
+          auth: {
+            authorization: {
+              ...stubProvider,
+              tables: {
+                "public.customers": {
+                  share: "tenant",
+                  permissions: ["crm.read"],
+                },
+              },
+            },
+          },
+          shares: {
+            tables: {
+              "public.customers": { share: "row", permissions: ["crm.read"] },
+              "public.notes": { share: "tenant", permissions: ["notes.read"] },
+            },
+          },
+        },
+      ),
+    );
+
+    expect(found.map((finding) => finding.target)).toEqual([
+      "shares.tables.public.customers",
+    ]);
+  });
+});

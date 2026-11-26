@@ -7,6 +7,7 @@ import type { CliEnv } from "../env.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
+import { resolveShares } from "../../config/shares.ts";
 import { databaseUrl } from "../config.ts";
 import { accessToken } from "../core/credentials.ts";
 import { CliError, errorText } from "../core/errors.ts";
@@ -41,7 +42,7 @@ export function declaredTableSchemas(
 ): readonly string[] {
   const schemas = new Set<string>();
 
-  for (const name of Object.keys(config.authorization?.tables ?? {})) {
+  for (const name of Object.keys(resolveShares(config).tables)) {
     const dot = name.indexOf(".");
 
     if (dot > 0) {
