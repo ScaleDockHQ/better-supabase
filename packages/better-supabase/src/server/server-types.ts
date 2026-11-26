@@ -488,10 +488,16 @@ export interface BetterServer<
    * every request carries the `x-bsb-actor` header, so the audit log and
    * `track_actor` columns record that user for writes the secret key makes.
    * Only a service caller can set it; the database ignores it for anyone else.
+   * `headers` go on every request too, such as the request id and client
+   * address the audit log reads, so a write made for a member keeps them.
    */
   admin(
     context?: RequestContext,
-    options?: { readonly as?: string; readonly stats?: StatsRecorder },
+    options?: {
+      readonly as?: string;
+      readonly headers?: Readonly<Record<string, string>>;
+      readonly stats?: StatsRecorder;
+    },
   ): AdminDb<M, F, E, B>;
   /**
    * What `better-supabase/server/account` reads: `deleteAccount`,

@@ -45,6 +45,21 @@ describe("audit staff actor kind", () => {
     expect(audit()).not.toContain("'staff'");
   });
 
+  it("records a service write for a member as user, before service", () => {
+    const sql = audit();
+
+    const acting = sql.indexOf(
+      "when (select better_supabase.acting_member()) is not null then 'user'",
+    );
+
+    expect(acting).toBeGreaterThan(-1);
+    expect(acting).toBeLessThan(
+      sql.indexOf(
+        "when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'",
+      ),
+    );
+  });
+
   it("refuses a claim that isn't a dotted path", () => {
     expect(() => audit({ staffClaim: "a}' or true" })).toThrow(
       /dotted claim path/,

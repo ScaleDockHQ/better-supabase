@@ -84,6 +84,24 @@ describe("syncWithAuth", () => {
     expect(listeners.size).toBe(0);
   });
 
+  it("passes connectOptions to every connect, reconnects included", async () => {
+    const { auth, set } = fakeAuth(LOADING);
+    const { db } = fakeDb();
+    const options = { checkpointMode: "requests" };
+
+    const sync = syncWithAuth(db, auth, {
+      connector: "connector",
+      connectOptions: options,
+    });
+
+    set(signedIn("a"));
+    await flush();
+    await sync.reconnect();
+    expect(db.connect).toHaveBeenCalledTimes(2);
+    expect(db.connect).toHaveBeenNthCalledWith(1, "connector", options);
+    expect(db.connect).toHaveBeenNthCalledWith(2, "connector", options);
+  });
+
   it("clears rows left from an earlier session when the app starts signed out", async () => {
     const { auth } = fakeAuth(SIGNED_OUT);
     const { db, steps } = fakeDb();
