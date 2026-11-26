@@ -236,6 +236,45 @@ describe("createUploadConnector", () => {
     expect(complete).not.toHaveBeenCalled();
   });
 
+  it("hands a completed batch to onUploaded without waiting or failing on it", async () => {
+    const { repo } = repository();
+    const crud = [put("1")];
+    const { db } = queue(crud);
+    let release: () => void = () => undefined;
+    const seen: (readonly CrudEntryLike[])[] = [];
+
+    const connector = createUploadConnector({
+      endpoint: "e",
+      supabase: session("jwt"),
+      tables: { customers: repo },
+      onUploaded: async (changes) => {
+        seen.push(changes);
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        throw new Error("ignored");
+      },
+    });
+
+    await connector.uploadData(db);
+    await Promise.resolve();
+    expect(seen).toEqual([crud]);
+    release();
+
+    const failing = repository("network");
+    const onUploaded = vi.fn();
+    await expect(
+      createUploadConnector({
+        endpoint: "e",
+        supabase: session("jwt"),
+        tables: { customers: failing.repo },
+        onUploaded,
+      }).uploadData(queue([put("2")]).db),
+    ).rejects.toThrow("network");
+    await Promise.resolve();
+    expect(onUploaded).not.toHaveBeenCalled();
+  });
+
   it("stops without retrying when the session is gone", async () => {
     const { repo } = repository("unauthorized");
     const { db, complete } = queue([put("1")]);
