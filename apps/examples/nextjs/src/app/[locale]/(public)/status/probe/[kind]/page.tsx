@@ -26,9 +26,7 @@ async function refuse(kind: string): Promise<string> {
   return "allowed";
 }
 
-async function Probe({ params }: { params: Promise<{ kind: string }> }) {
-  const { kind } = await params;
-
+async function Probe({ kind }: { kind: string }) {
   return <p data-testid="probe">{await refuse(kind)}</p>;
 }
 
@@ -37,7 +35,9 @@ export default function ProbePage({
 }: PageProps<"/[locale]/status/probe/[kind]">) {
   return (
     <Suspense fallback={<p>Loading</p>}>
-      <Probe params={params} />
+      {params.then(({ kind }) => (
+        <Probe kind={kind} />
+      ))}
     </Suspense>
   );
 }

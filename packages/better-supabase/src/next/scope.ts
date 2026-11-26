@@ -81,8 +81,8 @@ export async function resolveTenantRef(
  */
 export function scopeMembers(
   getNext: () => {
-    cached(options: never): Promise<object>;
-    require(options: never): Promise<object>;
+    readonly cached: (options: never) => Promise<object>;
+    readonly require: (options: never) => Promise<object>;
   },
   context: (
     tenant: string | undefined,
@@ -96,7 +96,11 @@ export function scopeMembers(
 } {
   const host = {
     cached: (callOptions: never) => getNext().cached(callOptions),
-    require: (callOptions: never) => getNext().require(callOptions),
+    requireCaller(callOptions: never): Promise<object> {
+      const { require: run } = getNext();
+
+      return run(callOptions);
+    },
     context,
     authorizer,
     tenants: options.tenants,
@@ -123,7 +127,7 @@ export function scopeMembers(
         ...(tenant === undefined ? {} : { tenant }),
       } as never),
       // SAFETY: the options are RequireOptions the declared signature allows.
-      host.require({
+      host.requireCaller({
         ...(permission === undefined ? {} : { permission }),
         ...(tenant === undefined ? {} : { requireTenant: true, tenant }),
       } as never),
