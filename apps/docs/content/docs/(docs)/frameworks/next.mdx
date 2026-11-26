@@ -995,7 +995,7 @@ A record page's [bindings](/docs/repository/record-bindings) have their own cach
 so a write to one binding keeps the others cached.
 `bsb.record(customerRecord)` takes a
 [generated record type](/docs/repository/record-bindings#generated-record-types) and
-returns `load(id, options?)` and `timeline(id, options?)` for Server
+returns `get(id, options?)` and `timeline(id, options?)` for Server
 Components, `actions`, one Server Action per binding write, each of which
 drops its binding's tags, and `tags(id, tenant?)`, the record tag and each
 binding tag, for your own cached reads.
