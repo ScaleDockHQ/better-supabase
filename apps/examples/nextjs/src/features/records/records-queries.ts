@@ -4,6 +4,7 @@ import type { RecordBindingResult } from "better-supabase/records";
 import { toDbError } from "better-supabase";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
+import { cache } from "react";
 import { Temporal } from "temporal-polyfill";
 
 import type { ConversationRow } from "@/features/inbox/inbox-types";
@@ -20,7 +21,7 @@ import { getOrders, getProducts } from "@/features/shop/shop-queries";
 import { getSession } from "@/features/user/user-queries";
 import { bsb } from "@/lib/supabase/server";
 
-import type { RecordSubject } from "./record-subject";
+import type { RecordSubject, RecordType } from "./record-subject";
 
 import { recordPages } from "./record-pages";
 
@@ -65,15 +66,87 @@ export interface AttachmentRow {
   readonly createdAt: number;
 }
 
+/** A binding the shared record sections read. */
+export type SectionBinding =
+  | "attachments"
+  | "customFields"
+  | "relations"
+  | "tags";
+
+const SECTION_BINDINGS: readonly SectionBinding[] = [
+  "attachments",
+  "customFields",
+  "relations",
+  "tags",
+];
+
+/**
+ * A record with the bindings its page shows (`RecordBoundSections` sets them),
+ * so the sections share one `get` instead of one each.
+ */
+export interface SectionSubject extends RecordSubject {
+  readonly bindings?: readonly SectionBinding[];
+}
+
+/**
+ * The bindings in `key` (comma separated), loaded once per record, set and
+ * request: one `get`, whose reads go to the database as one `read_batch` call.
+ * A section the caller can't read comes back `hidden` without a query.
+ */
+const getBindingSet = cache(
+  async (type: RecordType, id: string, key: string) => {
+    const wanted = new Set(key.split(","));
+
+    const { bindings } = await recordPages[type].get(id, {
+      bindings: SECTION_BINDINGS.filter((binding) => wanted.has(binding)),
+    });
+
+    return bindings;
+  },
+);
+
+/**
+ * Every binding the customer page shows, its own and the shared sections', in
+ * one `get` per request.
+ */
+export const getCustomerBindings = cache(async (customerId: string) => {
+  const { bindings } = await customerPage.get(customerId, {
+    bindings: ["attachments", "relations", "shareLinks", "versions", "sla"],
+    options: { versions: { pageSize: 20 } },
+  });
+
+  return bindings;
+});
+
+/**
+ * The shared sections' bindings of `subject`: `binding` and the others its page
+ * shows, from one `get`.
+ */
+export function getSectionBindings(
+  subject: SectionSubject,
+  binding: SectionBinding,
+) {
+  const wanted = subject.bindings?.includes(binding)
+    ? new Set(subject.bindings)
+    : new Set([binding]);
+
+  return getBindingSet(
+    subject.type,
+    subject.id,
+    SECTION_BINDINGS.filter((name) => wanted.has(name)).join(","),
+  );
+}
+
 /** The record's files, newest first. */
 export async function getAttachments(
   subject: RecordSubject,
 ): Promise<RecordBindingResult<readonly AttachmentRow[]>> {
-  const { bindings } = await recordPages[subject.type].get(subject.id, {
-    bindings: ["attachments"],
-  });
+  const { attachments } =
+    subject.type === "customer"
+      ? await getCustomerBindings(subject.id)
+      : await getSectionBindings(subject, "attachments");
 
-  return mapped(bindings.attachments, (file) => ({
+  return mapped(attachments, (file) => ({
     id: file.id,
     name: file.name,
     size: file.size,
@@ -363,22 +436,30 @@ async function relationOptions(
   }
 }
 
-/** The records linked to the record, and the records it can link to. */
-export async function getRelations(
+/** The records linked to the record. */
+async function getLinks(
   subject: RecordSubject,
-): Promise<Loaded<Relations>> {
-  const { bindings } = await recordPages[subject.type].get(subject.id, {
-    bindings: ["relations"],
-  });
+): Promise<Loaded<readonly RelatedRecord[]>> {
+  const { relations } =
+    subject.type === "customer"
+      ? await getCustomerBindings(subject.id)
+      : await getSectionBindings(subject, "relations");
 
-  const links = visible(
-    mapped(bindings.relations, (link) => ({
+  return visible(
+    mapped(relations, (link) => ({
       id: link.id,
       kind: link.kind,
       subjectType: link.subject.type,
       subjectId: link.subject.id,
     })),
   );
+}
+
+/** The records linked to the record, and the records it can link to. */
+export async function getRelations(
+  subject: RecordSubject,
+): Promise<Loaded<Relations>> {
+  const links = await getLinks(subject);
 
   if (links.kind === "error") {
     return links;
@@ -481,14 +562,12 @@ export async function getRecordConversations(
   const people = new Set<string>(subject.type === "person" ? [subject.id] : []);
 
   if (subject.type !== "person") {
-    const { bindings } = await recordPages[subject.type].get(subject.id, {
-      bindings: ["relations"],
-    });
+    const links = await getLinks(subject);
 
-    if (bindings.relations.kind === "ok") {
-      for (const link of bindings.relations.data) {
-        if (link.subject.type === "person") {
-          people.add(link.subject.id);
+    if (links.kind === "ok") {
+      for (const link of links.data) {
+        if (link.subjectType === "person") {
+          people.add(link.subjectId);
         }
       }
     }
@@ -539,16 +618,13 @@ const RECORD_TASK_LIMIT = 10;
 export async function getRecordTasks(
   subject: RecordSubject,
 ): Promise<readonly RecordTaskRow[]> {
-  const [{ db }, relations] = await Promise.all([
-    bsb.context(),
-    getRelations(subject),
-  ]);
+  const [{ db }, links] = await Promise.all([bsb.context(), getLinks(subject)]);
 
-  if (relations.kind !== "ok") {
+  if (links.kind !== "ok") {
     return [];
   }
 
-  const ids = relations.data.links
+  const ids = links.data
     .filter((link) => link.subjectType === "task")
     .map((link) => link.subjectId)
     .slice(0, RECORD_TASK_LIMIT);

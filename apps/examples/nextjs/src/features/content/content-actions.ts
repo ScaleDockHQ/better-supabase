@@ -41,41 +41,31 @@ export const createEntry = bsb.action(
 );
 
 /** Publishes an entry now. */
-export const publishEntry = bsb.action(
+export const publishEntry = bsb.blockAction(
+  ({ db }) => db.content,
+  "publish",
   {
     input: v.object({ entryId: Id }),
     requireTenant: true,
     permission: "content.publish",
     tags: () => [tags.contentEntries()],
     refresh: true,
+    args: ({ entryId }) => [entryId],
   },
-  async ({ entryId }, { db }) => {
-    const published = await db.content.publish(entryId);
-
-    if (!published.ok) {
-      return published;
-    }
-
-    return ok(published.data.id);
-  },
+  (published) => published.id,
 );
 
 /** Takes an entry down. */
-export const archiveEntry = bsb.action(
+export const archiveEntry = bsb.blockAction(
+  ({ db }) => db.content,
+  "archive",
   {
     input: v.object({ entryId: Id }),
     requireTenant: true,
     permission: "content.publish",
     tags: () => [tags.contentEntries()],
     refresh: true,
+    args: ({ entryId }) => [entryId],
   },
-  async ({ entryId }, { db }) => {
-    const archived = await db.content.archive(entryId);
-
-    if (!archived.ok) {
-      return archived;
-    }
-
-    return ok(archived.data.id);
-  },
+  (archived) => archived.id,
 );

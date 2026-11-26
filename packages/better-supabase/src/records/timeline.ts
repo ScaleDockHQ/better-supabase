@@ -7,10 +7,11 @@ import type {
   LoadBindingsOptions,
   BindingBlocks,
   BindingName,
+  BindingRun,
   BindingSource,
 } from "./bindings.ts";
 
-import { findBinding, getBindings } from "./bindings.ts";
+import { findBinding, getBindingsWith } from "./bindings.ts";
 
 /** One entry of a record's timeline, with the binding it came from. */
 export interface TimelineEntry extends TimelineItem {
@@ -79,7 +80,7 @@ function newestFirst(a: TimelineEntry, b: TimelineEntry): number {
  * );
  * ```
  */
-export async function getTimeline<
+export function getTimeline<
   B extends BindingBlocks,
   const N extends BindingName<B>,
 >(
@@ -87,10 +88,23 @@ export async function getTimeline<
   subject: RecordRef,
   options: LoadTimelineOptions<B, N> = {},
 ): Promise<Timeline> {
+  return getTimelineWith(source, subject, options, (load) => load());
+}
+
+/** `getTimeline`, with each binding's load run through `run`. */
+export async function getTimelineWith<
+  B extends BindingBlocks,
+  const N extends BindingName<B>,
+>(
+  source: BindingSource<B>,
+  subject: RecordRef,
+  options: LoadTimelineOptions<B, N>,
+  run: BindingRun,
+): Promise<Timeline> {
   // SAFETY: without `bindings` every timeline binding loads, which is `N` at
   // its default.
   const names = options.bindings ?? (timelineBindings(source.blocks) as N[]);
-  const loaded = await getBindings(source, subject, names, options);
+  const loaded = await getBindingsWith(source, subject, names, options, run);
   const entries: TimelineEntry[] = [];
   const skipped: Record<string, Timeline["skipped"][string]> = {};
 

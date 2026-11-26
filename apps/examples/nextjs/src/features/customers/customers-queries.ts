@@ -9,10 +9,10 @@ import type { Loaded } from "../records/records-queries";
 import {
   epoch,
   epochOrNull,
+  getCustomerBindings,
   mapped,
   visible,
 } from "../records/records-queries";
-import { customerPage } from "./customer-record";
 
 export interface ShareLinkRow {
   readonly id: string;
@@ -28,9 +28,7 @@ export interface ShareLinkRow {
 export async function getShareLinks(
   customerId: string,
 ): Promise<Loaded<readonly ShareLinkRow[]>> {
-  const { bindings } = await customerPage.get(customerId, {
-    bindings: ["shareLinks"],
-  });
+  const bindings = await getCustomerBindings(customerId);
 
   const now = Temporal.Now.instant().epochMilliseconds;
 
@@ -61,10 +59,7 @@ export interface VersionRow {
 export async function getVersions(
   customerId: string,
 ): Promise<Loaded<readonly VersionRow[]>> {
-  const { bindings } = await customerPage.get(customerId, {
-    bindings: ["versions"],
-    options: { versions: { pageSize: 20 } },
-  });
+  const bindings = await getCustomerBindings(customerId);
 
   return visible(
     mapped(bindings.versions, (version) => ({
@@ -90,9 +85,7 @@ export interface SlaClockRow {
 export async function getSlaClocks(
   customerId: string,
 ): Promise<Loaded<readonly SlaClockRow[]>> {
-  const { bindings } = await customerPage.get(customerId, {
-    bindings: ["sla"],
-  });
+  const bindings = await getCustomerBindings(customerId);
 
   return visible(
     mapped(bindings.sla, (clock) => ({

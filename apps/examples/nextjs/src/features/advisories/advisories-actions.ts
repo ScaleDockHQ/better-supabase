@@ -63,24 +63,16 @@ export const trackVulnerability = bsb.action(
 );
 
 /** Publishes a draft advisory as a final CSAF document. */
-export const publishAdvisory = bsb.action(
+export const publishAdvisory = bsb.blockAction(
+  ({ db }) => db.advisories,
+  "publishAdvisory",
   {
     input: v.object({ id: Id }),
     requireTenant: true,
     permission: "advisories.publish",
     tags: () => [tags.advisories()],
     refresh: true,
+    args: ({ id }) => [{ id, status: "final" }],
   },
-  async ({ id }, { db }) => {
-    const published = await db.advisories.publishAdvisory({
-      id,
-      status: "final",
-    });
-
-    if (!published.ok) {
-      return published;
-    }
-
-    return ok(published.data.id);
-  },
+  (published) => published.id,
 );

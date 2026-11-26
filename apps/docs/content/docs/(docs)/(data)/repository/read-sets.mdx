@@ -228,6 +228,33 @@ Each read keeps the checks of its function: `tags.forSubjects` runs the
 `subject_tags` check for every record, so one record the caller can't read
 fails the read.
 
+## Batched record reads
+
+The block also writes `read_batch(calls jsonb)`, which runs up to 50 function
+calls in one request and returns one result per call, in order:
+
+```sql
+select api.read_batch('[
+  { "fn": "customer_tags", "args": { "customer_id": "…" } },
+  { "fn": "customer_notes", "args": { "customer_id": "…" } }
+]');
+-- [{ "data": … }, { "error": { "code", "message", "details", "hint" } }]
+```
+
+`bsb.record(type).get` and `timeline` use it on their own: the first read of
+each binding goes into one `read_batch` call, and each binding gets the same
+result or error a direct call would return. You don't call it yourself.
+
+It calls a function only when a direct Data API call could too. It is
+`security invoker`, so the caller's grants and RLS apply to every call. It
+looks functions up in the API schema when the config sets `api`, and in the
+block schema otherwise, so it reaches nothing the Data API hides. It runs only
+`stable` or `immutable` functions that return `jsonb`, not a set, and whose
+argument names cover the keys passed, and never itself. Any other call comes back
+`{ "skipped": true }` and the client sends it on its own. An error in one call
+doesn't fail the others. More than 50 calls fail with `READ_BATCH_TOO_LARGE`,
+and anything but an array with `READ_BATCH_INVALID`.
+
 ## Caching
 
 In Next.js, tag a `"use cache"` scope with every table a set (or an array

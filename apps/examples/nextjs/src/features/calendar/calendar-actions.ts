@@ -12,7 +12,9 @@ import { EVENT_SUBJECT, REMINDER_OFFSETS } from "./calendar-subjects";
 const Id = v.pipe(v.string(), v.uuid());
 
 /** Reminds the caller `offsetMinutes` before each occurrence of an event. */
-export const addEventReminder = bsb.action(
+export const addEventReminder = bsb.blockAction(
+  ({ db }) => db.reminders,
+  "upsert",
   {
     input: v.object({
       eventId: Id,
@@ -22,19 +24,11 @@ export const addEventReminder = bsb.action(
     permission: "reminders.manage",
     tags: () => [tags.calendar(), tags.bookings()],
     refresh: true,
+    args: ({ eventId, offsetMinutes }) => [
+      { subject: { type: EVENT_SUBJECT, id: eventId }, when: offsetMinutes },
+    ],
   },
-  async ({ eventId, offsetMinutes }, { db }) => {
-    const saved = await db.reminders.upsert({
-      subject: { type: EVENT_SUBJECT, id: eventId },
-      when: offsetMinutes,
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(null);
-  },
+  () => null,
 );
 
 /** Removes one of the caller's reminders. */
@@ -66,7 +60,9 @@ const WORKDAYS = [1, 2, 3, 4, 5] as const;
 const Clock = v.pipe(v.string(), v.regex(/^([01]\d|2[0-3]):[0-5]\d$/));
 
 /** Creates the organization's team calendar, in the zone the browser reports. */
-export const createCalendar = bsb.action(
+export const createCalendar = bsb.blockAction(
+  ({ db }) => db.calendar,
+  "createCalendar",
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
@@ -76,20 +72,11 @@ export const createCalendar = bsb.action(
     permission: "calendar.manage",
     tags: () => [tags.calendar(), tags.bookings()],
     refresh: true,
+    args: ({ name, tz }, { tenant }) => [
+      { organizationId: tenant, name, options: { tz } },
+    ],
   },
-  async ({ name, tz }, { tenant, db }) => {
-    const created = await db.calendar.createCalendar({
-      organizationId: tenant,
-      name,
-      options: { tz },
-    });
-
-    if (!created.ok) {
-      return created;
-    }
-
-    return ok({ id: created.data.id });
-  },
+  (created) => ({ id: created.id }),
 );
 
 /**
@@ -156,7 +143,9 @@ export const createEvent = bsb.action(
  * Replaces the caller's working hours with the same hours Monday to Friday, in
  * their browser's zone.
  */
-export const setWorkingHours = bsb.action(
+export const setWorkingHours = bsb.blockAction(
+  ({ db }) => db.calendar,
+  "setWorkingHours",
   {
     input: v.pipe(
       v.object({
@@ -170,20 +159,15 @@ export const setWorkingHours = bsb.action(
     permission: "calendar.read",
     tags: () => [tags.calendar(), tags.bookings()],
     refresh: true,
-  },
-  async ({ tz, start, end }, { tenant, db }) => {
-    const saved = await db.calendar.setWorkingHours({
-      organizationId: tenant,
-      input: {
-        tz,
-        hours: WORKDAYS.map((weekday) => ({ weekday, start, end })),
+    args: ({ tz, start, end }, { tenant }) => [
+      {
+        organizationId: tenant,
+        input: {
+          tz,
+          hours: WORKDAYS.map((weekday) => ({ weekday, start, end })),
+        },
       },
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok({ rows: saved.data });
+    ],
   },
+  (saved) => ({ rows: saved }),
 );

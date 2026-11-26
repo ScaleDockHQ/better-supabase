@@ -29,23 +29,18 @@ const Repeated = <T extends v.GenericSchema<string, unknown>>(item: T) =>
  * Signs an appraisal off. With the approvals block the sign-off waits for its
  * approval.
  */
-export const signOffAppraisal = bsb.action(
+export const signOffAppraisal = bsb.blockAction(
+  ({ db }) => db.appraisals,
+  "signOff",
   {
     input: v.object({ appraisalId: AppraisalId }),
     requireTenant: true,
     permission: "appraisals.manage",
     tags: () => [tags.appraisals()],
     refresh: true,
+    args: ({ appraisalId }) => [appraisalId],
   },
-  async ({ appraisalId }, { db }) => {
-    const signed = await db.appraisals.signOff(appraisalId);
-
-    if (!signed.ok) {
-      return signed;
-    }
-
-    return ok({ status: signed.data.status });
-  },
+  (signed) => ({ status: signed.status }),
 );
 
 /**
@@ -97,7 +92,9 @@ export const submitAppraisalReview = bsb.action(
  * Moves the rating of a reviewed appraisal in a calibration session; the reason
  * and the previous rating stay on the appraisal.
  */
-export const calibrateAppraisal = bsb.action(
+export const calibrateAppraisal = bsb.blockAction(
+  ({ db }) => db.appraisals,
+  "calibrate",
   {
     input: v.object({
       appraisalId: AppraisalId,
@@ -109,17 +106,5 @@ export const calibrateAppraisal = bsb.action(
     tags: () => [tags.appraisals()],
     refresh: true,
   },
-  async ({ appraisalId, rating, reason }, { db }) => {
-    const calibrated = await db.appraisals.calibrate({
-      appraisalId,
-      rating,
-      reason,
-    });
-
-    if (!calibrated.ok) {
-      return calibrated;
-    }
-
-    return ok({ status: calibrated.data.status });
-  },
+  (calibrated) => ({ status: calibrated.status }),
 );

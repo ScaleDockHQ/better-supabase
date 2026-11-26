@@ -8,9 +8,14 @@ import type { AnyBlock } from "../blocks/define-block.ts";
 import type { PermissionSet } from "../blocks/permissions/permissions-controller.ts";
 import type { RecordBindingOptions } from "../blocks/record-bindings.ts";
 import type { DbError } from "../core/errors.ts";
+import type { ReadBatchMemory } from "../core/read-batch.ts";
 import type { Result } from "../core/result.ts";
 import type { ListParseOptions, ListSearchParams } from "../list/list-query.ts";
-import type { BindingName, BindingOf } from "../records/bindings.ts";
+import type {
+  BindingName,
+  BindingOf,
+  BindingRun,
+} from "../records/bindings.ts";
 import type {
   RecordList,
   RecordListCells,
@@ -34,7 +39,7 @@ import type * as RecordBlocks from "./record-blocks.ts";
 
 import { dbError } from "../core/errors.ts";
 import { err } from "../core/result.ts";
-import { getBindings } from "../records/bindings.ts";
+import { getBindingsWith } from "../records/bindings.ts";
 import {
   bindingWrites,
   findBindingWrite,
@@ -45,11 +50,15 @@ import {
   recordWriteInput,
   runBindingWrite,
 } from "../records/record-type.ts";
-import { getTimeline } from "../records/timeline.ts";
+import { getTimelineWith } from "../records/timeline.ts";
 import { isStorageApi } from "../storage/storage-api.ts";
 import { invalidateBinding, recordTag, bindingTag } from "./records.ts";
 
 let recordBlocks: Promise<typeof RecordBlocks> | undefined;
+
+// Shared by every request in the process: a function `read_batch` skipped once
+// goes direct from then on, in the same round trip as the batch.
+const batchMemory: ReadBatchMemory = { missing: new Set(), skipped: new Set() };
 
 // The block clients load on the first record call, so a page without a record
 // doesn't evaluate them; they are a seventh of the ./next closure (ADR 1228).
@@ -189,6 +198,7 @@ function clientOptions(
 async function clientsOf(
   feature: Pick<RecordType, "blocks" | "config">,
   ctx: RecordServerContext,
+  transport?: BlockClientOptions["transport"],
 ): Promise<Clients> {
   const options = clientOptions(feature, ctx);
   const { createBlockClient } = await blocksOf();
@@ -196,9 +206,30 @@ async function clientsOf(
   return Object.fromEntries(
     Object.entries(feature.blocks).map(([key, block]) => [
       key,
-      createBlockClient(ctx.db, block, options),
+      createBlockClient(
+        ctx.db,
+        block,
+        transport === undefined ? options : { ...options, transport },
+      ),
     ]),
   );
+}
+
+/**
+ * The block clients over one `batchReads`, whose `run` each concurrent read
+ * joins, so the reads go to the database as one `read_batch` call.
+ */
+async function batchedClientsOf(
+  feature: Pick<RecordType, "blocks" | "config">,
+  ctx: RecordServerContext,
+): Promise<{ readonly clients: Clients; readonly run: BindingRun }> {
+  const { dbTransport, batchReads } = await blocksOf();
+  const batch = batchReads(dbTransport(ctx.db), batchMemory);
+
+  return {
+    clients: await clientsOf(feature, ctx, batch.transport),
+    run: (fn) => batch.run(fn),
+  };
 }
 
 interface PermissionLoad {
@@ -339,8 +370,10 @@ export function recordServer<
       // `M` at its default `N`.
       const names = (options.bindings ?? feature.bindings) as readonly N[];
 
-      const loaded = await getBindings(
-        { blocks: feature.blocks, clients: await clientsOf(feature, ctx) },
+      const { clients, run } = await batchedClientsOf(feature, ctx);
+
+      const loaded = await getBindingsWith(
+        { blocks: feature.blocks, clients },
         subject,
         names,
         {
@@ -351,6 +384,7 @@ export function recordServer<
             ? {}
             : { options: options.options as never }),
         },
+        run,
       );
 
       // SAFETY: `plainData` maps each binding's Temporal values to strings,
@@ -375,10 +409,13 @@ export function recordServer<
 
       const readable = readableSections(recordCan(feature, permissions.set));
 
-      const timeline = await getTimeline(
-        { blocks: feature.blocks, clients: await clientsOf(feature, ctx) },
+      const { clients, run } = await batchedClientsOf(feature, ctx);
+
+      const timeline = await getTimelineWith(
+        { blocks: feature.blocks, clients },
         recordSubject(feature, id),
         { ...options, can: ({ binding }) => readable.get(binding) ?? true },
+        run,
       );
 
       return plainData(timeline);

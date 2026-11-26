@@ -1243,13 +1243,14 @@ export function createNext<
       applyCacheTags(tags);
     },
 
-    blockAction: (client, method, blockOptions) =>
+    blockAction: (client, method, blockOptions, map) =>
       // SAFETY: blockActionOf calls `host.action` with the options and callback it was given.
       blockActionOf(
         next as never,
         client as never,
         method,
         blockOptions as never,
+        map,
       ),
 
     withContext: (factory) =>

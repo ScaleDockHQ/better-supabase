@@ -2,6 +2,8 @@ import { getExtracted } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import type { BoundSection } from "@/components/record-detail/record-bound-sections";
+
 import { AfterNavigation } from "@/components/record-detail/after-navigation";
 import { PropertiesRail } from "@/components/record-detail/properties-rail";
 import { RecordBoundSections } from "@/components/record-detail/record-bound-sections";
@@ -44,6 +46,18 @@ import {
   moneyFormatter,
   requirePermission,
 } from "./overview-support";
+
+const ASIDE_SECTIONS: readonly BoundSection[] = [
+  "tags",
+  "fields",
+  "approvals",
+  "reminders",
+  "conversations",
+  "tasks",
+  "workflows",
+];
+
+const RELATED_SECTIONS: readonly BoundSection[] = ["files", "relations"];
 
 export function DealDetailSkeleton() {
   return <Skeleton className="h-96 rounded-xl" aria-busy="true" />;
@@ -115,15 +129,8 @@ export async function DealDetail({
           <PropertiesRail title={t("Details")} properties={facts} />
           <RecordBoundSections
             subject={subject}
-            sections={[
-              "tags",
-              "fields",
-              "approvals",
-              "reminders",
-              "conversations",
-              "tasks",
-              "workflows",
-            ]}
+            sections={ASIDE_SECTIONS}
+            alongside={tab === "related" ? RELATED_SECTIONS : []}
           />
         </>
       }
@@ -208,7 +215,8 @@ export async function DealDetail({
       ) : tab === "related" ? (
         <RecordBoundSections
           subject={subject}
-          sections={["files", "relations"]}
+          sections={RELATED_SECTIONS}
+          alongside={ASIDE_SECTIONS}
         />
       ) : tab === "activity" ? (
         <>

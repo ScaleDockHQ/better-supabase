@@ -770,6 +770,29 @@ The client is built per call from the request's context, so the block runs
 as the signed-in user. A refused caller, a failed validation and a database
 error all come back as `{ ok: false, error }`, like any other action.
 
+A fourth argument maps the data of a success, so the client receives only
+what it reads and not the whole row. `tags` still sees the method's own data:
+
+```ts
+export const publishAdvisory = bsb.blockAction(
+  ({ db }) => db.advisories,
+  "publishAdvisory",
+  {
+    input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
+    requireTenant: true,
+    permission: "advisories.publish",
+    tags: () => [tags.advisories()],
+    refresh: true,
+    args: ({ id }) => [{ id, status: "final" }],
+  },
+  (advisory) => advisory.id,
+);
+```
+
+Write `args` with a parameter (`(_) => [...]` when it reads nothing):
+TypeScript infers a callback without parameters before it knows the
+method, and then the arguments don't type as the method's tuple.
+
 ### Bound arguments, guards and results
 
 `bsb.action` takes four more options. `bound` is a schema for the leading arguments of `action.bind(null, id)`; `tenant(input, bound)` and the body `fn(input, ctx, bound)` read the validated tuple. `guard(tenant, ctx)` runs after authentication and the permission check and before the body, and a returned `DbError` refuses the call. `invalidates` lists tables whose cache tags drop after a successful call, as on `bsb.blockAction`. `result(outcome)` maps the `ActionResult` before it returns and may be async:
@@ -972,7 +995,7 @@ A record page's [bindings](/docs/repository/record-bindings) have their own cach
 so a write to one binding keeps the others cached.
 `bsb.record(customerRecord)` takes a
 [generated record type](/docs/repository/record-bindings#generated-record-types) and
-returns `load(id, options?)` and `timeline(id, options?)` for Server
+returns `get(id, options?)` and `timeline(id, options?)` for Server
 Components, `actions`, one Server Action per binding write, each of which
 drops its binding's tags, and `tags(id, tenant?)`, the record tag and each
 binding tag, for your own cached reads.

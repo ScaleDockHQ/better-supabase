@@ -120,28 +120,24 @@ export const createTask = bsb.action(
  * Moves a task between two cards, into a status column. `rank.move` writes the
  * status and the new key in one statement, as the caller.
  */
-export const moveTask = bsb.action(
-  {
-    input: v.object({
-      id: Id,
-      status: TaskStatusSchema,
-      previousId: v.nullable(Id),
-      nextId: v.nullable(Id),
-    }),
-    requireTenant: true,
-    tags: () => [tags.projects(), tags.work()],
-    refresh: true,
-  },
-  async ({ id, status, previousId, nextId }, { db }) => {
-    const moved = await db.rank.move({
+export const moveTask = bsb.blockAction(({ db }) => db.rank, "move", {
+  input: v.object({
+    id: Id,
+    status: TaskStatusSchema,
+    previousId: v.nullable(Id),
+    nextId: v.nullable(Id),
+  }),
+  requireTenant: true,
+  tags: () => [tags.projects(), tags.work()],
+  refresh: true,
+  args: ({ id, status, previousId, nextId }) => [
+    {
       subjectType: TASK_SUBJECT,
       subjectId: id,
       target: { previous: previousId, next: nextId, group: status },
-    });
-
-    return moved;
-  },
-);
+    },
+  ],
+});
 
 /** Sets the status of the selected tasks, or deletes them, in one statement. */
 export const runTaskBulkAction = bsb.action(

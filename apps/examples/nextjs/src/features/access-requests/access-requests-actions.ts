@@ -82,41 +82,31 @@ export const decideAccessRequest = bsb.action(
 );
 
 /** Withdraws the caller's own pending request. */
-export const cancelAccessRequest = bsb.action(
+export const cancelAccessRequest = bsb.blockAction(
+  ({ db }) => db.approvals,
+  "cancel",
   {
     input: v.object({ approvalId: ID }),
     requireTenant: true,
     tags: () => [tags.accessRequests(), tags.approvals()],
     refresh: true,
+    args: ({ approvalId }) => [approvalId],
   },
-  async ({ approvalId }, { db }) => {
-    const cancelled = await db.approvals.cancel(approvalId);
-
-    if (!cancelled.ok) {
-      return cancelled;
-    }
-
-    return ok(cancelled.data.id);
-  },
+  (cancelled) => cancelled.id,
 );
 
 /** Ends a granted role early: a manager, or the holder giving it up. */
-export const endAccess = bsb.action(
+export const endAccess = bsb.blockAction(
+  ({ db }) => db.accessRequests,
+  "end",
   {
     input: v.object({ id: ID }),
     requireTenant: true,
     tags: () => [tags.accessRequests(), tags.approvals()],
     refresh: true,
+    args: ({ id }) => [id],
   },
-  async ({ id }, { db }) => {
-    const ended = await db.accessRequests.end(id);
-
-    if (!ended.ok) {
-      return ended;
-    }
-
-    return ok(ended.data.id);
-  },
+  (ended) => ended.id,
 );
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await

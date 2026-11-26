@@ -97,6 +97,7 @@ export async function SessionDetail({ id, tab }: { id: string; tab: string }) {
           <RecordBoundSections
             subject={{ type: "till", id: shift.tillId }}
             sections={["tags", "fields", "reminders"]}
+            alongside={tab === "related" ? ["files", "relations"] : []}
           />
         </>
       }
@@ -197,6 +198,7 @@ export async function SessionDetail({ id, tab }: { id: string; tab: string }) {
         <RecordBoundSections
           subject={{ type: "till", id: shift.tillId }}
           sections={["files", "relations"]}
+          alongside={["tags", "fields", "reminders"]}
         />
       ) : tab === "activity" ? (
         <RecordBoundSections

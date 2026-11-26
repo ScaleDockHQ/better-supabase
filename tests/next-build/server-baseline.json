@@ -21,7 +21,7 @@
     "raw": 3896528
   },
   "/[locale]/(app)/advisories/vulnerabilities/[id]/page": {
-    "raw": 3982696
+    "raw": 3984034
   },
   "/[locale]/(app)/advisories/vulnerabilities/page": {
     "raw": 3890385
@@ -141,7 +141,7 @@
     "raw": 3877019
   },
   "/[locale]/(app)/care-plans/[id]/page": {
-    "raw": 3959183
+    "raw": 3960534
   },
   "/[locale]/(app)/care-plans/page": {
     "raw": 3895130
@@ -153,7 +153,7 @@
     "raw": 3890995
   },
   "/[locale]/(app)/cases/[id]/page": {
-    "raw": 3986674
+    "raw": 3987661
   },
   "/[locale]/(app)/cases/page": {
     "raw": 3938447
@@ -177,7 +177,7 @@
     "raw": 3907762
   },
   "/[locale]/(app)/content/[id]/page": {
-    "raw": 3962698
+    "raw": 3964064
   },
   "/[locale]/(app)/content/page": {
     "raw": 3888992
@@ -186,7 +186,7 @@
     "raw": 3890853
   },
   "/[locale]/(app)/courses/[courseId]/page": {
-    "raw": 3994351
+    "raw": 3995517
   },
   "/[locale]/(app)/courses/page": {
     "raw": 3905464
@@ -273,7 +273,7 @@
     "raw": 3929292
   },
   "/[locale]/(app)/customers/[id]/page": {
-    "raw": 3963079
+    "raw": 3963906
   },
   "/[locale]/(app)/customers/page": {
     "raw": 3888258
@@ -315,13 +315,13 @@
     "raw": 3904198
   },
   "/[locale]/(app)/field/dispatch/[id]/page": {
-    "raw": 3997147
+    "raw": 3998093
   },
   "/[locale]/(app)/field/dispatch/page": {
     "raw": 3927305
   },
   "/[locale]/(app)/field/shipments/[id]/page": {
-    "raw": 3965327
+    "raw": 3966737
   },
   "/[locale]/(app)/field/shipments/page": {
     "raw": 3925370
@@ -414,7 +414,7 @@
     "raw": 3889287
   },
   "/[locale]/(app)/inspections/[id]/page": {
-    "raw": 3962587
+    "raw": 3963900
   },
   "/[locale]/(app)/inspections/page": {
     "raw": 3880992
@@ -447,7 +447,7 @@
     "raw": 3904315
   },
   "/[locale]/(app)/manufacturing/orders/[id]/page": {
-    "raw": 3964350
+    "raw": 3965615
   },
   "/[locale]/(app)/manufacturing/orders/page": {
     "raw": 3934841
@@ -498,13 +498,13 @@
     "raw": 4032894
   },
   "/[locale]/(app)/people/[id]/page": {
-    "raw": 3992873
+    "raw": 3993906
   },
   "/[locale]/(app)/people/encryption/page": {
     "raw": 3891285
   },
   "/[locale]/(app)/people/hiring/[id]/page": {
-    "raw": 3986736
+    "raw": 3988008
   },
   "/[locale]/(app)/people/hiring/page": {
     "raw": 3913118
@@ -561,7 +561,7 @@
     "raw": 3905670
   },
   "/[locale]/(app)/risks/[id]/page": {
-    "raw": 3991072
+    "raw": 3992421
   },
   "/[locale]/(app)/risks/page": {
     "raw": 3902572
@@ -753,7 +753,7 @@
     "raw": 3894618
   },
   "/[locale]/(app)/shop/orders/[id]/page": {
-    "raw": 4001740
+    "raw": 4003238
   },
   "/[locale]/(app)/shop/orders/page": {
     "raw": 3908244
@@ -768,7 +768,7 @@
     "raw": 3877390
   },
   "/[locale]/(app)/shop/products/[id]/page": {
-    "raw": 3963488
+    "raw": 3964746
   },
   "/[locale]/(app)/shop/reviews/[id]/page": {
     "raw": 3882511
@@ -786,7 +786,7 @@
     "raw": 3888137
   },
   "/[locale]/(app)/tills/[id]/page": {
-    "raw": 3980082
+    "raw": 3981384
   },
   "/[locale]/(app)/tills/page": {
     "raw": 3906447
@@ -861,7 +861,7 @@
     "raw": 3621535
   },
   "/[locale]/(auth)/share/[token]/page": {
-    "raw": 3136171
+    "raw": 3137347
   },
   "/[locale]/(auth)/signup/page": {
     "raw": 1594315
@@ -951,13 +951,13 @@
     "raw": 3442795
   },
   "/api/chat/durable/[id]/stop/route": {
-    "raw": 5031036
+    "raw": 5032036
   },
   "/api/chat/durable/[id]/stream/route": {
-    "raw": 5031184
+    "raw": 5032184
   },
   "/api/chat/durable/route": {
-    "raw": 5031145
+    "raw": 5032145
   },
   "/api/chat/route": {
     "raw": 3443211
@@ -1083,7 +1083,7 @@
     "raw": 2866611
   },
   "/api/jobs/drain/route": {
-    "raw": 4988060
+    "raw": 4989060
   },
   "/api/jobs/list/route": {
     "raw": 1511838
@@ -1131,7 +1131,7 @@
     "raw": 2865254
   },
   "/api/outbox/route": {
-    "raw": 4960905
+    "raw": 4961905
   },
   "/api/passes/list/route": {
     "raw": 2863605
@@ -1173,7 +1173,7 @@
     "raw": 642361
   },
   "/api/queues/block-ticks/route": {
-    "raw": 4987237
+    "raw": 4988237
   },
   "/api/queues/schedules/route": {
     "raw": 332974
@@ -1257,16 +1257,16 @@
     "raw": 2863655
   },
   "/api/workflows/definitions/list/route": {
-    "raw": 4984215
+    "raw": 4985215
   },
   "/api/workflows/hooks/[token]/route": {
-    "raw": 3537769
+    "raw": 3538769
   },
   "/api/workflows/runs/list/route": {
-    "raw": 4984204
+    "raw": 4985204
   },
   "/api/workflows/tick/route": {
-    "raw": 4978534
+    "raw": 4979534
   },
   "/manifest.webmanifest/route": {
     "raw": 182522

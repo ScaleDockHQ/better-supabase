@@ -67,7 +67,9 @@ export const createWorkOrder = bsb.action(
 );
 
 /** Moves one of the caller's work orders on: en route, on site, then done. */
-export const advanceWorkOrder = bsb.action(
+export const advanceWorkOrder = bsb.blockAction(
+  ({ db }) => db.dispatch,
+  "setStatus",
   {
     input: v.object({
       id: v.pipe(v.string(), v.uuid()),
@@ -77,16 +79,9 @@ export const advanceWorkOrder = bsb.action(
     permission: "dispatch.work",
     tags: () => [tags.field()],
     refresh: true,
+    args: ({ id, to }) => [{ id, status: to }],
   },
-  async ({ id, to }, { db }) => {
-    const moved = await db.dispatch.setStatus({ id, status: to });
-
-    if (!moved.ok) {
-      return moved;
-    }
-
-    return ok({ status: moved.data.status });
-  },
+  (moved) => ({ status: moved.status }),
 );
 
 /** Creates a draft shipment of one package from the warehouse. */

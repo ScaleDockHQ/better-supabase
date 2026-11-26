@@ -15,7 +15,9 @@ const Id = v.pipe(v.string(), v.uuid());
  * Adds a field, or relabels the entity's field with the same key. Keys are
  * lower snake case, since they name the value in the API.
  */
-export const saveField = bsb.action(
+export const saveField = bsb.blockAction(
+  ({ db }) => db.customFields,
+  "saveDefinition",
   {
     input: v.object({
       entity: FieldEntitySchema,
@@ -34,24 +36,12 @@ export const saveField = bsb.action(
     ],
     refresh: true,
   },
-  async ({ entity, key, label, type, sensitive }, { db }) => {
-    const saved = await db.customFields.saveDefinition({
-      entity,
-      key,
-      label,
-      type,
-      sensitive,
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(saved.data.id);
-  },
+  (saved) => saved.id,
 );
 
-export const deleteField = bsb.action(
+export const deleteField = bsb.blockAction(
+  ({ db }) => db.customFields,
+  "archiveDefinition",
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -63,16 +53,9 @@ export const deleteField = bsb.action(
       tags.customers(),
     ],
     refresh: true,
+    args: ({ id }) => [id],
   },
-  async ({ id }, { db }) => {
-    const archived = await db.customFields.archiveDefinition(id);
-
-    if (!archived.ok) {
-      return archived;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /**

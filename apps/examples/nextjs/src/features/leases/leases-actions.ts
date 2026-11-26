@@ -60,27 +60,24 @@ export const createLease = bsb.action(
 );
 
 /** Starts a draft lease and holds its deposit on the ledger. */
-export const activateLease = bsb.action(
+export const activateLease = bsb.blockAction(
+  ({ db }) => db.leases,
+  "activate",
   {
     input: v.object({ leaseId: Id }),
     requireTenant: true,
     permission: "leases.manage",
     tags: () => [tags.leases()],
     refresh: true,
+    args: ({ leaseId }) => [leaseId],
   },
-  async ({ leaseId }, { db }) => {
-    const activated = await db.leases.activate(leaseId);
-
-    if (!activated.ok) {
-      return activated;
-    }
-
-    return ok(activated.data.id);
-  },
+  (activated) => activated.id,
 );
 
 /** Ends a lease today; the deposit goes back to the tenant. */
-export const terminateLease = bsb.action(
+export const terminateLease = bsb.blockAction(
+  ({ db }) => db.leases,
+  "terminate",
   {
     input: v.object({
       leaseId: Id,
@@ -90,39 +87,26 @@ export const terminateLease = bsb.action(
     permission: "leases.manage",
     tags: () => [tags.leases()],
     refresh: true,
-  },
-  async ({ leaseId, reason }, { db }) => {
-    const ended = await db.leases.terminate(
+    args: ({ leaseId, reason }) => [
       reason ? { leaseId, termination: { reason } } : { leaseId },
-    );
-
-    if (!ended.ok) {
-      return ended;
-    }
-
-    return ok(ended.data.id);
+    ],
   },
+  (ended) => ended.id,
 );
 
 /** Moves a payment from the balance due to rent received. */
-export const recordRentPayment = bsb.action(
+export const recordRentPayment = bsb.blockAction(
+  ({ db }) => db.leases,
+  "recordPayment",
   {
     input: v.object({ leaseId: Id, amount: Amount }),
     requireTenant: true,
     permission: "leases.manage",
     tags: () => [tags.leases()],
     refresh: true,
+    args: ({ leaseId, amount }) => [
+      { leaseId, payment: { amount: parseMoney(amount, SHOP_CURRENCY) } },
+    ],
   },
-  async ({ leaseId, amount }, { db }) => {
-    const paid = await db.leases.recordPayment({
-      leaseId,
-      payment: { amount: parseMoney(amount, SHOP_CURRENCY) },
-    });
-
-    if (!paid.ok) {
-      return paid;
-    }
-
-    return ok(paid.data.leaseId);
-  },
+  (paid) => paid.leaseId,
 );

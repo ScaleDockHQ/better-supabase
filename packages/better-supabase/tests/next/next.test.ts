@@ -871,6 +871,41 @@ describe("createNext", () => {
     ]);
   });
 
+  it("maps a block action's data after its tags saw the method's own data", async () => {
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+
+    const invoices = {
+      create: (input: { readonly title: string }) =>
+        AsyncResult.from(() =>
+          Promise.resolve(ok({ id: "i1", title: input.title, total: 40 })),
+        ),
+    };
+
+    const seen: unknown[] = [];
+
+    const create = bsb.blockAction(
+      () => invoices,
+      "create",
+      {
+        input: v.object({ title: v.string() }),
+        tags: ({ data }) => {
+          seen.push(data);
+
+          return ["invoices"];
+        },
+      },
+      (invoice) => ({ id: invoice.id }),
+    );
+
+    const created = await create({ title: "Ship" });
+
+    expect(created).toEqual({ ok: true, data: { id: "i1" }, error: null });
+    expectTypeOf(created.data).toEqualTypeOf<{ id: string } | null>();
+    expect(seen).toEqual([{ id: "i1", title: "Ship", total: 40 }]);
+  });
+
   it("drops the cache tags of the tables a block action invalidates", async () => {
     mocks.headers = new Headers({
       authorization: `Bearer ${await signer.sign({ sub: USER })}`,

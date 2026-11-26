@@ -1,7 +1,6 @@
 /* oxlint-disable anti-slop/no-conditional-empty-object-spread -- `exactOptionalPropertyTypes` rejects an explicit `undefined`, so an optional input is spread only when present; 11 findings */
 "use server";
 
-import { ok } from "better-supabase";
 import { parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
@@ -20,27 +19,24 @@ const Day = v.pipe(v.string(), v.isoDate());
 const TAGS = [tags.financeRecords(), BILLING_TAG, tags.banking(), tags.shop()];
 
 /** Files a draft expense report for approval. */
-export const submitExpenseReport = bsb.action(
+export const submitExpenseReport = bsb.blockAction(
+  ({ db }) => db.expenses,
+  "submit",
   {
     input: v.object({ reportId: Id }),
     requireTenant: true,
     permission: "expenses.submit",
     tags: () => TAGS,
     refresh: true,
+    args: ({ reportId }) => [reportId],
   },
-  async ({ reportId }, { db }) => {
-    const submitted = await db.expenses.submit(reportId);
-
-    if (!submitted.ok) {
-      return submitted;
-    }
-
-    return ok(submitted.data.id);
-  },
+  (submitted) => submitted.id,
 );
 
 /** Approves or rejects a submitted report; the owner can't decide their own. */
-export const decideExpenseReport = bsb.action(
+export const decideExpenseReport = bsb.blockAction(
+  ({ db }) => db.expenses,
+  "decide",
   {
     input: v.object({
       reportId: Id,
@@ -51,23 +47,20 @@ export const decideExpenseReport = bsb.action(
     permission: "expenses.approve",
     tags: () => TAGS,
     refresh: true,
+    args: ({ reportId, approved, note }) => [
+      {
+        reportId,
+        decision: { approved, ...(note === undefined ? {} : { note }) },
+      },
+    ],
   },
-  async ({ reportId, approved, note }, { db }) => {
-    const decided = await db.expenses.decide({
-      reportId,
-      decision: { approved, ...(note === undefined ? {} : { note }) },
-    });
-
-    if (!decided.ok) {
-      return decided;
-    }
-
-    return ok(decided.data.id);
-  },
+  (decided) => decided.id,
 );
 
 /** Pays an approved report out to the member. */
-export const reimburseExpenseReport = bsb.action(
+export const reimburseExpenseReport = bsb.blockAction(
+  ({ db }) => db.expenses,
+  "reimburse",
   {
     input: v.object({ reportId: Id }),
     requireTenant: true,
@@ -75,19 +68,13 @@ export const reimburseExpenseReport = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async ({ reportId }, { db }) => {
-    const paid = await db.expenses.reimburse({ reportId });
-
-    if (!paid.ok) {
-      return paid;
-    }
-
-    return ok(paid.data.id);
-  },
+  (paid) => paid.id,
 );
 
 /** Records a payment on an issued invoice, in the invoice's currency. */
-export const recordInvoicePayment = bsb.action(
+export const recordInvoicePayment = bsb.blockAction(
+  ({ db }) => db.invoices,
+  "recordPayment",
   {
     input: v.object({
       invoiceId: Id,
@@ -102,222 +89,169 @@ export const recordInvoicePayment = bsb.action(
     permission: "invoices.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ invoiceId, currency, amount }) => [
+      {
+        invoiceId,
+        payment: { amount: parseMoney(amount, currency), method: "manual" },
+      },
+    ],
   },
-  async ({ invoiceId, currency, amount }, { db }) => {
-    const paid = await db.invoices.recordPayment({
-      invoiceId,
-      payment: { amount: parseMoney(amount, currency), method: "manual" },
-    });
-
-    if (!paid.ok) {
-      return paid;
-    }
-
-    return ok(paid.data.status);
-  },
+  (paid) => paid.status,
 );
 
 /** Voids an invoice that was issued by mistake; the reason stays in its history. */
-export const voidInvoice = bsb.action(
+export const voidInvoice = bsb.blockAction(
+  ({ db }) => db.invoices,
+  "void",
   {
     input: v.object({ invoiceId: Id, reason: v.optional(Text(300)) }),
     requireTenant: true,
     permission: "invoices.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ invoiceId, reason }) => [
+      { invoiceId, ...(reason === undefined ? {} : { reason }) },
+    ],
   },
-  async ({ invoiceId, reason }, { db }) => {
-    const voided = await db.invoices.void({
-      invoiceId,
-      ...(reason === undefined ? {} : { reason }),
-    });
-
-    if (!voided.ok) {
-      return voided;
-    }
-
-    return ok(voided.data.status);
-  },
+  (voided) => voided.status,
 );
 
 /** Approves a purchase bill for payment at the caller's approval level. */
-export const approvePayable = bsb.action(
+export const approvePayable = bsb.blockAction(
+  ({ db }) => db.invoices,
+  "approvePurchaseInvoice",
   {
     input: v.object({ invoiceId: Id, comment: v.optional(Text(300)) }),
     requireTenant: true,
     permission: "invoices.approve",
     tags: () => TAGS,
     refresh: true,
+    args: ({ invoiceId, comment }) => [
+      { invoiceId, ...(comment === undefined ? {} : { comment }) },
+    ],
   },
-  async ({ invoiceId, comment }, { db }) => {
-    const approved = await db.invoices.approvePurchaseInvoice({
-      invoiceId,
-      ...(comment === undefined ? {} : { comment }),
-    });
-
-    if (!approved.ok) {
-      return approved;
-    }
-
-    return ok(approved.data.status);
-  },
+  (approved) => approved.status,
 );
 
 /** Stops writes into an open period without closing it. */
-export const lockPeriod = bsb.action(
+export const lockPeriod = bsb.blockAction(
+  ({ db }) => db.periods,
+  "lock",
   {
     input: v.object({ periodId: Id }),
     requireTenant: true,
     permission: "periods.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ periodId }) => [periodId],
   },
-  async ({ periodId }, { db }) => {
-    const locked = await db.periods.lock(periodId);
-
-    if (!locked.ok) {
-      return locked;
-    }
-
-    return ok(locked.data.status);
-  },
+  (locked) => locked.status,
 );
 
 /** Reopens a locked or closed period; the on-close steps are not undone. */
-export const reopenPeriod = bsb.action(
+export const reopenPeriod = bsb.blockAction(
+  ({ db }) => db.periods,
+  "reopen",
   {
     input: v.object({ periodId: Id, reason: v.optional(Text(300)) }),
     requireTenant: true,
     permission: "periods.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ periodId, reason }) => [
+      { periodId, ...(reason === undefined ? {} : { reason }) },
+    ],
   },
-  async ({ periodId, reason }, { db }) => {
-    const reopened = await db.periods.reopen({
-      periodId,
-      ...(reason === undefined ? {} : { reason }),
-    });
-
-    if (!reopened.ok) {
-      return reopened;
-    }
-
-    return ok(reopened.data.status);
-  },
+  (reopened) => reopened.status,
 );
 
 /** Builds, or rebuilds until it is filed, the return of a period. */
-export const prepareTaxReturn = bsb.action(
+export const prepareTaxReturn = bsb.blockAction(
+  ({ db }) => db.tax,
+  "prepareReturn",
   {
     input: v.object({ since: Day, until: Day, period: v.optional(Text(50)) }),
     requireTenant: true,
     permission: "tax.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ since, until, period }) => [
+      { since, until, ...(period === undefined ? {} : { period }) },
+    ],
   },
-  async ({ since, until, period }, { db }) => {
-    const prepared = await db.tax.prepareReturn({
-      since,
-      until,
-      ...(period === undefined ? {} : { period }),
-    });
-
-    if (!prepared.ok) {
-      return prepared;
-    }
-
-    return ok(prepared.data.id);
-  },
+  (prepared) => prepared.id,
 );
 
 /** Files a prepared return; a filed return can't be rebuilt. */
-export const fileTaxReturn = bsb.action(
+export const fileTaxReturn = bsb.blockAction(
+  ({ db }) => db.tax,
+  "fileReturn",
   {
     input: v.object({ returnId: Id }),
     requireTenant: true,
     permission: "tax.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ returnId }) => [returnId],
   },
-  async ({ returnId }, { db }) => {
-    const filed = await db.tax.fileReturn(returnId);
-
-    if (!filed.ok) {
-      return filed;
-    }
-
-    return ok(filed.data.status);
-  },
+  (filed) => filed.status,
 );
 
 /** Turns the unbilled time of the organization into one draft invoice. */
-export const invoiceBillableTime = bsb.action(
+export const invoiceBillableTime = bsb.blockAction(
+  ({ db }) => db.billableTime,
+  "invoice",
   {
     input: v.object({ title: v.optional(Text(200)) }),
     requireTenant: true,
     permission: "billable_time.invoice",
     tags: () => TAGS,
     refresh: true,
+    args: ({ title }) => [title === undefined ? {} : { title }],
   },
-  async ({ title }, { db }) => {
-    const invoiced = await db.billableTime.invoice(
-      title === undefined ? {} : { title },
-    );
-
-    if (!invoiced.ok) {
-      return invoiced;
-    }
-
-    return ok(invoiced.data.invoiceId);
-  },
+  (invoiced) => invoiced.invoiceId,
 );
 
 /** Collects a draft payroll run from the worked and leave hours of a period. */
-export const createPayrollRun = bsb.action(
+export const createPayrollRun = bsb.blockAction(
+  ({ db }) => db.payrollExport,
+  "create",
   {
     input: v.object({ from: Day, to: Day, label: v.optional(Text(200)) }),
     requireTenant: true,
     permission: "payroll_export.export",
     tags: () => TAGS,
     refresh: true,
+    args: ({ from, to, label }) => [
+      {
+        from: Temporal.PlainDate.from(from),
+        to: Temporal.PlainDate.from(to),
+        ...(label === undefined ? {} : { label }),
+      },
+    ],
   },
-  async ({ from, to, label }, { db }) => {
-    const created = await db.payrollExport.create({
-      from: Temporal.PlainDate.from(from),
-      to: Temporal.PlainDate.from(to),
-      ...(label === undefined ? {} : { label }),
-    });
-
-    if (!created.ok) {
-      return created;
-    }
-
-    return ok(created.data.id);
-  },
+  (created) => created.id,
 );
 
 /** Collects a draft run's lines again, for time that changed since. */
-export const refreshPayrollRun = bsb.action(
+export const refreshPayrollRun = bsb.blockAction(
+  ({ db }) => db.payrollExport,
+  "refresh",
   {
     input: v.object({ runId: Id }),
     requireTenant: true,
     permission: "payroll_export.export",
     tags: () => TAGS,
     refresh: true,
+    args: ({ runId }) => [runId],
   },
-  async ({ runId }, { db }) => {
-    const refreshed = await db.payrollExport.refresh(runId);
-
-    if (!refreshed.ok) {
-      return refreshed;
-    }
-
-    return ok(refreshed.data.id);
-  },
+  (refreshed) => refreshed.id,
 );
 
 /** Adds a company to the organization; the first one becomes its default. */
-export const createLegalEntity = bsb.action(
+export const createLegalEntity = bsb.blockAction(
+  ({ db }) => db.legalEntities,
+  "create",
   {
     input: v.object({
       code: v.pipe(Text(32), v.regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/)),
@@ -329,88 +263,69 @@ export const createLegalEntity = bsb.action(
     permission: "legal_entities.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ code, name, vatNumber, defaultCurrency }) => [
+      {
+        code,
+        name,
+        ...(vatNumber === undefined ? {} : { vatNumber }),
+        ...(defaultCurrency === undefined ? {} : { defaultCurrency }),
+      },
+    ],
   },
-  async ({ code, name, vatNumber, defaultCurrency }, { db }) => {
-    const created = await db.legalEntities.create({
-      code,
-      name,
-      ...(vatNumber === undefined ? {} : { vatNumber }),
-      ...(defaultCurrency === undefined ? {} : { defaultCurrency }),
-    });
-
-    if (!created.ok) {
-      return created;
-    }
-
-    return ok(created.data.id);
-  },
+  (created) => created.id,
 );
 
 /** Makes a legal entity the default for new documents. */
-export const makeDefaultLegalEntity = bsb.action(
+export const makeDefaultLegalEntity = bsb.blockAction(
+  ({ db }) => db.legalEntities,
+  "setDefault",
   {
     input: v.object({ entityId: Id }),
     requireTenant: true,
     permission: "legal_entities.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ entityId }) => [entityId],
   },
-  async ({ entityId }, { db }) => {
-    const updated = await db.legalEntities.setDefault(entityId);
-
-    if (!updated.ok) {
-      return updated;
-    }
-
-    return ok(updated.data.id);
-  },
+  (updated) => updated.id,
 );
 
 /** Archives a legal entity that is not the default. */
-export const archiveLegalEntity = bsb.action(
+export const archiveLegalEntity = bsb.blockAction(
+  ({ db }) => db.legalEntities,
+  "archive",
   {
     input: v.object({ entityId: Id }),
     requireTenant: true,
     permission: "legal_entities.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ entityId }) => [entityId],
   },
-  async ({ entityId }, { db }) => {
-    const archived = await db.legalEntities.archive(entityId);
-
-    if (!archived.ok) {
-      return archived;
-    }
-
-    return ok(archived.data.id);
-  },
+  (archived) => archived.id,
 );
 
 /** Ends an award today, or cancels it. */
-export const endFundingAward = bsb.action(
+export const endFundingAward = bsb.blockAction(
+  ({ db }) => db.funding,
+  "endAward",
   {
     input: v.object({ awardId: Id, canceled: v.optional(v.boolean()) }),
     requireTenant: true,
     permission: "funding.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ awardId, canceled }) => [
+      { awardId, ...(canceled === undefined ? {} : { canceled }) },
+    ],
   },
-  async ({ awardId, canceled }, { db }) => {
-    const ended = await db.funding.endAward({
-      awardId,
-      ...(canceled === undefined ? {} : { canceled }),
-    });
-
-    if (!ended.ok) {
-      return ended;
-    }
-
-    return ok(ended.data.status);
-  },
+  (ended) => ended.status,
 );
 
 /** Adds a bank account; the first one in a currency becomes its primary. */
-export const createBankAccount = bsb.action(
+export const createBankAccount = bsb.blockAction(
+  ({ db }) => db.banking,
+  "saveAccount",
   {
     input: v.object({
       name: Text(200),
@@ -422,21 +337,16 @@ export const createBankAccount = bsb.action(
     permission: "banking.manage",
     tags: () => TAGS,
     refresh: true,
-  },
-  async ({ name, iban, currency, holder }, { db }) => {
-    const saved = await db.banking.saveAccount({
-      input: {
-        name,
-        currency,
-        ...(iban === undefined ? {} : { iban }),
-        ...(holder === undefined ? {} : { holder }),
+    args: ({ name, iban, currency, holder }) => [
+      {
+        input: {
+          name,
+          currency,
+          ...(iban === undefined ? {} : { iban }),
+          ...(holder === undefined ? {} : { holder }),
+        },
       },
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(saved.data.id);
+    ],
   },
+  (saved) => saved.id,
 );

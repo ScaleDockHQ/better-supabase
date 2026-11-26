@@ -10,7 +10,9 @@ import { bsb } from "@/lib/supabase/server";
 const TAGS = [tags.lims()];
 
 /** Registers a sample, which gets the next SMP number. */
-export const registerSample = bsb.action(
+export const registerSample = bsb.blockAction(
+  ({ db }) => db.lims,
+  "registerSample",
   {
     input: v.object({
       title: Name,
@@ -23,22 +25,17 @@ export const registerSample = bsb.action(
     permission: "lims.write",
     tags: () => TAGS,
     refresh: true,
+    args: (input) => [
+      {
+        title: input.title,
+        ...given("kind", input.kind),
+        ...given("lot", input.lot),
+        ...given("notes", input.notes),
+        ...given("receivedOn", plainDateOf(input.receivedOn)),
+      },
+    ],
   },
-  async (input, { db }) => {
-    const sample = await db.lims.registerSample({
-      title: input.title,
-      ...given("kind", input.kind),
-      ...given("lot", input.lot),
-      ...given("notes", input.notes),
-      ...given("receivedOn", plainDateOf(input.receivedOn)),
-    });
-
-    if (!sample.ok) {
-      return sample;
-    }
-
-    return ok({ id: sample.data.id });
-  },
+  (sample) => ({ id: sample.id }),
 );
 
 const Numeric = v.pipe(v.string(), v.trim(), v.regex(/^-?\d+(\.\d+)?$/u));
@@ -94,7 +91,9 @@ export const saveMethod = bsb.action(
  * Records one measurement. A value outside the method's limits is out of
  * specification and opens a nonconformity case.
  */
-export const recordResult = bsb.action(
+export const recordResult = bsb.blockAction(
+  ({ db }) => db.lims,
+  "recordResult",
   {
     input: v.object({
       sampleId: Id,
@@ -107,40 +106,30 @@ export const recordResult = bsb.action(
     permission: "lims.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ sampleId, methodId, instrumentId, value, note }) => [
+      {
+        sampleId,
+        methodId,
+        input: { value: Number(value), instrumentId, ...given("note", note) },
+      },
+    ],
   },
-  async ({ sampleId, methodId, instrumentId, value, note }, { db }) => {
-    const saved = await db.lims.recordResult({
-      sampleId,
-      methodId,
-      input: { value: Number(value), instrumentId, ...given("note", note) },
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok({ outcome: saved.data.outcome });
-  },
+  (saved) => ({ outcome: saved.outcome }),
 );
 
 /** Completes a sample once its results are in. */
-export const completeSample = bsb.action(
+export const completeSample = bsb.blockAction(
+  ({ db }) => db.lims,
+  "completeSample",
   {
     input: v.object({ sampleId: Id }),
     requireTenant: true,
     permission: "lims.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ sampleId }) => [sampleId],
   },
-  async ({ sampleId }, { db }) => {
-    const moved = await db.lims.completeSample(sampleId);
-
-    if (!moved.ok) {
-      return moved;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /** Releases a completed sample, or rejects one with a reason. */

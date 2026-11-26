@@ -41,13 +41,15 @@ export function withReadSetTables(entry: CachedOptions): CachedOptions {
 
 /**
  * The server action behind `bsb.blockAction`: calls one block method as the
- * caller and drops the tags of `invalidates` after a success.
+ * caller and drops the tags of `invalidates` after a success. `map` shapes the
+ * data of a success, as the third argument of `action` does.
  */
 export function blockActionOf(
   host: {
     readonly action: (
       options: never,
       fn: (input: never, ctx: never) => Promise<Result<unknown>>,
+      map?: (data: never) => unknown,
     ) => unknown;
   },
   client: (ctx: never) => object,
@@ -56,20 +58,27 @@ export function blockActionOf(
     readonly args?: (input: never, ctx: never) => unknown;
     readonly invalidates?: readonly string[];
   },
+  map?: (data: never) => unknown,
 ): never {
   // `invalidates` stays in the options: `action` drops the tags after a success.
   // SAFETY: the options are the action options `blockAction` was given.
-  const run = host.action(options as never, async (input, ctx) => {
-    const call = methodOf(client(ctx), method);
+  const run = host.action(
+    options as never,
+    async (input, ctx) => {
+      const call = methodOf(client(ctx), method);
 
-    // SAFETY: BlockActionParams makes `args` required unless the method
-    // takes the validated input as its only argument.
-    const args = (options.args?.(input, ctx) ?? [input]) as readonly unknown[];
+      // SAFETY: BlockActionParams makes `args` required unless the method
+      // takes the validated input as its only argument.
+      const args = (options.args?.(input, ctx) ?? [
+        input,
+      ]) as readonly unknown[];
 
-    const result = await call(...args);
+      const result = await call(...args);
 
-    return result;
-  });
+      return result;
+    },
+    map,
+  );
 
   // SAFETY: the method's `Result` carries `BlockDataOf<Cl, K>`.
   return run as never;

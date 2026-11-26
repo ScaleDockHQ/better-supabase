@@ -197,6 +197,7 @@ export async function OrderDetail({ id, tab }: { id: string; tab: string }) {
               <RecordBoundSections
                 subject={subject}
                 sections={["tags", "fields", "approvals", "reminders"]}
+                alongside={tab === "related" ? ["files", "relations"] : []}
               />
             ) : null}
             <Card>
@@ -343,6 +344,7 @@ export async function OrderDetail({ id, tab }: { id: string; tab: string }) {
           <RecordBoundSections
             subject={subject}
             sections={["files", "relations"]}
+            alongside={["tags", "fields", "approvals", "reminders"]}
           />
         ) : placed && tab === "activity" ? (
           <RecordBoundSections

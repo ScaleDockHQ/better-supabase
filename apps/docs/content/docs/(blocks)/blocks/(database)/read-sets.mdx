@@ -5,7 +5,9 @@ description: One stable SQL function per read set, so a page's related queries c
 
 `read-sets` writes one `stable` function per `defineReadSet` in the
 `readSets` config, so `db.$many(readSet, params)` reads several related
-queries in a single GET instead of one request each.
+queries in a single GET instead of one request each. It also writes
+`read_batch`, which `bsb.record(type).get` uses to read a page's bindings in one
+call.
 
 ```bash
 better-supabase add read-sets

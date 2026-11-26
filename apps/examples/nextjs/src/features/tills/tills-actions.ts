@@ -140,7 +140,9 @@ export const openSession = bsb.action(
 );
 
 /** Records cash that came in or went out of the drawer. */
-export const recordMovement = bsb.action(
+export const recordMovement = bsb.blockAction(
+  ({ db }) => db.tills,
+  "recordMovement",
   {
     input: v.object({
       sessionId: Id,
@@ -153,25 +155,22 @@ export const recordMovement = bsb.action(
     permission: "tills.write",
     tags: () => TILLS_CACHE_TAGS,
     refresh: true,
+    args: (input) => [
+      {
+        sessionId: input.sessionId,
+        kind: input.kind,
+        amount: parseMoney(input.amount, input.currency),
+        ...given("reason", input.reason),
+      },
+    ],
   },
-  async (input, { db }) => {
-    const recorded = await db.tills.recordMovement({
-      sessionId: input.sessionId,
-      kind: input.kind,
-      amount: parseMoney(input.amount, input.currency),
-      ...given("reason", input.reason),
-    });
-
-    if (!recorded.ok) {
-      return recorded;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /** Counts the drawer and closes the session; the variance goes to the books. */
-export const closeSession = bsb.action(
+export const closeSession = bsb.blockAction(
+  ({ db }) => db.tills,
+  "closeSession",
   {
     input: v.object({
       sessionId: Id,
@@ -183,26 +182,23 @@ export const closeSession = bsb.action(
     permission: "tills.write",
     tags: () => TILLS_CACHE_TAGS,
     refresh: true,
-  },
-  async (input, { db }) => {
-    const closed = await db.tills.closeSession({
-      sessionId: input.sessionId,
-      input: {
-        amount: parseMoney(input.counted, input.currency),
-        ...given("notes", input.notes),
+    args: (input) => [
+      {
+        sessionId: input.sessionId,
+        input: {
+          amount: parseMoney(input.counted, input.currency),
+          ...given("notes", input.notes),
+        },
       },
-    });
-
-    if (!closed.ok) {
-      return closed;
-    }
-
-    return ok(true);
+    ],
   },
+  () => true,
 );
 
 /** Takes cash from a closed session to the bank. */
-export const depositCash = bsb.action(
+export const depositCash = bsb.blockAction(
+  ({ db }) => db.tills,
+  "deposit",
   {
     input: v.object({
       sessionId: Id,
@@ -214,22 +210,17 @@ export const depositCash = bsb.action(
     permission: "tills.manage",
     tags: () => TILLS_CACHE_TAGS,
     refresh: true,
-  },
-  async (input, { db }) => {
-    const deposited = await db.tills.deposit({
-      sessionId: input.sessionId,
-      input: {
-        amount: parseMoney(input.amount, input.currency),
-        ...given("reference", input.reference),
+    args: (input) => [
+      {
+        sessionId: input.sessionId,
+        input: {
+          amount: parseMoney(input.amount, input.currency),
+          ...given("reference", input.reference),
+        },
       },
-    });
-
-    if (!deposited.ok) {
-      return deposited;
-    }
-
-    return ok(true);
+    ],
   },
+  () => true,
 );
 
 /**
@@ -287,7 +278,9 @@ export const importDepositStatement = bsb.action(
 );
 
 /** Matches a pending deposit to the bank transaction that shows it. */
-export const reconcileDeposit = bsb.action(
+export const reconcileDeposit = bsb.blockAction(
+  ({ db }) => db.tills,
+  "reconcileDeposit",
   {
     input: v.object({ depositId: Id, bankTransactionId: Id }),
     requireTenant: true,
@@ -295,13 +288,5 @@ export const reconcileDeposit = bsb.action(
     tags: () => [...TILLS_CACHE_TAGS, tags.banking()],
     refresh: true,
   },
-  async (input, { db }) => {
-    const reconciled = await db.tills.reconcileDeposit(input);
-
-    if (!reconciled.ok) {
-      return reconciled;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );

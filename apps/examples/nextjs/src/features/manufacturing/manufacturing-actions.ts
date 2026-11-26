@@ -9,7 +9,9 @@ import { bsb } from "@/lib/supabase/server";
 const Id = v.pipe(v.string(), v.uuid());
 
 /** Releases a draft order; the database refuses when a component is short. */
-export const releaseProductionOrder = bsb.action(
+export const releaseProductionOrder = bsb.blockAction(
+  ({ db }) => db.manufacturing,
+  "release",
   {
     input: v.object({ orderId: Id }),
     requireTenant: true,
@@ -17,15 +19,7 @@ export const releaseProductionOrder = bsb.action(
     tags: () => [tags.manufacturing(), tags.shop()],
     refresh: true,
   },
-  async ({ orderId }, { db }) => {
-    const released = await db.manufacturing.release({ orderId });
-
-    if (!released.ok) {
-      return released;
-    }
-
-    return ok({ id: released.data.id, status: released.data.status });
-  },
+  (released) => ({ id: released.id, status: released.status }),
 );
 
 /**
@@ -72,7 +66,9 @@ export const createFromRequirements = bsb.action(
 );
 
 /** Completes an order with its planned quantity, backflushing the rest. */
-export const completeProductionOrder = bsb.action(
+export const completeProductionOrder = bsb.blockAction(
+  ({ db }) => db.manufacturing,
+  "complete",
   {
     input: v.object({
       orderId: Id,
@@ -83,13 +79,5 @@ export const completeProductionOrder = bsb.action(
     tags: () => [tags.manufacturing(), tags.shop()],
     refresh: true,
   },
-  async ({ orderId, produced }, { db }) => {
-    const done = await db.manufacturing.complete({ orderId, produced });
-
-    if (!done.ok) {
-      return done;
-    }
-
-    return ok({ id: done.data.id, status: done.data.status });
-  },
+  (done) => ({ id: done.id, status: done.status }),
 );

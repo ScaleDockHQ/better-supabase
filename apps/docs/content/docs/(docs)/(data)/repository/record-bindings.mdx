@@ -94,6 +94,14 @@ export default async function CustomerPage({
 }
 ```
 
+With the [`read-sets`](/docs/repository/read-sets#batched-record-reads) block
+installed, `get` sends the first read of every binding as one `read_batch`
+call, so a page with five bindings makes one request instead of five. A binding
+whose read writes (a `volatile` function) or whose key the caller lacks runs on
+its own as before, and the results are the same either way. Ask for every
+binding the page shows in one `get`, wrapped in React's `cache()`, and let each
+section pick its own: two `get` calls are two requests.
+
 `customerPage.actions.<binding>.<write>` is a Server Action: export the ones
 your UI calls from a `"use server"` file. Each builds the block's client over
 the caller's `Db` and its `supabase.storage`, runs the write, and drops the

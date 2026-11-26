@@ -70,41 +70,31 @@ export const createAsset = bsb.action(
 );
 
 /** Moves an asset between in service, in maintenance and retired. */
-export const setAssetStatus = bsb.action(
+export const setAssetStatus = bsb.blockAction(
+  ({ db }) => db.assets,
+  "updateAsset",
   {
     input: v.object({ assetId: Id, status: v.picklist(ASSET_STATUSES) }),
     requireTenant: true,
     permission: "assets.manage",
     tags: () => [tags.assets()],
     refresh: true,
+    args: ({ assetId, status }) => [{ assetId, patch: { status } }],
   },
-  async ({ assetId, status }, { db }) => {
-    const updated = await db.assets.updateAsset({ assetId, patch: { status } });
-
-    if (!updated.ok) {
-      return updated;
-    }
-
-    return ok(updated.data.id);
-  },
+  (updated) => updated.id,
 );
 
 /** Ends the current assignment, so the asset is free again. */
-export const releaseAsset = bsb.action(
+export const releaseAsset = bsb.blockAction(
+  ({ db }) => db.assets,
+  "release",
   {
     input: v.object({ assetId: Id }),
     requireTenant: true,
     permission: "assets.assign",
     tags: () => [tags.assets()],
     refresh: true,
+    args: ({ assetId }) => [assetId],
   },
-  async ({ assetId }, { db }) => {
-    const released = await db.assets.release(assetId);
-
-    if (!released.ok) {
-      return released;
-    }
-
-    return ok(released.data.id);
-  },
+  (released) => released.id,
 );

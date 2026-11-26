@@ -1,8 +1,5 @@
 "use server";
 
-import type { Result } from "better-supabase";
-import type { JsonPatchOperation } from "better-supabase/blocks/versions";
-
 import { fromBetterResult, dbError, err, ok } from "better-supabase";
 import { withBetterResult } from "better-supabase/better-result";
 import { Temporal } from "temporal-polyfill";
@@ -25,18 +22,19 @@ const Id = v.pipe(v.string(), v.uuid());
  * `customers_owner_team_check` trigger refuses a team from another organization
  * with `foreign_key_violation`.
  */
-export const setCustomerOwnerTeam = bsb.action(
+export const setCustomerOwnerTeam = bsb.blockAction(
+  ({ db }) => db.customers,
+  "update",
   {
     input: v.object({ customerId: Id, teamId: v.nullable(Id) }),
     requireTenant: true,
     permission: "customers.write",
-  },
-  async ({ customerId, teamId }, { db }) =>
-    db.customers.update(
+    args: ({ customerId, teamId }) => [
       customerId,
       { ownerTeamId: teamId },
       { select: ["id", "ownerTeamId"] },
-    ),
+    ],
+  },
 );
 
 /**
@@ -186,17 +184,14 @@ export const restoreCustomerVersion = bsb.action(
 );
 
 /** The changes from one version to a later one, as JSON Patch operations. */
-export const compareCustomerVersions = bsb.action(
+export const compareCustomerVersions = bsb.blockAction(
+  ({ db }) => db.versions,
+  "diff",
   {
     input: v.object({ fromId: Id, toId: Id }),
     requireTenant: true,
     permission: "versions.read",
   },
-  async (
-    { fromId, toId },
-    { db },
-  ): Promise<Result<readonly JsonPatchOperation[]>> =>
-    db.versions.diff({ fromId, toId }),
 );
 
 // #endregion versions

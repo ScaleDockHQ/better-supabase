@@ -79,7 +79,9 @@ export const createSampleCourse = bsb.action(
 );
 
 /** Enrolls the caller in a published course. */
-export const enrollInCourse = bsb.action(
+export const enrollInCourse = bsb.blockAction(
+  ({ db }) => db.courses,
+  "enroll",
   {
     input: v.object({ courseId: Id }),
     requireTenant: true,
@@ -87,35 +89,22 @@ export const enrollInCourse = bsb.action(
     tags: () => [tags.courses()],
     refresh: true,
   },
-  async ({ courseId }, { db }) => {
-    const learner = await db.courses.enroll({ courseId });
-
-    if (!learner.ok) {
-      return learner;
-    }
-
-    return ok({ status: learner.data.status });
-  },
+  (learner) => ({ status: learner.status }),
 );
 
 /** Marks a content or video lesson done for the caller. */
-export const completeLesson = bsb.action(
+export const completeLesson = bsb.blockAction(
+  ({ db }) => db.courses,
+  "complete",
   {
     input: v.object({ lessonId: Id }),
     requireTenant: true,
     permission: "courses.read",
     tags: () => [tags.courses()],
     refresh: true,
+    args: ({ lessonId }) => [lessonId],
   },
-  async ({ lessonId }, { db }) => {
-    const learner = await db.courses.complete(lessonId);
-
-    if (!learner.ok) {
-      return learner;
-    }
-
-    return ok({ status: learner.data.status });
-  },
+  (learner) => ({ status: learner.status }),
 );
 
 const Answer = v.union([

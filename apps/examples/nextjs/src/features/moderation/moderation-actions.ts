@@ -35,21 +35,11 @@ export const decideItem = bsb.action(
 );
 
 /** Lifts a ban. */
-export const liftBan = bsb.action(
-  {
-    input: v.object({ banId: Id }),
-    requireTenant: true,
-    permission: "moderation.ban",
-    tags: () => [tags.moderation()],
-    refresh: true,
-  },
-  async ({ banId }, { db }) => {
-    const lifted = await db.moderation.unban(banId);
-
-    if (!lifted.ok) {
-      return lifted;
-    }
-
-    return ok(lifted.data);
-  },
-);
+export const liftBan = bsb.blockAction(({ db }) => db.moderation, "unban", {
+  input: v.object({ banId: Id }),
+  requireTenant: true,
+  permission: "moderation.ban",
+  tags: () => [tags.moderation()],
+  refresh: true,
+  args: ({ banId }) => [banId],
+});

@@ -66,27 +66,24 @@ export const issuePass = bsb.action(
 );
 
 /** Revokes a pass; later scans are turned away. */
-export const revokePass = bsb.action(
+export const revokePass = bsb.blockAction(
+  ({ db }) => db.passes,
+  "revoke",
   {
     input: v.object({ passId: Id }),
     requireTenant: true,
     permission: "passes.manage",
     tags: () => [tags.passes()],
     refresh: true,
+    args: ({ passId }) => [passId],
   },
-  async ({ passId }, { db }) => {
-    const revoked = await db.passes.revoke(passId);
-
-    if (!revoked.ok) {
-      return revoked;
-    }
-
-    return ok(revoked.data.id);
-  },
+  (revoked) => revoked.id,
 );
 
 /** Checks a holder in by pass id, for staff at the door. */
-export const checkInPass = bsb.action(
+export const checkInPass = bsb.blockAction(
+  ({ db }) => db.passes,
+  "checkInManually",
   {
     input: v.object({ passId: Id }),
     requireTenant: true,
@@ -94,13 +91,5 @@ export const checkInPass = bsb.action(
     tags: () => [tags.passes()],
     refresh: true,
   },
-  async ({ passId }, { db }) => {
-    const scanned = await db.passes.checkInManually({ passId });
-
-    if (!scanned.ok) {
-      return scanned;
-    }
-
-    return ok(scanned.data.admitted);
-  },
+  (scanned) => scanned.admitted,
 );

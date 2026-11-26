@@ -47,67 +47,48 @@ export const createCollection = bsb.action(
 );
 
 /** Archives a collection, or brings an archived one back. */
-export const archiveCollection = bsb.action(
+export const archiveCollection = bsb.blockAction(
+  ({ db }) => db.collections,
+  "archive",
   {
     input: v.object({ collectionId: Id, archived: v.boolean() }),
     requireTenant: true,
     permission: "collections.write",
     tags: () => [tags.collections()],
     refresh: true,
-  },
-  async ({ collectionId, archived }, { db }) => {
-    const done = await db.collections.archive({ id: collectionId, archived });
-
-    if (!done.ok) {
-      return done;
-    }
-
-    return ok(done.data);
+    args: ({ collectionId, archived }) => [{ id: collectionId, archived }],
   },
 );
 
 /** Adds a customer to a collection. */
-export const addToCollection = bsb.action(
+export const addToCollection = bsb.blockAction(
+  ({ db }) => db.collections,
+  "add",
   {
     input: v.object({ collectionId: Id, subjectId: Id }),
     requireTenant: true,
     permission: "collections.write",
     tags: () => [tags.collections()],
     refresh: true,
+    args: ({ collectionId, subjectId }) => [
+      { id: collectionId, subjectIds: [subjectId] },
+    ],
   },
-  async ({ collectionId, subjectId }, { db }) => {
-    const done = await db.collections.add({
-      id: collectionId,
-      subjectIds: [subjectId],
-    });
-
-    if (!done.ok) {
-      return done;
-    }
-
-    return ok(done.data.added.length);
-  },
+  (done) => done.added.length,
 );
 
 /** Takes a customer out of a collection. */
-export const removeFromCollection = bsb.action(
+export const removeFromCollection = bsb.blockAction(
+  ({ db }) => db.collections,
+  "remove",
   {
     input: v.object({ collectionId: Id, subjectId: Id }),
     requireTenant: true,
     permission: "collections.write",
     tags: () => [tags.collections()],
     refresh: true,
-  },
-  async ({ collectionId, subjectId }, { db }) => {
-    const done = await db.collections.remove({
-      id: collectionId,
-      subjectIds: [subjectId],
-    });
-
-    if (!done.ok) {
-      return done;
-    }
-
-    return ok(done.data);
+    args: ({ collectionId, subjectId }) => [
+      { id: collectionId, subjectIds: [subjectId] },
+    ],
   },
 );
