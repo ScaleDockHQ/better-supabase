@@ -4,7 +4,6 @@ import { dbError, err, ok } from "better-supabase";
 import { headers } from "next/headers";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { CONNECTORS_TAG } from "./integrations-connectors";
@@ -56,8 +55,8 @@ export const connectIntegration = bsbCore.action(
 
 /** Revokes the user's grant at Connect, so the next read asks for consent. */
 export const disconnectIntegration = bsbCore.action(
-  { input: Input },
-  async ({ id }, { session, auth }) => {
+  { input: Input, tags: () => [CONNECTORS_TAG], refresh: true },
+  async ({ id }, { session }) => {
     const integration = integrationOf(id);
 
     if (integration === undefined || session.kind !== "user") {
@@ -71,8 +70,6 @@ export const disconnectIntegration = bsbCore.action(
     if (!revoked.ok) {
       return revoked;
     }
-
-    await refreshCaller(auth, [CONNECTORS_TAG]);
 
     return ok(revoked.data);
   },

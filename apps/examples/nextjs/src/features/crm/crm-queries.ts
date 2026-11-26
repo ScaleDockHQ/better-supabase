@@ -139,6 +139,15 @@ export async function getContact(
 
   const { contacts: parties } = db.$blocks;
 
+  // The company's people and the picker start with the lookups, so a company
+  // page needs one wave less; a person page leaves both results unread.
+  const peopleRead = parties.peopleOf(id);
+
+  const everyoneRead = parties.personPage({
+    organizationId: tenant,
+    limit: PAGE,
+  });
+
   const [companyRead, personRead] = await Promise.all([
     parties.companyById(id),
     parties.personById(id),
@@ -149,8 +158,8 @@ export async function getContact(
 
   if (company) {
     const [people, everyone] = await Promise.all([
-      parties.peopleOf(company.id).orThrow(),
-      parties.personPage({ organizationId: tenant, limit: PAGE }).orThrow(),
+      peopleRead.orThrow(),
+      everyoneRead.orThrow(),
     ]);
 
     const linked = new Set(people.map((member) => member.id));

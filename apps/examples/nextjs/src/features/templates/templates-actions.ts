@@ -5,7 +5,6 @@ import * as v from "valibot";
 
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
 
@@ -23,8 +22,10 @@ export const createTemplate = bsbCore.action(
     input: v.object({ name: Name, ...CustomerTemplateBody.entries }),
     requireTenant: true,
     permission: "templates.manage",
+    tags: () => [tags.templates(), tags.customers()],
+    refresh: true,
   },
-  async ({ name, status }, { tenant, supabase, auth }) => {
+  async ({ name, status }, { tenant, supabase }) => {
     const templates = templatesOf(supabase);
 
     const saved = await templates.upsert({
@@ -52,8 +53,6 @@ export const createTemplate = bsbCore.action(
       return published;
     }
 
-    await refreshCaller(auth, [tags.templates(), tags.customers()]);
-
     return ok({ id: saved.data.id, name: saved.data.name });
   },
 );
@@ -65,8 +64,10 @@ export const applyTemplate = bsbCore.action(
     requireTenant: true,
     permission: "templates.apply",
     authorize: async () => can(await getPermissions(), "customers.write"),
+    tags: () => [tags.templates(), tags.customers()],
+    refresh: true,
   },
-  async ({ templateId, name }, { tenant, supabase, db, auth }) => {
+  async ({ templateId, name }, { tenant, supabase, db }) => {
     const applied = await customerTemplates(supabase, (row) =>
       db.customers.create(row, { select: ["id"] }),
     ).apply({
@@ -77,8 +78,6 @@ export const applyTemplate = bsbCore.action(
     if (!applied.ok) {
       return applied;
     }
-
-    await refreshCaller(auth, [tags.templates(), tags.customers()]);
 
     return ok({ customerId: applied.data.subject.id });
   },

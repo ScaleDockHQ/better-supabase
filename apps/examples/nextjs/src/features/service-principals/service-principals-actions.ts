@@ -39,6 +39,8 @@ export const createServicePrincipal = bsbCore.action(
     }),
     requireTenant: true,
     permission: "service_accounts.manage",
+    tags: () => [tags.servicePrincipals()],
+    refresh: true,
   },
   async ({ name, role, isDefault }, { tenant, auth }) => {
     if (auth.kind !== "user") {
@@ -56,8 +58,6 @@ export const createServicePrincipal = bsbCore.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [tags.servicePrincipals()]);
 
     return ok(created.data.id);
   },

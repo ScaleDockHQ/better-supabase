@@ -7,7 +7,6 @@ import * as v from "valibot";
 import type { PermissionKey } from "@/lib/supabase/blocks.generated";
 
 import { organizationSnapshotTag } from "@/features/user/user-cache";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 const Key = v.pipe(
@@ -32,8 +31,9 @@ export const setPermissionOverride = bsbCore.action(
       granted: v.nullable(v.boolean()),
     }),
     requireTenant: true,
+    evictSession: true,
   },
-  async ({ roleId, permission, granted }, { tenant, db, auth }) => {
+  async ({ roleId, permission, granted }, { tenant, db }) => {
     const role = await db.permissions.setOverride({
       role: roleId,
       permission,
@@ -45,7 +45,6 @@ export const setPermissionOverride = bsbCore.action(
     }
 
     updateTag(organizationSnapshotTag(tenant));
-    await refreshCaller(auth);
 
     return ok(role.data.permissions);
   },

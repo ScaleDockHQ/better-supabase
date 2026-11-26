@@ -55,8 +55,10 @@ export const retryJobRun = bsbCore.action(
     }),
     requireTenant: true,
     permission: JOBS_PERMISSION,
+    tags: () => [tags.jobs()],
+    refresh: true,
   },
-  async ({ queue, id }, { tenant, auth }): Promise<Result<number>> => {
+  async ({ queue, id }, { tenant }): Promise<Result<number>> => {
     const connection = requirePostgres();
 
     if (!connection.ok) {
@@ -82,8 +84,6 @@ export const retryJobRun = bsbCore.action(
     if (newId === undefined || newId === null) {
       return err(dbError("not_found", "That job is not a failed run"));
     }
-
-    await refreshCaller(auth, [tags.jobs()]);
 
     return ok(Number(newId));
   },

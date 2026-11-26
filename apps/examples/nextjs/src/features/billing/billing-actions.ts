@@ -13,7 +13,6 @@ import * as v from "valibot";
 
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
@@ -26,8 +25,12 @@ import { priceOf, stripeBilling } from "./billing-stripe";
 
 /** Completes the "Review your plan" onboarding step. */
 export const markPlanReviewed = bsb.action(
-  { requireTenant: true, permission: "onboarding.complete" },
-  async (_input, { tenant: organizationId, db, auth }) => {
+  {
+    requireTenant: true,
+    permission: "onboarding.complete",
+    evictSession: true,
+  },
+  async (_input, { tenant: organizationId, db }) => {
     const completed = await db.onboarding.complete({
       checklist: gettingStarted,
       step: "plan",
@@ -37,8 +40,6 @@ export const markPlanReviewed = bsb.action(
     if (!completed.ok) {
       return completed;
     }
-
-    await refreshCaller(auth);
 
     return ok(completed.data);
   },
