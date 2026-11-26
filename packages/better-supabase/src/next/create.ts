@@ -81,6 +81,7 @@ import {
   validateBound,
   withReadSetTables,
 } from "./action-bound.ts";
+import { applyActionEffects } from "./action-effects.ts";
 import { applyCacheTags } from "./cache-tags.ts";
 import {
   invalidateAll,
@@ -1093,11 +1094,11 @@ export function createNext<
           );
         }
 
-        if (settled.ok && actionOptions.invalidates) {
-          invalidate(
-            actionOptions.invalidates.flatMap((table) =>
-              tableTags(table, { tenant: "*" }),
-            ),
+        if (settled.ok) {
+          applyActionEffects(
+            actionOptions,
+            { tenant, input: parsed, data: settled.data },
+            invalidate,
           );
         }
 

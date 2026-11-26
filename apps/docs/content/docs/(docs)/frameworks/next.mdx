@@ -787,6 +787,23 @@ export const archive = bsb.action(
 // <form action={archive.bind(null, organizationId)}>
 ```
 
+`tags` computes cache tags to expire after a successful call, from the
+tenant, the validated input and the returned data, and `refresh: true` calls
+`refresh()` from `next/cache` afterwards, so the caller no longer refreshes the
+router itself:
+
+```ts
+export const createAgendaItem = bsb.action(
+  async (input, { db }) => await db.agendaItems.create(input),
+  {
+    input: agendaItemSchema,
+    tenant: (input) => input.organizationId,
+    tags: ({ tenant }) => [agendaTag(tenant)],
+    refresh: true,
+  },
+);
+```
+
 #### Mapping the data to another type
 
 `result` keeps the data type. To return a different type, pass a mapper as the

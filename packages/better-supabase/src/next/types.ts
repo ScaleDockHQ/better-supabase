@@ -320,6 +320,21 @@ export interface ActionOptions<
    * with them, such as `reads.deals.board.tables`.
    */
   readonly invalidates?: readonly string[];
+  /**
+   * Cache tags a successful call expires, computed from the tenant, the
+   * validated input and the data the action returned. Declare a tag once as a
+   * function of the tenant and use it here and in `bsb.tenant(..., { tags })`.
+   */
+  readonly tags?: (scope: {
+    readonly tenant: string | undefined;
+    readonly input: ActionParsed<S>;
+    readonly data: unknown;
+  }) => readonly string[];
+  /**
+   * Calls `refresh()` from `next/cache` after a successful call, so the client
+   * router shows the write without each caller doing it.
+   */
+  readonly refresh?: boolean;
 }
 
 /**
