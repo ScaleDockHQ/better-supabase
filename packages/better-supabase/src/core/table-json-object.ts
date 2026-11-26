@@ -178,7 +178,7 @@ function nestedJson(field: FieldSpec): JsonSchema | undefined {
 }
 
 /** JSON Schema for a composite object, including each nested field. */
-export function objectJsonSchema(field: ObjectField): JsonSchema {
+function objectJsonSchema(field: ObjectField): JsonSchema {
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
 

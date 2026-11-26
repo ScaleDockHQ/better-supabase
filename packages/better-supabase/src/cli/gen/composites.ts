@@ -248,7 +248,7 @@ export function domainIndex(
  * Records a column whose type `gen` cannot map. A CHECK union is mapped (it is
  * an enum), and so are `record` and `void`.
  */
-export function noteColumnType(
+function noteColumnType(
   unmapped: string[],
   path: string,
   resolved: ResolvedColumnType,
