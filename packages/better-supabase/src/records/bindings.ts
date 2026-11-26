@@ -142,7 +142,7 @@ export function bindingCan(
  * );
  * ```
  */
-export async function getBindings<
+export function getBindings<
   B extends BindingBlocks,
   const N extends BindingName<B>,
 >(
@@ -150,6 +150,23 @@ export async function getBindings<
   subject: RecordRef,
   names: readonly N[],
   options: LoadBindingsOptions<B, N> = {},
+): Promise<LoadedBindings<B, N>> {
+  return loadBindings(source, subject, names, options, (load) => load());
+}
+
+/** Runs one binding's load: `readBatch`'s `run`, so the loads share a batch. */
+export type BindingRun = <T>(load: () => Promise<T>) => Promise<T>;
+
+/** `getBindings`, with each binding's load run through `run`. */
+export async function loadBindings<
+  B extends BindingBlocks,
+  const N extends BindingName<B>,
+>(
+  source: BindingSource<B>,
+  subject: RecordRef,
+  names: readonly N[],
+  options: LoadBindingsOptions<B, N>,
+  run: BindingRun,
 ): Promise<LoadedBindings<B, N>> {
   const settled = await Promise.all(
     names.map(async (name): Promise<[N, RecordBindingResult<unknown>]> => {
@@ -198,7 +215,7 @@ export async function getBindings<
         options.options as Readonly<Record<string, unknown>> | undefined
       )?.[name];
 
-      const result = await load(client, subject, given);
+      const result = await run(async () => load(client, subject, given));
 
       return [
         name,

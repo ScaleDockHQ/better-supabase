@@ -1984,7 +1984,7 @@ export interface BlockNameRegistry {
   };
   readonly "read-sets": {
     readonly tables: {};
-    readonly functions: never;
+    readonly functions: "read_batch";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};

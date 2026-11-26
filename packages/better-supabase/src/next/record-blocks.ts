@@ -4,6 +4,10 @@
  */
 export { createBlockClient } from "../blocks/create-blocks.ts";
 
+export { dbTransport } from "../core/block-transport.ts";
+
+export { readBatch } from "../core/read-batch.ts";
+
 export { subjectsBlock } from "../blocks/subjects/manifest.ts";
 
 export { trashBlock } from "../blocks/trash/manifest.ts";

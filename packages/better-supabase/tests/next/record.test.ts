@@ -4,6 +4,7 @@ import { Temporal } from "temporal-polyfill";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { BlockClientSource } from "../../src/blocks/create-blocks.ts";
+import type { BlockTransport } from "../../src/core/block-transport.ts";
 import type { DbError } from "../../src/core/errors.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
 import type { createNext } from "../../src/next/index.ts";
@@ -14,6 +15,7 @@ import type { ActionResult } from "../../src/server/kit.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
+import { blockCall } from "../../src/core/block-helpers.ts";
 import { recordListServer } from "../../src/next/index.ts";
 import { recordServer } from "../../src/next/record.ts";
 import {
@@ -368,6 +370,107 @@ describe("recordServer timeline", () => {
     expect(await hidden.timeline("7")).toEqual({
       entries: [],
       skipped: { notes: { kind: "hidden" } },
+    });
+  });
+});
+
+describe("recordServer batching", () => {
+  interface Reader {
+    read(subject: RecordRef): AsyncResult<unknown>;
+  }
+
+  const readerBlock = (name: string) =>
+    defineBlock({
+      name,
+      category: "collaboration",
+      create: ({
+        transport,
+      }: {
+        readonly transport: BlockTransport;
+      }): Reader => {
+        const call = blockCall(transport, "api");
+
+        return {
+          read: (subject) =>
+            call(`${name}_of`, { id: subject.id }, (value) => value),
+        };
+      },
+      record: defineRecordBinding({
+        permissions: { read: "read" },
+        get: (client: Reader, subject) => client.read(subject),
+      }),
+    });
+
+  const rpc = vi.fn(
+    (fn: string, args: { readonly calls?: readonly { fn: string }[] }) =>
+      Promise.resolve(
+        fn === "read_batch"
+          ? {
+              ok: true,
+              data: (args.calls ?? []).map((entry) =>
+                entry.fn === "fields_of"
+                  ? { error: { code: "42501", message: "no fields" } }
+                  : { data: [entry.fn] },
+              ),
+            }
+          : { ok: true, data: [`direct:${fn}`] },
+      ),
+  );
+
+  const batchedDb = {
+    $context: { tenant: "org" },
+    $executor: { name: "fake", rpc },
+  } as unknown as BlockClientSource;
+
+  const page = recordServer(
+    { ...host, context: () => Promise.resolve({ db: batchedDb }) },
+    defineRecordType({
+      type: "customer",
+      blocks: {
+        tags: readerBlock("tags"),
+        fields: readerBlock("fields"),
+        secret: readerBlock("secret"),
+      },
+      permissions: {
+        tags: { read: "tags.read" },
+        fields: { read: "fields.read" },
+        secret: { read: "notes.hidden" },
+      },
+      access: permissionsBlock,
+    }),
+  );
+
+  it("reads every visible binding in one read_batch call", async () => {
+    rpc.mockClear();
+
+    const view = await page.get("7");
+
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(rpc.mock.calls[0]?.[0]).toBe("read_batch");
+    expect(rpc.mock.calls[0]?.[1]).toEqual({
+      calls: [
+        { fn: "tags_of", args: { id: "7" } },
+        { fn: "fields_of", args: { id: "7" } },
+      ],
+    });
+    expect(view.bindings.tags).toEqual({ kind: "ok", data: ["tags_of"] });
+    expect(view.bindings.fields).toMatchObject({
+      kind: "error",
+      error: { message: "no fields" },
+    });
+    expect(view.bindings.secret).toEqual({ kind: "hidden" });
+  });
+
+  it("calls a single binding directly", async () => {
+    rpc.mockClear();
+
+    const view = await page.get("7", { bindings: ["tags"] });
+
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(rpc.mock.calls[0]?.[0]).toBe("tags_of");
+    expect(view.bindings.tags).toEqual({
+      kind: "ok",
+      data: ["direct:tags_of"],
     });
   });
 });

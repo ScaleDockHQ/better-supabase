@@ -1416,6 +1416,8 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "RATE_LIMIT_UNKNOWN": "Rate limit unknown.",
   "REACTION_FORBIDDEN": "Only the service role reacts for another actor.",
   "REACTION_INVALID": "Unknown custom emoji.",
+  "READ_BATCH_INVALID": "Pass read_batch an array of { fn, args }.",
+  "READ_BATCH_TOO_LARGE": "A batch runs at most 50 calls.",
   "RECORD_SECTIONS_TOO_MANY": "Record_summary takes at most 20 sections.",
   "REFERRAL_CODE_INVALID": "The referral code is unknown, expired or used up.",
   "REFERRAL_FORBIDDEN": "Sign in to create a referral code.",

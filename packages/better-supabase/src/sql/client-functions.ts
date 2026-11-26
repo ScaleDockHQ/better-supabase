@@ -243,6 +243,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   rank: "move rebalance_ranks",
   "rate-limit":
     "check_rate_limit check_rate_limits purge_rate_limits set_organization_rate_limit",
+  "read-sets": "read_batch",
   reactions:
     "delete_custom_emoji list_custom_emoji react reaction_summary upsert_custom_emoji vote vote_summary",
   relations:
