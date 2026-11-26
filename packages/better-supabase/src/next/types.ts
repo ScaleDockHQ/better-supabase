@@ -692,7 +692,6 @@ export interface BetterNext<
   bootstrap<T = unknown, S extends ReadSet = ReadSet>(
     options: BootstrapOptions<Extract<keyof M, string>, S> & {
       readonly require: "user";
-      readonly redirect: string;
     },
   ): Promise<UserBootstrap<C, P, T, ReadSetResult<S>>>;
   bootstrap<T = unknown, S extends ReadSet = ReadSet>(
@@ -1462,12 +1461,6 @@ export type BootstrapOptions<
       readonly signedOut?: string;
     };
     /**
-     * `"user"` sends a caller without a user session (signed out, an API key or
-     * a service caller) to `redirect` too, with `?reason=signed_out`, so the
-     * result is always an active user session. Needs `redirect`.
-     */
-    readonly require?: "user";
-    /**
      * Keeps the wrapper's answer (data, reads, subject and permissions) in the
      * kept store, per user, session and tenant, expired by writes to the tables
      * the wrapper reads, so a cold page or a new instance skips the call. A
@@ -1476,7 +1469,19 @@ export type BootstrapOptions<
      * a shared kept store to help across instances.
      */
     readonly kept?: true | { readonly life?: { readonly revalidate?: number } };
-  };
+  } & (
+    | { readonly require?: undefined }
+    | {
+        /**
+         * `"user"` sends a caller without a user session (signed out, an API
+         * key or a service caller) to `redirect` too, with
+         * `?reason=signed_out`, so the result is always an active user session.
+         * Needs `redirect`.
+         */
+        readonly require: "user";
+        readonly redirect: string;
+      }
+  );
 
 export type { Access, Bootstrap } from "../server/bootstrap.ts";
 

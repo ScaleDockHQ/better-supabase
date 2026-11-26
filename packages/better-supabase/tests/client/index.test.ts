@@ -140,11 +140,30 @@ describe("bindClient verifySession", () => {
     fake.emit(signedIn);
     fake.emit(signedIn);
     await flushTimers();
-    expect(fake.schemaOf).toHaveBeenCalledWith("api");
+    expect(fake.schemaOf).toHaveBeenCalledWith("better_supabase");
     expect(fake.rpc).toHaveBeenCalledExactlyOnceWith("bootstrap_app", {
       args: {},
     });
     expect(fake.signOut).toHaveBeenCalledWith({ scope: "local" });
+  });
+
+  it("keeps a session that changed while the check was out", async () => {
+    const fake = verifyingClient({
+      data: { session_active: false },
+      error: null,
+    });
+
+    bindClient(betterSupabase, fake.supabase, {
+      verifySession: { rpc: "app" },
+    });
+
+    fake.emit(signedIn);
+    fake.emit(
+      session(token({ sub: "u2", role: "authenticated" }), { id: "u2" }),
+    );
+    await flushTimers();
+    expect(fake.rpc).toHaveBeenCalledTimes(2);
+    expect(fake.signOut).toHaveBeenCalledOnce();
   });
 
   it("keeps an active session, a failed call and an unverified client", async () => {

@@ -148,6 +148,12 @@ export function endBootstrap<R extends { readonly endReason: string | null }>(
   },
   signedOut = false,
 ): R {
+  if (signedOut && options.redirect === undefined) {
+    throw new TypeError(
+      'better-supabase: bsb.bootstrap({ require: "user" }) needs redirect',
+    );
+  }
+
   cacheLife({ stale: 0, revalidate: 0, expire: 0 });
 
   if (options.redirect !== undefined) {

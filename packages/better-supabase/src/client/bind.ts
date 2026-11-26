@@ -140,7 +140,8 @@ export interface BindClientOptions {
    * signs in or loads from storage is still active, and signs out locally when
    * it says no, so a session ended on the server stops the app before its
    * access token expires. A failed call keeps the session. `schema` defaults to
-   * the one `gen` recorded for the wrapper, else `api`.
+   * the one `gen` recorded for the wrapper, else `better_supabase`, as on the
+   * server.
    */
   readonly verifySession?: { readonly rpc: string; readonly schema?: string };
 }
@@ -233,7 +234,7 @@ export function bindClient<
     snapshot = snapshotOf(null);
   }
 
-  const verify = async (): Promise<void> => {
+  const verify = async (key: string | null): Promise<void> => {
     const check = options.verifySession;
 
     if (check === undefined) {
@@ -242,7 +243,11 @@ export function bindClient<
 
     const response: { readonly data: unknown; readonly error: unknown } =
       await supabase
-        .schema(check.schema ?? betterSupabase.meta.bootstrap?.schema ?? "api")
+        .schema(
+          check.schema ??
+            betterSupabase.meta.bootstrap?.schema ??
+            "better_supabase",
+        )
         .rpc(`bootstrap_${check.rpc}`, { args: {} });
 
     const { data } = response;
@@ -252,7 +257,9 @@ export function bindClient<
       typeof data === "object" &&
       data !== null &&
       "session_active" in data &&
-      data.session_active === false
+      data.session_active === false &&
+      snapshot.status === "signed-in" &&
+      identityKey(snapshot) === key
     ) {
       await supabase.auth.signOut({ scope: "local" });
     }
@@ -267,8 +274,10 @@ export function bindClient<
       (snapshot.status !== "signed-in" ||
         identityKey(next) !== identityKey(snapshot))
     ) {
+      const key = identityKey(next);
+
       setTimeout(() => {
-        verify().catch(() => undefined);
+        verify(key).catch(() => undefined);
       }, 0);
     }
 

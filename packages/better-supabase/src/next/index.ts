@@ -77,6 +77,7 @@ export type {
   BetterNext,
   Bootstrap,
   BootstrapOptions,
+  UserBootstrap,
   CacheScope,
   CacheShare,
   CachedContext,

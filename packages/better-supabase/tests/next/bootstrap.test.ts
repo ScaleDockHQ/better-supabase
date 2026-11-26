@@ -446,6 +446,13 @@ describe("bsb.bootstrap()", () => {
     expect(calls).toEqual([]);
   });
 
+  it("refuses require: user without redirect", async () => {
+    await expect(
+      // @ts-expect-error -- require: "user" needs redirect
+      bsb.bootstrap({ rpc: "home", require: "user" }),
+    ).rejects.toThrow('bsb.bootstrap({ require: "user" }) needs redirect');
+  });
+
   it("returns the user session under require: user", async () => {
     await signIn();
 
