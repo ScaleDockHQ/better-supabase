@@ -26,12 +26,12 @@ select set_config(
 );
 
 select is(
-  api.save_work_item_checklist_item(current_setting('test.item')::uuid, null, '{"title":"Draft"}') ->> 'title',
+  api.upsert_work_item_checklist_item(current_setting('test.item')::uuid, null, '{"title":"Draft"}') ->> 'title',
   'Draft',
   'the owner adds a checklist item'
 );
 select is(
-  api.save_work_item_checklist_item(current_setting('test.item')::uuid, null, '{"title":"Send","done":true}') ->> 'done',
+  api.upsert_work_item_checklist_item(current_setting('test.item')::uuid, null, '{"title":"Send","done":true}') ->> 'done',
   'true',
   'and a checked one, after the first'
 );
@@ -100,7 +100,7 @@ select is(
   'an outsider reads none of the checklist'
 );
 select throws_ok(
-  format($$select api.save_work_item_checklist_item(%L, null, '{"title":"Sneak"}')$$, current_setting('test.item')),
+  format($$select api.upsert_work_item_checklist_item(%L, null, '{"title":"Sneak"}')$$, current_setting('test.item')),
   'P0002',
   'no such work item you can edit',
   'nor adds to it'

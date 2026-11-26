@@ -477,7 +477,7 @@ export function renameMigrationSql(
  * next schema diff, never renamed, because its body qualifies its arguments
  * with the function name.
  */
-export function renameSqlFunctions(
+function renameSqlFunctions(
   text: string,
   renames: readonly NamingRename[],
 ): string {
