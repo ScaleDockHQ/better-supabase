@@ -132,21 +132,28 @@ export function applyCacheEntry<C, P>(input: CacheEntryScope<C, P>): void {
 }
 
 /**
- * What `bsb.bootstrap()` does with an ended session: the entry isn't kept, and
+ * What `bsb.bootstrap()` does with an ended session, or with a caller without a
+ * user session under `require: "user"` (`signedOut`): the entry isn't kept, and
  * the caller goes to `redirect` with the reason, when the call names one.
  */
 export function endBootstrap<R extends { readonly endReason: string | null }>(
   result: R,
   options: {
     readonly redirect?: string | undefined;
-    readonly reasons?: { readonly ended?: string; readonly banned?: string };
+    readonly reasons?: {
+      readonly ended?: string;
+      readonly banned?: string;
+      readonly signedOut?: string;
+    };
   },
+  signedOut = false,
 ): R {
   cacheLife({ stale: 0, revalidate: 0, expire: 0 });
 
   if (options.redirect !== undefined) {
-    const reason =
-      result.endReason === "user_banned"
+    const reason = signedOut
+      ? (options.reasons?.signedOut ?? "signed_out")
+      : result.endReason === "user_banned"
         ? (options.reasons?.banned ?? "user_banned")
         : (options.reasons?.ended ?? "session_not_found");
 

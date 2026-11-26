@@ -655,6 +655,57 @@ export function createNext<
 
   const scoped = scopeMembers(() => next, current, options, base.authorizer);
 
+  const bootstrapImpl = async <T, S extends ReadSet = ReadSet>(
+    bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,
+  ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>> => {
+    await awaitStage(bootstrapOptions.stage, stageWarn);
+
+    const { ctx, view, scope, tenant } = await scopeOf(bootstrapOptions);
+    const calls = bootstrapCalls();
+
+    const readMemo = kept.keepMemo(
+      { ctx, view, scope, tenant },
+      bootstrapOptions,
+      mapBootstrapMemo(calls),
+    );
+
+    const result = await bootstrapWith<C, P, T, S>(
+      {
+        schema: (call) => bootstrapSchema(call, options, betterSupabase),
+        evictSession,
+        versions: base.versions,
+        onEnded: (token, reason) => {
+          markSessionEnded(
+            token,
+            reason === "user_banned" ? "banned" : "ended",
+          );
+        },
+      },
+      ctx,
+      bootstrapOptions,
+      tenant,
+      readMemo,
+    );
+
+    if (result.session.kind === "user" && !result.sessionActive) {
+      return endBootstrap(result, bootstrapOptions);
+    }
+
+    if (bootstrapOptions.require === "user" && result.session.kind !== "user") {
+      return endBootstrap(result, bootstrapOptions, true);
+    }
+
+    const recorded =
+      betterSupabase.meta.bootstrap?.tables?.[bootstrapOptions.rpc] ?? [];
+
+    applyEntry(ctx, view, scope, result.tenant ?? undefined, {
+      ...bootstrapOptions,
+      tables: [...new Set([...(bootstrapOptions.tables ?? []), ...recorded])],
+    });
+
+    return result;
+  };
+
   const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B, V> = extendServer<
     BetterNext<M, F, E, C, P, PermissionRef<A>, B, V>
   >(withAccounts, {
@@ -776,52 +827,18 @@ export function createNext<
 
     phase: recording.inPhase,
 
-    async bootstrap<T, S extends ReadSet = ReadSet>(
-      bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,
-    ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>> {
-      await awaitStage(bootstrapOptions.stage, stageWarn);
-
-      const { ctx, view, scope, tenant } = await scopeOf(bootstrapOptions);
-      const calls = bootstrapCalls();
-
-      const readMemo = kept.keepMemo(
-        { ctx, view, scope, tenant },
-        bootstrapOptions,
-        mapBootstrapMemo(calls),
-      );
-
-      const result = await bootstrapWith<C, P, T, S>(
-        {
-          schema: (call) => bootstrapSchema(call, options, betterSupabase),
-          evictSession,
-          versions: base.versions,
-          onEnded: (token, reason) => {
-            markSessionEnded(
-              token,
-              reason === "user_banned" ? "banned" : "ended",
-            );
-          },
-        },
-        ctx,
-        bootstrapOptions,
-        tenant,
-        readMemo,
-      );
-
-      if (result.session.kind === "user" && !result.sessionActive) {
-        return endBootstrap(result, bootstrapOptions);
-      }
-
-      const recorded =
-        betterSupabase.meta.bootstrap?.tables?.[bootstrapOptions.rpc] ?? [];
-
-      applyEntry(ctx, view, scope, result.tenant ?? undefined, {
-        ...bootstrapOptions,
-        tables: [...new Set([...(bootstrapOptions.tables ?? []), ...recorded])],
-      });
-
-      return result;
-    },
+    // SAFETY: under `require: "user"` with `redirect`, a caller without an
+    // active user session redirects before `bootstrapImpl` returns.
+    bootstrap: bootstrapImpl as BetterNext<
+      M,
+      F,
+      E,
+      C,
+      P,
+      PermissionRef<A>,
+      B,
+      V
+    >["bootstrap"],
 
     async getAccess(source, accessOptions = {}) {
       const boot = source && "session" in source ? source : undefined;

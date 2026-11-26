@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+  vi,
+} from "vitest";
 
 import type { RemoteCacheKey } from "../../src/next/index.ts";
 
@@ -421,6 +429,36 @@ describe("bsb.bootstrap()", () => {
       reads: null,
     });
     expect(calls).toEqual([]);
+  });
+
+  it("redirects a signed-out caller under require: user", async () => {
+    await expect(
+      bsb.bootstrap({ rpc: "home", redirect: "/sign-in", require: "user" }),
+    ).rejects.toThrow("NEXT_REDIRECT /sign-in?reason=signed_out");
+    await expect(
+      bsb.bootstrap({
+        rpc: "home",
+        redirect: "/sign-in",
+        require: "user",
+        reasons: { signedOut: "expired" },
+      }),
+    ).rejects.toThrow("NEXT_REDIRECT /sign-in?reason=expired");
+    expect(calls).toEqual([]);
+  });
+
+  it("returns the user session under require: user", async () => {
+    await signIn();
+
+    const boot = await bsb.bootstrap({
+      rpc: "home",
+      redirect: "/sign-in",
+      require: "user",
+    });
+
+    expectTypeOf(boot.session.user.id).toEqualTypeOf<string>();
+    expectTypeOf(boot.sessionActive).toEqualTypeOf<true>();
+    expect(boot.session.user.id).toBe(USER);
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it("calls the schema gen recorded for the sessions block, unless told otherwise", async () => {
