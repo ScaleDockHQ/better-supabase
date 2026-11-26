@@ -1,6 +1,6 @@
 -- better-supabase module: read-sets
 -- @bsb-block read-sets@1 managed
--- @bsb-hash sha256:7f83fa28673e8a717e2da7cbcd6cabc75c2ca83c800cbaf1779c56932af09ceb
+-- @bsb-hash sha256:2f953d2c8c69b36298460d78760a311f39364e9b2d04750608a202a7652eb750
 -- One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET, and `read_batch`, which runs several stable reads in one call.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
