@@ -302,6 +302,7 @@ const entries = [
   "generators/standard-schema/index",
   "generators/factories/index",
   "generators/nuqs/index",
+  "generators/tags/index",
   "events/index",
   "spec/index",
   "otel/index",

@@ -8,6 +8,7 @@ import * as kit from "../../src/generators/index.ts";
 import { jsonSchema } from "../../src/generators/json-schema/index.ts";
 import { nuqs } from "../../src/generators/nuqs/index.ts";
 import { standardSchema } from "../../src/generators/standard-schema/index.ts";
+import { tags } from "../../src/generators/tags/index.ts";
 import { valibot } from "../../src/generators/valibot/index.ts";
 import { zod } from "../../src/generators/zod/index.ts";
 import { testGeneratorPlugin } from "../../src/testing/generator.ts";
@@ -77,6 +78,7 @@ describe("better-supabase/generators", () => {
     ["standard-schema", standardSchema()],
     ["factories", factories()],
     ["nuqs", nuqs()],
+    ["tags", tags()],
   ])(
     "the %s generator passes testGeneratorPlugin",
     async (_name, generator) => {
@@ -98,6 +100,7 @@ describe("better-supabase/generators", () => {
       "json-schema",
       "nuqs",
       "standard-schema",
+      "tags",
       "valibot",
       "zod",
     ];

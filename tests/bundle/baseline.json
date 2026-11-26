@@ -233,6 +233,7 @@
   "./generators/json-schema": 18106,
   "./generators/nuqs": 6685,
   "./generators/standard-schema": 12563,
+  "./generators/tags": 5739,
   "./generators/valibot": 13515,
   "./generators/zod": 13708,
   "./h3": 29386,

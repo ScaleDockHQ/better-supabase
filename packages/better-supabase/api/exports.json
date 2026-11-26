@@ -3920,6 +3920,14 @@
       "NuqsGeneratorOptions"
     ]
   },
+  "./generators/tags": {
+    "values": [
+      "tags"
+    ],
+    "types": [
+      "TagsGeneratorOptions"
+    ]
+  },
   "./generators": {
     "values": [
       "defineGenerator",
