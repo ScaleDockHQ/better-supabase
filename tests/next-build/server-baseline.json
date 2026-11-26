@@ -57,28 +57,28 @@
     "raw": 3868668
   },
   "/[locale]/(app)/assistant/activity/page": {
-    "raw": 5448445
+    "raw": 5449058
   },
   "/[locale]/(app)/assistant/agents/[id]/page": {
-    "raw": 5475852
+    "raw": 5476465
   },
   "/[locale]/(app)/assistant/agents/approvals/page": {
-    "raw": 5459899
+    "raw": 5460512
   },
   "/[locale]/(app)/assistant/agents/memory/page": {
-    "raw": 5450474
+    "raw": 5451087
   },
   "/[locale]/(app)/assistant/agents/page": {
-    "raw": 5461175
+    "raw": 5461788
   },
   "/[locale]/(app)/assistant/agents/runs/[id]/page": {
-    "raw": 5462723
+    "raw": 5463336
   },
   "/[locale]/(app)/assistant/agents/runs/page": {
     "raw": 3887036
   },
   "/[locale]/(app)/assistant/agents/tools/page": {
-    "raw": 5452404
+    "raw": 5453017
   },
   "/[locale]/(app)/assistant/evals/[name]/page": {
     "raw": 3877736
@@ -159,7 +159,7 @@
     "raw": 3932984
   },
   "/[locale]/(app)/change-requests/page": {
-    "raw": 5408896
+    "raw": 5409505
   },
   "/[locale]/(app)/chat/page": {
     "raw": 3866358
@@ -816,22 +816,22 @@
     "raw": 3882779
   },
   "/[locale]/(app)/workflows/[definition]/page": {
-    "raw": 5409191
+    "raw": 5409803
   },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
-    "raw": 5406928
+    "raw": 5407541
   },
   "/[locale]/(app)/workflows/page": {
-    "raw": 5411275
+    "raw": 5411888
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
-    "raw": 5412396
+    "raw": 5413009
   },
   "/[locale]/(app)/workflows/runs/page": {
-    "raw": 5409959
+    "raw": 5410572
   },
   "/[locale]/(app)/workflows/templates/page": {
-    "raw": 5404743
+    "raw": 5405356
   },
   "/[locale]/(auth)/book/[token]/page": {
     "raw": 3096454
