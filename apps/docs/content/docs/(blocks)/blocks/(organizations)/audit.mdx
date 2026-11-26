@@ -154,6 +154,23 @@ Every table a block owns writes a row entry when something changes it outside a 
 
 A row trigger runs once for every row a statement changes, so a bulk import or a nightly job that updates 50,000 rows writes 50,000 inserts into the log. Pass `statement => true` to audit the table with statement-level triggers instead. They read the statement's transition tables and write all entries in one insert.
 
+A schema diff keeps a `create trigger` and skips a top-level `select better_supabase.audit(...)`. Write the three triggers in the schema file, or let the codemod do it. The settings are the same JSON the row trigger stores, and `key_columns` is the primary key:
+
+```sql
+create trigger bsb_audit_stmt_insert
+  after insert on public.customers
+  referencing new table as new_rows
+  for each statement
+  when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary')
+  execute function better_supabase.audit_statement_change('{"ignore":["updated_at"],"redact":["api_key"],"key_columns":["id"]}');
+```
+
+`bsb_audit_stmt_update` references `old table as old_rows new table as new_rows`, and `bsb_audit_stmt_delete` references `old table as old_rows`. The codemod rewrites a table's `bsb_audit` trigger, or its `audit()` call, into these three and refuses the same cases `audit()` refuses:
+
+```bash
+pnpm better-supabase codemod audit-statement public.customers --dry-run
+```
+
 ```sql
 select better_supabase.audit(
   'public.customers',

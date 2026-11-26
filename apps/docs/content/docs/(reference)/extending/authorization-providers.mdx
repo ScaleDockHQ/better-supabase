@@ -1043,7 +1043,10 @@ reads alike. `share: "tenant"` lets `bsb.kept` and `bsb.remote` with
 `share: "tenant"` keep one entry for those callers; `share: "row"` (or no
 entry) keeps one per user. The hooks' `shareKey` names the caller's grant, and
 `permissionsShareKey()` reads it from the permissions claim. Doctor BS428
-fails a `tenant` table whose select policies filter by the caller.
+fails a `tenant` table whose select policies filter by the caller. An app
+declares a table the provider does not know about in `shares.tables`, with
+the same shape. An entry that repeats the provider's is BS427; one that
+disagrees is BS652.
 
 `sharedFunctions` does the same for a database function: a page that loads in
 one RPC can keep one entry per grant when the function reads only tables the

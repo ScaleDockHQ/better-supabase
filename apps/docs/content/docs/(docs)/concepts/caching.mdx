@@ -283,10 +283,11 @@ one entry instead of one each. The entry is still filled through the first
 caller's own client, under RLS; nothing reads with the service role. Three
 things must agree before an entry is shared:
 
-- the authorization provider lists every table in `tables` under its
-  `tables` field with `share: "tenant"`, and the permissions its select
-  policies check (doctor BS428 reports a table whose policies filter by the
-  caller);
+- every table in `tables` is listed with `share: "tenant"`, either by the
+  authorization provider's `tables` or by the app's `shares.tables`, and the
+  permissions its select policies check (doctor BS428 reports a table whose
+  policies filter by the caller, and names `shares.tables.<name>` for an app
+  entry);
 - the authorization hooks set `shareKey`, which names the caller's grant on
   those permissions. `permissionsShareKey()` from
   `better-supabase/blocks/permissions` reads it from the token's permissions
@@ -305,7 +306,8 @@ export const customerList = bsb.kept(
 ```
 
 A page that loads in one RPC lists the function in `functions` instead. The
-provider declares it in `sharedFunctions` with the tables it reads, which
+provider's `sharedFunctions`, or the app's `shares.functions`, declares it
+with the tables it reads, which
 join the entry's tables and tags, and inside the fill `$rpc` passes only the
 listed functions. Doctor [BS430](/docs/cli/doctor#bs430) checks that the
 function is security invoker, `language sql` and not volatile, reads only
@@ -324,6 +326,28 @@ export const customerPage = bsb.kept(
   { name: "customer-page", functions: ["customer_payload"], share: "tenant" },
 );
 ```
+
+An app table the provider does not know about is declared next to it:
+
+```ts
+defineConfig({
+  shares: {
+    tables: {
+      "public.notes": { share: "tenant", permissions: ["notes.read"] },
+    },
+    functions: {
+      "api.note_payload": {
+        tables: ["public.notes"],
+        permissions: ["notes.read"],
+      },
+    },
+  },
+});
+```
+
+An entry that repeats the provider's is a restated default. One that names
+the same table or function with different settings is an error (BS652). Gen
+keeps the provider's entry.
 
 When any of the three doesn't hold, the entry falls back to one per user,
 `kept.onSkip` gets the reason `"share"`, and the logger warns once.
